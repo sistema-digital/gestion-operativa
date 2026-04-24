@@ -162,6 +162,8 @@ const clearFilters = () => {
     idEquipo: ''
   };
   searchQueries.value = { etapa: '', area: '', item: '', idEquipo: '' };
+  maintenanceStore.clearInteractiveFilters();
+  selectedEquipmentId.value = null;
 };
 
 const toggleDropdown = (id: string) => {
@@ -227,37 +229,36 @@ onBeforeUnmount(() => {
 });
 
 const statusStats = computed(() => {
-  const total = crossFilteredData.value.length;
+  const total = baseChartData.value.length;
   if (total === 0) return [];
 
   const counts: Record<string, number> = {};
-  crossFilteredData.value.forEach(row => {
+  baseChartData.value.forEach(row => {
     const s = row.Estatus || 'Sin Estatus';
     counts[s] = (counts[s] || 0) + 1;
   });
 
   const colorMap: Record<string, { bar: string, dot: string }> = {
-    'Programado': { bar: 'bg-[#9ca09c]', dot: 'bg-[#9ca09c]' },
+    'Programado': { bar: 'bg-[#1A6A96]', dot: 'bg-[#1A6A96]' },
     'Concluida': { bar: 'bg-[#2d8a54]', dot: 'bg-[#2d8a54]' },
     'En Proceso': { bar: 'bg-[#d4a94d]', dot: 'bg-[#d4a94d]' },
   };
 
   const defaultColors = { bar: 'bg-gray-300', dot: 'bg-gray-400' };
 
-  return Object.entries(counts)
-    .map(([label, count]) => {
-      const mappingKey = Object.keys(colorMap).find(k => k.toLowerCase() === label.toLowerCase());
-      const colors = mappingKey ? colorMap[mappingKey] : defaultColors;
+  return ['Programado', 'Concluida', 'En Proceso'].map(label => {
+    const count = counts[label] || 0;
+    const mappingKey = Object.keys(colorMap).find(k => k.toLowerCase() === label.toLowerCase());
+    const colors = mappingKey ? colorMap[mappingKey] : defaultColors;
 
-      return {
-        label,
-        count,
-        percentage: (count / total) * 100,
-        color: colors.bar,
-        dotColor: colors.dot
-      };
-    })
-    .sort((a, b) => b.count - a.count);
+    return {
+      label,
+      count,
+      percentage: total > 0 ? (count / total) * 100 : 0,
+      color: colors.bar,
+      dotColor: colors.dot
+    };
+  });
 });
 
 const getStatusClass = (status: string) => {
@@ -325,11 +326,24 @@ const echartBarOption = computed(() => {
         data,
         barWidth: 44,
         barMaxWidth: 44,
-        itemStyle: { borderRadius: [6, 6, 0, 0] },
+        itemStyle: { 
+          borderRadius: [6, 6, 0, 0],
+          color: (p: any) => {
+            const label = p.name;
+            const baseColor = colorMap[label] || '#cbd5e1';
+            const hasStatusFilter = !!activeFilters.value.estado;
+            const matchesStatus = !hasStatusFilter || activeFilters.value.estado === label;
+            return matchesStatus ? baseColor : applyAlpha(baseColor, 0.25);
+          }
+        },
         label: {
           show: true,
           position: 'top',
-          color: '#64748b',
+          color: (p: any) => {
+            const hasStatusFilter = !!activeFilters.value.estado;
+            const matchesStatus = !hasStatusFilter || activeFilters.value.estado === p.name;
+            return matchesStatus ? '#64748b' : 'transparent';
+          },
           fontWeight: 'bold',
           fontSize: 11,
           formatter: (p: any) => `${p.value}%`
@@ -339,6 +353,15 @@ const echartBarOption = computed(() => {
   };
 });
 
+const applyAlpha = (hex: string, alpha: number) => {
+  if (!hex || !hex.startsWith('#')) return hex;
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof OrdenMantenimiento) => {
   const colorMap: Record<string, string> = {
     'Programado': '#1A6A96',
@@ -347,10 +370,7 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
   };
   const fallbackColors = ['#94a3b8', '#64748b', '#475569', '#cbd5e1'];
 
-  const uniqueStatuses = Array.from(new Set(data.map(d => {
-    const s = String(d.Estatus || '').trim();
-    return s || 'Sin Estatus';
-  })));
+  const uniqueStatuses = ['Programado', 'Concluida', 'En Proceso'];
 
   const groups: Record<string, { total: number; counts: Record<string, number> }> = {};
 
@@ -365,7 +385,9 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
 
     const status = String(order.Estatus || '').trim() || 'Sin Estatus';
     groups[key].total += 1;
-    groups[key].counts[status] += 1;
+    if (groups[key].counts[status] !== undefined) {
+      groups[key].counts[status] += 1;
+    }
   });
 
   const sortedKeys = Object.keys(groups)
@@ -374,17 +396,36 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
 
   const categoryTotals = sortedKeys.map(k => groups[k].total);
 
-  
   const needsScroll = sortedKeys.length > MAX_VISIBLE_BARS.value;
   const visibleCount = Math.min(sortedKeys.length, MAX_VISIBLE_BARS.value);
   const barWidth = Math.min(32, Math.max(16, Math.floor(240 / Math.max(1, visibleCount))));
 
   const series = uniqueStatuses.map((status, idx) => {
     const mappingKey = Object.keys(colorMap).find(k => k.toLowerCase() === status.toLowerCase());
-    let color = mappingKey ? colorMap[mappingKey] : fallbackColors[idx % fallbackColors.length];
+    const baseColor = mappingKey ? colorMap[mappingKey] : fallbackColors[idx % fallbackColors.length];
 
-    if (activeFilters.value.estado && activeFilters.value.estado !== status) {
-      color = color.length === 7 ? color + '40' : color;
+    // Pre-calculate which categories match the global filters
+    const matchingCategories = new Set<string>();
+    const hasSerieFilter = !!activeFilters.value.serie;
+    const hasStatusFilter = !!activeFilters.value.estado;
+
+    if (hasSerieFilter || hasStatusFilter) {
+      data.forEach(d => {
+        const dSerie = activeFilters.value.serie;
+        const dEstado = activeFilters.value.estado;
+        
+        const matchesSerie = !hasSerieFilter || 
+          d.Área === dSerie || 
+          d.Sistema === dSerie || 
+          d.ITEM === dSerie || 
+          d["ID_#EQUIPO"] === dSerie;
+        
+        const matchesStatus = !hasStatusFilter || d.Estatus === dEstado;
+
+        if (matchesSerie && matchesStatus) {
+          matchingCategories.add(String(d[groupKey] || 'N/A').trim());
+        }
+      });
     }
 
     return {
@@ -395,7 +436,22 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
       barMaxWidth: 32,
       barGap: '0%',
       barCategoryGap: '30%',
-      itemStyle: { color },
+      itemStyle: { 
+        color: (p: any) => {
+          const category = p.name;
+          const hasGlobalFilter = hasSerieFilter || hasStatusFilter;
+          
+          let isHighlighted = true;
+          if (hasGlobalFilter) {
+            const matchesSelectedStatus = !hasStatusFilter || status === activeFilters.value.estado;
+            const matchesCat = matchingCategories.has(String(category).trim());
+            isHighlighted = matchesSelectedStatus && matchesCat;
+          }
+          
+          return isHighlighted ? baseColor : applyAlpha(baseColor, 0.25);
+        },
+        borderRadius: [2, 2, 2, 2]
+      },
       data: sortedKeys.map((cat, i) => {
         const count = groups[cat].counts[status] || 0;
         const total = categoryTotals[i] || 0;
@@ -405,8 +461,18 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
       label: {
         show: true,
         formatter: (p: any) => {
+          const category = p.name;
+          const hasGlobalFilter = hasSerieFilter || hasStatusFilter;
+          let isHighlighted = true;
+          if (hasGlobalFilter) {
+            const matchesSelectedStatus = !hasStatusFilter || status === activeFilters.value.estado;
+            const matchesCat = matchingCategories.has(String(category).trim());
+            isHighlighted = matchesSelectedStatus && matchesCat;
+          }
+          
+          if (!isHighlighted) return '';
           if (p.data?.count === 0) return '';
-          if (p.value < 7) return '';
+          if (p.value < 8) return '';
           return `${p.value}%`;
         },
         position: 'inside',
@@ -488,10 +554,48 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
   };
 };
 
-const statusByAreaEChartOption = computed(() => buildEChartStackedOption(crossFilteredData.value, 'Área'));
-const statusBySystemEChartOption = computed(() => buildEChartStackedOption(crossFilteredData.value, 'Sistema'));
-const statusByEquipmentEChartOption = computed(() => buildEChartStackedOption(crossFilteredData.value, 'ITEM'));
-const statusByIDEquipoEChartOption = computed(() => buildEChartStackedOption(crossFilteredData.value, 'ID_#EQUIPO'));
+const activeFilterGroupKey = ref<string | null>(null);
+
+watch(() => activeFilters.value.serie, (newVal) => {
+  if (!newVal) {
+    activeFilterGroupKey.value = null;
+  }
+});
+
+const baseChartData = computed(() => {
+  let res = filteredData.value;
+  if (activeFilters.value.semana) {
+    res = res.filter(d => String(d.Semana) === String(activeFilters.value.semana));
+  }
+  return res;
+});
+
+const chartDataFor = (groupKey: string) => {
+  let res = baseChartData.value;
+  
+  if (activeFilters.value.serie && activeFilterGroupKey.value !== groupKey) {
+    res = res.filter(d =>
+      d.Área === activeFilters.value.serie ||
+      d.Sistema === activeFilters.value.serie ||
+      d.ITEM === activeFilters.value.serie ||
+      d["ID_#EQUIPO"] === activeFilters.value.serie
+    );
+  }
+  
+  if (activeFilters.value.estado && activeFilterGroupKey.value !== groupKey) {
+    const validCategories = new Set(
+      res.filter(d => d.Estatus === activeFilters.value.estado).map(d => String(d[groupKey as keyof OrdenMantenimiento] || 'N/A').trim())
+    );
+    res = res.filter(d => validCategories.has(String(d[groupKey as keyof OrdenMantenimiento] || 'N/A').trim()));
+  }
+
+  return res;
+};
+
+const statusByAreaEChartOption = computed(() => buildEChartStackedOption(chartDataFor('Área'), 'Área'));
+const statusBySystemEChartOption = computed(() => buildEChartStackedOption(chartDataFor('Sistema'), 'Sistema'));
+const statusByEquipmentEChartOption = computed(() => buildEChartStackedOption(chartDataFor('ITEM'), 'ITEM'));
+const statusByIDEquipoEChartOption = computed(() => buildEChartStackedOption(chartDataFor('ID_#EQUIPO'), 'ID_#EQUIPO'));
 
 const handleEChartClick = (dimensionKey: string, params: any) => {
   let category = null;
@@ -522,6 +626,12 @@ const handleEChartClick = (dimensionKey: string, params: any) => {
     } else {
       setStatusFilter(String(category), status);
     }
+    
+    if (activeFilters.value.serie) {
+      activeFilterGroupKey.value = dimensionKey;
+    } else {
+      activeFilterGroupKey.value = null;
+    }
   }
 };
 
@@ -539,6 +649,19 @@ const weeklyProgress = computed(() => {
   let areaFilteredList = globalList;
   if (areaFixed === 'ALL' && filters.value.area) {
      areaFilteredList = areaFilteredList.filter(d => d.Área === filters.value.area);
+  }
+
+  if (activeFilters.value.serie) {
+    areaFilteredList = areaFilteredList.filter(d =>
+      d.Área === activeFilters.value.serie ||
+      d.Sistema === activeFilters.value.serie ||
+      d.ITEM === activeFilters.value.serie ||
+      d["ID_#EQUIPO"] === activeFilters.value.serie
+    );
+  }
+
+  if (activeFilters.value.estado) {
+    areaFilteredList = areaFilteredList.filter(d => d.Estatus === activeFilters.value.estado);
   }
 
   const now = new Date();
@@ -637,11 +760,22 @@ const weeklyEChartOption = computed(() => {
         type: 'bar',
         data: avanceValues,
         barWidth: 40,
-        itemStyle: { borderRadius: [4, 4, 0, 0], color: '#004236' },
+        itemStyle: { 
+          borderRadius: [4, 4, 0, 0], 
+          color: (p: any) => {
+            const hasSemanaFilter = !!activeFilters.value.semana;
+            const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
+            return matchesSemana ? '#004236' : applyAlpha('#004236', 0.25);
+          }
+        },
         label: {
           show: true,
           position: 'top',
-          color: '#004236',
+          color: (p: any) => {
+            const hasSemanaFilter = !!activeFilters.value.semana;
+            const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
+            return matchesSemana ? '#004236' : 'transparent';
+          },
           fontWeight: 'bold',
           formatter: (p: any) => `${p.value}%`
         }
@@ -912,7 +1046,12 @@ const handleWeeklyChartClick = (params: any) => {
               </div>
 
               <div class="divide-y divide-gray-50">
-                <div v-for="item in statusStats" :key="item.label" class="px-4 py-3 hover:bg-gray-50/50 transition-colors">
+                <div 
+                  v-for="item in statusStats" 
+                  :key="item.label" 
+                  class="px-4 py-3 hover:bg-gray-50/50 transition-all duration-300"
+                  :class="{ 'opacity-30 grayscale-[30%]': activeFilters.estado && activeFilters.estado !== item.label }"
+                >
 
                   <div class="flex flex-col gap-3 sm:hidden">
                     <div class="flex items-center gap-3 min-w-0">
