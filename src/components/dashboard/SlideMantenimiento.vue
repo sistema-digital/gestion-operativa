@@ -45,6 +45,7 @@ const { setStatusFilter, setWeekFilter } = maintenanceStore;
 
 const isRefreshing = ref(false);
 const userArea = ref('');
+const targetLabel = "META 2.94% MIN";
 
 const windowWidth = ref(window.innerWidth);
 const MAX_VISIBLE_BARS = computed(() => {
@@ -707,7 +708,8 @@ const weeklyEChartOption = computed(() => {
   const data = weeklyProgress.value;
   const labels = data.map(d => d.semana);
   const avanceValues = data.map(d => d.avance);
-  const targetValue = 2.63;
+  const targetValue = 2.94;
+  const targetPerc = 0.0294;
   const targetValues = labels.map(() => targetValue);
 
   const maxAvance = data.length > 0 ? Math.max(...data.map(d => d.avance)) : 0;
@@ -725,13 +727,13 @@ const weeklyEChartOption = computed(() => {
       formatter: (params: any[]) => {
         const barP = params.find(p => p.seriesType === 'bar');
         const weekData = data.find(d => String(d.semana) === barP?.axisValue);
-        const targetQty = weekData ? Math.round(weekData.globalTotal * 0.0263) : 0;
-
+        const targetQty = weekData ? Math.round(weekData.globalTotal * targetPerc) : 0;
+        
         return `
           <div style="color:#1e293b;font-weight:bold;margin-bottom:4px">Semana ${barP?.axisValue || ''}</div>
           <div>Avance: ${barP?.value || 0}% (${weekData?.concluidas || 0})</div>
           <div>Concluidas: ${weekData?.concluidas || 0} / ${weekData?.total || 0}</div>
-          <div>Objetivo: 2.63% (${targetQty})</div>
+          <div>Objetivo: ${targetValue}% (${targetQty})</div>
         `;
       }
     },
@@ -758,6 +760,7 @@ const weeklyEChartOption = computed(() => {
       {
         name: 'Avance %',
         type: 'bar',
+        color: '#004236',
         data: avanceValues,
         barWidth: 40,
         itemStyle: { 
@@ -783,6 +786,7 @@ const weeklyEChartOption = computed(() => {
       {
         name: 'Objetivo',
         type: 'line',
+        color: '#d4a94d',
         data: targetValues,
         itemStyle: { color: '#d4a94d' },
         lineStyle: { type: 'dashed', width: 2 },
@@ -1027,7 +1031,7 @@ const handleWeeklyChartClick = (params: any) => {
 
       <div v-else>
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8 items-start">
-          <div id="slide-maint-status-chart" class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 self-start">
+          <div id="slide-maint-status-chart" class="hidden p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 self-start">
             <div class="mb-6">
               <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em] mb-4">ESTATUS DE TALLER</h2>
               <div class="flex items-center justify-between gap-3">
@@ -1147,7 +1151,7 @@ const handleWeeklyChartClick = (params: any) => {
             <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE SEMANAL (ÚLTIMAS 5 SEMANAS)</h2>
             <div class="bg-main/5 px-2 py-1 rounded-md border border-main/10 flex items-center gap-2">
                <div class="w-2 h-2 rounded-full bg-[#d4a94d]"></div>
-               <span class="text-[9px] font-bold text-gray-500 tracking-wider">META 2.63% MIN</span>
+               <span class="text-[9px] font-bold text-gray-500 tracking-wider">{{ targetLabel }}</span>
             </div>
           </div>
 
