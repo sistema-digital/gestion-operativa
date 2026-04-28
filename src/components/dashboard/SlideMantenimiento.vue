@@ -1281,11 +1281,11 @@ const handleWeeklyChartClick = (params: any) => {
                   TOTAL
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono whitespace-nowrap text-gray-800">
+                <div class="px-2 py-2 text-right font-mono whitespace-nowrap text-main">
                   {{ progressMetrics.totalRow.idealProgress.toFixed(1) }}%
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono whitespace-nowrap text-main text-gray-800">
+                <div class="px-2 py-2 text-right font-mono whitespace-nowra text-gray-800">
                   {{ progressMetrics.totalRow.actualProgress.toFixed(1) }}%
                 </div>
 
