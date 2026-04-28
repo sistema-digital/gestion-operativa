@@ -134,8 +134,7 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
         
         <div class="flex items-center gap-6">
           <div class="flex gap-3">
-             <button class="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md border border-main text-main transition-all hover:bg-main/5">Exportar</button>
-             <button @click="triggerNew" class="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md bg-main text-white transition-all shadow-sm hover:bg-main-light">+ Nuevo Registro</button>
+             <!-- Buttons removed as per user request -->
           </div>
           <div class="h-8 w-px bg-gray-100 italic"></div>
           <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors border border-transparent hover:border-gray-100" @click="router.push('/perfil')">
