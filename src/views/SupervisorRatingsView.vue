@@ -63,9 +63,22 @@ const d = new Date();
 const day = d.getDay();
 const diff = d.getDate() - day + (day === 0 ? -6 : 1);
 const startOfWeek = new Date(new Date().setDate(diff)).toISOString().split('T')[0];
+const startOfLastWeek = new Date(new Date(startOfWeek).getTime() - 7 * 86400000).toISOString().split('T')[0];
+const endOfLastWeek = new Date(new Date(startOfWeek).getTime() - 1 * 86400000).toISOString().split('T')[0];
 
 const selectedDate = ref('');
 const timeFilter = ref('Hoy');
+
+const currentUserArea = ref('ALL');
+
+// Re-evaluate default filter once user role is loaded
+watch(currentUserArea, (newArea) => {
+  if (newArea !== 'ALL' && newArea !== 'EVALUADOR') {
+    timeFilter.value = 'Esta semana';
+  } else {
+    timeFilter.value = 'Hoy';
+  }
+}, { immediate: true });
 
 const setTimeFilter = (f: string) => {
   timeFilter.value = f;
@@ -87,7 +100,6 @@ const openPhotos = (urlStr: string) => {
 const isLoading = ref(true);
 const supervisors = ref<SupervisorScore[]>([]);
 
-const currentUserArea = ref('ALL');
 const currentUserName = ref('');
 const currentUserEmail = ref('');
 const router = useRouter();
@@ -105,8 +117,10 @@ const filteredSupervisors = computed(() => {
         filteredInsps = filteredInsps.filter(i => i.fecha === todayDate);
       } else if (timeFilter.value === 'Ayer') {
         filteredInsps = filteredInsps.filter(i => i.fecha === yesterdayDate);
-      } else if (timeFilter.value === 'Semana') {
+      } else if (timeFilter.value === 'Esta semana') {
         filteredInsps = filteredInsps.filter(i => i.fecha >= startOfWeek && i.fecha <= todayDate);
+      } else if (timeFilter.value === 'Semana pasada') {
+        filteredInsps = filteredInsps.filter(i => i.fecha >= startOfLastWeek && i.fecha <= endOfLastWeek);
       }
     }
 
@@ -124,7 +138,7 @@ const filteredSupervisors = computed(() => {
       if (isRegularSup) {
         if (timeFilter.value === 'Hoy' || timeFilter.value === 'Ayer' || selectedDate.value !== '') {
           label = 'Registros'; // Flat
-        } else if (timeFilter.value === 'Semana') {
+        } else if (timeFilter.value === 'Esta semana' || timeFilter.value === 'Semana pasada') {
           if (isServiciosGenerales) {
             // Group by day
             label = `Día ${i.fecha}`;
@@ -839,12 +853,13 @@ onUnmounted(() => {
     <!-- Header/Title -->
     <div class="flex flex-col md:flex-row md:items-start justify-between gap-4">
       <div>
-        <h1 class="font-display text-3xl text-gray-900 tracking-tight">Calificaciones de Supervisores</h1>
-        <p class="text-sm text-gray-400">Evalúe y gestione el rendimiento operativo del personal.</p>
+        <h1 class="font-display text-3xl text-gray-900 tracking-tight">
+          {{ ['ALL', 'EVALUADOR'].includes(currentUserArea) ? 'Calificaciones de Supervisores' : 'Tus Calificaciones' }}
+        </h1>
       </div>
       <div class="flex items-center gap-2">
         <BaseButton v-if="['ALL', 'EVALUADOR'].includes(currentUserArea)" variant="outline" class="border-gray-200 text-gray-500 shadow-sm bg-white cursor-pointer hover:cursor-pointer" @click="router.push('/dashboard?slide=calificaciones&back=/calificaciones')">Ver Dashboard</BaseButton>
-        <BaseButton variant="secondary" class="cursor-pointer hover:cursor-pointer" @click="openNewModal">
+        <BaseButton v-if="['ALL', 'EVALUADOR'].includes(currentUserArea)" variant="secondary" class="cursor-pointer hover:cursor-pointer" @click="openNewModal">
           Nueva Calificación
         </BaseButton>
       </div>
@@ -868,23 +883,33 @@ onUnmounted(() => {
         <!-- Main List Container -->
         <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden flex flex-col min-h-[600px] w-full">
         <div class="p-5 border-b border-gray-100 flex flex-col md:flex-row items-center justify-between bg-gray-50/50 gap-4">
-          <div class="relative flex-1 w-full max-w-xs px-1 flex gap-2">
-            <span class="absolute left-4 top-2.5 text-gray-400">
-              <Search class="w-4 h-4" />
-            </span>
-            <input 
-              v-model="selectedDate"
-              @change="onDateSelect"
-              type="date" 
-              class="w-full pl-11 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-main focus:border-main bg-white"
+          <div class="relative flex-1 w-full max-w-sm px-1 flex gap-2">
+            <div class="relative flex-1">
+              <span class="absolute left-4 top-2.5 text-gray-400">
+                <Search class="w-4 h-4" />
+              </span>
+              <input 
+                v-model="selectedDate"
+                @change="onDateSelect"
+                type="date" 
+                class="w-full pl-11 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-main focus:border-main bg-white"
+              >
+            </div>
+            <button 
+              @click="loadData({ forceStore: true })"
+              :disabled="isLoading"
+              class="flex-shrink-0 p-2 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 hover:text-main transition-colors disabled:opacity-50"
+              title="Actualizar datos"
             >
+              <RefreshCw class="w-4 h-4" :class="isLoading ? 'animate-spin' : ''" />
+            </button>
           </div>
           <div class="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-            <span class="text-[10px] font-bold text-gray-400 uppercase whitespace-nowrap">Tiempo:</span>
             <button @click="setTimeFilter('Todas')" :class="timeFilter === 'Todas' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Todas</button>
-            <button @click="setTimeFilter('Hoy')" :class="timeFilter === 'Hoy' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Hoy</button>
-            <button @click="setTimeFilter('Ayer')" :class="timeFilter === 'Ayer' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Ayer</button>
-            <button @click="setTimeFilter('Semana')" :class="timeFilter === 'Semana' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Semana</button>
+            <button v-if="!isRegularSup" @click="setTimeFilter('Hoy')" :class="timeFilter === 'Hoy' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Hoy</button>
+            <button v-if="!isRegularSup" @click="setTimeFilter('Ayer')" :class="timeFilter === 'Ayer' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Ayer</button>
+            <button @click="setTimeFilter('Esta semana')" :class="timeFilter === 'Esta semana' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Esta semana</button>
+            <button @click="setTimeFilter('Semana pasada')" :class="timeFilter === 'Semana pasada' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Semana pasada</button>
           </div>
         </div>
 
