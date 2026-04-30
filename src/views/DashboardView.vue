@@ -28,11 +28,17 @@ const slides = computed(() => {
   if (area === 'ALL') {
     return allSlides;
   }
+  
   if (area === 'EVALUADOR') {
     return allSlides.filter(s => s.id === 'calificaciones');
   }
-  // Others: do not show calificaciones
-  return allSlides.filter(s => s.id === 'reparaciones' || s.id === 'mantenimiento' || s.id === 'servicios_generales');
+
+  if (area === 'SERVICIOS GENERALES') {
+    return allSlides.filter(s => s.id === 'servicios_generales');
+  }
+  
+  // Para el resto de usuarios (Mantenimiento y Reparaciones)
+  return allSlides.filter(s => s.id === 'reparaciones' || s.id === 'mantenimiento');
 });
 
 const containerRef = ref<HTMLElement | null>(null);
