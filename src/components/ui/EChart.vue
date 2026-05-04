@@ -6,20 +6,20 @@ import {
   LineChart
 } from 'echarts/charts';
 import {
-  TitleComponent,
   TooltipComponent,
   GridComponent,
   LegendComponent,
-  DataZoomComponent,
+  DataZoomInsideComponent,
+  DataZoomSliderComponent
 } from 'echarts/components';
 import { SVGRenderer } from 'echarts/renderers';
 
 echarts.use([
-  TitleComponent,
   TooltipComponent,
   GridComponent,
   LegendComponent,
-  DataZoomComponent,
+  DataZoomInsideComponent,
+  DataZoomSliderComponent,
   BarChart,
   LineChart,
   SVGRenderer
@@ -57,8 +57,12 @@ const initChart = () => {
   });
 };
 
+let resizeTimeout: any;
 const handleWindowResize = () => {
-  chartInstance.value?.resize();
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    chartInstance.value?.resize();
+  }, 100);
 };
 
 onMounted(() => {

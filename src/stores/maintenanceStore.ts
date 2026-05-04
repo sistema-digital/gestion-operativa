@@ -112,7 +112,7 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
           offset += batchSize;
           
           if (count) {
-            loadingProgress.value = Math.round((allData.length / count) * 100);
+            loadingProgress.value = Math.round((allData.length / (count || 1)) * 100);
           }
           
           hasMore = data.length === batchSize;

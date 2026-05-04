@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { supabase } from '@/lib/supabase'; // Maintenance DB
+import { generateMockWorkOrders } from '@/lib/mockWorkOrderData';
 
 export const useAssignedHoursStore = defineStore('assignedHours', () => {
   // Cache structure: { [area_date_key]: data[] }
@@ -34,41 +35,49 @@ export const useAssignedHoursStore = defineStore('assignedHours', () => {
     }
 
     try {
-      const summarySelect = `
-        ID_OT,
-        id_om,
-        id_sg,
-        Fecha,
-        "Duración (horas)",
-        Estatus,
-        "Retraso (horas)",
-        Semana,
-        MECANICOS!ORDEN_TRABAJO_ID_Mecanico_fkey (
-          id,
-          NOMBRE,
-          AREA,
-          "EQUIPO DE TRABAJO"
-        ),
-        ORDEN_MANTENIMIENTO!ot_id_om_fkey (
-          "Área",
-          "Descripcion"
-        ),
-        OM_SG!OT_id_sg_fkey (
+      let data: any[] | null = [];
+      const useSupabase = false; // Cuando este en true usa supabase, cuando este en false usa datos mock
+
+      if (!useSupabase) {
+        data = generateMockWorkOrders(100, date);
+      } else {
+        const summarySelect = `
+          ID_OT,
+          id_om,
           id_sg,
-          tipo_trabajo,
-          ORDEN_MANTENIMIENTO!om_servicios_generales_id_orden_base_fkey (
+          Fecha,
+          "Duración (horas)",
+          Estatus,
+          "Retraso (horas)",
+          Semana,
+          MECANICOS!ORDEN_TRABAJO_ID_Mecanico_fkey (
+            id,
+            NOMBRE,
+            AREA,
+            "EQUIPO DE TRABAJO"
+          ),
+          ORDEN_MANTENIMIENTO!ot_id_om_fkey (
             "Área",
             "Descripcion"
+          ),
+          OM_SG!OT_id_sg_fkey (
+            id_sg,
+            tipo_trabajo,
+            ORDEN_MANTENIMIENTO!om_servicios_generales_id_orden_base_fkey (
+              "Área",
+              "Descripcion"
+            )
           )
-        )
-      `;
+        `;
 
-      const { data, error } = await supabase
-        .from('ORDEN_TRABAJO')
-        .select(summarySelect)
-        .eq('Fecha', date);
+        const response = await supabase
+          .from('ORDEN_TRABAJO')
+          .select(summarySelect)
+          .eq('Fecha', date);
 
-      if (error) throw error;
+        if (response.error) throw response.error;
+        data = response.data;
+      }
       
       const filtered = (data || []).filter((row: any) => {
          if (area === 'Servicios Generales') {

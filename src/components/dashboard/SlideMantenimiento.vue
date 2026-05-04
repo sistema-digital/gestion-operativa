@@ -564,6 +564,7 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
     return {
       name: status,
       type: 'bar',
+      color: baseColor,
       stack: 'total',
       barWidth,
       barMaxWidth: 32,
@@ -768,6 +769,80 @@ const handleEChartClick = (dimensionKey: string, params: any) => {
   }
 };
 
+const allWeeksComparison = computed(() => {
+  const areaFixed = userArea.value?.toUpperCase();
+
+  let globalList = areaFixed === 'ALL'
+    ? allOrders.value
+    : allOrders.value.filter(d => d.Área?.toUpperCase() === areaFixed);
+
+  if (filters.value.etapa) {
+    globalList = globalList.filter(d => d.Etapa === filters.value.etapa);
+  }
+
+  let areaFilteredList = globalList;
+  if (areaFixed === 'ALL' && filters.value.area) {
+    areaFilteredList = areaFilteredList.filter(d => d.Área === filters.value.area);
+  }
+
+  if (activeFilters.value.serie) {
+    areaFilteredList = areaFilteredList.filter(d =>
+      d.Área === activeFilters.value.serie ||
+      d.Sistema === activeFilters.value.serie ||
+      d.ITEM === activeFilters.value.serie ||
+      d["ID_#EQUIPO"] === activeFilters.value.serie
+    );
+  }
+
+  if (activeFilters.value.estado) {
+    areaFilteredList = areaFilteredList.filter(d => d.Estatus === activeFilters.value.estado);
+  }
+
+  const uniqueWeeksSet = new Set<string>();
+  areaFilteredList.forEach(d => {
+    if (d.Semana) uniqueWeeksSet.add(String(d.Semana));
+  });
+
+  const uniqueWeeks = Array.from(uniqueWeeksSet).sort((a, b) => Number(a) - Number(b));
+
+  const data2025Obj: Record<string, number> = {
+    '15': 0.2, '16': 1.2, '17': 1.1, '18': 0.6, '19': 1.1,
+    '20': 0.8, '21': 1.6, '22': 1.1, '23': 1.2, '24': 1.1,
+    '25': 0.7, '26': 0.9, '27': 1.8, '28': 2.2, '29': 2.0,
+    '30': 1.9, '31': 2.4, '32': 2.1, '33': 2.5, '34': 2.4,
+    '35': 2.2, '36': 2.3, '37': 3.2, '38': 3.1, '39': 2.7,
+    '40': 0.6, '41': 2.4, '42': 2.5, '43': 1.7, '44': 2.4
+  };
+
+  let sum2026 = 0;
+  let sum2025 = 0;
+  const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
+
+  uniqueWeeks.forEach(sem => {
+    const semRows = areaFilteredList.filter(o => String(o['Semana']) === sem);
+    const concluidas = semRows.filter(o => {
+      const s = o.Estatus?.toLowerCase() || '';
+      return s.includes('concluida');
+    }).length;
+
+    const avanceSemana2026 = globalList.length > 0 
+      ? Number(((concluidas / globalList.length) * 100).toFixed(2)) 
+      : 0;
+      
+    sum2026 += avanceSemana2026;
+    if (isZafra) {
+      sum2025 += data2025Obj[sem] || 0;
+    }
+  });
+
+  return {
+    isZafra,
+    weeksCount: uniqueWeeks.length,
+    sum2026: Math.min(sum2026, 100),
+    sum2025: Math.min(sum2025, 100)
+  };
+});
+
 const weeklyProgress = computed(() => {
   const areaFixed = userArea.value?.toUpperCase();
 
@@ -844,57 +919,61 @@ const weeklyEChartOption = computed(() => {
   const targetPerc = 0.0294;
   const targetValues = labels.map(() => targetValue);
 
+  const data2025Obj: Record<string, number> = {
+    '15': 0.2, '16': 1.2, '17': 1.1, '18': 0.6, '19': 1.1,
+    '20': 0.8, '21': 1.6, '22': 1.1, '23': 1.2, '24': 1.1,
+    '25': 0.7, '26': 0.9, '27': 1.8, '28': 2.2, '29': 2.0,
+    '30': 1.9, '31': 2.4, '32': 2.1, '33': 2.5, '34': 2.4,
+    '35': 2.2, '36': 2.3, '37': 3.2, '38': 3.1, '39': 2.7,
+    '40': 0.6, '41': 2.4, '42': 2.5, '43': 1.7, '44': 2.4
+  };
+  const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
+  const avanceValues2025 = isZafra ? labels.map(sem => data2025Obj[sem] || 0) : [];
+
   const maxAvance = data.length > 0 ? Math.max(...data.map(d => d.avance)) : 0;
-  const chartMax = maxAvance > 5 ? Math.ceil(maxAvance) + 1 : 5;
+  const maxAvance2025 = isZafra && Object.keys(data2025Obj).length > 0 ? Math.max(...avanceValues2025) : 0;
+  const overallMax = Math.max(maxAvance, maxAvance2025);
+  const chartMax = overallMax > 5 ? Math.ceil(overallMax) + 1 : 5;
 
-  return {
-    grid: { left: '8%', right: '5%', top: '15%', bottom: '10%' },
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'shadow' },
-      backgroundColor: 'white',
-      borderColor: '#f1f5f9',
-      borderWidth: 1,
-      textStyle: { color: '#475569' },
-      formatter: (params: any[]) => {
-        const barP = params.find(p => p.seriesType === 'bar');
-        const weekData = data.find(d => String(d.semana) === barP?.axisValue);
-        const targetQty = weekData ? Math.round(weekData.globalTotal * targetPerc) : 0;
+  const seriesTemplate = [];
 
-        return `
-          <div style="color:#1e293b;font-weight:bold;margin-bottom:4px">Semana ${barP?.axisValue || ''}</div>
-          <div>Avance: ${barP?.value || 0}% (${weekData?.concluidas || 0})</div>
-          <div>Concluidas: ${weekData?.concluidas || 0} / ${weekData?.total || 0}</div>
-          <div>Objetivo: ${targetValue}% (${targetQty})</div>
-        `;
-      }
-    },
-    legend: {
-      data: ['Objetivo', 'Avance %'],
-      top: 0,
-      icon: 'circle',
-      textStyle: { fontSize: 10, fontWeight: 'bold' }
-    },
-    xAxis: {
-      type: 'category',
-      data: labels,
-      axisLabel: { color: '#64748b', fontSize: 11, fontWeight: 'bold' },
-      axisLine: { show: false },
-      axisTick: { show: false },
-    },
-    yAxis: {
-      type: 'value',
-      max: chartMax,
-      splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
-      axisLabel: { color: '#94a3b8', fontSize: 10, formatter: '{value}%' }
-    },
-    series: [
-      {
-        name: 'Avance %',
+  if (isZafra) {
+    seriesTemplate.push({
+        name: 'Avance 2025',
+        type: 'bar',
+        color: '#4b9b7a',
+        data: avanceValues2025,
+        barMaxWidth: 24,
+        barGap: '15%',
+        itemStyle: {
+          borderRadius: [4, 4, 0, 0],
+          color: (p: any) => {
+            const hasSemanaFilter = !!activeFilters.value.semana;
+            const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
+            return matchesSemana ? '#4b9b7a' : applyAlpha('#4b9b7a', 0.25);
+          }
+        },
+        label: {
+          show: true,
+          position: 'top',
+          color: (p: any) => {
+            const hasSemanaFilter = !!activeFilters.value.semana;
+            const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
+            return matchesSemana ? '#4b9b7a' : 'transparent';
+          },
+          fontWeight: 'bold',
+          formatter: (p: any) => p.value > 0 ? `${p.value}%` : ''
+        }
+      });
+  }
+
+  seriesTemplate.push({
+        name: 'Avance 2026',
         type: 'bar',
         color: '#004236',
         data: avanceValues,
-        barWidth: 40,
+        barMaxWidth: 24,
+        barGap: '15%',
         itemStyle: {
           borderRadius: [4, 4, 0, 0],
           color: (p: any) => {
@@ -912,10 +991,11 @@ const weeklyEChartOption = computed(() => {
             return matchesSemana ? '#004236' : 'transparent';
           },
           fontWeight: 'bold',
-          formatter: (p: any) => `${p.value}%`
+          formatter: (p: any) => p.value > 0 ? `${p.value}%` : ''
         }
-      },
-      {
+      });
+
+  seriesTemplate.push({
         name: 'Objetivo',
         type: 'line',
         color: '#d4a94d',
@@ -923,8 +1003,55 @@ const weeklyEChartOption = computed(() => {
         itemStyle: { color: '#d4a94d' },
         lineStyle: { type: 'dashed', width: 2 },
         symbol: 'none',
+      });
+
+  return {
+    grid: { left: '8%', right: '5%', top: '15%', bottom: '10%' },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: 'white',
+      borderColor: '#f1f5f9',
+      borderWidth: 1,
+      textStyle: { color: '#475569' },
+      formatter: (params: any[]) => {
+        const barP = params.find(p => p.seriesName === 'Avance 2026');
+        const barP2025 = params.find(p => p.seriesName === 'Avance 2025');
+        const weekStr = (barP || barP2025 || params[0])?.axisValue || '';
+        const weekData = data.find(d => String(d.semana) === weekStr);
+        const targetQty = weekData ? Math.round(weekData.globalTotal * targetPerc) : 0;
+
+        let res = `<div style="color:#1e293b;font-weight:bold;margin-bottom:4px">Semana ${weekStr}</div>`;
+        if (barP2025 && isZafra) {
+          res += `<div>Avance 2025: ${barP2025.value || 0}%</div>`;
+        }
+        if (barP) {
+          res += `<div>Avance 2026: ${barP.value || 0}% (<span style="font-size: 0.9em">Concluidas: ${weekData?.concluidas || 0} / ${weekData?.total || 0}</span>)</div>`;
+        }
+        res += `<div>Objetivo: ${targetValue}% (${targetQty})</div>`;
+        return res;
       }
-    ]
+    },
+    legend: {
+      data: isZafra ? ['Objetivo', 'Avance 2025', 'Avance 2026'] : ['Objetivo', 'Avance 2026'],
+      top: 0,
+      icon: 'circle',
+      textStyle: { fontSize: 10, fontWeight: 'bold' }
+    },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisLabel: { color: '#64748b', fontSize: 11, fontWeight: 'bold' },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      max: chartMax,
+      splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+      axisLabel: { color: '#94a3b8', fontSize: 10, formatter: '{value}%' }
+    },
+    series: seriesTemplate
   };
 });
 
@@ -934,6 +1061,7 @@ const handleWeeklyChartClick = (params: any) => {
     if (label) setWeekFilter(String(label));
   }
 };
+
 </script>
 
 <template>
@@ -1298,20 +1426,59 @@ const handleWeeklyChartClick = (params: any) => {
           </div>
         </div>
 
-        <div id="slide-maint-weekly-chart"
-          class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 mb-8 self-start">
-          <div class="mb-6 flex items-center justify-between">
-            <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE SEMANAL (ÚLTIMAS 5
-              SEMANAS)</h2>
-            <div class="bg-main/5 px-2 py-1 rounded-md border border-main/10 flex items-center gap-2">
-              <div class="w-2 h-2 rounded-full bg-[#d4a94d]"></div>
-              <span class="text-[9px] font-bold text-gray-500 tracking-wider">{{ targetLabel }}</span>
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6 mb-8 items-start">
+          <div id="slide-maint-weekly-chart"
+            class="xl:col-span-3 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
+            <div class="mb-6 flex items-center justify-between">
+              <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE SEMANAL (ÚLTIMAS 5
+                SEMANAS)</h2>
+              <div class="bg-main/5 px-2 py-1 rounded-md border border-main/10 flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-[#d4a94d]"></div>
+                <span class="text-[9px] font-bold text-gray-500 tracking-wider">{{ targetLabel }}</span>
+              </div>
+            </div>
+
+            <div class="h-[250px] xl:h-[320px] w-full block overflow-hidden">
+              <EChart :key="JSON.stringify(activeFilters)" :option="weeklyEChartOption" @click="handleWeeklyChartClick" />
             </div>
           </div>
 
-          <div class="h-[250px] xl:h-[320px] w-full block overflow-hidden">
-          <EChart :key="JSON.stringify(activeFilters)" :option="weeklyEChartOption" @click="handleWeeklyChartClick" />
-        </div>
+          <div
+            class="xl:col-span-1 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
+            <div class="mb-6">
+              <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">COMPARATIVO ACUMULADO</h2>
+            </div>
+            
+            <div class="overflow-hidden border border-gray-100 rounded-xl">
+              <table class="w-full text-left">
+                <thead class="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">AÑO</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE ({{ allWeeksComparison.weeksCount }} SEM)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <tr class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-4 py-3 text-sm font-bold text-gray-700">2026</td>
+                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ allWeeksComparison.sum2026.toFixed(2) }}%</td>
+                  </tr>
+                  <tr v-if="allWeeksComparison.isZafra" class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-4 py-3 text-sm font-bold text-gray-700">2025</td>
+                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#4b9b7a]">{{ allWeeksComparison.sum2025.toFixed(2) }}%</td>
+                  </tr>
+                   <tr v-if="allWeeksComparison.isZafra" class="bg-gray-50/50">
+                    <td class="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Diferencia</td>
+                    <td class="px-4 py-3 text-sm font-bold font-mono text-right" :class="(allWeeksComparison.sum2026 - allWeeksComparison.sum2025) >= 0 ? 'text-success' : 'text-danger'">
+                      {{ (allWeeksComparison.sum2026 - allWeeksComparison.sum2025) > 0 ? '+' : '' }}{{ (allWeeksComparison.sum2026 - allWeeksComparison.sum2025).toFixed(2) }}%
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p v-if="!allWeeksComparison.isZafra" class="text-xs text-gray-400 mt-4 italic">
+              * Datos comparativos 2025 solo disponibles en la etapa ZAFRA.
+            </p>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8 items-start">
