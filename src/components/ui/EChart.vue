@@ -57,8 +57,12 @@ const initChart = () => {
   });
 };
 
+let resizeTimeout: any;
 const handleWindowResize = () => {
-  chartInstance.value?.resize();
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    chartInstance.value?.resize();
+  }, 100);
 };
 
 onMounted(() => {

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import SlideGeneral from '@/components/dashboard/SlideGeneral.vue';
 import SlideReparaciones from '@/components/dashboard/SlideReparaciones.vue';
 import SlideMantenimiento from '@/components/dashboard/SlideMantenimiento.vue';
+import SlideHorasTrabajo from '@/components/dashboard/SlideHorasTrabajo.vue';
 import SlideServiciosGenerales from '@/components/dashboard/SlideServiciosGenerales.vue';
 import SlideCalificaciones from '@/components/dashboard/SlideCalificaciones.vue';
 
@@ -16,6 +17,7 @@ const allSlides = [
   { id: 'general', label: 'General', component: SlideGeneral },
   { id: 'calificaciones', label: 'Calificaciones', component: SlideCalificaciones },
   { id: 'mantenimiento', label: 'Mantenimiento', component: SlideMantenimiento },
+  { id: 'horas_trabajo', label: 'Horas Trabajo', component: SlideHorasTrabajo },
   { id: 'servicios_generales', label: 'Servicios G.', component: SlideServiciosGenerales },
   { id: 'reparaciones', label: 'Reparaciones', component: SlideReparaciones },
 ];
@@ -38,7 +40,7 @@ const slides = computed(() => {
   }
   
   // Para el resto de usuarios (Mantenimiento y Reparaciones)
-  return allSlides.filter(s => s.id === 'reparaciones' || s.id === 'mantenimiento');
+  return allSlides.filter(s => s.id === 'reparaciones' || s.id === 'mantenimiento' || s.id === 'horas_trabajo');
 });
 
 const containerRef = ref<HTMLElement | null>(null);
