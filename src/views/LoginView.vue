@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router';
 import { LogIn, Lock, User, Loader2, Eye, EyeOff } from 'lucide-vue-next';
 import BaseButton from '@/components/BaseButton.vue';
 import BaseInput from '@/components/BaseInput.vue';
-import { supabase, supabaseRatings } from '@/lib/supabase';
+import { supabase, supabaseRatings, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 
 const router = useRouter();
 const email = ref('');
@@ -26,7 +26,7 @@ const login = async () => {
     try {
       const emailTrimmed = email.value.trim();
       
-      // Intentar login en ambas DB con las mismas credenciales
+      // Intentar login en todas las BD con las mismas credenciales
       const p1 = supabase.auth.signInWithPassword({
         email: emailTrimmed,
         password: password.value,
@@ -35,15 +35,25 @@ const login = async () => {
         email: emailTrimmed,
         password: password.value,
       });
+      const p3 = supabaseCompras.auth.signInWithPassword({
+        email: emailTrimmed,
+        password: password.value,
+      });
+      const p4 = supabaseEquipos.auth.signInWithPassword({
+        email: emailTrimmed,
+        password: password.value,
+      });
 
-      const [res1, res2] = await Promise.all([p1, p2]);
+      const [res1, res2, res3, res4] = await Promise.all([p1, p2, p3, p4]);
 
-      // Si falla en cualquiera de los dos, se muestra error (puede ajustarse la politica)
-      if (res1.error || res2.error) {
-        error.value = 'Credenciales inválidas o error de conexión (asegúrese de estar registrado en ambas BD).';
+      // Si falla en cualquiera, se muestra error
+      if (res1.error || res2.error || res3.error || res4.error) {
+        error.value = 'Credenciales inválidas o error de conexión (asegúrese de estar registrado en todas las BD).';
         console.error("Auth DB Error:", res1.error);
         console.error("Ratings DB Error:", res2.error);
-      } else if (res1.data.session && res2.data.session) {
+        console.error("Compras DB Error:", res3.error);
+        console.error("Equipos DB Error:", res4.error);
+      } else if (res1.data.session && res2.data.session && res3.data.session && res4.data.session) {
         router.push('/');
       }
     } catch (err) {

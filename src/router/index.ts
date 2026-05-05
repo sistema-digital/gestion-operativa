@@ -40,6 +40,16 @@ const router = createRouter({
           component: () => import('@/views/MaintenancePlanView.vue'),
         },
         {
+          path: 'compras',
+          name: 'Compras',
+          component: () => import('@/views/ComprasView.vue'),
+        },
+        {
+          path: 'compras/:id',
+          name: 'ComprasDetail',
+          component: () => import('@/views/ComprasDetailView.vue'),
+        },
+        {
           path: 'perfil',
           name: 'Profile',
           component: () => import('@/views/ProfileView.vue'),

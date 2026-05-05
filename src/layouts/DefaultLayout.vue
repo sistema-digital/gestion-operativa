@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseRatings, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 import { 
   BarChart3, 
   Wrench, 
@@ -9,7 +9,8 @@ import {
   LogOut, 
   Menu, 
   Plus,
-  LayoutDashboard
+  LayoutDashboard,
+  ShoppingCart
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -23,6 +24,7 @@ const allMenuItems = [
   { name: 'Calificaciones', path: '/calificaciones', icon: BarChart3 },
   { name: 'Reparaciones', path: '/reparaciones', icon: Wrench },
   { name: 'Mantenimiento', path: '/mantenimiento', icon: Calendar },
+  { name: 'Compras', path: '/compras', icon: ShoppingCart },
 ];
 
 const menuItems = computed(() => {
@@ -66,7 +68,12 @@ onMounted(async () => {
 });
 
 const logout = async () => {
-  await supabase.auth.signOut();
+  await Promise.all([
+    supabase.auth.signOut(),
+    supabaseRatings.auth.signOut(),
+    supabaseCompras.auth.signOut(),
+    supabaseEquipos.auth.signOut()
+  ]);
   router.push('/login');
 };
 
@@ -190,7 +197,7 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
 
       <!-- FAB Mobile -->
       <button 
-        v-if="route.path !== '/dashboard' && ['ALL', 'EVALUADOR'].includes(userProfile?.area?.toUpperCase() || '')"
+        v-if="route.path !== '/dashboard' && (['ALL', 'EVALUADOR'].includes(userProfile?.area?.toUpperCase() || '') || route.path.startsWith('/compras'))"
         @click="triggerNew" 
         class="md:hidden fixed bottom-20 right-6 w-14 h-14 bg-accent text-gray-900 rounded-full shadow-lg flex items-center justify-center z-40 active:scale-90 transition-transform"
       >
