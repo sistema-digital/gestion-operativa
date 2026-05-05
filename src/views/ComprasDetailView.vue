@@ -132,10 +132,9 @@ const formatDate = (ds: string | null) => {
 };
 
 const getDesc = (item: any) => {
-  if (item.cod_producto) {
-     return item.producto?.descripcion || 'Producto sin descripción';
-  }
-  return item.descripcion_manual || 'Ítem Manual';
+  const desc = item.producto?.descripcion || 'Producto sin descripción';
+  const unit = item.producto?.unidad_medida?.abreviatura || '';
+  return unit ? `${unit} - ${desc}` : desc;
 };
 
 const saveQuantities = async () => {
@@ -252,7 +251,7 @@ const replaceFolio = async () => {
         <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-accent/20 flex-shrink-0 to-transparent rounded-bl-[100px] pointer-events-none"></div>
         
         <div class="flex-1 space-y-6 z-10 w-full">
-          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div class="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div>
               <span class="inline-flex items-center gap-2 text-xs font-bold px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg uppercase tracking-wider mb-3">
                 <Tag class="w-3.5 h-3.5" />
@@ -277,6 +276,14 @@ const replaceFolio = async () => {
                   </div>
               </div>
             </div>
+            
+            <button 
+              v-if="solicitud.estado_id === 1 || solicitud.estado_id === 2" 
+              @click="router.push(`/compras/${id}/editar`)" 
+              class="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-xl hover:bg-gray-50 text-gray-700 font-bold transition-all shadow-sm shrink-0"
+            >
+              <Edit2 class="w-4 h-4" /> Editar
+            </button>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 pt-6 border-t border-gray-50">

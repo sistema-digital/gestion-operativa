@@ -5,7 +5,6 @@ import { useComprasStore } from '@/stores/comprasStore';
 import { supabase } from '@/lib/supabase';
 import { Search, Plus, Calendar, Clock, Filter, Layers, List } from 'lucide-vue-next';
 import BaseKPI from '@/components/BaseKPI.vue';
-import NuevoFormularioCompra from '@/components/compras/NuevoFormularioCompra.vue';
 
 const router = useRouter();
 const store = useComprasStore();
@@ -56,15 +55,10 @@ const fetchData = async () => {
 
 onMounted(async () => {
   await fetchData();
-  window.addEventListener('open-new-record', openNewForm);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('open-new-record', openNewForm);
 });
 
 const openNewForm = () => {
-  isNewFormOpen.value = true;
+  router.push('/compras/nueva');
 };
 
 const statesCounts = computed(() => {
@@ -186,7 +180,7 @@ const goToDetail = (id: string) => {
           <option value="asc">Más antigua</option>
         </select>
 
-        <button @click="isNewFormOpen = true" class="flex items-center gap-2 px-4 py-2 bg-accent text-main-dark font-bold rounded-xl hover:bg-opacity-90 transition-all shadow-sm">
+        <button @click="openNewForm" class="flex items-center gap-2 px-4 py-2 bg-accent text-main-dark font-bold rounded-xl hover:bg-opacity-90 transition-all shadow-sm">
           <Plus class="w-5 h-5" /> Nueva Solicitud
         </button>
       </div>
@@ -300,14 +294,5 @@ const goToDetail = (id: string) => {
         </div>
       </div>
     </div>
-
-    <!-- Modal Form -->
-    <Teleport to="body">
-      <NuevoFormularioCompra 
-        v-if="isNewFormOpen" 
-        @close="isNewFormOpen = false"
-        @created="fetchData"
-      />
-    </Teleport>
   </div>
 </template>

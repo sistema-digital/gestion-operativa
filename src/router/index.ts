@@ -45,6 +45,16 @@ const router = createRouter({
           component: () => import('@/views/ComprasView.vue'),
         },
         {
+          path: 'compras/nueva',
+          name: 'NuevaSolicitudCompra',
+          component: () => import('@/views/compras/NuevaSolicitudCompra.vue'),
+        },
+        {
+          path: 'compras/:id/editar',
+          name: 'EditarSolicitudCompra',
+          component: () => import('@/views/compras/EditarSolicitudCompra.vue'),
+        },
+        {
           path: 'compras/:id',
           name: 'ComprasDetail',
           component: () => import('@/views/ComprasDetailView.vue'),

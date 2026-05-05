@@ -24,7 +24,6 @@ export interface DetalleSolicitud {
   solicitud_id: string;
   folio_sol: string | null;
   cod_producto: string | null;
-  descripcion_manual: string | null;
   cantidad: number;
   cantidad_inventario: number | null;
   cantidad_gerencia: number | null;
