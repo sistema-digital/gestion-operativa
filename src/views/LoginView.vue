@@ -48,7 +48,13 @@ const login = async () => {
 
       // Si falla en cualquiera, se muestra error
       if (res1.error || res2.error || res3.error || res4.error) {
-        error.value = 'Credenciales inválidas o error de conexión (asegúrese de estar registrado en todas las BD).';
+        const errorDbNames = [];
+        if (res1.error) errorDbNames.push('Auth/Mantenimiento');
+        if (res2.error) errorDbNames.push('Calificaciones');
+        if (res3.error) errorDbNames.push('Compras');
+        if (res4.error) errorDbNames.push('Equipos');
+
+        error.value = `Credenciales inválidas o error de conexión en las bases de datos: ${errorDbNames.join(', ')}`;
         console.error("Auth DB Error:", res1.error);
         console.error("Ratings DB Error:", res2.error);
         console.error("Compras DB Error:", res3.error);
