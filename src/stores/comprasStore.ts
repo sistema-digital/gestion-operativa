@@ -65,13 +65,25 @@ export const useComprasStore = defineStore('compras', {
       }
     },
 
-    async fetchSolicitudes() {
+    async fetchSolicitudes(userArea: string = '', emailsFilter: string[] = []) {
       this.isLoading = true;
       try {
-        const { data: solicitudesData, error: solError } = await supabaseCompras
+        let query = supabaseCompras
           .from('solicitud_compra')
           .select('*')
           .order('fecha_creacion', { ascending: false });
+
+        if (userArea !== 'ALL' && userArea !== '') {
+           if (emailsFilter.length > 0) {
+              query = query.in('email', emailsFilter);
+           } else {
+              // fallback if for some reason emailsFilter is empty
+              // but userArea is not ALL
+              query = query.filter('email', 'eq', 'NONE'); // won't return anything
+           }
+        }
+
+        const { data: solicitudesData, error: solError } = await query;
 
         if (solError) throw solError;
 

@@ -88,9 +88,10 @@ onMounted(async () => {
   await loadData();
 });
 
-const formatDate = (ds: string) => {
-  if (!ds) return '';
-  return new Date(ds).toLocaleString();
+import { formatDateDisplay } from '@/utils/dateUtils';
+
+const formatDate = (ds: string | null) => {
+  return formatDateDisplay(ds);
 };
 
 const getDesc = (item: any) => {
@@ -253,14 +254,14 @@ const replaceFolio = async () => {
               <Calendar class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
               <div>
                 <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Creación</p>
-                <p class="text-sm font-medium text-gray-900 mt-0.5">{{ formatDate(solicitud.fecha_creacion).split(',')[0] }}</p>
+                <p class="text-sm font-medium text-gray-900 mt-0.5">{{ formatDate(solicitud.fecha_creacion) }}</p>
               </div>
             </div>
             <div class="flex items-start gap-3">
               <Clock class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
               <div>
                 <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Entrega Solicitada</p>
-                <p class="text-sm font-medium text-gray-900 mt-0.5">{{ formatDate(solicitud.fecha_entrega).split(',')[0] }}</p>
+                <p class="text-sm font-medium text-gray-900 mt-0.5">{{ formatDate(solicitud.fecha_entrega) }}</p>
               </div>
             </div>
           </div>

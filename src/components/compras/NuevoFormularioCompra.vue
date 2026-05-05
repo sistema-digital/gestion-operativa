@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
 import { supabase, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
+import BaseDateField from '@/components/BaseDateField.vue';
 import { useComprasStore } from '@/stores/comprasStore';
 import { X, Search, Plus, Trash2, Save, ShoppingCart, Loader2, ArrowLeft, AlertTriangle } from 'lucide-vue-next';
 
@@ -69,6 +70,7 @@ const userEmail = ref('');
 const userName = ref('');
 const isSubmitting = ref(false);
 const errorMsg = ref('');
+const unidadesMedida = ref<{ id: string, abreviatura: string }[]>([]);
 
 // Details table
 interface DetalleManual {
@@ -76,6 +78,7 @@ interface DetalleManual {
   isManual: boolean;
   cod_producto: string | null;
   descripcion: string;
+  unidad_id: string | null;
   unidad: string | null;
   cantidad: number;
 }
@@ -95,6 +98,12 @@ onMounted(async () => {
 
   // Leave empty as requested
   fechaEntrega.value = '';
+
+  // Load Unidades de Medida
+  const { data: unidadData } = await supabaseCompras.from('unidad_medida').select('id, abreviatura').order('abreviatura');
+  if (unidadData) {
+    unidadesMedida.value = unidadData;
+  }
 
   // Load Equipos
   const { data: eqData } = await supabaseEquipos.from('equipos').select('cod_equipo').limit(200);
@@ -218,6 +227,7 @@ const toggleProducto = (prod: any) => {
       isManual: false,
       cod_producto: prod.cod_producto,
       descripcion: prod.descripcion,
+      unidad_id: null,
       unidad: prod.unidad_medida?.abreviatura || null,
       cantidad: 1,
     });
@@ -230,6 +240,7 @@ const addManualItem = () => {
     isManual: true,
     cod_producto: null,
     descripcion: '',
+    unidad_id: null,
     unidad: null,
     cantidad: 1,
   });
@@ -250,60 +261,66 @@ const saveSolicitud = async () => {
   
   const invalidManual = detalles.value.find(d => d.isManual && (!d.descripcion || d.descripcion.trim() === ''));
   if (invalidManual) { fieldErrors.value.productos = 'Todos los ítems manuales deben tener descripción'; hasError = true; }
+  
+  const invalidUnit = detalles.value.find(d => d.isManual && !d.unidad_id);
+  if (invalidUnit) { fieldErrors.value.productos = 'Todos los ítems manuales deben tener una unidad seleccionada'; hasError = true; }
 
   if (hasError) return;
 
   isSubmitting.value = true;
   try {
-    // Generate UUID logically (optional, Supabase will generate one, we'll let it and return it)
+    // Generate temporary folio
     const dt = new Date();
     const pad = (n: number) => n.toString().padStart(2, '0');
     const dateStr = `${dt.getFullYear()}${pad(dt.getMonth()+1)}${pad(dt.getDate())}`;
     const rnd = Math.floor(Math.random() * 9000 + 1000);
     const folioTemporal = `TMP-COMP-${dateStr}-${rnd}`;
 
-    // 1. Insert in bdcompras.solicitud_compra
-    const { data: solData, error: solError } = await supabaseCompras.from('solicitud_compra').insert({
-      folio_sol: folioTemporal,
+    const solicitudPayload = {
+      folio: folioTemporal,
       email: userEmail.value,
+      observacion: observacion.value,
       estado_id: 1,
-      fecha_entrega: fechaEntrega.value,
       fecha_creacion: new Date().toISOString(),
-      observacion: observacion.value
-    }).select('id').single();
+      fecha_entrega: fechaEntrega.value
+    };
 
-    if (solError) throw solError;
-    const solicitudId = solData.id;
-
-    // 2. Insert Details in bdcompras
-    const detallesToInsert = detalles.value.map(d => {
-      // Create temporary code for manual items at insertion time
-      let finalCode = d.cod_producto;
-      if (d.isManual && !finalCode) {
-        const rndProd = Math.floor(Math.random() * 9000 + 1000);
-        finalCode = `TMP-PROD-${rndProd}`;
+    const detallesPayload = detalles.value.map(d => {
+      if (d.isManual) {
+        return {
+          isManual: true,
+          descripcion: d.descripcion,
+          unidad_id: d.unidad_id
+        };
+      } else {
+        return {
+          isManual: false,
+          cod_producto: d.cod_producto
+        };
       }
-      return {
-        solicitud_id: solicitudId,
-        folio_sol: folioTemporal,
-        cod_producto: finalCode,
-        descripcion_manual: d.isManual ? d.descripcion : null,
-        cantidad: d.cantidad,
-      };
     });
 
-    const { error: detError } = await supabaseCompras.from('detalle_solicitud').insert(detallesToInsert);
-    if (detError) throw detError;
+    const { data: solData, error: solError } = await supabaseCompras.rpc("registrar_solicitud_compra", {
+      p_solicitud: solicitudPayload,
+      p_detalles: detallesPayload
+    });
+
+    if (solError) throw solError;
+    
+    if (!solData || !solData.success) {
+      throw new Error("No se pudo crear la solicitud de compra");
+    }
 
     // 3. Insert Equipos in mantenimiento
-    const equiposToInsert = selectedEquipos.value.map(eq => ({
-      solicitud_id: solicitudId,
-      folio_sol: folioTemporal,
-      cod_equipo: eq.cod_equipo
-    }));
+    const { error: eqError } = await supabaseEquipos.rpc("registrar_equipos_solicitud", {
+      p_solicitud_id: solData.solicitud_id,
+      p_folio_sol: solData.folio,
+      p_cod_equipos: selectedEquipos.value.map(eq => eq.cod_equipo)
+    });
 
-    const { error: eqError } = await supabaseEquipos.from('equipo_solicitudes').insert(equiposToInsert);
-    if (eqError) throw eqError;
+    if (eqError) {
+      throw new Error(`La solicitud fue creada, pero ocurrió un error al vincular los equipos. Puede reintentarlo luego. Error: ${eqError.message}`);
+    }
 
     // Success
     isClosing.value = true;
@@ -322,7 +339,10 @@ const saveSolicitud = async () => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 bg-gray-50 flex flex-col w-full h-full animate-in slide-in-from-right duration-500">
+  <div 
+    class="fixed inset-0 z-50 bg-gray-50 flex flex-col w-full h-full duration-500"
+    :class="isClosing ? 'animate-out slide-out-to-right' : 'animate-in slide-in-from-right'"
+  >
     <!-- Main Full Page Container -->
     <div class="flex-1 overflow-hidden flex flex-col bg-white">
       <!-- Header -->
@@ -350,15 +370,12 @@ const saveSolicitud = async () => {
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
           <!-- Fecha Entrega -->
-          <div class="space-y-1.5">
-            <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Fecha de Entrega <span class="text-red-500">*</span></label>
-            <input 
+          <div class="space-y-1.5 flex flex-col justify-end">
+            <BaseDateField 
               v-model="fechaEntrega" 
-              type="date" 
-              class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-accent outline-none transition-all cursor-pointer"
-              :class="{ 'border-red-500': fieldErrors.fechaEntrega }"
+              label="Fecha de Entrega *" 
+              :error="fieldErrors.fechaEntrega"
             />
-            <p v-if="fieldErrors.fechaEntrega" class="text-xs text-red-500 mt-1">{{ fieldErrors.fechaEntrega }}</p>
           </div>
 
           <!-- Auto email display -->
@@ -530,7 +547,15 @@ const saveSolicitud = async () => {
                       <span v-else class="text-sm text-gray-600">{{ item.descripcion }}</span>
                     </td>
                     <td class="py-3 px-4">
-                      <span class="text-sm text-gray-600 font-medium">{{ item.unidad || '-' }}</span>
+                      <select 
+                        v-if="item.isManual" 
+                        v-model="item.unidad_id" 
+                        class="w-full px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm bg-white"
+                      >
+                        <option :value="null" disabled>Seleccionar</option>
+                        <option v-for="u in unidadesMedida" :key="u.id" :value="u.id">{{ u.abreviatura }}</option>
+                      </select>
+                      <span v-else class="text-sm text-gray-600 font-medium">{{ item.unidad || '-' }}</span>
                     </td>
                     <td class="py-3 px-4 text-right">
                       <button @click="removeDetalle(item.id)" class="text-gray-400 hover:text-danger p-1">
