@@ -142,12 +142,6 @@ import { formatDateDisplay } from '@/utils/dateUtils';
 
 const formatDate = (d: string | null) => formatDateDisplay(d);
 
-const getCreatorName = (email: string) => {
-  const p = allProfiles.value.find(p => p.email === email);
-  if (p && p.nombre) return p.nombre;
-  return email.split('@')[0];
-};
-
 // Handlers
 const goToDetail = (id: string) => {
   router.push(`/compras/${id}`);
@@ -224,7 +218,7 @@ const goToDetail = (id: string) => {
             <div class="w-2 h-2 rounded-full bg-accent"></div>
             {{ groupName }} ({{ group.length }})
           </h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div 
               v-for="req in group" 
               :key="req.id"
@@ -233,9 +227,6 @@ const goToDetail = (id: string) => {
             >
               <div class="flex justify-between items-start">
                 <div>
-                  <span v-if="req.folio_sol?.startsWith('TMP')" class="inline-block px-2 py-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold rounded-lg uppercase tracking-wide mb-1">
-                    Folio Temporal
-                  </span>
                   <h4 class="font-bold text-gray-900 group-hover/card:text-main transition-colors">{{ req.folio_sol || 'Sin Folio' }}</h4>
                 </div>
                 <span class="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">{{ store.getEstadoName(req.estado_id) }}</span>
@@ -244,8 +235,7 @@ const goToDetail = (id: string) => {
               
               <div class="mt-auto pt-4 border-t border-gray-50 flex flex-col gap-2">
                 <div class="flex items-center justify-between">
-                  <div class="text-[10px] text-gray-400 truncate">Req: {{ req.email }}</div>
-                  <span v-if="req.email !== userEmail" class="text-[9px] bg-accent/20 text-main-dark px-1.5 py-0.5 rounded font-bold uppercase whitespace-nowrap">{{ getCreatorName(req.email) }}</span>
+                  <div class="text-[10px] text-gray-400 truncate font-medium">Req: <span class="uppercase font-bold text-gray-600">{{ req.nombreSolicitante || req.email }}</span></div>
                 </div>
                 <div class="flex items-center justify-between text-xs text-gray-500">
                   <div class="flex items-center gap-1.5">
@@ -263,7 +253,7 @@ const goToDetail = (id: string) => {
         </div>
       </div>
       
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div 
           v-for="req in filteredRequests" 
           :key="req.id"
@@ -273,9 +263,6 @@ const goToDetail = (id: string) => {
           <div class="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-accent/10 to-transparent rounded-bl-3xl z-0 pointer-events-none"></div>
           <div class="flex justify-between items-start z-10">
             <div>
-              <span v-if="req.folio_sol?.startsWith('TMP')" class="inline-block px-2 py-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold rounded-lg uppercase tracking-wide mb-1">
-                Folio Temporal
-              </span>
               <h4 class="font-bold text-gray-900 group-hover/card:text-main transition-colors">{{ req.folio_sol || 'Sin Folio' }}</h4>
             </div>
             <span class="text-[10px] uppercase tracking-wide font-bold px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">{{ store.getEstadoName(req.estado_id) }}</span>
@@ -292,8 +279,7 @@ const goToDetail = (id: string) => {
           
           <div class="mt-auto pt-3 border-t border-gray-50 flex flex-col gap-2 z-10">
             <div class="flex items-center justify-between">
-              <div class="text-[10px] text-gray-400 truncate">Req: {{ req.email }}</div>
-              <span v-if="req.email !== userEmail" class="text-[9px] bg-accent/20 text-main-dark px-1.5 py-0.5 rounded font-bold uppercase whitespace-nowrap">{{ getCreatorName(req.email) }}</span>
+              <div class="text-[10px] text-gray-400 truncate font-medium">Req: <span class="uppercase font-bold text-gray-600">{{ req.nombreSolicitante || req.email }}</span></div>
             </div>
             <div class="flex items-center justify-between text-xs text-gray-500">
               <div class="flex items-center gap-1.5">

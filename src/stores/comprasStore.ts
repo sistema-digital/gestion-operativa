@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { supabaseCompras, supabaseEquipos } from '@/lib/supabase';
+import { supabase, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 
 export interface EstadoCompra {
   id: number;
@@ -16,6 +16,7 @@ export interface SolicitudCompra {
   observacion: string;
   fecha_subida_sistema: string | null;
   equipos?: { cod_equipo: string }[];
+  nombreSolicitante?: string;
 }
 
 export interface DetalleSolicitud {
@@ -83,9 +84,56 @@ export const useComprasStore = defineStore('compras', {
            }
         }
 
-        const { data: solicitudesData, error: solError } = await query;
+        const { data: solicitudesDataRaw, error: solError } = await query;
 
         if (solError) throw solError;
+
+        // Initialize with empty names
+        let solicitudesData = (solicitudesDataRaw || []).map(s => ({
+          ...s,
+          nombreSolicitante: ''
+        }));
+
+        // Fetch user data
+        const { data: userData } = await supabase.auth.getUser();
+        const loggedUserEmail = userData.user?.email || '';
+        let loggedUserName = 'Nombre no asignado';
+        
+        if (loggedUserEmail) {
+           const { data: loggedProfile } = await supabase.from('PROFILE').select('nombre').eq('email', loggedUserEmail).maybeSingle();
+           if (loggedProfile?.nombre) {
+               loggedUserName = loggedProfile.nombre;
+           }
+        }
+
+        // Apply logged in user's name
+        solicitudesData.forEach(s => {
+           if (s.email === loggedUserEmail) {
+               s.nombreSolicitante = loggedUserName;
+           }
+        });
+
+        // Resolve other emails
+        while (solicitudesData.some(s => s.nombreSolicitante === '')) {
+           const firstEmpty = solicitudesData.find(s => s.nombreSolicitante === '');
+           if (!firstEmpty) break;
+           
+           const targetEmail = firstEmpty.email;
+           let targetName = 'Nombre no asignado';
+           
+           if (targetEmail) {
+               const { data: pData } = await supabase.from('PROFILE').select('nombre').eq('email', targetEmail).maybeSingle();
+               if (pData?.nombre) {
+                   targetName = pData.nombre;
+               }
+           }
+           
+           solicitudesData.forEach(s => {
+               if (s.email === targetEmail) {
+                   s.nombreSolicitante = targetName;
+               }
+           });
+        }
 
         // Fetch equipos logically linked
         const solIds = solicitudesData?.map(s => s.id) || [];
@@ -110,6 +158,7 @@ export const useComprasStore = defineStore('compras', {
 
         this.solicitudes = (solicitudesData || []).map(sol => ({
           ...sol,
+          folio_sol: sol.folio_sol?.startsWith('TMP-COMP-') ? 'Num Req No asignado' : sol.folio_sol,
           equipos: equiposMap[sol.id] || []
         }));
 

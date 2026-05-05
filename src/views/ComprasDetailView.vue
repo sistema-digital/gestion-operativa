@@ -10,7 +10,8 @@ const router = useRouter();
 const store = useComprasStore();
 
 const id = route.params.id as string;
-const isLoading = ref(true);
+const isLoading = ref(true); // Para cuando se recarga la página y no hay datos master
+const isDetallesLoading = ref(true); // Para cargar los detalles de la tabla
 const errorMsg = ref('');
 
 const solicitud = ref<any>(null);
@@ -28,23 +29,67 @@ const isAlmacen = computed(() => userArea.value === 'ALMACEN' || userArea.value 
 const isGerencia = computed(() => userArea.value === 'GERENCIA' || userArea.value === 'ALL');
 
 const loadData = async () => {
-  isLoading.value = true;
   errorMsg.value = '';
   try {
-    // 1. Solicitud
-    const { data: solData, error: solError } = await supabaseCompras
-      .from('solicitud_compra')
-      .select('*')
-      .eq('id', id)
-      .single();
-    if (solError) throw solError;
-    solicitud.value = solData;
+    // 1. Solicitud (Master Data)
+    let cachedSol = store.solicitudes.find(s => s.id === id);
+    
+    if (cachedSol) {
+      // Re-use from store
+      solicitud.value = { 
+        ...cachedSol,
+        _is_temp: cachedSol.folio_sol?.startsWith('TMP-COMP-') || cachedSol.folio_sol === 'Num Req No asignado'
+      };
+      equipos.value = cachedSol.equipos || [];
+    } else {
+      // Not in store (e.g. reload), fetch manually
+      const { data: solData, error: solError } = await supabaseCompras
+        .from('solicitud_compra')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (solError) throw solError;
+      
+      // Resolve Solicitante name
+      const { data: userData } = await supabase.auth.getUser();
+      const loggedUserEmail = userData.user?.email || '';
+      
+      let nombreSol = 'Nombre no asignado';
+      if (solData.email) {
+         const targetEmail = (solData.email === loggedUserEmail) ? loggedUserEmail : solData.email;
+         const { data: pData } = await supabase.from('PROFILE').select('nombre').eq('email', targetEmail).maybeSingle();
+         if (pData?.nombre) {
+             nombreSol = pData.nombre;
+         }
+      }
+      solData.nombreSolicitante = nombreSol;
+      
+      // Transform Folio if Temp
+      solData._is_temp = solData.folio_sol?.startsWith('TMP-COMP-');
+      if (solData._is_temp) {
+         solData.folio_sol = 'Num Req No asignado';
+      }
+      
+      solicitud.value = solData;
+
+      // Equipos
+      const { data: eqData, error: eqError } = await supabaseEquipos
+        .from('equipo_solicitudes')
+        .select('cod_equipo')
+        .eq('solicitud_id', id);
+      if (!eqError && eqData) {
+        equipos.value = eqData;
+      }
+    }
 
     if (!store.estados.length) {
       await store.fetchEstados();
     }
+    
+    isLoading.value = false; // Render Master Data directly now.
 
-    // 2. Detalles
+    // 2. Detalles (Always fetch from DB when opening detail to get latest inventory/status)
+    isDetallesLoading.value = true;
     const { data: detData, error: detError } = await supabaseCompras
       .from('detalle_solicitud')
       .select('*, producto(descripcion, unidad_medida(abreviatura))')
@@ -58,20 +103,12 @@ const loadData = async () => {
        _original_gerencia: d.cantidad_gerencia
     }));
 
-    // 3. Equipos
-    const { data: eqData, error: eqError } = await supabaseEquipos
-      .from('equipo_solicitudes')
-      .select('cod_equipo')
-      .eq('solicitud_id', id);
-    if (!eqError && eqData) {
-      equipos.value = eqData;
-    }
-
   } catch (e: any) {
     console.error(e);
     errorMsg.value = 'Error al cargar los datos: ' + e.message;
   } finally {
     isLoading.value = false;
+    isDetallesLoading.value = false;
   }
 };
 
@@ -178,6 +215,7 @@ const replaceFolio = async () => {
         await supabaseEquipos.from('equipo_solicitudes').update({ folio_sol: realFolio }).eq('solicitud_id', id);
 
         solicitud.value.folio_sol = realFolio;
+        solicitud.value._is_temp = false;
         isEditingFolio.value = false;
         
         // Refresh store
@@ -198,13 +236,13 @@ const replaceFolio = async () => {
     </div>
     <div v-else-if="errorMsg" class="p-8 text-center text-red-600 font-medium">
       {{ errorMsg }}
-      <button @click="router.back()" class="block mx-auto mt-4 px-4 py-2 border rounded-xl hover:bg-gray-50 text-gray-700">Volver</button>
+      <button @click="router.push('/compras')" class="block mx-auto mt-4 px-4 py-2 border rounded-xl hover:bg-gray-50 text-gray-700 cursor-pointer">Volver</button>
     </div>
     <div v-else class="max-w-6xl w-full mx-auto p-4 sm:p-8 space-y-6">
       
       <!-- Top Action Bar -->
       <div class="flex items-center justify-between mb-2">
-        <button @click="router.back()" class="flex items-center gap-2 text-gray-500 hover:text-main font-medium transition-colors">
+        <button @click="router.push('/compras')" class="flex items-center gap-2 text-gray-500 hover:text-main font-medium transition-colors cursor-pointer">
           <ArrowLeft class="w-5 h-5" /> Regresar
         </button>
       </div>
@@ -225,9 +263,8 @@ const replaceFolio = async () => {
                  <h1 class="text-3xl md:text-4xl font-display font-bold text-main-dark">
                    {{ solicitud.folio_sol }}
                  </h1>
-                 <span v-if="solicitud.folio_sol?.startsWith('TMP')" class="px-2 py-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold rounded-lg uppercase whitespace-nowrap">Temporal</span>
                  
-                 <button v-if="isAlmacen && !isEditingFolio && solicitud.folio_sol?.startsWith('TMP')" @click="isEditingFolio = true" class="text-gray-400 hover:text-main p-1">
+                 <button v-if="isAlmacen && !isEditingFolio && solicitud._is_temp" @click="isEditingFolio = true" class="text-gray-400 hover:text-main p-1">
                     <Edit2 class="w-4 h-4" />
                  </button>
               </div>
@@ -247,7 +284,7 @@ const replaceFolio = async () => {
               <User class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
               <div>
                 <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Solicitante</p>
-                <p class="text-sm font-medium text-gray-900 mt-0.5">{{ solicitud.email }}</p>
+                <p class="text-sm font-medium text-gray-900 mt-0.5 uppercase">{{ solicitud.nombreSolicitante || solicitud.email }}</p>
               </div>
             </div>
             <div class="flex items-start gap-3">
@@ -269,10 +306,90 @@ const replaceFolio = async () => {
       </div>
 
       <!-- Content Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        <!-- Observación & Equipos -->
-        <div class="lg:col-span-1 space-y-6">
+      <div class="flex flex-col gap-6">
+
+        <!-- Fila 1: Tabla Detalles -->
+        <div class="w-full relative">
+          <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+            <div class="p-6 border-b border-gray-50 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                <ShoppingCart class="w-4 h-4 text-main"/> Ítems Solicitados
+              </h3>
+              
+              <button 
+                  v-if="(isAlmacen || isGerencia) && solicitud.estado_id !== 1" 
+                  @click="saveQuantities"
+                  :disabled="isSubmittingQuantities"
+                  class="flex items-center gap-2 px-4 py-2 bg-main text-white text-xs font-bold rounded-lg hover:bg-main-dark transition-colors disabled:opacity-50"
+              >
+                  <Save class="w-3.5 h-3.5" /> {{ isSubmittingQuantities ? 'Guardando...' : 'Guardar Cantidades' }}
+              </button>
+            </div>
+            
+            <div class="overflow-x-auto relative min-h-[150px]">
+              <div v-if="isDetallesLoading" class="absolute inset-0 bg-white/80 backdrop-blur-sm z-20 flex items-center justify-center">
+                 <div class="w-6 h-6 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+              </div>
+              <table class="w-full text-left border-collapse min-w-[700px]">
+                <thead class="bg-gray-50/50">
+                  <tr>
+                    <th class="py-4 px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider w-[15%]">Código</th>
+                    <th class="py-4 px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Descripción</th>
+                    <th v-if="solicitud.estado_id !== 1" class="py-4 px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center w-24">Unidad</th>
+                    <th v-if="solicitud.estado_id !== 1" class="py-4 px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center w-24">Cant. Solicitada</th>
+                    <th v-if="solicitud.estado_id !== 1" class="py-4 px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center w-24">Cant. Inventario</th>
+                    <th v-if="solicitud.estado_id !== 1" class="py-4 px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center w-24">Cant. Gerencia</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <tr v-for="item in detalles" :key="item.id" class="hover:bg-gray-50/30 transition-colors">
+                    <td class="py-4 px-6">
+                      <div v-if="isAlmacen && item.cod_producto && item.cod_producto.startsWith('TMP-PROD')">
+                         <input v-model="item.new_cod_producto" :placeholder="item.cod_producto" class="w-full px-2 py-1 border border-gray-300 yellow-50 rounded text-xs font-bold text-gray-800 outline-none focus:ring-1 focus:ring-accent">
+                      </div>
+                      <span v-else-if="item.cod_producto" class="text-sm font-bold text-gray-800">
+                        <template v-if="item.cod_producto.startsWith('MNL-')">
+                          <span class="text-gray-500 font-medium italic text-xs">No Asignado</span>
+                        </template>
+                        <template v-else>
+                          {{ item.cod_producto }}
+                          <span v-if="item.cod_producto.startsWith('TMP-PROD')" class="ml-1 text-[9px] bg-yellow-100 text-yellow-800 px-1 py-0.5 rounded font-bold uppercase tracking-wide">Temp</span>
+                        </template>
+                      </span>
+                      <span v-else class="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-1 rounded font-bold uppercase tracking-wide">Manual</span>
+                    </td>
+                    <td class="py-4 px-6">
+                      <span class="text-sm text-gray-600 truncate block">{{ getDesc(item) }}</span>
+                    </td>
+                    <td v-if="solicitud.estado_id !== 1" class="py-4 px-6 text-center">
+                      <span class="text-sm text-gray-600 font-medium">{{ item.producto?.unidad_medida?.abreviatura || '-' }}</span>
+                    </td>
+                    <td v-if="solicitud.estado_id !== 1" class="py-4 px-6 text-center">
+                      <span class="text-sm font-bold text-main">{{ item.cantidad }}</span>
+                    </td>
+                    <!-- Inventario -->
+                    <td v-if="solicitud.estado_id !== 1" class="py-4 px-6 text-center">
+                      <div v-if="isAlmacen">
+                          <input v-model.number="item.cantidad_inventario" type="number" min="0" class="w-20 px-2 py-1 border border-gray-300 rounded text-center text-sm font-medium focus:ring-1 focus:ring-accent outline-none">
+                      </div>
+                      <span v-else class="text-sm font-medium text-gray-600">{{ item.cantidad_inventario !== null ? item.cantidad_inventario : '-' }}</span>
+                    </td>
+                    <!-- Gerencia -->
+                    <td v-if="solicitud.estado_id !== 1" class="py-4 px-6 text-center">
+                      <div v-if="isGerencia">
+                          <input v-model.number="item.cantidad_gerencia" type="number" min="0" class="w-20 px-2 py-1 border border-gray-300 rounded text-center text-sm font-medium focus:ring-1 focus:ring-accent outline-none">
+                      </div>
+                      <span v-else class="text-sm font-medium text-gray-600">{{ item.cantidad_gerencia !== null ? item.cantidad_gerencia : '-' }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fila 2: Observación & Equipos (en una sola fila ambos) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
           <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2">
                <Layers class="w-4 h-4 text-main"/> Equipos
@@ -290,78 +407,6 @@ const replaceFolio = async () => {
                Observación
             </h3>
             <p class="text-sm text-gray-600 leading-relaxed">{{ solicitud.observacion }}</p>
-          </div>
-        </div>
-
-        <!-- Tabla Detalles -->
-        <div class="lg:col-span-2 relative">
-          <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-            <div class="p-6 border-b border-gray-50 flex items-center justify-between">
-              <h3 class="text-sm font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
-                <ShoppingCart class="w-4 h-4 text-main"/> Ítems Solicitados
-              </h3>
-              
-              <button 
-                  v-if="isAlmacen || isGerencia" 
-                  @click="saveQuantities"
-                  :disabled="isSubmittingQuantities"
-                  class="flex items-center gap-2 px-4 py-2 bg-main text-white text-xs font-bold rounded-lg hover:bg-main-dark transition-colors disabled:opacity-50"
-              >
-                  <Save class="w-3.5 h-3.5" /> {{ isSubmittingQuantities ? 'Guardando...' : 'Guardar Cantidades' }}
-              </button>
-            </div>
-            
-            <div class="overflow-x-auto">
-              <table class="w-full text-left border-collapse min-w-[700px]">
-                <thead class="bg-gray-50/50">
-                  <tr>
-                    <th class="py-4 px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider w-24">Código</th>
-                    <th class="py-4 px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Descripción</th>
-                    <th class="py-4 px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center w-24">Unidad</th>
-                    <th class="py-4 px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center w-24">Cant. Solicitada</th>
-                    <th class="py-4 px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center w-24">Cant. Inventario</th>
-                    <th class="py-4 px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center w-24">Cant. Gerencia</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-50">
-                  <tr v-for="item in detalles" :key="item.id" class="hover:bg-gray-50/30 transition-colors">
-                    <td class="py-4 px-6">
-                      <div v-if="isAlmacen && item.cod_producto && item.cod_producto.startsWith('TMP-PROD')">
-                         <input v-model="item.new_cod_producto" :placeholder="item.cod_producto" class="w-full px-2 py-1 border border-gray-300 yellow-50 rounded text-xs font-bold text-gray-800 outline-none focus:ring-1 focus:ring-accent">
-                      </div>
-                      <span v-else-if="item.cod_producto" class="text-sm font-bold text-gray-800">
-                        {{ item.cod_producto }}
-                        <span v-if="item.cod_producto.startsWith('TMP-PROD')" class="ml-1 text-[9px] bg-yellow-100 text-yellow-800 px-1 py-0.5 rounded font-bold uppercase tracking-wide">Temp</span>
-                      </span>
-                      <span v-else class="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-1 rounded font-bold uppercase tracking-wide">Manual</span>
-                    </td>
-                    <td class="py-4 px-6">
-                      <span class="text-sm text-gray-600 truncate block">{{ getDesc(item) }}</span>
-                    </td>
-                    <td class="py-4 px-6 text-center">
-                      <span class="text-sm text-gray-600 font-medium">{{ item.producto?.unidad_medida?.abreviatura || '-' }}</span>
-                    </td>
-                    <td class="py-4 px-6 text-center">
-                      <span class="text-sm font-bold text-main">{{ item.cantidad }}</span>
-                    </td>
-                    <!-- Inventario -->
-                    <td class="py-4 px-6 text-center">
-                      <div v-if="isAlmacen">
-                          <input v-model.number="item.cantidad_inventario" type="number" min="0" class="w-20 px-2 py-1 border border-gray-300 rounded text-center text-sm font-medium focus:ring-1 focus:ring-accent outline-none">
-                      </div>
-                      <span v-else class="text-sm font-medium text-gray-600">{{ item.cantidad_inventario !== null ? item.cantidad_inventario : '-' }}</span>
-                    </td>
-                    <!-- Gerencia -->
-                    <td class="py-4 px-6 text-center">
-                      <div v-if="isGerencia">
-                          <input v-model.number="item.cantidad_gerencia" type="number" min="0" class="w-20 px-2 py-1 border border-gray-300 rounded text-center text-sm font-medium focus:ring-1 focus:ring-accent outline-none">
-                      </div>
-                      <span v-else class="text-sm font-medium text-gray-600">{{ item.cantidad_gerencia !== null ? item.cantidad_gerencia : '-' }}</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
           </div>
         </div>
 
