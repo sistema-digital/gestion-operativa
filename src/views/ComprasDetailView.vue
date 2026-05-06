@@ -270,7 +270,7 @@ const replaceFolio = async () => {
             <button 
               v-if="solicitud.estado_id === 1 || solicitud.estado_id === 2" 
               @click="router.push(`/compras/${id}/editar`)" 
-              class="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-xl hover:bg-gray-50 text-gray-700 font-bold transition-all shadow-sm shrink-0"
+              class="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-xl hover:bg-gray-50 text-gray-700 font-bold transition-all shadow-sm shrink-0 cursor-pointer"
             >
               <Edit2 class="w-4 h-4" /> Editar
             </button>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { supabase, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 import BaseDateField from '@/components/BaseDateField.vue';
 import { useComprasStore } from '@/stores/comprasStore';
@@ -55,6 +56,20 @@ const fieldErrors = ref({
 });
 
 const hasUnsavedChanges = computed(() => {
+  if (props.mode === 'edit' && props.initialData) {
+    const origFecha = props.initialData.fecha_entrega || '';
+    const origObs = props.initialData.observacion || '';
+    const origEquipos = props.initialData.equipos?.length || 0;
+    const origDetalles = props.initialData.detalles?.length || 0;
+    
+    // Very simple check for edit, can be more complex if needed
+    return (
+      fechaEntrega.value !== origFecha ||
+      observacion.value !== origObs ||
+      selectedEquipos.value.length !== origEquipos ||
+      detalles.value.length !== origDetalles
+    );
+  }
   return (
     fechaEntrega.value !== '' ||
     observacion.value !== '' ||
@@ -63,21 +78,60 @@ const hasUnsavedChanges = computed(() => {
   );
 });
 
+const router = useRouter();
+const route = useRoute();
+
+let isNavigationAllowed = false;
+let pendingRouteTarget: any = null;
+
+const checkNavigation = (to: any, next: any) => {
+  if (isNavigationAllowed) {
+    next();
+    return;
+  }
+  
+  if (hasUnsavedChanges.value) {
+    showConfirmCancel.value = true;
+    pendingRouteTarget = to;
+    next(false);
+  } else {
+    next();
+  }
+};
+
+defineExpose({ checkNavigation });
+
 const confirmCancel = () => {
   showConfirmCancel.value = false;
-  closeForm();
+  isNavigationAllowed = true;
+  if (pendingRouteTarget) {
+    router.push(pendingRouteTarget);
+  } else {
+    closeForm();
+  }
 };
 
 const closeForm = () => {
-  isClosing.value = true;
-  setTimeout(() => emit('close'), 500);
+  isNavigationAllowed = true;
+  emit('close');
 };
 
 const handleBack = () => {
   if (hasUnsavedChanges.value) {
     showConfirmCancel.value = true;
+    pendingRouteTarget = route.params.id ? `/compras/${route.params.id}` : '/compras';
   } else {
     closeForm();
+  }
+};
+
+const handleCancelBtn = () => {
+  if (hasUnsavedChanges.value) {
+    showConfirmCancel.value = true;
+    pendingRouteTarget = '/compras'; // Cancelar should close the panel completely
+  } else {
+    isNavigationAllowed = true;
+    router.push('/compras');
   }
 };
 
@@ -519,18 +573,15 @@ const saveSolicitud = async () => {
         );
       }
 
-      isClosing.value = true;
-
       try {
         await comprasStore.fetchSolicitudes();
       } catch (e) {
         // ignore
       }
 
-      setTimeout(() => {
-        emit('created');
-        emit('close');
-      }, 500);
+      isNavigationAllowed = true;
+      emit('created');
+      closeForm();
     } else {
       // UPDATE MODE
       const solId = props.initialData.id;
@@ -585,18 +636,15 @@ const saveSolicitud = async () => {
       }
 
 
-      isClosing.value = true;
-
       try {
         await comprasStore.fetchSolicitudes();
       } catch (e) {
         // ignore
       }
 
-      setTimeout(() => {
-        emit('updated');
-        emit('close');
-      }, 500);
+      isNavigationAllowed = true;
+      emit('updated');
+      closeForm();
     }
   } catch (err: any) {
     console.error(err);
@@ -609,8 +657,7 @@ const saveSolicitud = async () => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 bg-gray-50 flex flex-col w-full h-full duration-500"
-    :class="isClosing ? 'animate-out slide-out-to-right' : 'animate-in slide-in-from-right'">
+  <div class="h-full flex flex-col w-full bg-gray-50">
     <!-- Main Full Page Container -->
     <div class="flex-1 overflow-hidden flex flex-col bg-white">
       <!-- Header -->
@@ -628,7 +675,7 @@ const saveSolicitud = async () => {
         </div>
 
         <button @click="handleBack"
-          class="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 hover:text-gray-900 rounded-xl transition-colors">
+          class="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 hover:text-gray-900 rounded-xl transition-colors cursor-pointer">
           <ArrowLeft class="w-4 h-4" />
           Regresar
         </button>
@@ -723,7 +770,7 @@ const saveSolicitud = async () => {
               </label>
 
               <button @click="addManualItem"
-                class="text-xs font-bold text-main hover:text-accent flex items-center gap-1 bg-main/5 px-2 py-1 rounded">
+                class="text-xs font-bold text-main hover:text-accent flex items-center gap-1 bg-main/5 px-2 py-1 rounded cursor-pointer">
                 <Plus class="w-3.5 h-3.5" />
                 Agregar Ítem Manual
               </button>
@@ -881,7 +928,7 @@ const saveSolicitud = async () => {
 
                       <td class="py-3 px-4">
                         <select v-if="item.isManual" v-model="item.unidad_id"
-                          class="w-full px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm bg-white">
+                          class="w-full px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm bg-white cursor-pointer">
                           <option value="" disabled>
                             Seleccionar
                           </option>
@@ -940,14 +987,14 @@ const saveSolicitud = async () => {
 
           <!-- Footer -->
           <div class="pt-8 border-t border-gray-100 flex justify-end gap-3 mt-8">
-            <button @click="handleBack" type="button"
-              class="px-6 py-2.5 rounded-xl font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+            <button @click="handleCancelBtn" type="button"
+              class="px-6 py-2.5 rounded-xl font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
               :disabled="isSubmitting">
               Cancelar
             </button>
 
             <button @click="saveSolicitud" type="button"
-              class="px-6 py-2.5 rounded-xl font-bold bg-accent text-main-dark hover:brightness-110 transition-all shadow-sm flex items-center gap-2"
+              class="px-6 py-2.5 rounded-xl font-bold bg-accent text-main-dark hover:brightness-110 transition-all shadow-sm flex items-center gap-2 cursor-pointer"
               :disabled="isSubmitting">
               <Save v-if="!isSubmitting" class="w-4 h-4" />
 
@@ -988,12 +1035,12 @@ const saveSolicitud = async () => {
 
         <div class="flex flex-col gap-2">
           <button @click="confirmCancel"
-            class="w-full py-3 rounded-xl font-bold bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
+            class="w-full py-3 rounded-xl font-bold bg-red-50 text-red-600 hover:bg-red-100 transition-colors cursor-pointer">
             Sí, descartar y regresar
           </button>
 
           <button @click="closeConfirm"
-            class="w-full py-3 rounded-xl font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors">
+            class="w-full py-3 rounded-xl font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
             Seguir editando
           </button>
         </div>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import SolicitudCompraForm from '@/components/compras/form/SolicitudCompraForm.vue';
 import { supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 import { useComprasStore } from '@/stores/comprasStore';
@@ -9,9 +9,19 @@ const route = useRoute();
 const router = useRouter();
 const store = useComprasStore();
 
+const formRef = ref<any>(null);
+
 const id = route.params.id as string;
 const initialData = ref<any>(null);
 const isLoading = ref(true);
+
+onBeforeRouteLeave((to, from, next) => {
+  if (formRef.value) {
+    formRef.value.checkNavigation(to, next);
+  } else {
+    next();
+  }
+});
 
 const handleClose = () => {
   router.push(`/compras/${id}`);
@@ -60,6 +70,6 @@ onMounted(async () => {
   <div v-if="isLoading" class="flex-1 flex items-center justify-center h-full text-center">
     <div class="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
   </div>
-  <SolicitudCompraForm v-else-if="initialData" mode="edit" :initial-data="initialData" @close="handleClose"
+  <SolicitudCompraForm v-else-if="initialData" ref="formRef" mode="edit" :initial-data="initialData" @close="handleClose"
     @updated="handleUpdated" />
 </template>
