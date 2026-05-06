@@ -104,7 +104,8 @@ const unidadesMedida = ref<{ id: string | number; abreviatura: string }[]>([]);
 
 // Details table
 interface DetalleManual {
-  id: string;
+  ui_id: string;
+  db_id: string | null;
   isManual: boolean;
   cod_producto: string | null;
   descripcion: string;
@@ -176,7 +177,7 @@ onMounted(async () => {
           !codProducto ||
           codProducto.trim().toUpperCase().startsWith('MNL-');
 
-        const unidadIdRaw =  d.producto?.unidad_medida?.id?? null;
+        const unidadIdRaw = d.producto?.unidad_medida?.id ?? null;
 
         const unidadAbreviatura =
           d.unidad_medida?.abreviatura ??
@@ -222,7 +223,7 @@ onMounted(async () => {
           descripcion: d.producto?.descripcion || d.descripcion || '',
           unidad_id: unidadIdFinal,
           unidad: unidadAbreviatura,
-          cantidad: d.cantidad || 1
+          cantidad: d.cantidad || 0
         };
       });
     }
@@ -363,7 +364,8 @@ const toggleProducto = (prod: any) => {
     detalles.value.splice(index, 1);
   } else {
     detalles.value.push({
-      id: crypto.randomUUID(),
+      ui_id: crypto.randomUUID(),
+      db_id: null,
       isManual: false,
       cod_producto: prod.cod_producto,
       descripcion: prod.descripcion,
@@ -373,25 +375,26 @@ const toggleProducto = (prod: any) => {
           ? String(prod.unidad_medida.id)
           : '',
       unidad: prod.unidad_medida?.abreviatura || null,
-      cantidad: 1
+      cantidad: 0
     });
   }
 };
 
 const addManualItem = () => {
   detalles.value.push({
-    id: crypto.randomUUID(),
+    ui_id: crypto.randomUUID(),
+    db_id: null,
     isManual: true,
     cod_producto: null,
     descripcion: '',
     unidad_id: '',
     unidad: null,
-    cantidad: 1
+    cantidad: 0
   });
 };
 
-const removeDetalle = (id: string) => {
-  detalles.value = detalles.value.filter(d => d.id !== id);
+const removeDetalle = (uiId: string) => {
+  detalles.value = detalles.value.filter(d => d.ui_id !== uiId);
 };
 
 const saveSolicitud = async () => {
@@ -529,79 +532,55 @@ const saveSolicitud = async () => {
       // UPDATE MODE
       const solId = props.initialData.id;
 
-      const { error: mError } = await supabaseCompras
-        .from('solicitud_compra')
-        .update({
-          observacion: observacion.value,
-          fecha_entrega: fechaEntrega.value
-        })
-        .eq('id', solId);
-
-      if (mError) throw mError;
-
-      const { error: dDelError } = await supabaseCompras
-        .from('detalle_solicitud')
-        .delete()
-        .eq('solicitud_id', solId);
-
-      if (dDelError) throw dDelError;
-
-      // Actualiza descripción y unidad de productos manuales MNL-
-      for (const d of detalles.value) {
-        if (d.cod_producto && String(d.cod_producto).startsWith('MNL-')) {
-          await supabaseCompras
-            .from('producto') // revisa si tu tabla real es 'producto' o 'productos'
-            .update({
-              descripcion: d.descripcion,
-              unidad_medida_id: d.unidad_id
-            })
-            .eq('cod_producto', d.cod_producto);
-        }
-      }
-
-      const detallesToInsert = detalles.value.map(d => {
+      const detallesPayload = detalles.value.map(d => {
         const isManual =
           d.isManual ||
           !d.cod_producto ||
           String(d.cod_producto).trim().toUpperCase().startsWith('MNL-');
 
         return {
-          solicitud_id: solId,
-          folio_sol: props.initialData.folio_sol,
+          db_id: d.db_id || null,
+          isManual,
           cod_producto: d.cod_producto || null,
-          cantidad: d.cantidad || 1,
-          unidad_medida_id: isManual ? d.unidad_id : null
+          descripcion: d.descripcion,
+          unidad_id: isManual ? d.unidad_id : null,
+          cantidad: d.cantidad || 0
         };
       });
 
-      if (detallesToInsert.length > 0) {
-        const { error: dInsError } = await supabaseCompras
-          .from('detalle_solicitud')
-          .insert(detallesToInsert);
+      const { data: updateData, error: updateError } = await supabaseCompras.rpc(
+        'actualizar_solicitud_compra_con_detalles',
+        {
+          p_solicitud_id: solId,
+          p_solicitud: {
+            observacion: observacion.value,
+            fecha_entrega: fechaEntrega.value
+          },
+          p_detalles: detallesPayload
+        }
+      );
 
-        if (dInsError) throw dInsError;
+      if (updateError) throw updateError;
+
+      if (!updateData?.success) {
+        throw new Error('No se pudo actualizar la solicitud');
       }
 
-      const { error: eDelError } = await supabaseEquipos
-        .from('equipo_solicitudes')
-        .delete()
-        .eq('solicitud_id', solId);
+      const { data: equiposData, error: equiposError } = await supabaseEquipos.rpc(
+        'sincronizar_equipos_solicitud',
+        {
+          p_solicitud_id: solId,
+          p_folio_sol: updateData.folio_sol,
+          p_cod_equipos: selectedEquipos.value.map(eq => eq.cod_equipo)
+        }
+      );
 
-      if (eDelError) throw eDelError;
+      if (equiposError) throw equiposError;
 
-      const equiposToInsert = selectedEquipos.value.map(eq => ({
-        solicitud_id: solId,
-        folio_sol: props.initialData.folio_sol,
-        cod_equipo: eq.cod_equipo
-      }));
-
-      if (equiposToInsert.length > 0) {
-        const { error: eInsError } = await supabaseEquipos
-          .from('equipo_solicitudes')
-          .insert(equiposToInsert);
-
-        if (eInsError) throw eInsError;
+      if (!equiposData?.success) {
+        throw new Error('No se pudieron sincronizar los equipos');
       }
+
 
       isClosing.value = true;
 
@@ -627,10 +606,8 @@ const saveSolicitud = async () => {
 </script>
 
 <template>
-  <div
-    class="fixed inset-0 z-50 bg-gray-50 flex flex-col w-full h-full duration-500"
-    :class="isClosing ? 'animate-out slide-out-to-right' : 'animate-in slide-in-from-right'"
-  >
+  <div class="fixed inset-0 z-50 bg-gray-50 flex flex-col w-full h-full duration-500"
+    :class="isClosing ? 'animate-out slide-out-to-right' : 'animate-in slide-in-from-right'">
     <!-- Main Full Page Container -->
     <div class="flex-1 overflow-hidden flex flex-col bg-white">
       <!-- Header -->
@@ -647,10 +624,8 @@ const saveSolicitud = async () => {
           </div>
         </div>
 
-        <button
-          @click="handleBack"
-          class="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 hover:text-gray-900 rounded-xl transition-colors"
-        >
+        <button @click="handleBack"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 hover:text-gray-900 rounded-xl transition-colors">
           <ArrowLeft class="w-4 h-4" />
           Regresar
         </button>
@@ -659,21 +634,15 @@ const saveSolicitud = async () => {
       <!-- Content -->
       <div class="flex-1 overflow-y-auto p-6 md:p-10 lg:px-24">
         <div class="max-w-5xl mx-auto space-y-8 pb-10">
-          <div
-            v-if="fieldErrors.general"
-            class="bg-red-50 text-red-600 p-4 rounded-xl text-sm mb-4 border border-red-200"
-          >
+          <div v-if="fieldErrors.general"
+            class="bg-red-50 text-red-600 p-4 rounded-xl text-sm mb-4 border border-red-200">
             {{ fieldErrors.general }}
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <!-- Fecha Entrega -->
             <div class="space-y-1.5 flex flex-col justify-end">
-              <BaseDateField
-                v-model="fechaEntrega"
-                label="Fecha de Entrega *"
-                :error="fieldErrors.fechaEntrega"
-              />
+              <BaseDateField v-model="fechaEntrega" label="Fecha de Entrega *" :error="fieldErrors.fechaEntrega" />
             </div>
 
             <!-- Auto email display -->
@@ -695,59 +664,35 @@ const saveSolicitud = async () => {
             </label>
 
             <div class="flex flex-wrap gap-2 mb-2">
-              <div
-                v-for="eq in selectedEquipos"
-                :key="eq.cod_equipo"
-                class="bg-main text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
-              >
+              <div v-for="eq in selectedEquipos" :key="eq.cod_equipo"
+                class="bg-main text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2">
                 <span>{{ eq.cod_equipo }}</span>
 
-                <button
-                  @click="removeEquipo(eq.cod_equipo)"
-                  class="text-white hover:text-red-300"
-                >
+                <button @click="removeEquipo(eq.cod_equipo)" class="text-white hover:text-red-300">
                   <X class="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
             <div class="relative">
-              <div
-                v-if="showEquiposDropdown"
-                class="fixed inset-0 z-10"
-                @click="showEquiposDropdown = false"
-              ></div>
+              <div v-if="showEquiposDropdown" class="fixed inset-0 z-10" @click="showEquiposDropdown = false"></div>
 
               <div class="flex items-center relative z-20">
                 <Search class="absolute left-3 w-4 h-4 text-gray-400" />
 
-                <input
-                  v-model="searchEquipo"
-                  @focus="showEquiposDropdown = true"
-                  type="text"
+                <input v-model="searchEquipo" @focus="showEquiposDropdown = true" type="text"
                   placeholder="Buscar equipo por código o nombre..."
-                  class="w-full pl-9 pr-4 py-2 border border-gray-200 bg-white rounded-xl focus:ring-2 focus:ring-accent outline-none relative"
-                />
+                  class="w-full pl-9 pr-4 py-2 border border-gray-200 bg-white rounded-xl focus:ring-2 focus:ring-accent outline-none relative" />
               </div>
 
-              <div
-                v-if="showEquiposDropdown && filteredEquipos.length > 0"
-                class="absolute z-30 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto"
-              >
-                <div
-                  v-for="eq in filteredEquipos"
-                  :key="eq.cod_equipo"
-                  @click.stop="toggleEquipo(eq)"
-                  class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0 flex items-center gap-3"
-                >
+              <div v-if="showEquiposDropdown && filteredEquipos.length > 0"
+                class="absolute z-30 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                <div v-for="eq in filteredEquipos" :key="eq.cod_equipo" @click.stop="toggleEquipo(eq)"
+                  class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0 flex items-center gap-3">
                   <div class="flex items-center h-5">
-                    <input
-                      type="checkbox"
-                      :checked="isEquipoSelected(eq.cod_equipo)"
-                      readonly
+                    <input type="checkbox" :checked="isEquipoSelected(eq.cod_equipo)" readonly
                       class="w-4 h-4 text-accent border-gray-300 rounded focus:ring-accent accent-accent cursor-pointer"
-                      @click.stop="toggleEquipo(eq)"
-                    />
+                      @click.stop="toggleEquipo(eq)" />
                   </div>
 
                   <div class="font-bold text-sm text-gray-700">
@@ -756,18 +701,13 @@ const saveSolicitud = async () => {
                 </div>
               </div>
 
-              <div
-                v-else-if="showEquiposDropdown && searchEquipo"
-                class="absolute z-30 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-4 text-sm text-gray-500 text-center"
-              >
+              <div v-else-if="showEquiposDropdown && searchEquipo"
+                class="absolute z-30 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-4 text-sm text-gray-500 text-center">
                 No se encontraron equipos
               </div>
             </div>
 
-            <p
-              v-if="fieldErrors.equipos"
-              class="text-xs text-red-500 mt-2"
-            >
+            <p v-if="fieldErrors.equipos" class="text-xs text-red-500 mt-2">
               {{ fieldErrors.equipos }}
             </p>
           </div>
@@ -779,62 +719,44 @@ const saveSolicitud = async () => {
                 Productos / Servicios <span class="text-red-500">*</span>
               </label>
 
-              <button
-                @click="addManualItem"
-                class="text-xs font-bold text-main hover:text-accent flex items-center gap-1 bg-main/5 px-2 py-1 rounded"
-              >
+              <button @click="addManualItem"
+                class="text-xs font-bold text-main hover:text-accent flex items-center gap-1 bg-main/5 px-2 py-1 rounded">
                 <Plus class="w-3.5 h-3.5" />
                 Agregar Ítem Manual
               </button>
             </div>
 
             <div class="relative mt-2">
-              <div
-                v-if="showProductosDropdown"
-                class="fixed inset-0 z-10"
-                @click="showProductosDropdown = false"
-              ></div>
+              <div v-if="showProductosDropdown" class="fixed inset-0 z-10" @click="showProductosDropdown = false"></div>
 
               <div class="flex items-center relative z-20">
                 <Search class="absolute left-3 w-4 h-4 text-gray-400" />
 
-                <input
-                  v-model="searchProducto"
-                  @focus="showProductosDropdown = true"
-                  type="text"
+                <input v-model="searchProducto" @focus="showProductosDropdown = true" type="text"
                   placeholder="Buscar producto de almacén..."
-                  class="w-full pl-9 pr-4 py-2 border border-gray-200 bg-white rounded-xl focus:ring-2 focus:ring-accent outline-none relative"
-                />
+                  class="w-full pl-9 pr-4 py-2 border border-gray-200 bg-white rounded-xl focus:ring-2 focus:ring-accent outline-none relative" />
               </div>
 
-              <div
-                v-if="showProductosDropdown"
-                class="absolute z-30 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto flex flex-col"
-              >
+              <div v-if="showProductosDropdown"
+                class="absolute z-30 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto flex flex-col">
                 <template v-if="searchProducto.trim().length < 4">
                   <template v-if="searchProducto.trim() === '' && detalles.filter(d => !d.isManual).length > 0">
-                    <div class="px-4 py-2 bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100 sticky top-0 z-10">
+                    <div
+                      class="px-4 py-2 bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100 sticky top-0 z-10">
                       Elementos Seleccionados
                     </div>
 
-                    <div
-                      v-for="prod in detalles.filter(d => !d.isManual)"
-                      :key="prod.id"
-                      @click.stop="toggleProducto({
-                        cod_producto: prod.cod_producto,
-                        descripcion: prod.descripcion,
-                        unidad_medida: {
-                          id: prod.unidad_id,
-                          abreviatura: prod.unidad
-                        }
-                      })"
-                      class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 shrink-0 flex items-start gap-3 bg-accent/5"
-                    >
+                    <div v-for="prod in detalles.filter(d => !d.isManual)" :key="prod.ui_id" @click.stop="toggleProducto({
+                      cod_producto: prod.cod_producto,
+                      descripcion: prod.descripcion,
+                      unidad_medida: {
+                        id: prod.unidad_id,
+                        abreviatura: prod.unidad
+                      }
+                    })"
+                      class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 shrink-0 flex items-start gap-3 bg-accent/5">
                       <div class="flex items-center h-5 mt-0.5">
-                        <input
-                          type="checkbox"
-                          checked
-                          readonly
+                        <input type="checkbox" checked readonly
                           class="w-4 h-4 text-accent border-gray-300 rounded focus:ring-accent accent-accent cursor-pointer"
                           @click.stop="toggleProducto({
                             cod_producto: prod.cod_producto,
@@ -843,8 +765,7 @@ const saveSolicitud = async () => {
                               id: prod.unidad_id,
                               abreviatura: prod.unidad
                             }
-                          })"
-                        />
+                          })" />
                       </div>
 
                       <div class="flex flex-col">
@@ -864,36 +785,23 @@ const saveSolicitud = async () => {
                   </div>
                 </template>
 
-                <div
-                  v-else-if="isSearchingProductos && productosResult.length === 0"
-                  class="p-4 flex items-center justify-center gap-2 text-sm text-gray-500"
-                >
+                <div v-else-if="isSearchingProductos && productosResult.length === 0"
+                  class="p-4 flex items-center justify-center gap-2 text-sm text-gray-500">
                   <Loader2 class="w-4 h-4 animate-spin text-main" />
                   Buscando...
                 </div>
 
-                <div
-                  v-else-if="productosResult.length === 0"
-                  class="p-4 text-sm text-gray-500 text-center"
-                >
+                <div v-else-if="productosResult.length === 0" class="p-4 text-sm text-gray-500 text-center">
                   No se encontraron productos.
                 </div>
 
                 <template v-else>
-                  <div
-                    v-for="prod in productosResult"
-                    :key="prod.cod_producto"
-                    @click.stop="toggleProducto(prod)"
-                    class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 shrink-0 flex items-start gap-3"
-                  >
+                  <div v-for="prod in productosResult" :key="prod.cod_producto" @click.stop="toggleProducto(prod)"
+                    class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 shrink-0 flex items-start gap-3">
                     <div class="flex items-center h-5 mt-0.5">
-                      <input
-                        type="checkbox"
-                        :checked="isProductoSelected(prod.cod_producto)"
-                        readonly
+                      <input type="checkbox" :checked="isProductoSelected(prod.cod_producto)" readonly
                         class="w-4 h-4 text-accent border-gray-300 rounded focus:ring-accent accent-accent cursor-pointer"
-                        @click.stop="toggleProducto(prod)"
-                      />
+                        @click.stop="toggleProducto(prod)" />
                     </div>
 
                     <div class="flex flex-col">
@@ -907,19 +815,10 @@ const saveSolicitud = async () => {
                     </div>
                   </div>
 
-                  <div
-                    v-if="hasMoreProductos"
-                    class="p-2 shrink-0"
-                  >
-                    <button
-                      @click.stop="loadMoreProducts"
-                      :disabled="isSearchingProductos"
-                      class="w-full py-2 text-xs font-bold text-main bg-main/5 hover:bg-main/10 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                    >
-                      <Loader2
-                        v-if="isSearchingProductos"
-                        class="w-3.5 h-3.5 animate-spin"
-                      />
+                  <div v-if="hasMoreProductos" class="p-2 shrink-0">
+                    <button @click.stop="loadMoreProducts" :disabled="isSearchingProductos"
+                      class="w-full py-2 text-xs font-bold text-main bg-main/5 hover:bg-main/10 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+                      <Loader2 v-if="isSearchingProductos" class="w-3.5 h-3.5 animate-spin" />
 
                       {{ isSearchingProductos ? 'Cargando más...' : 'Cargar más' }}
                     </button>
@@ -946,10 +845,8 @@ const saveSolicitud = async () => {
                         Unidad
                       </th>
 
-                      <th
-                        class="py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24 text-center"
-                        v-if="showCantidad"
-                      >
+                      <th class="py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24 text-center"
+                        v-if="showCantidad">
                         Cant.
                       </th>
 
@@ -958,99 +855,58 @@ const saveSolicitud = async () => {
                   </thead>
 
                   <tbody class="divide-y divide-gray-100">
-                    <tr
-                      v-for="item in detalles"
-                      :key="item.id"
-                      class="hover:bg-gray-50/50"
-                    >
+                    <tr v-for="item in detalles" :key="item.ui_id" class="hover:bg-gray-50/50">
                       <td class="py-3 px-4">
-                        <span
-                          v-if="!item.isManual"
-                          class="text-sm font-medium text-gray-700"
-                        >
+                        <span v-if="!item.isManual" class="text-sm font-medium text-gray-700">
                           {{ item.cod_producto }}
                         </span>
 
-                        <span
-                          v-else
-                          class="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded"
-                        >
+                        <span v-else class="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded">
                           No asignado
                         </span>
                       </td>
 
                       <td class="py-3 px-4">
-                        <input
-                          v-if="item.isManual"
-                          v-model="item.descripcion"
-                          type="text"
-                          maxlength="255"
+                        <input v-if="item.isManual" v-model="item.descripcion" type="text" maxlength="255"
                           placeholder="Descripción manual..."
-                          class="w-full px-3 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm"
-                        />
+                          class="w-full px-3 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm" />
 
-                        <span
-                          v-else
-                          class="text-sm text-gray-600"
-                        >
+                        <span v-else class="text-sm text-gray-600">
                           {{ item.descripcion }}
                         </span>
                       </td>
 
                       <td class="py-3 px-4">
-                        <select
-                          v-if="item.isManual"
-                          v-model="item.unidad_id"
-                          class="w-full px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm bg-white"
-                        >
+                        <select v-if="item.isManual" v-model="item.unidad_id"
+                          class="w-full px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm bg-white">
                           <option value="" disabled>
                             Seleccionar
                           </option>
 
-                          <option
-                            v-for="u in unidadesMedida"
-                            :key="u.id"
-                            :value="String(u.id)"
-                          >
+                          <option v-for="u in unidadesMedida" :key="u.id" :value="String(u.id)">
                             {{ u.abreviatura }}
                           </option>
                         </select>
 
-                        <span
-                          v-else
-                          class="text-sm text-gray-600 font-medium"
-                        >
+                        <span v-else class="text-sm text-gray-600 font-medium">
                           {{ item.unidad || '-' }}
                         </span>
                       </td>
 
-                      <td
-                        class="py-3 px-4 text-center"
-                        v-if="showCantidad"
-                      >
-                        <input
-                          v-model.number="item.cantidad"
-                          type="number"
-                          min="1"
-                          class="w-20 px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm text-center"
-                        />
+                      <td class="py-3 px-4 text-center" v-if="showCantidad">
+                        <input v-model.number="item.cantidad" type="number" min="1"
+                          class="w-20 px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm text-center" />
                       </td>
 
                       <td class="py-3 px-4 text-right">
-                        <button
-                          @click="removeDetalle(item.id)"
-                          class="text-gray-400 hover:text-danger p-1"
-                        >
+                        <button @click="removeDetalle(item.ui_id)" class="text-gray-400 hover:text-danger p-1">
                           <Trash2 class="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
 
                     <tr v-if="detalles.length === 0">
-                      <td
-                        :colspan="showCantidad ? 5 : 4"
-                        class="py-8 text-center text-sm text-gray-400"
-                      >
+                      <td :colspan="showCantidad ? 5 : 4" class="py-8 text-center text-sm text-gray-400">
                         Agregue productos desde la búsqueda o como ítem manual.
                       </td>
                     </tr>
@@ -1059,10 +915,7 @@ const saveSolicitud = async () => {
               </div>
             </div>
 
-            <p
-              v-if="fieldErrors.productos"
-              class="text-xs text-red-500 mt-2"
-            >
+            <p v-if="fieldErrors.productos" class="text-xs text-red-500 mt-2">
               {{ fieldErrors.productos }}
             </p>
           </div>
@@ -1073,48 +926,30 @@ const saveSolicitud = async () => {
               Observación <span class="text-red-500">*</span>
             </label>
 
-            <textarea
-              v-model="observacion"
-              rows="2"
-              placeholder="Justificación o detalles de la solicitud..."
+            <textarea v-model="observacion" rows="2" placeholder="Justificación o detalles de la solicitud..."
               class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-accent outline-none transition-all resize-none"
-              :class="{ 'border-red-500': fieldErrors.observacion }"
-            ></textarea>
+              :class="{ 'border-red-500': fieldErrors.observacion }"></textarea>
 
-            <p
-              v-if="fieldErrors.observacion"
-              class="text-xs text-red-500 mt-1"
-            >
+            <p v-if="fieldErrors.observacion" class="text-xs text-red-500 mt-1">
               {{ fieldErrors.observacion }}
             </p>
           </div>
 
           <!-- Footer -->
           <div class="pt-8 border-t border-gray-100 flex justify-end gap-3 mt-8">
-            <button
-              @click="handleBack"
-              type="button"
+            <button @click="handleBack" type="button"
               class="px-6 py-2.5 rounded-xl font-medium text-gray-600 hover:bg-gray-100 transition-colors"
-              :disabled="isSubmitting"
-            >
+              :disabled="isSubmitting">
               Cancelar
             </button>
 
-            <button
-              @click="saveSolicitud"
-              type="button"
+            <button @click="saveSolicitud" type="button"
               class="px-6 py-2.5 rounded-xl font-bold bg-accent text-main-dark hover:brightness-110 transition-all shadow-sm flex items-center gap-2"
-              :disabled="isSubmitting"
-            >
-              <Save
-                v-if="!isSubmitting"
-                class="w-4 h-4"
-              />
+              :disabled="isSubmitting">
+              <Save v-if="!isSubmitting" class="w-4 h-4" />
 
-              <div
-                v-else
-                class="w-4 h-4 border-2 border-main-dark border-t-transparent rounded-full animate-spin"
-              ></div>
+              <div v-else class="w-4 h-4 border-2 border-main-dark border-t-transparent rounded-full animate-spin">
+              </div>
 
               {{
                 isSubmitting
@@ -1130,16 +965,11 @@ const saveSolicitud = async () => {
     </div>
 
     <!-- Confirmation Modal -->
-    <div
-      v-if="showConfirmCancel"
-      class="fixed inset-0 z-[60] flex items-center justify-center p-4"
-    >
-      <div
-        class="absolute inset-0 bg-main-dark/50 backdrop-blur-sm"
-        @click="closeConfirm"
-      ></div>
+    <div v-if="showConfirmCancel" class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-main-dark/50 backdrop-blur-sm" @click="closeConfirm"></div>
 
-      <div class="bg-white rounded-3xl shadow-xl w-full max-w-sm flex flex-col relative z-10 overflow-hidden p-6 text-center animate-in fade-in zoom-in-95 duration-200">
+      <div
+        class="bg-white rounded-3xl shadow-xl w-full max-w-sm flex flex-col relative z-10 overflow-hidden p-6 text-center animate-in fade-in zoom-in-95 duration-200">
         <div class="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
           <AlertTriangle class="w-8 h-8" />
         </div>
@@ -1154,17 +984,13 @@ const saveSolicitud = async () => {
         </p>
 
         <div class="flex flex-col gap-2">
-          <button
-            @click="confirmCancel"
-            class="w-full py-3 rounded-xl font-bold bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-          >
+          <button @click="confirmCancel"
+            class="w-full py-3 rounded-xl font-bold bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
             Sí, descartar y regresar
           </button>
 
-          <button
-            @click="closeConfirm"
-            class="w-full py-3 rounded-xl font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors"
-          >
+          <button @click="closeConfirm"
+            class="w-full py-3 rounded-xl font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors">
             Seguir editando
           </button>
         </div>
