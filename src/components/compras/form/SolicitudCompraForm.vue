@@ -33,6 +33,7 @@ const comprasStore = useComprasStore();
 // Form Data
 const fechaEntrega = ref('');
 const observacion = ref('');
+const isUrgent = ref(false);
 const selectedEquipos = ref<{ cod_equipo: string }[]>([]);
 const searchEquipo = ref('');
 const searchProducto = ref('');
@@ -46,6 +47,16 @@ const showCantidad = computed(() => {
   if (props.mode === 'edit' && props.initialData?.estado_id === 1) return false;
   return true;
 });
+
+const showUrgencyCheck = computed(() => {
+  if (props.mode === 'create') return true;
+  return [1, 2].includes(Number(props.initialData?.estado_id));
+});
+
+const getInitialUrgency = () => {
+  const data = props.initialData || {};
+  return Boolean(data.isUrgent ?? data.is_urgent ?? data.isurgent);
+};
 
 const fieldErrors = ref({
   fechaEntrega: '',
@@ -66,6 +77,7 @@ const hasUnsavedChanges = computed(() => {
     return (
       fechaEntrega.value !== origFecha ||
       observacion.value !== origObs ||
+      isUrgent.value !== getInitialUrgency() ||
       selectedEquipos.value.length !== origEquipos ||
       detalles.value.length !== origDetalles
     );
@@ -73,6 +85,7 @@ const hasUnsavedChanges = computed(() => {
   return (
     fechaEntrega.value !== '' ||
     observacion.value !== '' ||
+    isUrgent.value ||
     selectedEquipos.value.length > 0 ||
     detalles.value.length > 0
   );
@@ -222,6 +235,7 @@ onMounted(async () => {
   if (props.mode === 'edit' && props.initialData) {
     fechaEntrega.value = props.initialData.fecha_entrega || '';
     observacion.value = props.initialData.observacion || '';
+    isUrgent.value = getInitialUrgency();
     selectedEquipos.value = props.initialData.equipos
       ? [...props.initialData.equipos]
       : [];
@@ -508,8 +522,8 @@ const saveSolicitud = async () => {
         email: userEmail.value,
         observacion: observacion.value,
         estado_id: 1,
-        fecha_creacion: new Date().toISOString(),
-        fecha_entrega: fechaEntrega.value
+        fecha_entrega: fechaEntrega.value,
+        isUrgent: isUrgent.value
       };
 
       const detallesPayload = detalles.value.map(d => {
@@ -517,15 +531,13 @@ const saveSolicitud = async () => {
           return {
             isManual: true,
             descripcion: d.descripcion,
-            unidad_id: d.unidad_id,
-            cantidad: d.cantidad
+            unidad_id: Number(d.unidad_id)
           };
         }
 
         return {
           isManual: false,
-          cod_producto: d.cod_producto,
-          cantidad: d.cantidad
+          cod_producto: d.cod_producto
         };
       });
 
@@ -587,14 +599,20 @@ const saveSolicitud = async () => {
         };
       });
 
+      const solicitudUpdatePayload: Record<string, any> = {
+        observacion: observacion.value,
+        fecha_entrega: fechaEntrega.value
+      };
+
+      if (showUrgencyCheck.value) {
+        solicitudUpdatePayload.isUrgent = isUrgent.value;
+      }
+
       const { data: updateData, error: updateError } = await supabaseCompras.rpc(
         'actualizar_solicitud_compra_con_detalles',
         {
           p_solicitud_id: solId,
-          p_solicitud: {
-            observacion: observacion.value,
-            fecha_entrega: fechaEntrega.value
-          },
+          p_solicitud: solicitudUpdatePayload,
           p_detalles: detallesPayload
         }
       );
@@ -691,6 +709,18 @@ const saveSolicitud = async () => {
               </div>
             </div>
           </div>
+
+          <label
+            v-if="showUrgencyCheck"
+            class="inline-flex w-fit items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-bold text-yellow-800 cursor-pointer"
+          >
+            <input
+              v-model="isUrgent"
+              type="checkbox"
+              class="w-4 h-4 rounded border-yellow-300 text-yellow-600 focus:ring-yellow-500 accent-yellow-500 cursor-pointer"
+            />
+            <span>Solicitar Urgencia</span>
+          </label>
 
           <!-- Selector de Equipos -->
           <div class="space-y-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">

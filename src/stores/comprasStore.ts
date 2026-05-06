@@ -11,6 +11,8 @@ export interface SolicitudCompra {
   folio_sol: string | null;
   email: string;
   estado_id: number;
+  prioridad_id?: number | null;
+  isUrgent?: boolean;
   fecha_entrega: string;
   fecha_creacion: string;
   observacion: string;
@@ -41,6 +43,17 @@ export interface Producto {
 export interface Equipo {
   cod_equipo: string;
 }
+
+const toLocalDateTimeString = (value: string | null | undefined) => {
+  if (!value) return value || '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  const pad = (n: number) => n.toString().padStart(2, '0');
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
 
 export const useComprasStore = defineStore('compras', {
   state: () => ({
@@ -113,6 +126,7 @@ export const useComprasStore = defineStore('compras', {
 
         let solicitudesData = (solicitudesDataRaw || []).map(s => ({
           ...s,
+          fecha_creacion: toLocalDateTimeString(s.fecha_creacion),
           nombreSolicitante: s.email ? (profileNamesMap[s.email] || s.email) : 'Nombre no asignado'
         }));
 
