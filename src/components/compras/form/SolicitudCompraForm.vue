@@ -257,24 +257,9 @@ onMounted(async () => {
           unidadIdFinal = unidadEncontrada ? String(unidadEncontrada.id) : '';
         }
 
-        // Temporal: úsalo para revisar qué trae el detalle al editar.
-        // Cuando ya funcione, puedes borrar este console.log.
-        console.log('DETALLE EDIT:', {
-          cod_producto: d.cod_producto,
-          isManual,
-          unidad_medida_id: d.unidad_medida_id,
-          unidad_id: d.unidad_id,
-          producto_unidad_medida_id: d.producto?.unidad_medida_id,
-          producto_unidad_id: d.producto?.unidad_id,
-          producto_unidad_medida_id_nested: d.producto?.unidad_medida?.id,
-          unidad_medida_id_nested: d.unidad_medida?.id,
-          unidadAbreviatura,
-          unidadIdFinal,
-          unidadesDisponibles: unidadesMedida.value
-        });
-
         return {
-          id: d.id || crypto.randomUUID(),
+          ui_id: d.id ? String(d.id) : crypto.randomUUID(),
+          db_id: d.id ? String(d.id) : null,
           isManual,
           cod_producto: codProducto,
           descripcion: d.producto?.descripcion || d.descripcion || '',
