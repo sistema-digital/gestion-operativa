@@ -37,6 +37,12 @@ const fetchData = async () => {
     if (profiles) {
       allProfiles.value = profiles;
     }
+  } else if (userArea.value === 'ALMACEN') {
+    const { data: profiles } = await supabase.from('PROFILE').select('*');
+    if (profiles) {
+      allProfiles.value = profiles;
+    }
+    // No email filtering because ALMACEN will be strictly filtered by states 1, 2, 10 in the store
   } else {
     // Buscar tipo OR con el area igual o el email propio
     const { data: profiles } = await supabase.from('PROFILE').select('*').or(`area.ilike.${userArea.value},email.eq.${userEmail.value}`);
@@ -60,6 +66,13 @@ onMounted(async () => {
 const openNewForm = () => {
   router.push('/compras/nueva');
 };
+
+const filterEstados = computed(() => {
+  if (userArea.value === 'ALMACEN') {
+    return store.estados.filter(e => [1, 2, 10].includes(e.id));
+  }
+  return store.estados;
+});
 
 const statesCounts = computed(() => {
   const counts: Record<number, number> = {};
@@ -189,7 +202,7 @@ const goToDetail = (id: string) => {
     <!-- KPI States Scroll -->
     <div class="flex overflow-x-auto gap-4 pb-4 mb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
       <div 
-        v-for="estado in store.estados" 
+        v-for="estado in filterEstados" 
         :key="estado.id"
         @click="toggleEstado(estado.id)"
         class="flex-shrink-0 cursor-pointer transition-transform hover:-translate-y-1"

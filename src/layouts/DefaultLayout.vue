@@ -32,6 +32,9 @@ const menuItems = computed(() => {
   if (area === 'EVALUADOR') {
     return allMenuItems.filter(i => i.name === 'Calificaciones');
   }
+  if (area === 'ALMACEN') {
+    return allMenuItems.filter(i => i.name === 'Compras');
+  }
   if (area === 'ALL') {
     return [
       { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -61,6 +64,8 @@ onMounted(async () => {
     const area = userProfile.value?.area?.toUpperCase() || '';
     if (area === 'ALL') {
       router.push('/dashboard');
+    } else if (area === 'ALMACEN') {
+      router.push('/compras');
     } else {
       router.push('/calificaciones');
     }
@@ -197,7 +202,7 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
 
       <!-- FAB Mobile -->
       <button 
-        v-if="route.path !== '/dashboard' && (['ALL', 'EVALUADOR'].includes(userProfile?.area?.toUpperCase() || '') || route.path.startsWith('/compras'))"
+        v-if="route.path !== '/dashboard' && (['ALL', 'EVALUADOR', 'ALMACEN'].includes(userProfile?.area?.toUpperCase() || '') || route.path.startsWith('/compras'))"
         @click="triggerNew" 
         class="md:hidden fixed bottom-20 right-6 w-14 h-14 bg-accent text-gray-900 rounded-full shadow-lg flex items-center justify-center z-40 active:scale-90 transition-transform"
       >

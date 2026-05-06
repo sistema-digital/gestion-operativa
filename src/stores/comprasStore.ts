@@ -74,12 +74,16 @@ export const useComprasStore = defineStore('compras', {
           .order('fecha_creacion', { ascending: false });
 
         if (userArea !== 'ALL' && userArea !== '') {
-           if (emailsFilter.length > 0) {
-              query = query.in('email', emailsFilter);
+           if (userArea === 'ALMACEN') {
+              query = query.in('estado_id', [1, 2, 10]);
            } else {
-              // fallback if for some reason emailsFilter is empty
-              // but userArea is not ALL
-              query = query.filter('email', 'eq', 'NONE'); // won't return anything
+              if (emailsFilter.length > 0) {
+                 query = query.in('email', emailsFilter);
+              } else {
+                 // fallback if for some reason emailsFilter is empty
+                 // but userArea is not ALL
+                 query = query.filter('email', 'eq', 'NONE'); // won't return anything
+              }
            }
         }
 
@@ -87,52 +91,30 @@ export const useComprasStore = defineStore('compras', {
 
         if (solError) throw solError;
 
-        // Initialize with empty names
+        // Collect unique emails
+        const uniqueEmails = Array.from(new Set((solicitudesDataRaw || []).map(s => s.email).filter(Boolean)));
+        
+        let profileNamesMap: Record<string, string> = {};
+        
+        if (uniqueEmails.length > 0) {
+           const { data: profilesData } = await supabase
+              .from('PROFILE')
+              .select('email, nombre')
+              .in('email', uniqueEmails);
+              
+           if (profilesData) {
+              profilesData.forEach(p => {
+                 if (p.email && p.nombre) {
+                    profileNamesMap[p.email] = p.nombre;
+                 }
+              });
+           }
+        }
+
         let solicitudesData = (solicitudesDataRaw || []).map(s => ({
           ...s,
-          nombreSolicitante: ''
+          nombreSolicitante: s.email ? (profileNamesMap[s.email] || s.email) : 'Nombre no asignado'
         }));
-
-        // Fetch user data
-        const { data: userData } = await supabase.auth.getUser();
-        const loggedUserEmail = userData.user?.email || '';
-        let loggedUserName = 'Nombre no asignado';
-        
-        if (loggedUserEmail) {
-           const { data: loggedProfile } = await supabase.from('PROFILE').select('nombre').eq('email', loggedUserEmail).maybeSingle();
-           if (loggedProfile?.nombre) {
-               loggedUserName = loggedProfile.nombre;
-           }
-        }
-
-        // Apply logged in user's name
-        solicitudesData.forEach(s => {
-           if (s.email === loggedUserEmail) {
-               s.nombreSolicitante = loggedUserName;
-           }
-        });
-
-        // Resolve other emails
-        while (solicitudesData.some(s => s.nombreSolicitante === '')) {
-           const firstEmpty = solicitudesData.find(s => s.nombreSolicitante === '');
-           if (!firstEmpty) break;
-           
-           const targetEmail = firstEmpty.email;
-           let targetName = 'Nombre no asignado';
-           
-           if (targetEmail) {
-               const { data: pData } = await supabase.from('PROFILE').select('nombre').eq('email', targetEmail).maybeSingle();
-               if (pData?.nombre) {
-                   targetName = pData.nombre;
-               }
-           }
-           
-           solicitudesData.forEach(s => {
-               if (s.email === targetEmail) {
-                   s.nombreSolicitante = targetName;
-               }
-           });
-        }
 
         // Fetch equipos logically linked
         const solIds = solicitudesData?.map(s => s.id) || [];

@@ -120,7 +120,10 @@ onMounted(async () => {
   // Get user profile email
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (user) {
+  if (props.mode === 'edit' && props.initialData && props.initialData.email) {
+    userEmail.value = props.initialData.email;
+    userName.value = props.initialData.nombreSolicitante || props.initialData.email.split('@')[0];
+  } else if (user) {
     userEmail.value = user.email || '';
     userName.value = userEmail.value.split('@')[0];
 

@@ -51,17 +51,7 @@ const loadData = async () => {
       if (solError) throw solError;
       
       // Resolve Solicitante name
-      const { data: userData } = await supabase.auth.getUser();
-      const loggedUserEmail = userData.user?.email || '';
-      
-      let nombreSol = 'Nombre no asignado';
-      if (solData.email) {
-         const targetEmail = (solData.email === loggedUserEmail) ? loggedUserEmail : solData.email;
-         const { data: pData } = await supabase.from('PROFILE').select('nombre').eq('email', targetEmail).maybeSingle();
-         if (pData?.nombre) {
-             nombreSol = pData.nombre;
-         }
-      }
+      let nombreSol = solData.email || 'Nombre no asignado';
       solData.nombreSolicitante = nombreSol;
       
       // Transform Folio if Temp

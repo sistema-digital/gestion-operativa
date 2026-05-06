@@ -3,9 +3,11 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import SolicitudCompraForm from '@/components/compras/form/SolicitudCompraForm.vue';
 import { supabaseCompras, supabaseEquipos } from '@/lib/supabase';
+import { useComprasStore } from '@/stores/comprasStore';
 
 const route = useRoute();
 const router = useRouter();
+const store = useComprasStore();
 
 const id = route.params.id as string;
 const initialData = ref<any>(null);
@@ -36,8 +38,11 @@ onMounted(async () => {
 
     if (eqError) throw eqError;
 
+    const cachedSol = store.solicitudes.find(s => s.id === id);
+
     initialData.value = {
       ...solData,
+      nombreSolicitante: cachedSol?.nombreSolicitante || solData?.email,
       detalles: solData?.detalles || [],
       equipos: eqData || []
     };
