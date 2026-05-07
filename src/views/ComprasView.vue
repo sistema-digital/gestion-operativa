@@ -4,7 +4,10 @@ import { useRouter, useRoute } from 'vue-router';
 import { useComprasStore } from '@/stores/comprasStore';
 import type { SolicitudCompra } from '@/stores/comprasStore';
 import { supabase } from '@/lib/supabase';
-import { Search, Plus, Calendar, Clock, Layers, List, Filter, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-vue-next';
+import SolicitudCardList from '@/components/compras/list/SolicitudCardList.vue';
+import SolicitudTable from '@/components/compras/list/SolicitudTable.vue';
+import { defaultSolicitudColumns, type SolicitudDisplayConfig } from '@/components/compras/list/types';
+import { Search, Plus, Layers, List, Filter, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-vue-next';
 
 const router = useRouter();
 const route = useRoute();
@@ -17,6 +20,8 @@ const filterDropdownOpen = ref(false);
 const viewMode = ref<'card' | 'table'>('card');
 const currentPage = ref(1);
 const pageSize = 20;
+const tableGridClass = 'lg:grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(160px,0.9fr)_minmax(190px,1fr)_minmax(220px,1.2fr)_minmax(130px,0.7fr)]';
+const solicitudColumns = defaultSolicitudColumns;
 
 const isNewFormOpen = ref(false);
 
@@ -212,6 +217,16 @@ const ordenesCompraLabel = (req: SolicitudCompra) => {
   return folios?.length ? folios.join(', ') : 'No Asignado';
 };
 
+const solicitudDisplay = computed<SolicitudDisplayConfig>(() => ({
+  estadoLabel: estadoActualLabel,
+  ordenesCompraLabel,
+  shouldShowPriorityBadge,
+  priorityLabel,
+  priorityClass: priorityBadgeClass,
+  formatDate,
+  formatDateTime,
+}));
+
 // Handlers
 const goToDetail = (id: string) => {
   if (userArea.value === 'ALMACEN') {
@@ -385,191 +400,49 @@ const isChildRoute = computed(() => route.name !== 'Compras');
             <div class="w-2 h-2 rounded-full bg-accent"></div>
             {{ groupName }} ({{ group.length }})
           </h3>
-          <div v-if="viewMode === 'card'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div 
-              v-for="req in group" 
-              :key="req.id"
-              @click="goToDetail(req.id)"
-              class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:border-accent hover:shadow-md transition-all cursor-pointer flex flex-col gap-3 group/card"
-            >
-              <div class="flex justify-between items-start">
-                <div>
-                  <h4 class="font-bold text-gray-900 group-hover/card:text-main transition-colors">{{ req.folio_sol || 'Sin Folio' }}</h4>
-                </div>
-                <div class="flex flex-col items-end gap-1">
-                  <span class="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">{{ estadoActualLabel(req) }}</span>
-                  <span v-if="shouldShowPriorityBadge(req)" class="text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-lg border whitespace-nowrap" :class="priorityBadgeClass(req)">
-                    {{ priorityLabel(req) }}
-                  </span>
-                </div>
-              </div>
-              <p class="text-sm text-gray-600 line-clamp-2">{{ req.observacion }}</p>
-              <div class="text-xs text-gray-500">
-                <span class="font-bold text-gray-600">Orden de compra:</span>
-                <span class="font-semibold text-gray-700">{{ ordenesCompraLabel(req) }}</span>
-              </div>
-              
-              <div class="mt-auto pt-4 border-t border-gray-50 flex flex-col gap-2">
-                <div class="flex items-center justify-between">
-                  <div class="text-[10px] text-gray-400 truncate font-medium">Req: <span class="uppercase font-bold text-gray-600">{{ req.nombreSolicitante || req.email }}</span></div>
-                </div>
-                <div class="flex items-center justify-between text-xs text-gray-500">
-                  <div class="flex items-center gap-1.5">
-                    <Calendar class="w-3.5 h-3.5 text-main opacity-70" />
-                    <span>{{ formatDateTime(req.fecha_creacion) }}</span>
-                  </div>
-                  <div class="flex items-center gap-1.5">
-                    <Clock class="w-3.5 h-3.5 text-secondary opacity-70" />
-                    <span>{{ formatDate(req.fecha_entrega) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-else class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div class="hidden lg:grid grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(160px,0.9fr)_minmax(190px,1fr)_minmax(220px,1.2fr)_minmax(130px,0.7fr)] gap-3 px-4 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-              <div>Solicitud Compra</div>
-              <div>Orden de compra</div>
-              <div>Estado</div>
-              <div>Fecha</div>
-              <div>Observación</div>
-              <div>Equipo</div>
-            </div>
-            <div
-              v-for="req in group"
-              :key="req.id"
-              @click="goToDetail(req.id)"
-              class="grid grid-cols-1 lg:grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(160px,0.9fr)_minmax(190px,1fr)_minmax(220px,1.2fr)_minmax(130px,0.7fr)] gap-3 p-4 border-b border-gray-100 last:border-b-0 hover:bg-accent/5 cursor-pointer transition-colors"
-            >
-              <div>
-                <div class="font-bold text-gray-900">{{ req.folio_sol || 'Sin Folio' }}</div>
-                <div class="text-[10px] text-gray-400 uppercase font-bold truncate">{{ req.nombreSolicitante || req.email }}</div>
-              </div>
-              <div class="text-xs font-bold text-gray-700 leading-snug">
-                {{ ordenesCompraLabel(req) }}
-              </div>
-              <div class="flex flex-col items-start gap-1">
-                <span class="text-[10px] uppercase tracking-wide font-bold px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">{{ estadoActualLabel(req) }}</span>
-                <span v-if="shouldShowPriorityBadge(req)" class="text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-lg border whitespace-nowrap" :class="priorityBadgeClass(req)">
-                  {{ priorityLabel(req) }}
-                </span>
-              </div>
-              <div class="text-xs text-gray-500 space-y-1">
-                <div><span class="font-bold text-gray-600">Fecha creación:</span> {{ formatDateTime(req.fecha_creacion) }}</div>
-                <div><span class="font-bold text-gray-600">Fecha entrega:</span> <span class="font-medium text-gray-700">{{ formatDate(req.fecha_entrega) }}</span></div>
-              </div>
-              <div class="text-sm text-gray-600 line-clamp-2">{{ req.observacion }}</div>
-              <div class="flex flex-wrap gap-1 content-start">
-                <span v-for="eq in req.equipos" :key="eq.cod_equipo" class="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">
-                  {{ eq.cod_equipo }}
-                </span>
-                <span v-if="!req.equipos?.length" class="text-xs text-gray-400">Sin equipo</span>
-              </div>
-            </div>
-          </div>
+          <SolicitudCardList
+            v-if="viewMode === 'card'"
+            :items="group"
+            :display="solicitudDisplay"
+            :show-teams="false"
+            @item-click="goToDetail($event.id)"
+          />
+          <SolicitudTable
+            v-else
+            :items="group"
+            :columns="solicitudColumns"
+            :display="solicitudDisplay"
+            :grid-class="tableGridClass"
+            @row-click="goToDetail($event.id)"
+          />
         </div>
       </div>
       
-      <div v-else-if="viewMode === 'card'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div 
-          v-for="req in paginatedRequests" 
-          :key="req.id"
-          @click="goToDetail(req.id)"
-          class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:border-accent hover:shadow-md transition-all cursor-pointer flex flex-col gap-3 group/card relative overflow-hidden"
-        >
-          <div class="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-accent/10 to-transparent rounded-bl-3xl z-0 pointer-events-none"></div>
-          <div class="flex justify-between items-start z-10">
-            <div>
-              <h4 class="font-bold text-gray-900 group-hover/card:text-main transition-colors">{{ req.folio_sol || 'Sin Folio' }}</h4>
-            </div>
-            <div class="flex flex-col items-end gap-1">
-              <span class="text-[10px] uppercase tracking-wide font-bold px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">{{ estadoActualLabel(req) }}</span>
-              <span v-if="shouldShowPriorityBadge(req)" class="text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-lg border whitespace-nowrap" :class="priorityBadgeClass(req)">
-                {{ priorityLabel(req) }}
-              </span>
-            </div>
-          </div>
-          
-          <div class="flex-1 space-y-2 z-10">
-            <p class="text-sm text-gray-600 line-clamp-2">{{ req.observacion }}</p>
-            <div class="text-xs text-gray-500">
-              <span class="font-bold text-gray-600">Orden de compra:</span>
-              <span class="font-semibold text-gray-700">{{ ordenesCompraLabel(req) }}</span>
-            </div>
-            <div v-if="req.equipos?.length" class="flex flex-wrap gap-1 mt-2">
-              <span v-for="eq in req.equipos" :key="eq.cod_equipo" class="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">
-                {{ eq.cod_equipo }}
-              </span>
-            </div>
-          </div>
-          
-          <div class="mt-auto pt-3 border-t border-gray-50 flex flex-col gap-2 z-10">
-            <div class="flex items-center justify-between">
-              <div class="text-[10px] text-gray-400 truncate font-medium">Req: <span class="uppercase font-bold text-gray-600">{{ req.nombreSolicitante || req.email }}</span></div>
-            </div>
-            <div class="flex items-center justify-between text-xs text-gray-500">
-              <div class="flex items-center gap-1.5">
-                <Calendar class="w-3 h-3 text-main opacity-70" />
-                <span>{{ formatDateTime(req.fecha_creacion) }}</span>
-              </div>
-              <div class="flex items-center gap-1.5" title="Fecha Entrega">
-                <Clock class="w-3 h-3 text-secondary opacity-70" />
-                <span class="font-medium text-gray-700">{{ formatDate(req.fecha_entrega) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div v-if="totalRequests === 0" class="col-span-full py-12 text-center text-gray-400 flex flex-col items-center">
+      <SolicitudCardList
+        v-else-if="viewMode === 'card'"
+        :items="paginatedRequests"
+        :display="solicitudDisplay"
+        accent-cards
+        @item-click="goToDetail($event.id)"
+      >
+        <template #empty>
           <Search class="w-12 h-12 mb-4 opacity-50" />
           <p>No se encontraron solicitudes.</p>
-        </div>
-      </div>
-      <div v-else class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="hidden lg:grid grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(160px,0.9fr)_minmax(190px,1fr)_minmax(220px,1.2fr)_minmax(130px,0.7fr)] gap-3 px-4 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-          <div>Solicitud Compra</div>
-          <div>Orden de compra</div>
-          <div>Estado</div>
-          <div>Fecha</div>
-          <div>Observación</div>
-          <div>Equipo</div>
-        </div>
-        <div
-          v-for="req in paginatedRequests"
-          :key="req.id"
-          @click="goToDetail(req.id)"
-          class="grid grid-cols-1 lg:grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(160px,0.9fr)_minmax(190px,1fr)_minmax(220px,1.2fr)_minmax(130px,0.7fr)] gap-3 p-4 border-b border-gray-100 last:border-b-0 hover:bg-accent/5 cursor-pointer transition-colors"
-        >
-          <div>
-            <div class="font-bold text-gray-900">{{ req.folio_sol || 'Sin Folio' }}</div>
-            <div class="text-[10px] text-gray-400 uppercase font-bold truncate">{{ req.nombreSolicitante || req.email }}</div>
-          </div>
-          <div class="text-xs font-bold text-gray-700 leading-snug">
-            {{ ordenesCompraLabel(req) }}
-          </div>
-          <div class="flex flex-col items-start gap-1">
-            <span class="text-[10px] uppercase tracking-wide font-bold px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">{{ estadoActualLabel(req) }}</span>
-            <span v-if="shouldShowPriorityBadge(req)" class="text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-lg border whitespace-nowrap" :class="priorityBadgeClass(req)">
-              {{ priorityLabel(req) }}
-            </span>
-          </div>
-          <div class="text-xs text-gray-500 space-y-1">
-            <div><span class="font-bold text-gray-600">Fecha creación:</span> {{ formatDateTime(req.fecha_creacion) }}</div>
-            <div><span class="font-bold text-gray-600">Fecha entrega:</span> <span class="font-medium text-gray-700">{{ formatDate(req.fecha_entrega) }}</span></div>
-          </div>
-          <div class="text-sm text-gray-600 line-clamp-2">{{ req.observacion }}</div>
-          <div class="flex flex-wrap gap-1 content-start">
-            <span v-for="eq in req.equipos" :key="eq.cod_equipo" class="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">
-              {{ eq.cod_equipo }}
-            </span>
-            <span v-if="!req.equipos?.length" class="text-xs text-gray-400">Sin equipo</span>
-          </div>
-        </div>
-        <div v-if="totalRequests === 0" class="py-12 text-center text-gray-400 flex flex-col items-center">
+        </template>
+      </SolicitudCardList>
+      <SolicitudTable
+        v-else
+        :items="paginatedRequests"
+        :columns="solicitudColumns"
+        :display="solicitudDisplay"
+        :grid-class="tableGridClass"
+        @row-click="goToDetail($event.id)"
+      >
+        <template #empty>
           <Search class="w-12 h-12 mb-4 opacity-50" />
           <p>No se encontraron solicitudes.</p>
-        </div>
-      </div>
+        </template>
+      </SolicitudTable>
     </div>
 
     <div class="sticky bottom-0 z-30 flex items-center justify-center gap-3 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] bg-second/95 backdrop-blur border-t border-gray-100">
