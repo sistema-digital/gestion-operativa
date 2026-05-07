@@ -36,7 +36,7 @@ export const useAssignedHoursStore = defineStore('assignedHours', () => {
 
     try {
       let data: any[] | null = [];
-      const useSupabase = false; // Cuando este en true usa supabase, cuando este en false usa datos mock
+      const useSupabase = true; // Cuando este en true usa supabase, cuando este en false usa datos mock
 
       if (!useSupabase) {
         data = generateMockWorkOrders(100, date);
