@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import SolicitudCompraForm from '@/components/compras/form/SolicitudCompraForm.vue';
-import { supabaseCompras, supabaseEquipos } from '@/lib/supabase';
+import { supabase, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 import { useComprasStore } from '@/stores/comprasStore';
 
 const route = useRoute();
@@ -15,11 +15,31 @@ const id = route.params.id as string;
 const initialData = ref<any>(null);
 const isLoading = ref(true);
 
+const userEmail = ref('');
+const userArea = ref('');
+const isSaved = ref(false);
+
 onBeforeRouteLeave((to, from, next) => {
+  const customNext = async (arg?: boolean | string | object) => {
+    if (arg === false || arg instanceof Error) {
+      next(arg);
+      return;
+    }
+
+    if (!isSaved.value && userEmail.value) {
+      try {
+        await store.cancelarEdicionSolicitud(id, userEmail.value);
+      } catch(e) {
+        console.error('No se pudo cancelar la edición:', e);
+      }
+    }
+    next(arg);
+  };
+
   if (formRef.value) {
-    formRef.value.checkNavigation(to, next);
+    formRef.value.checkNavigation(to, customNext);
   } else {
-    next();
+    customNext();
   }
 });
 
@@ -28,11 +48,39 @@ const handleClose = () => {
 };
 
 const handleUpdated = () => {
+  isSaved.value = true;
   router.push(`/compras/${id}`);
 };
 
 onMounted(async () => {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && user.email) {
+      userEmail.value = user.email;
+      const { data: profile } = await supabase.from('PROFILE').select('area').eq('email', user.email).maybeSingle();
+      if (profile) {
+        userArea.value = (profile.area || '').toUpperCase();
+      }
+    }
+
+    // Call tomar_solicitud_para_edicion
+    let estadoEdicionId = 12; // Operativa by default
+    if (userArea.value === 'ALMACEN') {
+      estadoEdicionId = 10;
+    } else if (userArea.value === 'ALL') {
+      estadoEdicionId = 15;
+    }
+
+    if (userEmail.value) {
+      const takeResult = await store.tomarSolicitudParaEdicion(id, estadoEdicionId, userEmail.value);
+      // If it fails because it's already in revision state by somebody else, maybe block form?
+      if (takeResult && !takeResult.success && takeResult.estado_actual_id !== estadoEdicionId) {
+         alert(takeResult.message || 'No puedes editar la solicitud en este momento.');
+         // We can redirect back if needed
+         // router.push(`/compras/${id}`);
+      }
+    }
+
     const { data: solData, error: solError } = await supabaseCompras
       .rpc('get_solicitud_compra_con_detalles', {
         p_solicitud_id: id
@@ -40,7 +88,6 @@ onMounted(async () => {
 
     if (solError) throw solError;
 
-    // Equipos se mantiene igual
     const { data: eqData, error: eqError } = await supabaseEquipos
       .from('equipo_solicitudes')
       .select('cod_equipo')
