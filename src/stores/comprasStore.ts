@@ -16,9 +16,15 @@ export interface SolicitudCompra {
   fecha_entrega: string;
   fecha_creacion: string;
   observacion: string;
-  fecha_subida_sistema: string | null;
+  fecha_subida_sistema?: string | null;
+  historial_anterior?: HistorialAnteriorCompra | null;
   equipos?: { cod_equipo: string }[];
   nombreSolicitante?: string;
+}
+
+export interface HistorialAnteriorCompra {
+  estado_id: number | null;
+  fecha_fin: string | null;
 }
 
 export interface DetalleSolicitud {
@@ -55,6 +61,15 @@ const toLocalDateTimeString = (value: string | null | undefined) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
 
+interface SolicitudesCompraRpcResponse {
+  success: boolean;
+  message: string;
+  data: SolicitudCompra[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export const useComprasStore = defineStore('compras', {
   state: () => ({
     estados: [] as EstadoCompra[],
@@ -80,29 +95,39 @@ export const useComprasStore = defineStore('compras', {
 
     async fetchSolicitudes(userArea: string = '', emailsFilter: string[] = []) {
       this.isLoading = true;
+      this.error = null;
       try {
-        let query = supabaseCompras
-          .from('solicitud_compra')
-          .select('*')
-          .order('fecha_creacion', { ascending: false });
+        const pageSize = 1000;
+        let offset = 0;
+        let total = 0;
+        const solicitudesDataRaw: SolicitudCompra[] = [];
 
-        if (userArea !== 'ALL' && userArea !== '') {
-           if (userArea === 'ALMACEN') {
-              query = query.in('estado_id', [1, 2, 10]);
-           } else {
-              if (emailsFilter.length > 0) {
-                 query = query.in('email', emailsFilter);
-              } else {
-                 // fallback if for some reason emailsFilter is empty
-                 // but userArea is not ALL
-                 query = query.filter('email', 'eq', 'NONE'); // won't return anything
-              }
-           }
-        }
+        do {
+          const { data: rpcResponse, error: solError } = await supabaseCompras.rpc(
+            'listar_solicitudes_compra_con_historial',
+            {
+              p_user_area: userArea,
+              p_emails_filter: emailsFilter,
+              p_limit: pageSize,
+              p_offset: offset,
+            }
+          );
 
-        const { data: solicitudesDataRaw, error: solError } = await query;
+          if (solError) throw solError;
 
-        if (solError) throw solError;
+          const response = rpcResponse as SolicitudesCompraRpcResponse | null;
+          if (!response?.success) {
+            throw new Error(response?.message || 'No se pudieron cargar las solicitudes de compra');
+          }
+
+          const pageData = response.data || [];
+          solicitudesDataRaw.push(...pageData);
+          total = response.total || pageData.length;
+
+          offset += pageSize;
+
+          if (pageData.length < pageSize) break;
+        } while (solicitudesDataRaw.length < total);
 
         // Collect unique emails
         const uniqueEmails = Array.from(new Set((solicitudesDataRaw || []).map(s => s.email).filter(Boolean)));

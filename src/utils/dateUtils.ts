@@ -33,6 +33,29 @@ export function formatDateDisplay(dateString: string | null | undefined): string
   return `${day} ${monthName} ${year}`;
 }
 
+export function formatPanamaDateTime(dateString: string | null | undefined): string {
+  if (!dateString) return "Sin fecha";
+
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Fecha inválida";
+
+  const parts = new Intl.DateTimeFormat("es-PA", {
+    timeZone: "America/Panama",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(date);
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes) => {
+    return parts.find((part) => part.type === type)?.value || "";
+  };
+
+  return `${getPart("day")} ${getPart("month").replace(".", "").toUpperCase()} ${getPart("year")} ${getPart("hour")}:${getPart("minute")} ${getPart("dayPeriod").toUpperCase()}`;
+}
+
 export function toDateInputValue(value: Date | string | null | undefined): string {
   if (!value) return "";
   

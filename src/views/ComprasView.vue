@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useComprasStore } from '@/stores/comprasStore';
+import type { SolicitudCompra } from '@/stores/comprasStore';
 import { supabase } from '@/lib/supabase';
 import { Search, Plus, Calendar, Clock, Layers, List, Filter, ChevronDown } from 'lucide-vue-next';
 
@@ -149,9 +150,19 @@ const toggleEstado = (id: number) => {
   }
 };
 
-import { formatDateDisplay } from '@/utils/dateUtils';
+import { formatDateDisplay, formatPanamaDateTime } from '@/utils/dateUtils';
 
 const formatDate = (d: string | null) => formatDateDisplay(d);
+const formatDateTime = (d: string | null) => formatPanamaDateTime(d);
+
+const historialFooterLabel = (req: SolicitudCompra) => {
+  if (!req.historial_anterior?.estado_id || !req.historial_anterior.fecha_fin) return '';
+
+  const estadoAnterior = store.getEstadoName(req.historial_anterior.estado_id).toUpperCase();
+  const fechaFinal = formatPanamaDateTime(req.historial_anterior.fecha_fin);
+
+  return `FINALIZACION DE ${estadoAnterior}: ${fechaFinal}`;
+};
 
 // Handlers
 const goToDetail = (id: string) => {
@@ -302,12 +313,15 @@ const isChildRoute = computed(() => route.name !== 'Compras');
                 <div class="flex items-center justify-between text-xs text-gray-500">
                   <div class="flex items-center gap-1.5">
                     <Calendar class="w-3.5 h-3.5 text-main opacity-70" />
-                    <span>{{ formatDate(req.fecha_creacion) }}</span>
+                    <span>{{ formatDateTime(req.fecha_creacion) }}</span>
                   </div>
                   <div class="flex items-center gap-1.5">
                     <Clock class="w-3.5 h-3.5 text-secondary opacity-70" />
                     <span>{{ formatDate(req.fecha_entrega) }}</span>
                   </div>
+                </div>
+                <div v-if="historialFooterLabel(req)" class="text-[10px] text-gray-500 font-bold uppercase tracking-wide leading-snug">
+                  {{ historialFooterLabel(req) }}
                 </div>
               </div>
             </div>
@@ -346,12 +360,15 @@ const isChildRoute = computed(() => route.name !== 'Compras');
             <div class="flex items-center justify-between text-xs text-gray-500">
               <div class="flex items-center gap-1.5">
                 <Calendar class="w-3 h-3 text-main opacity-70" />
-                <span>{{ formatDate(req.fecha_creacion) }}</span>
+                <span>{{ formatDateTime(req.fecha_creacion) }}</span>
               </div>
               <div class="flex items-center gap-1.5" title="Fecha Entrega">
                 <Clock class="w-3 h-3 text-secondary opacity-70" />
                 <span class="font-medium text-gray-700">{{ formatDate(req.fecha_entrega) }}</span>
               </div>
+            </div>
+            <div v-if="historialFooterLabel(req)" class="text-[10px] text-gray-500 font-bold uppercase tracking-wide leading-snug">
+              {{ historialFooterLabel(req) }}
             </div>
           </div>
         </div>
