@@ -11,20 +11,22 @@ export interface SolicitudCompra {
   folio_sol: string | null;
   email: string;
   estado_id: number;
+  prioridad?: string | null;
   prioridad_id?: number | null;
   isUrgent?: boolean;
   fecha_entrega: string;
   fecha_creacion: string;
   observacion: string;
   fecha_subida_sistema?: string | null;
-  historial_anterior?: HistorialAnteriorCompra | null;
+  historial_estado_actual?: HistorialAnteriorCompra | null;
+  ordenes_compra: OrdenCompraResumen[];
   equipos?: { cod_equipo: string }[];
   nombreSolicitante?: string;
 }
 
 export interface HistorialAnteriorCompra {
   estado_id: number | null;
-  fecha_fin: string | null;
+  fecha_inicio: string | null;
 }
 
 export interface DetalleSolicitud {
@@ -36,6 +38,12 @@ export interface DetalleSolicitud {
   cantidad_inventario: number | null;
   cantidad_gerencia: number | null;
   cantidad_subida_sistema_compra: number | null;
+}
+
+export interface OrdenCompraResumen {
+  folio_oc: string;
+  estado: string;
+  proveedor: string;
 }
 
 export interface Producto {

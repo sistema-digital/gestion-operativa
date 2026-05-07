@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useComprasStore } from '@/stores/comprasStore';
 import type { SolicitudCompra } from '@/stores/comprasStore';
 import { supabase } from '@/lib/supabase';
-import { Search, Plus, Calendar, Clock, Layers, List, Filter, ChevronDown } from 'lucide-vue-next';
+import { Search, Plus, Calendar, Clock, Layers, List, Filter, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-vue-next';
 
 const router = useRouter();
 const route = useRoute();
@@ -14,6 +14,9 @@ const searchQuery = ref('');
 const sortBy = ref<'desc' | 'asc'>('desc');
 const groupByTeam = ref(false);
 const filterDropdownOpen = ref(false);
+const viewMode = ref<'card' | 'table'>('card');
+const currentPage = ref(1);
+const pageSize = 20;
 
 const isNewFormOpen = ref(false);
 
@@ -122,9 +125,9 @@ const filteredRequests = computed(() => {
 
 const groupedRequests = computed(() => {
   if (!groupByTeam.value) return null;
-  const groups: Record<string, typeof filteredRequests.value> = {};
+  const groups: Record<string, SolicitudCompra[]> = {};
   
-  filteredRequests.value.forEach(req => {
+  paginatedRequests.value.forEach(req => {
     if (!req.equipos || req.equipos.length === 0) {
       if (!groups['Sin Equipo']) groups['Sin Equipo'] = [];
       groups['Sin Equipo'].push(req);
@@ -142,6 +145,29 @@ const groupedRequests = computed(() => {
   return groups;
 });
 
+const totalRequests = computed(() => filteredRequests.value.length);
+const totalPages = computed(() => Math.max(1, Math.ceil(totalRequests.value / pageSize)));
+const paginatedRequests = computed(() => {
+  const start = (currentPage.value - 1) * pageSize;
+  return filteredRequests.value.slice(start, start + pageSize);
+});
+
+watch([searchQuery, sortBy, () => store.selectedEstadoId, groupByTeam, viewMode], () => {
+  currentPage.value = 1;
+});
+
+watch(totalPages, (pages) => {
+  if (currentPage.value > pages) currentPage.value = pages;
+});
+
+const goToPreviousPage = () => {
+  currentPage.value = Math.max(1, currentPage.value - 1);
+};
+
+const goToNextPage = () => {
+  currentPage.value = Math.min(totalPages.value, currentPage.value + 1);
+};
+
 const toggleEstado = (id: number) => {
   if (store.selectedEstadoId === id) {
     store.selectedEstadoId = null;
@@ -155,13 +181,35 @@ import { formatDateDisplay, formatPanamaDateTime } from '@/utils/dateUtils';
 const formatDate = (d: string | null) => formatDateDisplay(d);
 const formatDateTime = (d: string | null) => formatPanamaDateTime(d);
 
-const historialFooterLabel = (req: SolicitudCompra) => {
-  if (!req.historial_anterior?.estado_id || !req.historial_anterior.fecha_fin) return '';
+const estadoActualLabel = (req: SolicitudCompra) => {
+  const estadoActual = store.getEstadoName(req.estado_id);
+  const historial = req.historial_estado_actual;
 
-  const estadoAnterior = store.getEstadoName(req.historial_anterior.estado_id).toUpperCase();
-  const fechaFinal = formatPanamaDateTime(req.historial_anterior.fecha_fin);
+  if (historial?.estado_id === req.estado_id && historial.fecha_inicio) {
+    return `${estadoActual} · ${formatPanamaDateTime(historial.fecha_inicio)}`;
+  }
 
-  return `FINALIZACION DE ${estadoAnterior}: ${fechaFinal}`;
+  return estadoActual;
+};
+
+const shouldShowPriorityBadge = (req: SolicitudCompra) => Number(req.prioridad_id) === 2 || Number(req.prioridad_id) === 3;
+
+const priorityBadgeClass = (req: SolicitudCompra) => {
+  if (Number(req.prioridad_id) === 3) {
+    return 'bg-red-100 text-red-700 border-red-200';
+  }
+
+  return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+};
+
+const priorityLabel = (req: SolicitudCompra) => req.prioridad || 'Prioridad';
+
+const ordenesCompraLabel = (req: SolicitudCompra) => {
+  const folios = req.ordenes_compra
+    ?.map(orden => orden.folio_oc)
+    .filter(Boolean);
+
+  return folios?.length ? folios.join(', ') : 'No Asignado';
 };
 
 // Handlers
@@ -217,6 +265,27 @@ const isChildRoute = computed(() => route.name !== 'Compras');
             <option value="desc">Más reciente</option>
             <option value="asc">Más antigua</option>
           </select>
+
+          <div class="inline-flex bg-gray-100 p-1 rounded-xl border border-gray-200">
+            <button
+              @click="viewMode = 'card'"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              :class="viewMode === 'card' ? 'bg-white text-main shadow-sm' : 'text-gray-500 hover:text-gray-800'"
+              title="Vista de cards"
+            >
+              <Layers class="w-4 h-4" />
+              Cards
+            </button>
+            <button
+              @click="viewMode = 'table'"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              :class="viewMode === 'table' ? 'bg-white text-main shadow-sm' : 'text-gray-500 hover:text-gray-800'"
+              title="Vista de filas"
+            >
+              <List class="w-4 h-4" />
+              Filas
+            </button>
+          </div>
 
           <!-- Desktop New Request btn -->
           <button v-if="userArea !== 'ALMACEN'" @click="openNewForm" class="hidden md:flex items-center gap-2 px-4 py-2 bg-accent text-main-dark font-bold rounded-xl hover:bg-opacity-90 transition-all shadow-sm cursor-pointer hover:cursor-pointer">
@@ -283,15 +352,40 @@ const isChildRoute = computed(() => route.name !== 'Compras');
       </div>
     </div>
 
+    <div class="flex items-center justify-between gap-3 mb-3 px-1">
+      <div>
+        <h2 class="text-sm font-bold text-gray-800 uppercase tracking-wide">Solicitudes</h2>
+        <p class="text-xs text-gray-500">{{ totalRequests }} solicitudes en total</p>
+      </div>
+      <div class="md:hidden inline-flex bg-gray-100 p-1 rounded-xl border border-gray-200">
+        <button
+          @click="viewMode = 'card'"
+          class="flex items-center justify-center w-9 h-8 rounded-lg transition-colors cursor-pointer"
+          :class="viewMode === 'card' ? 'bg-white text-main shadow-sm' : 'text-gray-500'"
+          title="Vista de cards"
+        >
+          <Layers class="w-4 h-4" />
+        </button>
+        <button
+          @click="viewMode = 'table'"
+          class="flex items-center justify-center w-9 h-8 rounded-lg transition-colors cursor-pointer"
+          :class="viewMode === 'table' ? 'bg-white text-main shadow-sm' : 'text-gray-500'"
+          title="Vista de filas"
+        >
+          <List class="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+
     <!-- List grouped or flat -->
-    <div class="flex-1 overflow-y-auto pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-0">
+    <div class="flex-1 overflow-y-auto pb-[calc(132px+env(safe-area-inset-bottom))] md:pb-0">
       <div v-if="groupByTeam && groupedRequests" class="space-y-8">
         <div v-for="(group, groupName) in groupedRequests" :key="groupName" class="space-y-4">
           <h3 class="font-bold text-gray-700 flex items-center gap-2 uppercase tracking-wide text-xs">
             <div class="w-2 h-2 rounded-full bg-accent"></div>
             {{ groupName }} ({{ group.length }})
           </h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div v-if="viewMode === 'card'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div 
               v-for="req in group" 
               :key="req.id"
@@ -302,9 +396,18 @@ const isChildRoute = computed(() => route.name !== 'Compras');
                 <div>
                   <h4 class="font-bold text-gray-900 group-hover/card:text-main transition-colors">{{ req.folio_sol || 'Sin Folio' }}</h4>
                 </div>
-                <span class="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">{{ store.getEstadoName(req.estado_id) }}</span>
+                <div class="flex flex-col items-end gap-1">
+                  <span class="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">{{ estadoActualLabel(req) }}</span>
+                  <span v-if="shouldShowPriorityBadge(req)" class="text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-lg border whitespace-nowrap" :class="priorityBadgeClass(req)">
+                    {{ priorityLabel(req) }}
+                  </span>
+                </div>
               </div>
               <p class="text-sm text-gray-600 line-clamp-2">{{ req.observacion }}</p>
+              <div class="text-xs text-gray-500">
+                <span class="font-bold text-gray-600">Orden de compra:</span>
+                <span class="font-semibold text-gray-700">{{ ordenesCompraLabel(req) }}</span>
+              </div>
               
               <div class="mt-auto pt-4 border-t border-gray-50 flex flex-col gap-2">
                 <div class="flex items-center justify-between">
@@ -320,18 +423,56 @@ const isChildRoute = computed(() => route.name !== 'Compras');
                     <span>{{ formatDate(req.fecha_entrega) }}</span>
                   </div>
                 </div>
-                <div v-if="historialFooterLabel(req)" class="text-[10px] text-gray-500 font-bold uppercase tracking-wide leading-snug">
-                  {{ historialFooterLabel(req) }}
-                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="hidden lg:grid grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(160px,0.9fr)_minmax(190px,1fr)_minmax(220px,1.2fr)_minmax(130px,0.7fr)] gap-3 px-4 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+              <div>Solicitud Compra</div>
+              <div>Orden de compra</div>
+              <div>Estado</div>
+              <div>Fecha</div>
+              <div>Observación</div>
+              <div>Equipo</div>
+            </div>
+            <div
+              v-for="req in group"
+              :key="req.id"
+              @click="goToDetail(req.id)"
+              class="grid grid-cols-1 lg:grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(160px,0.9fr)_minmax(190px,1fr)_minmax(220px,1.2fr)_minmax(130px,0.7fr)] gap-3 p-4 border-b border-gray-100 last:border-b-0 hover:bg-accent/5 cursor-pointer transition-colors"
+            >
+              <div>
+                <div class="font-bold text-gray-900">{{ req.folio_sol || 'Sin Folio' }}</div>
+                <div class="text-[10px] text-gray-400 uppercase font-bold truncate">{{ req.nombreSolicitante || req.email }}</div>
+              </div>
+              <div class="text-xs font-bold text-gray-700 leading-snug">
+                {{ ordenesCompraLabel(req) }}
+              </div>
+              <div class="flex flex-col items-start gap-1">
+                <span class="text-[10px] uppercase tracking-wide font-bold px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">{{ estadoActualLabel(req) }}</span>
+                <span v-if="shouldShowPriorityBadge(req)" class="text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-lg border whitespace-nowrap" :class="priorityBadgeClass(req)">
+                  {{ priorityLabel(req) }}
+                </span>
+              </div>
+              <div class="text-xs text-gray-500 space-y-1">
+                <div><span class="font-bold text-gray-600">Fecha creación:</span> {{ formatDateTime(req.fecha_creacion) }}</div>
+                <div><span class="font-bold text-gray-600">Fecha entrega:</span> <span class="font-medium text-gray-700">{{ formatDate(req.fecha_entrega) }}</span></div>
+              </div>
+              <div class="text-sm text-gray-600 line-clamp-2">{{ req.observacion }}</div>
+              <div class="flex flex-wrap gap-1 content-start">
+                <span v-for="eq in req.equipos" :key="eq.cod_equipo" class="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                  {{ eq.cod_equipo }}
+                </span>
+                <span v-if="!req.equipos?.length" class="text-xs text-gray-400">Sin equipo</span>
               </div>
             </div>
           </div>
         </div>
       </div>
       
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div v-else-if="viewMode === 'card'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div 
-          v-for="req in filteredRequests" 
+          v-for="req in paginatedRequests" 
           :key="req.id"
           @click="goToDetail(req.id)"
           class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:border-accent hover:shadow-md transition-all cursor-pointer flex flex-col gap-3 group/card relative overflow-hidden"
@@ -341,11 +482,20 @@ const isChildRoute = computed(() => route.name !== 'Compras');
             <div>
               <h4 class="font-bold text-gray-900 group-hover/card:text-main transition-colors">{{ req.folio_sol || 'Sin Folio' }}</h4>
             </div>
-            <span class="text-[10px] uppercase tracking-wide font-bold px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">{{ store.getEstadoName(req.estado_id) }}</span>
+            <div class="flex flex-col items-end gap-1">
+              <span class="text-[10px] uppercase tracking-wide font-bold px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">{{ estadoActualLabel(req) }}</span>
+              <span v-if="shouldShowPriorityBadge(req)" class="text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-lg border whitespace-nowrap" :class="priorityBadgeClass(req)">
+                {{ priorityLabel(req) }}
+              </span>
+            </div>
           </div>
           
           <div class="flex-1 space-y-2 z-10">
             <p class="text-sm text-gray-600 line-clamp-2">{{ req.observacion }}</p>
+            <div class="text-xs text-gray-500">
+              <span class="font-bold text-gray-600">Orden de compra:</span>
+              <span class="font-semibold text-gray-700">{{ ordenesCompraLabel(req) }}</span>
+            </div>
             <div v-if="req.equipos?.length" class="flex flex-wrap gap-1 mt-2">
               <span v-for="eq in req.equipos" :key="eq.cod_equipo" class="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">
                 {{ eq.cod_equipo }}
@@ -367,17 +517,81 @@ const isChildRoute = computed(() => route.name !== 'Compras');
                 <span class="font-medium text-gray-700">{{ formatDate(req.fecha_entrega) }}</span>
               </div>
             </div>
-            <div v-if="historialFooterLabel(req)" class="text-[10px] text-gray-500 font-bold uppercase tracking-wide leading-snug">
-              {{ historialFooterLabel(req) }}
-            </div>
           </div>
         </div>
         
-        <div v-if="filteredRequests.length === 0" class="col-span-full py-12 text-center text-gray-400 flex flex-col items-center">
+        <div v-if="totalRequests === 0" class="col-span-full py-12 text-center text-gray-400 flex flex-col items-center">
           <Search class="w-12 h-12 mb-4 opacity-50" />
           <p>No se encontraron solicitudes.</p>
         </div>
       </div>
+      <div v-else class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="hidden lg:grid grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(160px,0.9fr)_minmax(190px,1fr)_minmax(220px,1.2fr)_minmax(130px,0.7fr)] gap-3 px-4 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+          <div>Solicitud Compra</div>
+          <div>Orden de compra</div>
+          <div>Estado</div>
+          <div>Fecha</div>
+          <div>Observación</div>
+          <div>Equipo</div>
+        </div>
+        <div
+          v-for="req in paginatedRequests"
+          :key="req.id"
+          @click="goToDetail(req.id)"
+          class="grid grid-cols-1 lg:grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(160px,0.9fr)_minmax(190px,1fr)_minmax(220px,1.2fr)_minmax(130px,0.7fr)] gap-3 p-4 border-b border-gray-100 last:border-b-0 hover:bg-accent/5 cursor-pointer transition-colors"
+        >
+          <div>
+            <div class="font-bold text-gray-900">{{ req.folio_sol || 'Sin Folio' }}</div>
+            <div class="text-[10px] text-gray-400 uppercase font-bold truncate">{{ req.nombreSolicitante || req.email }}</div>
+          </div>
+          <div class="text-xs font-bold text-gray-700 leading-snug">
+            {{ ordenesCompraLabel(req) }}
+          </div>
+          <div class="flex flex-col items-start gap-1">
+            <span class="text-[10px] uppercase tracking-wide font-bold px-2 py-1 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap">{{ estadoActualLabel(req) }}</span>
+            <span v-if="shouldShowPriorityBadge(req)" class="text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-lg border whitespace-nowrap" :class="priorityBadgeClass(req)">
+              {{ priorityLabel(req) }}
+            </span>
+          </div>
+          <div class="text-xs text-gray-500 space-y-1">
+            <div><span class="font-bold text-gray-600">Fecha creación:</span> {{ formatDateTime(req.fecha_creacion) }}</div>
+            <div><span class="font-bold text-gray-600">Fecha entrega:</span> <span class="font-medium text-gray-700">{{ formatDate(req.fecha_entrega) }}</span></div>
+          </div>
+          <div class="text-sm text-gray-600 line-clamp-2">{{ req.observacion }}</div>
+          <div class="flex flex-wrap gap-1 content-start">
+            <span v-for="eq in req.equipos" :key="eq.cod_equipo" class="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+              {{ eq.cod_equipo }}
+            </span>
+            <span v-if="!req.equipos?.length" class="text-xs text-gray-400">Sin equipo</span>
+          </div>
+        </div>
+        <div v-if="totalRequests === 0" class="py-12 text-center text-gray-400 flex flex-col items-center">
+          <Search class="w-12 h-12 mb-4 opacity-50" />
+          <p>No se encontraron solicitudes.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sticky bottom-0 z-30 flex items-center justify-center gap-3 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] bg-second/95 backdrop-blur border-t border-gray-100">
+      <button
+        @click="goToPreviousPage"
+        :disabled="currentPage === 1"
+        class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-gray-200 bg-white text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+      >
+        <ChevronLeft class="w-4 h-4" />
+        Anterior
+      </button>
+      <span class="min-w-24 text-center text-sm font-bold text-gray-700">
+        {{ currentPage }} / {{ totalPages }}
+      </span>
+      <button
+        @click="goToNextPage"
+        :disabled="currentPage === totalPages"
+        class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-gray-200 bg-white text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+      >
+        Siguiente
+        <ChevronRight class="w-4 h-4" />
+      </button>
     </div>
     </div> <!-- Close MAIN LIST PANEL div -->
 
