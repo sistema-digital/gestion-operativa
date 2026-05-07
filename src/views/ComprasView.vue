@@ -17,10 +17,10 @@ const searchQuery = ref('');
 const sortBy = ref<'desc' | 'asc'>('desc');
 const groupByTeam = ref(false);
 const filterDropdownOpen = ref(false);
-const viewMode = ref<'card' | 'table'>('card');
+const viewMode = ref<'card' | 'table'>('table');
 const currentPage = ref(1);
 const pageSize = 20;
-const tableGridClass = 'lg:grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(160px,0.9fr)_minmax(190px,1fr)_minmax(220px,1.2fr)_minmax(130px,0.7fr)]';
+const tableGridClass = 'lg:grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(210px,1.2fr)_minmax(180px,0.9fr)_minmax(220px,1.2fr)_minmax(90px,0.5fr)]';
 const solicitudColumns = defaultSolicitudColumns;
 
 const isNewFormOpen = ref(false);
@@ -249,7 +249,7 @@ const isChildRoute = computed(() => route.name !== 'Compras');
       :class="{ 'hidden md:flex': isChildRoute }"
     >
     <!-- Filters & Actions -->
-    <div class="flex flex-col gap-4 mb-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+    <div class="flex flex-col gap-2 sm:gap-1 mb-4 bg-white p-4 sm:p-2 rounded-2xl shadow-sm border border-gray-100">
       
       <div class="flex flex-col md:flex-row gap-4 items-center">
         <!-- Search -->
@@ -281,7 +281,7 @@ const isChildRoute = computed(() => route.name !== 'Compras');
             <option value="asc">Más antigua</option>
           </select>
 
-          <div class="inline-flex bg-gray-100 p-1 rounded-xl border border-gray-200">
+          <div class="hidden lg:inline-flex bg-gray-100 p-1 rounded-xl border border-gray-200">
             <button
               @click="viewMode = 'card'"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer"
@@ -310,7 +310,7 @@ const isChildRoute = computed(() => route.name !== 'Compras');
       </div>
 
       <!-- Segmented Filter Buttons Desktop -->
-      <div class="hidden md:flex justify-center overflow-x-auto w-full hide-scrollbar border-t border-gray-100 pt-4">
+      <div class="hidden md:flex justify-center overflow-x-auto w-full hide-scrollbar border-t border-gray-100 pt-1">
         <div class="inline-flex gap-2 bg-gray-100 p-1.5 rounded-full">
           <button 
             v-for="estado in filterEstados" 
@@ -333,7 +333,7 @@ const isChildRoute = computed(() => route.name !== 'Compras');
       </div>
 
       <!-- Filter Select Mobile/Tablet -->
-      <div class="md:hidden relative z-20 w-full mt-2 border-t border-gray-100 pt-4">
+      <div class="md:hidden relative z-20 w-full mt-1 border-t border-gray-100 pt-1">
         <div 
           @click="filterDropdownOpen = !filterDropdownOpen"
           class="bg-white border border-gray-200 rounded-xl px-4 py-3 flex justify-between items-center cursor-pointer shadow-sm"
@@ -367,30 +367,7 @@ const isChildRoute = computed(() => route.name !== 'Compras');
       </div>
     </div>
 
-    <div class="flex items-center justify-between gap-3 mb-3 px-1">
-      <div>
-        <h2 class="text-sm font-bold text-gray-800 uppercase tracking-wide">Solicitudes</h2>
-        <p class="text-xs text-gray-500">{{ totalRequests }} solicitudes en total</p>
-      </div>
-      <div class="md:hidden inline-flex bg-gray-100 p-1 rounded-xl border border-gray-200">
-        <button
-          @click="viewMode = 'card'"
-          class="flex items-center justify-center w-9 h-8 rounded-lg transition-colors cursor-pointer"
-          :class="viewMode === 'card' ? 'bg-white text-main shadow-sm' : 'text-gray-500'"
-          title="Vista de cards"
-        >
-          <Layers class="w-4 h-4" />
-        </button>
-        <button
-          @click="viewMode = 'table'"
-          class="flex items-center justify-center w-9 h-8 rounded-lg transition-colors cursor-pointer"
-          :class="viewMode === 'table' ? 'bg-white text-main shadow-sm' : 'text-gray-500'"
-          title="Vista de filas"
-        >
-          <List class="w-4 h-4" />
-        </button>
-      </div>
-    </div>
+    
 
     <!-- List grouped or flat -->
     <div class="flex-1 overflow-y-auto pb-[calc(132px+env(safe-area-inset-bottom))] md:pb-0">
@@ -449,7 +426,7 @@ const isChildRoute = computed(() => route.name !== 'Compras');
       <button
         @click="goToPreviousPage"
         :disabled="currentPage === 1"
-        class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-gray-200 bg-white text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+        class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-gray-200 bg-white text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors cursor-pointer"
       >
         <ChevronLeft class="w-4 h-4" />
         Anterior
@@ -460,7 +437,7 @@ const isChildRoute = computed(() => route.name !== 'Compras');
       <button
         @click="goToNextPage"
         :disabled="currentPage === totalPages"
-        class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-gray-200 bg-white text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+        class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-gray-200 bg-white text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors cursor-pointer"
       >
         Siguiente
         <ChevronRight class="w-4 h-4" />

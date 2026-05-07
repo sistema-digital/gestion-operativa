@@ -10,7 +10,7 @@ withDefaults(defineProps<Props>(), {
 </script>
 
 <template>
-  <div class="text-sm text-gray-600 line-clamp-2">
+  <div class="text-sm text-gray-600 whitespace-normal break-words">
     {{ text || fallback }}
   </div>
 </template>

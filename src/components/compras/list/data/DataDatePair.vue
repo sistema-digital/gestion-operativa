@@ -11,13 +11,13 @@ withDefaults(defineProps<Props>(), {
 </script>
 
 <template>
-  <div class="text-xs text-gray-500" :class="compact ? 'flex items-center justify-between gap-3' : 'space-y-1'">
-    <div>
-      <span class="font-bold text-gray-600">Fecha creación:</span>
+  <div class="text-xs text-gray-500 w-full" :class="compact ? 'flex flex-wrap items-center justify-between gap-3' : 'space-y-1'">
+    <div class="whitespace-normal break-words">
+      <span class="font-bold text-gray-600">Creación:</span>
       {{ createdAt }}
     </div>
-    <div>
-      <span class="font-bold text-gray-600">Fecha entrega:</span>
+    <div class="whitespace-normal break-words">
+      <span class="font-bold text-gray-600">Entrega:</span>
       <span class="font-medium text-gray-700">{{ deliveryAt }}</span>
     </div>
   </div>

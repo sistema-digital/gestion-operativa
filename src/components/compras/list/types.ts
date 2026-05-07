@@ -37,7 +37,7 @@ export const defaultSolicitudColumns: SolicitudColumn[] = [
 ];
 
 export const defaultTableGridClass =
-  'lg:grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(160px,0.9fr)_minmax(190px,1fr)_minmax(220px,1.2fr)_minmax(130px,0.7fr)]';
+  'lg:grid-cols-[minmax(140px,0.75fr)_minmax(140px,0.75fr)_minmax(210px,1.2fr)_minmax(180px,0.9fr)_minmax(220px,1.2fr)_minmax(90px,0.5fr)]';
 
 export const resolveSolicitudRowKey = (item: SolicitudCompra, rowKey: SolicitudRowKey = 'id') => {
   if (typeof rowKey === 'function') return rowKey(item);
