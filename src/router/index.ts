@@ -40,6 +40,28 @@ const router = createRouter({
           component: () => import('@/views/MaintenancePlanView.vue'),
         },
         {
+          path: 'compras',
+          name: 'Compras',
+          component: () => import('@/views/ComprasView.vue'),
+          children: [
+            {
+              path: 'nueva',
+              name: 'NuevaSolicitudCompra',
+              component: () => import('@/views/compras/NuevaSolicitudCompra.vue'),
+            },
+            {
+              path: ':id/editar',
+              name: 'EditarSolicitudCompra',
+              component: () => import('@/views/compras/EditarSolicitudCompra.vue'),
+            },
+            {
+              path: ':id',
+              name: 'ComprasDetail',
+              component: () => import('@/views/ComprasDetailView.vue'),
+            },
+          ]
+        },
+        {
           path: 'perfil',
           name: 'Profile',
           component: () => import('@/views/ProfileView.vue'),

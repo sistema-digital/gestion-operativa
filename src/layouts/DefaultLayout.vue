@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseRatings, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 import { 
   BarChart3, 
   Wrench, 
@@ -9,7 +9,8 @@ import {
   LogOut, 
   Menu, 
   Plus,
-  LayoutDashboard
+  LayoutDashboard,
+  ShoppingCart
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -23,12 +24,16 @@ const allMenuItems = [
   { name: 'Calificaciones', path: '/calificaciones', icon: BarChart3 },
   { name: 'Reparaciones', path: '/reparaciones', icon: Wrench },
   { name: 'Mantenimiento', path: '/mantenimiento', icon: Calendar },
+  { name: 'Compras', path: '/compras', icon: ShoppingCart },
 ];
 
 const menuItems = computed(() => {
   const area = userProfile.value?.area?.toUpperCase() || '';
   if (area === 'EVALUADOR') {
     return allMenuItems.filter(i => i.name === 'Calificaciones');
+  }
+  if (area === 'ALMACEN') {
+    return allMenuItems.filter(i => i.name === 'Compras');
   }
   if (area === 'ALL') {
     return [
@@ -37,6 +42,11 @@ const menuItems = computed(() => {
     ];
   }
   return allMenuItems;
+});
+
+const viewTitle = computed(() => {
+  if (route.path.startsWith('/compras')) return 'SOLICITUD COMPRA';
+  return menuItems.value.find(i => isActive(i.path))?.name || 'Dashboard';
 });
 
 onMounted(async () => {
@@ -59,6 +69,8 @@ onMounted(async () => {
     const area = userProfile.value?.area?.toUpperCase() || '';
     if (area === 'ALL') {
       router.push('/dashboard');
+    } else if (area === 'ALMACEN') {
+      router.push('/compras');
     } else {
       router.push('/calificaciones');
     }
@@ -66,12 +78,21 @@ onMounted(async () => {
 });
 
 const logout = async () => {
-  await supabase.auth.signOut();
+  await Promise.all([
+    supabase.auth.signOut(),
+    supabaseRatings.auth.signOut(),
+    supabaseCompras.auth.signOut(),
+    supabaseEquipos.auth.signOut()
+  ]);
   router.push('/login');
 };
 
 const triggerNew = () => {
-  window.dispatchEvent(new CustomEvent('open-new-record'));
+  if (route.path.startsWith('/compras')) {
+    router.push('/compras/nueva');
+  } else {
+    window.dispatchEvent(new CustomEvent('open-new-record'));
+  }
 };
 
 const isActive = (path: string) => route.path === path || route.path.startsWith(path + '/');
@@ -127,7 +148,7 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
           <div class="flex items-center gap-2">
             <span class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Módulo / </span>
             <h2 class="font-bold text-sm text-gray-700 uppercase tracking-wide">
-              {{ menuItems.find(i => isActive(i.path))?.name || 'Dashboard' }}
+              {{ viewTitle }}
             </h2>
           </div>
         </div>
@@ -151,7 +172,10 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
 
       <!-- Mobile Top Bar -->
       <div class="md:hidden flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100 absolute top-0 left-0 w-full z-[30] shadow-sm">
-        <h1 class="font-display text-xl text-main tracking-widest">CADASA</h1>
+        <div class="flex items-center gap-2">
+          <h1 class="font-display text-xl text-main tracking-widest leading-none">CADASA</h1>
+          <span v-if="route.path !== '/dashboard'" class="text-[14px] font-bold text-gray-700 leading-none pl-2 border-l border-gray-300 uppercase">{{ viewTitle }}</span>
+        </div>
         <div class="flex items-center gap-4">
           <button @click="logout" class="text-gray-400 hover:text-danger transition-colors p-2">
             <LogOut class="w-5 h-5" />
@@ -190,9 +214,9 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
 
       <!-- FAB Mobile -->
       <button 
-        v-if="route.path !== '/dashboard' && ['ALL', 'EVALUADOR'].includes(userProfile?.area?.toUpperCase() || '')"
+        v-if="route.path !== '/dashboard' && userProfile?.area?.toUpperCase() !== 'ALMACEN' && (['ALL', 'EVALUADOR'].includes(userProfile?.area?.toUpperCase() || '') || route.path.startsWith('/compras'))"
         @click="triggerNew" 
-        class="md:hidden fixed bottom-20 right-6 w-14 h-14 bg-accent text-gray-900 rounded-full shadow-lg flex items-center justify-center z-40 active:scale-90 transition-transform"
+        class="md:hidden fixed bottom-20 right-6 w-14 h-14 bg-accent text-gray-900 rounded-full shadow-lg flex items-center justify-center z-40 active:scale-90 transition-transform cursor-pointer"
       >
         <Plus class="w-8 h-8" />
       </button>
