@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { supabase, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
+import { supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 import BaseDateField from '@/components/BaseDateField.vue';
 import { useComprasStore } from '@/stores/comprasStore';
+import { useUserStore } from '@/stores/userStore';
 import {
   X,
   Search,
@@ -29,6 +30,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'created', 'updated']);
 const comprasStore = useComprasStore();
+const userStore = useUserStore();
 
 // Form Data
 const fechaEntrega = ref('');
@@ -184,25 +186,13 @@ interface DetalleManual {
 const detalles = ref<DetalleManual[]>([]);
 
 onMounted(async () => {
-  // Get user profile email
-  const { data: { user } } = await supabase.auth.getUser();
-
   if (props.mode === 'edit' && props.initialData && props.initialData.email) {
     userEmail.value = props.initialData.email;
     userName.value = props.initialData.nombreSolicitante || props.initialData.email.split('@')[0];
-  } else if (user) {
-    userEmail.value = user.email || '';
-    userName.value = userEmail.value.split('@')[0];
-
-    const { data: profile } = await supabase
-      .from('PROFILE')
-      .select('nombre')
-      .eq('email', userEmail.value)
-      .maybeSingle();
-
-    if (profile && profile.nombre) {
-      userName.value = profile.nombre;
-    }
+  } else {
+    await userStore.fetchCurrentUserProfile();
+    userEmail.value = userStore.getEmail();
+    userName.value = userStore.getNombre() || userEmail.value.split('@')[0];
   }
 
   // Load Unidades de Medida
@@ -571,7 +561,8 @@ const saveSolicitud = async () => {
       }
 
       try {
-        await comprasStore.fetchSolicitudes();
+        await userStore.fetchCurrentUserProfile();
+        await comprasStore.fetchSolicitudes(userStore.getArea(), userStore.getEmailsFilter());
       } catch (e) {
         // ignore
       }
@@ -640,7 +631,8 @@ const saveSolicitud = async () => {
 
 
       try {
-        await comprasStore.fetchSolicitudes();
+        await userStore.fetchCurrentUserProfile();
+        await comprasStore.fetchSolicitudes(userStore.getArea(), userStore.getEmailsFilter());
       } catch (e) {
         // ignore
       }

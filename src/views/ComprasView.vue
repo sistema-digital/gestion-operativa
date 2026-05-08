@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useComprasStore } from '@/stores/comprasStore';
 import type { SolicitudCompra } from '@/stores/comprasStore';
-import { supabase } from '@/lib/supabase';
+import { useUserStore } from '@/stores/userStore';
 import SolicitudCardList from '@/components/compras/list/SolicitudCardList.vue';
 import SolicitudTable from '@/components/compras/list/SolicitudTable.vue';
 import { defaultSolicitudColumns, type SolicitudDisplayConfig } from '@/components/compras/list/types';
@@ -12,6 +12,7 @@ import { Search, Plus, Layers, List, Filter, ChevronDown, ChevronLeft, ChevronRi
 const router = useRouter();
 const route = useRoute();
 const store = useComprasStore();
+const userStore = useUserStore();
 
 const searchQuery = ref('');
 const sortBy = ref<'desc' | 'asc'>('desc');
@@ -25,48 +26,12 @@ const solicitudColumns = defaultSolicitudColumns;
 
 const isNewFormOpen = ref(false);
 
-const userEmail = ref('');
-const userArea = ref('');
-const allProfiles = ref<any[]>([]);
+const userArea = computed(() => userStore.area);
 
 const fetchData = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user && user.email) {
-    userEmail.value = user.email;
-  }
-  
-  const { data: currentProfile } = await supabase.from('PROFILE').select('*').eq('email', userEmail.value).maybeSingle();
-  if (currentProfile) {
-    userArea.value = (currentProfile.area || '').toUpperCase();
-  }
-
-  let emailsFilter: string[] = [];
-
-  if (userArea.value === 'ALL') {
-    const { data: profiles } = await supabase.from('PROFILE').select('*');
-    if (profiles) {
-      allProfiles.value = profiles;
-    }
-  } else if (userArea.value === 'ALMACEN') {
-    const { data: profiles } = await supabase.from('PROFILE').select('*');
-    if (profiles) {
-      allProfiles.value = profiles;
-    }
-    // No email filtering because ALMACEN will be strictly filtered by states 1, 2, 10 in the store
-  } else {
-    // Buscar tipo OR con el area igual o el email propio
-    const { data: profiles } = await supabase.from('PROFILE').select('*').or(`area.ilike.${userArea.value},email.eq.${userEmail.value}`);
-    if (profiles) {
-      allProfiles.value = profiles;
-      emailsFilter = profiles.map(p => p.email);
-    }
-    if (!emailsFilter.includes(userEmail.value) && userEmail.value) {
-      emailsFilter.push(userEmail.value);
-    }
-  }
-
+  await userStore.fetchCurrentUserProfile();
   await store.fetchEstados();
-  await store.fetchSolicitudes(userArea.value, emailsFilter);
+  await store.fetchSolicitudes(userStore.getArea(), userStore.getEmailsFilter());
 };
 
 onMounted(async () => {
