@@ -4,6 +4,7 @@ import { useHorasTrabajoStore, type HoraTrabajoData } from '@/stores/horasTrabaj
 import EChart from '@/components/ui/EChart.vue';
 import { RefreshCw, ChevronDown, FilterX, Check } from 'lucide-vue-next';
 import { getOrderStatusColor } from '@/lib/constants';
+import { getWeekNumber } from '@/utils/dateUtils';
 
 const store = useHorasTrabajoStore();
 
@@ -69,9 +70,16 @@ const availableWeeks = computed(() => {
 
 watch(() => availableWeeks.value, (newVal) => {
   if (selectedWeek.value === 'ALL' && newVal.length > 1) {
-    const maxWeek = newVal.find(w => w !== 'ALL');
-    if (maxWeek) {
-      selectedWeek.value = maxWeek;
+    const currentWeekNum = String(getWeekNumber(new Date()));
+    // Verificamos si la semana actual está en los datos, sino elegimos la más reciente
+    const hasCurrentWeek = newVal.includes(currentWeekNum);
+    if (hasCurrentWeek) {
+      selectedWeek.value = currentWeekNum;
+    } else {
+      const maxWeek = newVal.find(w => w !== 'ALL');
+      if (maxWeek) {
+        selectedWeek.value = maxWeek;
+      }
     }
   }
 }, { immediate: true });

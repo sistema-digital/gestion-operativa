@@ -133,15 +133,15 @@ watch(() => route.query.slide, (newSlide) => {
           <h2 class="text-xs md:text-sm font-bold text-gray-800 hidden sm:block">Métricas</h2>
         </div>
         <!-- Unified Pill Navigation -->
-        <div class="flex bg-gray-100 p-0.5 md:p-1 rounded-xl shadow-inner border border-gray-200/20 max-w-full" v-if="slides.length > 1">
+        <div class="grid grid-cols-3 gap-1 sm:flex sm:flex-wrap md:flex-nowrap justify-center bg-gray-100 p-1 rounded-xl shadow-inner border border-gray-200/20 w-full sm:w-auto" v-if="slides.length > 1">
           <button 
             v-for="(slide, index) in slides" 
             :key="slide.id"
             @click="scrollToSlideIndex(index)"
-            class="px-3 py-1 md:px-5 md:py-1.5 text-[10px] md:text-[11px] font-bold rounded-lg transition-all whitespace-nowrap"
+            class="px-1 py-1.5 md:px-5 md:py-1.5 text-[9px] min-w-0 md:text-[11px] font-bold rounded-lg transition-all flex items-center justify-center text-center"
             :class="index === currentSlideIndex ? 'bg-white text-main shadow-md' : 'text-gray-400 hover:text-gray-600'"
           >
-            {{ slide.label }}
+            <span class="truncate w-full">{{ slide.label }}</span>
           </button>
         </div>
         

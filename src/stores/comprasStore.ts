@@ -200,6 +200,53 @@ export const useComprasStore = defineStore('compras', {
     
     getEstadoName(id: number) {
       return this.estados.find(e => e.id === id)?.name || 'Desconocido';
+    },
+
+    async tomarSolicitudParaEdicion(solicitudId: string, estadoEdicionId: number, emailUsuario: string) {
+      try {
+        const { data, error } = await supabaseCompras.rpc('tomar_solicitud_para_edicion', {
+          p_solicitud_id: solicitudId,
+          p_estado_edicion_id: estadoEdicionId,
+          p_creado_por: emailUsuario
+        });
+        if (error) throw error;
+        
+        // Update local state if successful
+        if (data.success) {
+           const sol = this.solicitudes.find(s => s.id === solicitudId);
+           if (sol) {
+              sol.estado_id = estadoEdicionId;
+           }
+        }
+        
+        return data;
+      } catch (err: any) {
+        console.error('Error al tomar solicitud para edición:', err);
+        throw err;
+      }
+    },
+
+    async cancelarEdicionSolicitud(solicitudId: string, emailUsuario: string) {
+      try {
+        const { data, error } = await supabaseCompras.rpc('cancelar_edicion_solicitud_compra', {
+          p_solicitud_id: solicitudId,
+          p_creado_por: emailUsuario
+        });
+        if (error) throw error;
+        
+        // Update local state if successful
+        if (data.success && data.estado_actual_id) {
+           const sol = this.solicitudes.find(s => s.id === solicitudId);
+           if (sol) {
+              sol.estado_id = data.estado_actual_id;
+           }
+        }
+        
+        return data;
+      } catch (err: any) {
+        console.error('Error al cancelar edición de solicitud:', err);
+        throw err;
+      }
     }
   }
 });
