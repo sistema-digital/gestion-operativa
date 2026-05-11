@@ -1804,7 +1804,7 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
             class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
             <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE REAL VS AVANCE SIN RETRASOS</h2>
+                <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE REAL VS AVANCE APROXIMADO SIN RETRASOS</h2>
                 <p class="mt-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{{ weeklyAreaPeriodLabel }}</p>
               </div>
               <button type="button" @click="weeklyAreaCurrentWeekOnly = !weeklyAreaCurrentWeekOnly"
