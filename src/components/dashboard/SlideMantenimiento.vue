@@ -98,6 +98,94 @@ const weeklyAreaSummaryAreaKeys = new Set([
   'MECANICA DE TRANSPORTE',
 ]);
 
+const progress2025StartWeek = 15;
+
+const progress2025General: Record<string, number> = {
+  '20': 0.20, '21': 1.20, '22': 1.10, '23': 0.60, '24': 1.10,
+  '25': 0.80, '26': 1.60, '27': 1.10, '28': 1.20, '29': 1.10,
+  '30': 0.70, '31': 0.90, '32': 1.80, '33': 2.20, '34': 2.00,
+  '35': 1.90, '36': 2.40, '37': 2.10, '38': 2.50, '39': 2.40,
+  '40': 2.20, '41': 2.30, '42': 3.30, '43': 3.10, '44': 2.70,
+  '45': 0.60, '46': 2.40, '47': 2.50, '48': 1.70, '49': 2.50,
+  '50': 2.10, '51': 3.80, '52': 0.70
+};
+
+const progress2025ByArea: Record<string, Record<string, number>> = {
+  'COSECHA AGRICOLA': {
+    '20': 0.00, '21': 0.00, '22': 0.10, '23': 0.20, '24': 0.20,
+    '25': 0.60, '26': 0.50, '27': 0.30, '28': 0.30, '29': 0.20,
+    '30': 0.30, '31': 0.10, '32': 0.10, '33': 0.40, '34': 0.20,
+    '35': 0.40, '36': 0.50, '37': 0.30, '38': 0.40, '39': 0.40,
+    '40': 0.60, '41': 0.50, '42': 0.80, '43': 0.70, '44': 0.70,
+    '45': 0.20, '46': 0.40, '47': 0.30, '48': 0.40, '49': 0.40
+  },
+  'MECANICA DE TRANSPORTE': {
+    '21': 0.60, '22': 0.20, '24': 0.30, '26': 0.10, '32': 0.10,
+    '33': 0.30, '36': 0.20, '37': 0.20, '38': 0.40, '39': 0.10,
+    '40': 0.10, '41': 0.40, '42': 0.20, '43': 0.10, '44': 0.20,
+    '46': 0.10
+  },
+  'ENGRASE': {
+    '24': 0.10, '25': 0.10, '26': 0.10, '27': 0.10, '28': 0.00,
+    '29': 0.00, '30': 0.10, '31': 0.10, '32': 0.10, '33': 0.30,
+    '34': 0.10, '35': 0.20, '36': 0.20, '37': 0.10, '38': 0.00,
+    '39': 0.10, '40': 0.10, '41': 0.10, '42': 0.00, '43': 0.00,
+    '44': 0.00
+  },
+  'COSECHA MECANIZADA': {
+    '20': 0.20, '21': 0.50, '22': 0.40, '23': 0.10, '24': 0.30,
+    '25': 0.10, '26': 0.30, '27': 0.50, '28': 0.30, '29': 0.40,
+    '30': 0.40, '31': 0.20, '32': 0.50, '33': 0.80, '34': 1.10,
+    '35': 0.70, '36': 0.80, '37': 1.00, '38': 0.90, '39': 0.80,
+    '40': 0.90, '41': 0.90, '42': 0.90, '43': 1.00, '44': 1.20,
+    '45': 0.30, '46': 0.90, '47': 0.80, '48': 0.40, '49': 1.00
+  },
+  'EQUIPO PESADO': {
+    '21': 0.60, '22': 0.20, '24': 0.30, '26': 0.10, '32': 0.10,
+    '33': 0.30, '36': 0.20, '37': 0.20, '38': 0.40, '39': 0.10,
+    '40': 0.10, '41': 0.40, '42': 0.20, '43': 0.10, '44': 0.20,
+    '46': 0.10
+  }
+};
+
+const getProgress2025AreaKey = () => {
+  const areaFixed = userArea.value?.toUpperCase();
+
+  if (areaFixed && areaFixed !== 'ALL') {
+    const userAreaKey = normalizeAreaKey(userArea.value);
+    return progress2025ByArea[userAreaKey] ? userAreaKey : null;
+  }
+
+  if (filters.value.area) {
+    const selectedAreaKey = normalizeAreaKey(filters.value.area);
+    return progress2025ByArea[selectedAreaKey] ? selectedAreaKey : null;
+  }
+
+  if (activeFilters.value.serie) {
+    const serieAreaKey = normalizeAreaKey(activeFilters.value.serie);
+    return progress2025ByArea[serieAreaKey] ? serieAreaKey : null;
+  }
+
+  return null;
+};
+
+const getProgress2025Dataset = () => {
+  const areaKey = getProgress2025AreaKey();
+  return areaKey ? progress2025ByArea[areaKey] : progress2025General;
+};
+
+const getProgress2025Value = (week: string) => {
+  const dataset = getProgress2025Dataset();
+  const sourceWeeks = Object.keys(dataset).map(Number).filter(Number.isFinite);
+  const firstSourceWeek = sourceWeeks.length > 0 ? Math.min(...sourceWeeks) : progress2025StartWeek;
+  const normalizedWeek = Number(week);
+
+  if (!Number.isFinite(normalizedWeek)) return 0;
+
+  const sourceWeek = firstSourceWeek + (normalizedWeek - progress2025StartWeek);
+  return dataset[String(sourceWeek)] || 0;
+};
+
 const scrollToTable = () => {
   const el = document.getElementById('equipment-details-table');
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -806,22 +894,13 @@ const handleEChartClick = (dimensionKey: string, params: any) => {
 };
 
 const allWeeksComparison = computed(() => {
-  const data2025Obj: Record<string, number> = {
-    '15': 0.2, '16': 1.2, '17': 1.1, '18': 0.6, '19': 1.1,
-    '20': 0.8, '21': 1.6, '22': 1.1, '23': 1.2, '24': 1.1,
-    '25': 0.7, '26': 0.9, '27': 1.8, '28': 2.2, '29': 2.0,
-    '30': 1.9, '31': 2.4, '32': 2.1, '33': 2.5, '34': 2.4,
-    '35': 2.2, '36': 2.3, '37': 3.2, '38': 3.1, '39': 2.7,
-    '40': 0.6, '41': 2.4, '42': 2.5, '43': 1.7, '44': 2.4
-  };
-
   const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
   const weeks = allWeeklyProgress.value;
   const globalTotal = weeks[0]?.globalTotal || 0;
   const totalConcluidas = weeks.reduce((sum, week) => sum + week.concluidas, 0);
   const sum2026 = globalTotal > 0 ? Number(((totalConcluidas / globalTotal) * 100).toFixed(2)) : 0;
   const sum2025 = isZafra
-    ? weeks.reduce((sum, week) => sum + (data2025Obj[week.semana] || 0), 0)
+    ? weeks.reduce((sum, week) => sum + getProgress2025Value(week.semana), 0)
     : 0;
 
   return {
@@ -884,27 +963,7 @@ const buildWeeklyProgress = (limitToLastFive: boolean) => {
     }
     weeks = weeks.reverse();
   } else {
-    const filteredHorasWeeks = horasTrabajoData.value.filter(row => {
-      const status = String(row.estatus || '').trim().toLowerCase();
-      const areaKey = normalizeAreaKey(row.area);
-
-      if (status !== 'retrasada' && status !== 'ausencia') return false;
-      if (!hoursPerOrderByArea[areaKey]) return false;
-      if (areaFixed !== 'ALL' && areaKey !== areaFixedKey) return false;
-      if (areaFixed === 'ALL' && filters.value.area && areaKey !== normalizeAreaKey(filters.value.area)) return false;
-
-      if (activeFilters.value.serie) {
-        return areaKey === normalizeAreaKey(activeFilters.value.serie) || row.equipo === activeFilters.value.serie;
-      }
-
-      return true;
-    });
-
-    const dataWeeks = [
-      ...areaFilteredList.map(o => Number(o.Semana)).filter(Number.isFinite),
-      ...filteredHorasWeeks.map(row => Number(row.semana_inicio)).filter(Number.isFinite),
-    ];
-    const minWeek = dataWeeks.length > 0 ? Math.min(...dataWeeks, currentWeekNumber) : currentWeekNumber;
+    const minWeek = progress2025StartWeek;
     const maxWeek = currentWeekNumber;
     for (let week = minWeek; week <= maxWeek; week++) {
       weeks.push(String(week));
@@ -1120,21 +1179,13 @@ const weeklyEChartOption = computed(() => {
   const targetPerc = 0.0294;
   const targetValues = labels.map(() => targetValue);
 
-  const data2025Obj: Record<string, number> = {
-    '15': 0.2, '16': 1.2, '17': 1.1, '18': 0.6, '19': 1.1,
-    '20': 0.8, '21': 1.6, '22': 1.1, '23': 1.2, '24': 1.1,
-    '25': 0.7, '26': 0.9, '27': 1.8, '28': 2.2, '29': 2.0,
-    '30': 1.9, '31': 2.4, '32': 2.1, '33': 2.5, '34': 2.4,
-    '35': 2.2, '36': 2.3, '37': 3.2, '38': 3.1, '39': 2.7,
-    '40': 0.6, '41': 2.4, '42': 2.5, '43': 1.7, '44': 2.4
-  };
   const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
   const showLoss = isZafra && weeklyLossVisible.value;
-  const avanceValues2025 = isZafra ? labels.map(sem => data2025Obj[sem] || 0) : [];
+  const avanceValues2025 = isZafra ? labels.map(sem => getProgress2025Value(sem)) : [];
 
   const stacked2026Values = data.map(d => d.avance + (showLoss ? d.retrasadaAvance + d.ausenciaAvance : 0));
   const maxAvance = stacked2026Values.length > 0 ? Math.max(...stacked2026Values) : 0;
-  const maxAvance2025 = isZafra && Object.keys(data2025Obj).length > 0 ? Math.max(...avanceValues2025) : 0;
+  const maxAvance2025 = isZafra && avanceValues2025.length > 0 ? Math.max(...avanceValues2025) : 0;
   const overallMax = Math.max(maxAvance, maxAvance2025);
   const chartMax = overallMax > 5 ? Math.ceil(overallMax) + 1 : 5;
 
@@ -1146,8 +1197,9 @@ const weeklyEChartOption = computed(() => {
         type: 'bar',
         color: '#4b9b7a',
         data: avanceValues2025,
-        barMaxWidth: 24,
-        barGap: '15%',
+        barMaxWidth: 18,
+        barGap: '45%',
+        barCategoryGap: '38%',
         itemStyle: {
           borderRadius: [4, 4, 0, 0],
           color: (p: any) => {
@@ -1165,6 +1217,7 @@ const weeklyEChartOption = computed(() => {
             return matchesSemana ? '#4b9b7a' : 'transparent';
           },
           fontWeight: 'bold',
+          fontSize: 10,
           formatter: (p: any) => p.value > 0 ? `${p.value}%` : ''
         }
       });
@@ -1176,8 +1229,9 @@ const weeklyEChartOption = computed(() => {
         stack: 'avance2026',
         color: '#004236',
         data: avanceValues,
-        barMaxWidth: 24,
-        barGap: '15%',
+        barMaxWidth: 18,
+        barGap: '45%',
+        barCategoryGap: '38%',
         itemStyle: {
           borderRadius: [4, 4, 0, 0],
           color: (p: any) => {
@@ -1195,6 +1249,7 @@ const weeklyEChartOption = computed(() => {
             return matchesSemana ? '#004236' : 'transparent';
           },
           fontWeight: 'bold',
+          fontSize: 10,
           formatter: (p: any) => (!isZafra || !showLoss) && p.value > 0 ? `${p.value}%` : ''
         }
       });
@@ -1206,7 +1261,9 @@ const weeklyEChartOption = computed(() => {
           stack: 'avance2026',
           color: '#C0392B',
           data: perdidaValues,
-          barMaxWidth: 24,
+          barMaxWidth: 18,
+          barGap: '45%',
+          barCategoryGap: '38%',
           itemStyle: {
             borderRadius: [4, 4, 0, 0],
             color: (p: any) => {
@@ -1273,10 +1330,13 @@ const weeklyEChartOption = computed(() => {
         if (barP) {
           res += `<div>Avance 2026: ${barP.value || 0}% (<span style="font-size: 0.9em">Concluidas: ${weekData?.concluidas || 0} / ${weekData?.total || 0}</span>)</div>`;
         }
-        if (weekData && isZafra) {
-          res += `<div>Retrasada: ${weekData.retrasadaAvance}% <span style="font-size: 0.9em">(${Math.round(weekData.retrasadaEquivalente)} órdenes eq. / ${weekData.horasRetrasada} hrs)</span></div>`;
-          res += `<div>Ausencia: ${weekData.ausenciaAvance}% <span style="font-size: 0.9em">(${Math.round(weekData.ausenciaEquivalente)} órdenes eq. / ${weekData.horasAusencia} hrs)</span></div>`;
-          res += `<div style="color:#C0392B;font-weight:bold">Pérdida total: ${Number((weekData.retrasadaAvance + weekData.ausenciaAvance).toFixed(2))}%</div>`;
+        if (weekData && showLoss) {
+          const perdidaTotal = Number((weekData.retrasadaAvance + weekData.ausenciaAvance).toFixed(2));
+          if (perdidaTotal > 0) {
+            res += `<div>Retrasada: ${weekData.retrasadaAvance}% <span style="font-size: 0.9em">(${Math.round(weekData.retrasadaEquivalente)} órdenes eq. / ${weekData.horasRetrasada} hrs)</span></div>`;
+            res += `<div>Ausencia: ${weekData.ausenciaAvance}% <span style="font-size: 0.9em">(${Math.round(weekData.ausenciaEquivalente)} órdenes eq. / ${weekData.horasAusencia} hrs)</span></div>`;
+            res += `<div style="color:#C0392B;font-weight:bold">Pérdida total: ${perdidaTotal}%</div>`;
+          }
         }
         res += `<div>Objetivo: ${targetValue}% (${targetQty})</div>`;
         return res;
@@ -1653,7 +1713,7 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
                 </div>
 
                 <div class="px-2 py-2 text-right font-mono whitespace-nowrap">
-                  {{ row.actualProgress.toFixed(2) }}%
+                  {{ row.actualProgress.toFixed(1) }}%
                 </div>
 
                 <div class="px-2 py-2 text-right font-mono whitespace-nowrap"
@@ -1671,7 +1731,7 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
                 </div>
 
                 <div class="px-2 py-2 text-right font-mono whitespace-nowra text-gray-800">
-                  {{ progressMetrics.totalRow.actualProgress.toFixed(2) }}%
+                  {{ progressMetrics.totalRow.actualProgress.toFixed(1) }}%
                 </div>
 
                 <div class="px-2 py-2 text-right font-mono whitespace-nowrap"
@@ -1714,7 +1774,7 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
                 <thead class="bg-gray-50 border-b border-gray-100">
                   <tr>
                     <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">AÑO</th>
-                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE ({{ currentWeek+'' }} SEM)</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE {{ weeklyAreaPeriodLabel }}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
@@ -1772,13 +1832,13 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
                 <tbody class="divide-y divide-gray-50">
                   <tr v-for="row in weeklyAreaSummary" :key="row.area" class="hover:bg-gray-50/50 transition-colors">
                     <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.area }}</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ row.realProgress.toFixed(2) }}%</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#C0392B]">{{ row.lostProgress.toFixed(2) }}%</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-gray-800">{{ row.optimalProgress.toFixed(2) }}%</td>
+                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ row.realProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#C0392B]">{{ row.lostProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-gray-800">{{ row.optimalProgress.toFixed(1) }}%</td>
                   </tr>
                   <tr v-if="weeklyAreaSummary.length > 0" class="bg-gray-50 border-t border-gray-200">
                     <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#004236]">{{ weeklyAreaSummaryTotal.realProgress.toFixed(2) }}%</td>
+                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#004236]">{{ weeklyAreaSummaryTotal.realProgress.toFixed(1) }}%</td>
                     <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#C0392B]">{{ weeklyAreaSummaryTotal.lostProgress.toFixed(1) }}%</td>
                     <td class="px-4 py-3 text-sm font-black font-mono text-right text-gray-900">{{ weeklyAreaSummaryTotal.optimalProgress.toFixed(1) }}%</td>
                   </tr>
