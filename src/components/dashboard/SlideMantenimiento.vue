@@ -911,6 +911,89 @@ const allWeeksComparison = computed(() => {
   };
 });
 
+const comparisonAreaRows = computed(() => {
+  const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
+  const weeks = new Set(allWeeklyProgress.value.map(d => String(d.semana)));
+  const areaFixed = userArea.value?.toUpperCase();
+  const areaFixedKey = normalizeAreaKey(userArea.value || '');
+
+  let orderList = areaFixed === 'ALL'
+    ? allOrders.value
+    : allOrders.value.filter(d => normalizeAreaKey(d.Área || '') === areaFixedKey);
+
+  if (filters.value.etapa) {
+    orderList = orderList.filter(d => d.Etapa === filters.value.etapa);
+  }
+
+  const generalTotal = orderList.length;
+
+  if (areaFixed === 'ALL' && filters.value.area) {
+    const selectedAreaKey = normalizeAreaKey(filters.value.area);
+    orderList = orderList.filter(d => normalizeAreaKey(d.Área || '') === selectedAreaKey);
+  }
+
+  if (activeFilters.value.serie) {
+    orderList = orderList.filter(d =>
+      d.Área === activeFilters.value.serie ||
+      d.Sistema === activeFilters.value.serie ||
+      d.ITEM === activeFilters.value.serie ||
+      d["ID_#EQUIPO"] === activeFilters.value.serie
+    );
+  }
+
+  if (activeFilters.value.estado) {
+    orderList = orderList.filter(d => d.Estatus === activeFilters.value.estado);
+  }
+
+  const areaKeys = Array.from(new Set(
+    orderList
+      .map(d => normalizeAreaKey(d.Área || ''))
+      .filter(areaKey => areaKey && progress2025ByArea[areaKey])
+  ));
+
+  const rows = areaKeys.map(areaKey => {
+    const areaOrders = orderList.filter(d => normalizeAreaKey(d.Área || '') === areaKey);
+    const concluded = areaOrders.filter(o => {
+      const status = String(o.Estatus || '').toLowerCase();
+      return weeks.has(String(o.Semana)) && status.includes('concluida');
+    }).length;
+    const total = areaOrders.length;
+    const avance2026 = generalTotal > 0 ? Number(((concluded / generalTotal) * 100).toFixed(2)) : 0;
+    const avance2025 = isZafra
+      ? allWeeklyProgress.value.reduce((sum, week) => {
+        const dataset = progress2025ByArea[areaKey];
+        const sourceWeeks = Object.keys(dataset).map(Number).filter(Number.isFinite);
+        const firstSourceWeek = sourceWeeks.length > 0 ? Math.min(...sourceWeeks) : progress2025StartWeek;
+        const sourceWeek = firstSourceWeek + (Number(week.semana) - progress2025StartWeek);
+        return sum + (dataset[String(sourceWeek)] || 0);
+      }, 0)
+      : 0;
+
+    return {
+      area: areaOrders[0]?.Área || areaKey,
+      total,
+      concluded,
+      avance2026,
+      avance2025: Math.min(avance2025, 100),
+      difference: Number((avance2026 - Math.min(avance2025, 100)).toFixed(2))
+    };
+  }).sort((a, b) => b.avance2026 - a.avance2026);
+
+  const totalRow = {
+    area: 'TOTAL',
+    total: rows.reduce((sum, row) => sum + row.total, 0),
+    concluded: rows.reduce((sum, row) => sum + row.concluded, 0),
+    avance2026: generalTotal > 0
+      ? Number(((rows.reduce((sum, row) => sum + row.concluded, 0) / generalTotal) * 100).toFixed(2))
+      : 0,
+    avance2025: isZafra ? Math.min(rows.reduce((sum, row) => sum + row.avance2025, 0), 100) : 0,
+    difference: 0
+  };
+  totalRow.difference = Number((totalRow.avance2026 - totalRow.avance2025).toFixed(2));
+
+  return { rows, totalRow, isZafra };
+});
+
 const getWeekNumber = (date: Date) => {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
@@ -1773,23 +1856,32 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
               <table class="w-full text-left">
                 <thead class="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">AÑO</th>
-                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE {{ weeklyAreaPeriodLabel }}</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">ÁREA</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">2026</th>
+                    <th v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">2025</th>
+                    <th v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">DIF.</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
-                  <tr class="hover:bg-gray-50/50 transition-colors">
-                    <td class="px-4 py-3 text-sm font-bold text-gray-700">2026</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ allWeeksComparison.sum2026.toFixed(1) }}%</td>
+                  <tr v-for="row in comparisonAreaRows.rows" :key="row.area" class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.area }}</td>
+                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ row.avance2026.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-bold font-mono text-right text-[#4b9b7a]">{{ row.avance2025.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-bold font-mono text-right" :class="row.difference >= 0 ? 'text-success' : 'text-danger'">
+                      {{ row.difference > 0 ? '+' : '' }}{{ row.difference.toFixed(1) }}%
+                    </td>
                   </tr>
-                  <tr v-if="allWeeksComparison.isZafra" class="hover:bg-gray-50/50 transition-colors">
-                    <td class="px-4 py-3 text-sm font-bold text-gray-700">2025</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#4b9b7a]">{{ allWeeksComparison.sum2025.toFixed(1) }}%</td>
+                  <tr v-if="comparisonAreaRows.rows.length > 0" class="bg-gray-50 border-t border-gray-200">
+                    <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
+                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#004236]">{{ comparisonAreaRows.totalRow.avance2026.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-black font-mono text-right text-[#4b9b7a]">{{ comparisonAreaRows.totalRow.avance2025.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-black font-mono text-right" :class="comparisonAreaRows.totalRow.difference >= 0 ? 'text-success' : 'text-danger'">
+                      {{ comparisonAreaRows.totalRow.difference > 0 ? '+' : '' }}{{ comparisonAreaRows.totalRow.difference.toFixed(1) }}%
+                    </td>
                   </tr>
-                   <tr v-if="allWeeksComparison.isZafra" class="bg-gray-50/50">
-                    <td class="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Diferencia</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right" :class="(allWeeksComparison.sum2026 - allWeeksComparison.sum2025) >= 0 ? 'text-success' : 'text-danger'">
-                      {{ (allWeeksComparison.sum2026 - allWeeksComparison.sum2025) > 0 ? '+' : '' }}{{ (allWeeksComparison.sum2026 - allWeeksComparison.sum2025).toFixed(1) }}%
+                  <tr v-if="comparisonAreaRows.rows.length === 0">
+                    <td :colspan="comparisonAreaRows.isZafra ? 4 : 2" class="px-4 py-8 text-center text-xs font-bold text-gray-300 uppercase tracking-widest">
+                      Sin datos por área
                     </td>
                   </tr>
                 </tbody>
