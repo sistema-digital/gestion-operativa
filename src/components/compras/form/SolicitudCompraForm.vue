@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   AlertTriangle
 } from 'lucide-vue-next';
+import { getPermisosFormSolicitud, type PermisosFormSolicitud } from './permisosForm';
 
 const props = defineProps({
   mode: {
@@ -24,6 +25,10 @@ const props = defineProps({
   },
   initialData: {
     type: Object,
+    default: null
+  },
+  permisosForm: {
+    type: Object as () => PermisosFormSolicitud | null,
     default: null
   }
 });
@@ -44,11 +49,17 @@ const showProductosDropdown = ref(false);
 const showConfirmCancel = ref(false);
 const isClosing = ref(false);
 
-const showCantidad = computed(() => {
-  if (props.mode === 'create') return false;
-  if (props.mode === 'edit' && props.initialData?.estado_id === 1) return false;
-  return true;
-});
+
+const permisosFormSolicitud = computed(() =>
+  props.permisosForm ??
+  getPermisosFormSolicitud({
+    mode: props.mode,
+    initialData: props.initialData,
+    userArea: userStore.getArea()
+  })
+);
+
+const showCantidad = computed(() => permisosFormSolicitud.value.showCantidad);
 
 const showUrgencyCheck = computed(() => {
   if (props.mode === 'create') return true;
@@ -176,11 +187,11 @@ interface DetalleManual {
   ui_id: string;
   db_id: string | null;
   isManual: boolean;
-  cod_producto: string | null;
+  cod_producto: string|null;
   descripcion: string;
   unidad_id: string;
-  unidad: string | null;
-  cantidad: number;
+  unidad: string|null;
+  cantidad: number|null;
 }
 
 const detalles = ref<DetalleManual[]>([]);
@@ -269,7 +280,7 @@ onMounted(async () => {
           descripcion: d.producto?.descripcion || d.descripcion || '',
           unidad_id: unidadIdFinal,
           unidad: unidadAbreviatura,
-          cantidad: d.cantidad || 0
+          cantidad: d.cantidad
         };
       });
     }
@@ -421,7 +432,7 @@ const toggleProducto = (prod: any) => {
           ? String(prod.unidad_medida.id)
           : '',
       unidad: prod.unidad_medida?.abreviatura || null,
-      cantidad: 0
+      cantidad: null
     });
   }
 };
@@ -435,7 +446,7 @@ const addManualItem = () => {
     descripcion: '',
     unidad_id: '',
     unidad: null,
-    cantidad: 0
+    cantidad: null
   });
 };
 
@@ -586,7 +597,7 @@ const saveSolicitud = async () => {
           cod_producto: d.cod_producto || null,
           descripcion: d.descripcion,
           unidad_id: isManual ? d.unidad_id : null,
-          cantidad: d.cantidad || 0
+          cantidad: d.cantidad || null
         };
       });
 
