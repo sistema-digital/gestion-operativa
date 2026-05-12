@@ -9,7 +9,8 @@ import {
   X,
   Search,
   Plus,
-  Trash2,
+  Ban,
+  Undo2,
   Save,
   ShoppingCart,
   Loader2,
@@ -30,6 +31,10 @@ const props = defineProps({
   permisosForm: {
     type: Object as () => PermisosFormSolicitud | null,
     default: null
+  },
+  readonly: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -60,6 +65,10 @@ const permisosFormSolicitud = computed(() =>
 );
 
 const showCantidad = computed(() => permisosFormSolicitud.value.showCantidad);
+const canEditCantidadInventario = computed(
+  () => !props.readonly && permisosFormSolicitud.value.canEditCantidadInventario
+);
+const isReadOnly = computed(() => props.readonly);
 
 const showUrgencyCheck = computed(() => {
   if (props.mode === 'create') return true;
@@ -80,6 +89,8 @@ const fieldErrors = ref({
 });
 
 const hasUnsavedChanges = computed(() => {
+  if (isReadOnly.value) return false;
+
   if (props.mode === 'edit' && props.initialData) {
     const origFecha = props.initialData.fecha_entrega || '';
     const origObs = props.initialData.observacion || '';
@@ -192,6 +203,8 @@ interface DetalleManual {
   unidad_id: string;
   unidad: string|null;
   cantidad: number|null;
+  cantidad_inventario: number|null;
+  descartado: boolean;
 }
 
 const detalles = ref<DetalleManual[]>([]);
@@ -280,7 +293,9 @@ onMounted(async () => {
           descripcion: d.producto?.descripcion || d.descripcion || '',
           unidad_id: unidadIdFinal,
           unidad: unidadAbreviatura,
-          cantidad: d.cantidad
+          cantidad: d.cantidad,
+          cantidad_inventario: d.cantidad_inventario ?? null,
+          descartado: false
         };
       });
     }
@@ -301,6 +316,8 @@ const filteredEquipos = computed(() => {
 });
 
 const toggleEquipo = (equipo: any) => {
+  if (isReadOnly.value) return;
+
   const index = selectedEquipos.value.findIndex(
     e => e.cod_equipo === equipo.cod_equipo
   );
@@ -317,6 +334,8 @@ const isEquipoSelected = (cod: string) => {
 };
 
 const removeEquipo = (cod: string) => {
+  if (isReadOnly.value) return;
+
   selectedEquipos.value = selectedEquipos.value.filter(
     e => e.cod_equipo !== cod
   );
@@ -389,6 +408,8 @@ const performProductSearch = async (
 };
 
 watch(searchProducto, newVal => {
+  if (isReadOnly.value) return;
+
   if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
 
   if (newVal.trim().length < 4) {
@@ -404,6 +425,8 @@ watch(searchProducto, newVal => {
 });
 
 const loadMoreProducts = () => {
+  if (isReadOnly.value) return;
+
   productosOffset.value += 30;
   performProductSearch(searchProducto.value, productosOffset.value, true);
 };
@@ -413,6 +436,8 @@ const isProductoSelected = (cod: string) => {
 };
 
 const toggleProducto = (prod: any) => {
+  if (isReadOnly.value) return;
+
   const index = detalles.value.findIndex(
     d => d.cod_producto === prod.cod_producto && !d.isManual
   );
@@ -432,12 +457,16 @@ const toggleProducto = (prod: any) => {
           ? String(prod.unidad_medida.id)
           : '',
       unidad: prod.unidad_medida?.abreviatura || null,
-      cantidad: null
+      cantidad: null,
+      cantidad_inventario: null,
+      descartado: false
     });
   }
 };
 
 const addManualItem = () => {
+  if (isReadOnly.value) return;
+
   detalles.value.push({
     ui_id: crypto.randomUUID(),
     db_id: null,
@@ -446,15 +475,33 @@ const addManualItem = () => {
     descripcion: '',
     unidad_id: '',
     unidad: null,
-    cantidad: null
+    cantidad: null,
+    cantidad_inventario: null,
+    descartado: false
   });
 };
 
-const removeDetalle = (uiId: string) => {
-  detalles.value = detalles.value.filter(d => d.ui_id !== uiId);
+const discardDetalle = (uiId: string) => {
+  if (isReadOnly.value) return;
+
+  const detalle = detalles.value.find(d => d.ui_id === uiId);
+  if (detalle) {
+    detalle.descartado = true;
+  }
+};
+
+const undoDiscardDetalle = (uiId: string) => {
+  if (isReadOnly.value) return;
+
+  const detalle = detalles.value.find(d => d.ui_id === uiId);
+  if (detalle) {
+    detalle.descartado = false;
+  }
 };
 
 const saveSolicitud = async () => {
+  if (isReadOnly.value) return;
+
   fieldErrors.value = {
     fechaEntrega: '',
     equipos: '',
@@ -597,7 +644,8 @@ const saveSolicitud = async () => {
           cod_producto: d.cod_producto || null,
           descripcion: d.descripcion,
           unidad_id: isManual ? d.unidad_id : null,
-          cantidad: d.cantidad || null
+          cantidad: d.cantidad || null,
+          cantidad_inventario: d.cantidad_inventario ?? null
         };
       });
 
@@ -675,7 +723,7 @@ const saveSolicitud = async () => {
 
           <div>
             <h2 class="font-display font-bold text-xl text-main-dark">
-              {{ mode === 'edit' ? 'Editar Solicitud' : 'Nueva Solicitud' }}
+              {{ isReadOnly ? 'Ver Solicitud' : mode === 'edit' ? 'Editar Solicitud' : 'Nueva Solicitud' }}
             </h2>
           </div>
         </div>
@@ -688,8 +736,8 @@ const saveSolicitud = async () => {
       </div>
 
       <!-- Content -->
-      <div class="flex-1 overflow-y-auto p-6 md:p-10 lg:px-24">
-        <div class="max-w-5xl mx-auto space-y-8 pb-10">
+      <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:px-8 md:py-8">
+        <div class="w-full space-y-8 pb-10">
           <div v-if="fieldErrors.general"
             class="bg-red-50 text-red-600 p-4 rounded-xl text-sm mb-4 border border-red-200">
             {{ fieldErrors.general }}
@@ -698,7 +746,8 @@ const saveSolicitud = async () => {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <!-- Fecha Entrega -->
             <div class="space-y-1.5 flex flex-col justify-end">
-              <BaseDateField v-model="fechaEntrega" label="Fecha de Entrega *" :error="fieldErrors.fechaEntrega" />
+              <BaseDateField v-model="fechaEntrega" label="Fecha de Entrega *" :error="fieldErrors.fechaEntrega"
+                :disabled="isReadOnly" />
             </div>
 
             <!-- Auto email display -->
@@ -720,6 +769,7 @@ const saveSolicitud = async () => {
             <input
               v-model="isUrgent"
               type="checkbox"
+              :disabled="isReadOnly"
               class="w-4 h-4 rounded border-yellow-300 text-yellow-600 focus:ring-yellow-500 accent-yellow-500 cursor-pointer"
             />
             <span>Solicitar Urgencia</span>
@@ -736,7 +786,7 @@ const saveSolicitud = async () => {
                 class="bg-main text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2">
                 <span>{{ eq.cod_equipo }}</span>
 
-                <button @click="removeEquipo(eq.cod_equipo)" class="text-white hover:text-red-300">
+                <button v-if="!isReadOnly" @click="removeEquipo(eq.cod_equipo)" class="text-white hover:text-red-300">
                   <X class="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -748,9 +798,10 @@ const saveSolicitud = async () => {
               <div class="flex items-center relative z-20">
                 <Search class="absolute left-3 w-4 h-4 text-gray-400" />
 
-                <input v-model="searchEquipo" @focus="showEquiposDropdown = true" type="text"
+                <input v-model="searchEquipo" @focus="showEquiposDropdown = !isReadOnly" type="text"
+                  :disabled="isReadOnly"
                   placeholder="Buscar equipo por código o nombre..."
-                  class="w-full pl-9 pr-4 py-2 border border-gray-200 bg-white rounded-xl focus:ring-2 focus:ring-accent outline-none relative" />
+                  class="w-full pl-9 pr-4 py-2 border border-gray-200 bg-white rounded-xl focus:ring-2 focus:ring-accent outline-none relative disabled:bg-gray-50 disabled:cursor-not-allowed" />
               </div>
 
               <div v-if="showEquiposDropdown && filteredEquipos.length > 0"
@@ -787,7 +838,7 @@ const saveSolicitud = async () => {
                 Productos / Servicios <span class="text-red-500">*</span>
               </label>
 
-              <button @click="addManualItem"
+              <button v-if="!isReadOnly" @click="addManualItem"
                 class="text-xs font-bold text-main hover:text-accent flex items-center gap-1 bg-main/5 px-2 py-1 rounded cursor-pointer">
                 <Plus class="w-3.5 h-3.5" />
                 Agregar Ítem Manual
@@ -800,9 +851,10 @@ const saveSolicitud = async () => {
               <div class="flex items-center relative z-20">
                 <Search class="absolute left-3 w-4 h-4 text-gray-400" />
 
-                <input v-model="searchProducto" @focus="showProductosDropdown = true" type="text"
+                <input v-model="searchProducto" @focus="showProductosDropdown = !isReadOnly" type="text"
+                  :disabled="isReadOnly"
                   placeholder="Buscar producto de almacén..."
-                  class="w-full pl-9 pr-4 py-2 border border-gray-200 bg-white rounded-xl focus:ring-2 focus:ring-accent outline-none relative" />
+                  class="w-full pl-9 pr-4 py-2 border border-gray-200 bg-white rounded-xl focus:ring-2 focus:ring-accent outline-none relative disabled:bg-gray-50 disabled:cursor-not-allowed" />
               </div>
 
               <div v-if="showProductosDropdown"
@@ -895,58 +947,79 @@ const saveSolicitud = async () => {
               </div>
             </div>
 
-            <!-- Table -->
-            <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-4">
+            <!-- Details grid -->
+            <div class="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
               <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse min-w-[600px]">
-                  <thead class="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th class="py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">
-                        Código
-                      </th>
+                <div class="min-w-[680px]">
+                  <div
+                    class="details-grid border-b border-gray-200 bg-stone-50"
+                    :class="{ 'details-grid--inventory': showCantidad }"
+                  >
+                    <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Código
+                    </div>
 
-                      <th class="py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                        Descripción
-                      </th>
+                    <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Descripción
+                    </div>
 
-                      <th class="py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">
-                        Unidad
-                      </th>
+                    <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">
+                      Unidad
+                    </div>
 
-                      <th class="py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24 text-center"
-                        v-if="showCantidad">
-                        Cant.
-                      </th>
+                    <div
+                      v-if="showCantidad"
+                      class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center"
+                    >
+                      Inventario
+                    </div>
 
-                      <th class="py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-16"></th>
-                    </tr>
-                  </thead>
+                    <div class="px-4 py-3"></div>
+                  </div>
 
-                  <tbody class="divide-y divide-gray-100">
-                    <tr v-for="item in detalles" :key="item.ui_id" class="hover:bg-gray-50/50">
-                      <td class="py-3 px-4">
-                        <span v-if="!item.isManual" class="text-sm font-medium text-gray-700">
+                  <div v-if="detalles.length > 0" class="divide-y divide-gray-100">
+                    <div
+                      v-for="item in detalles"
+                      :key="item.ui_id"
+                      class="details-grid details-row min-h-[72px] items-center transition-colors hover:bg-gray-50/70"
+                      :class="{
+                        'details-grid--inventory': showCantidad,
+                        'discarded-row bg-gray-50 text-gray-400': item.descartado
+                      }"
+                    >
+                      <div class="px-4 py-4">
+                        <span v-if="!item.isManual" class="text-sm font-bold text-gray-800">
                           {{ item.cod_producto }}
                         </span>
 
                         <span v-else class="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded">
                           No asignado
                         </span>
-                      </td>
+                      </div>
 
-                      <td class="py-3 px-4">
-                        <input v-if="item.isManual" v-model="item.descripcion" type="text" maxlength="255"
-                          placeholder="Descripción manual..."
-                          class="w-full px-3 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm" />
+                      <div class="px-4 py-4">
+                        <input
+                          v-if="item.isManual"
+                          v-model="item.descripcion"
+                          type="text"
+                          maxlength="255"
+	                          placeholder="Descripción manual..."
+	                          :readonly="isReadOnly"
+	                          class="w-full px-3 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm"
+                        />
 
-                        <span v-else class="text-sm text-gray-600">
+                        <span v-else class="block text-sm leading-6 text-gray-600">
                           {{ item.descripcion }}
                         </span>
-                      </td>
+                      </div>
 
-                      <td class="py-3 px-4">
-                        <select v-if="item.isManual" v-model="item.unidad_id"
-                          class="w-full px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm bg-white cursor-pointer">
+                      <div class="px-4 py-4 text-center">
+                        <select
+                          v-if="item.isManual"
+	                          v-model="item.unidad_id"
+	                          :disabled="isReadOnly"
+	                          class="w-full px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm bg-white cursor-pointer"
+                        >
                           <option value="" disabled>
                             Seleccionar
                           </option>
@@ -956,30 +1029,51 @@ const saveSolicitud = async () => {
                           </option>
                         </select>
 
-                        <span v-else class="text-sm text-gray-600 font-medium">
+                        <span v-else class="text-sm text-gray-600 font-semibold">
                           {{ item.unidad || '-' }}
                         </span>
-                      </td>
+                      </div>
 
-                      <td class="py-3 px-4 text-center" v-if="showCantidad">
-                        <input v-model.number="item.cantidad" type="number" min="1"
-                          class="w-20 px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm text-center" />
-                      </td>
+                      <div v-if="showCantidad" class="px-4 py-4 text-center">
+                        <input
+                          v-if="canEditCantidadInventario"
+                          v-model.number="item.cantidad_inventario"
+                          type="number"
+                          min="0"
+                          class="w-20 px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm text-center"
+                        />
 
-                      <td class="py-3 px-4 text-right">
-                        <button @click="removeDetalle(item.ui_id)" class="text-gray-400 hover:text-danger p-1">
-                          <Trash2 class="w-4 h-4" />
+                        <span v-else class="text-sm font-semibold text-gray-600">
+                          {{ item.cantidad_inventario !== null && item.cantidad_inventario !== undefined ? item.cantidad_inventario : '-' }}
+                        </span>
+                      </div>
+
+	                      <div v-if="!isReadOnly" class="relative z-20 px-4 py-4 text-right">
+                        <button
+                          v-if="!item.descartado"
+                          @click="discardDetalle(item.ui_id)"
+                          class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                          title="Descartar"
+                        >
+                          <Ban class="w-4 h-4" />
                         </button>
-                      </td>
-                    </tr>
 
-                    <tr v-if="detalles.length === 0">
-                      <td :colspan="showCantidad ? 5 : 4" class="py-8 text-center text-sm text-gray-400">
-                        Agregue productos desde la búsqueda o como ítem manual.
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                        <button
+                          v-else
+                          @click="undoDiscardDetalle(item.ui_id)"
+                          class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-main"
+                          title="Deshacer descarte"
+                        >
+                          <Undo2 class="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-else class="py-8 text-center text-sm text-gray-400">
+                    Agregue productos desde la búsqueda o como ítem manual.
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -994,9 +1088,10 @@ const saveSolicitud = async () => {
               Observación <span class="text-red-500">*</span>
             </label>
 
-            <textarea v-model="observacion" rows="2" placeholder="Justificación o detalles de la solicitud..."
-              class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-accent outline-none transition-all resize-none"
-              :class="{ 'border-red-500': fieldErrors.observacion }"></textarea>
+	            <textarea v-model="observacion" rows="2" placeholder="Justificación o detalles de la solicitud..."
+	              :readonly="isReadOnly"
+	              class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-accent outline-none transition-all resize-none read-only:bg-gray-50"
+	              :class="{ 'border-red-500': fieldErrors.observacion }"></textarea>
 
             <p v-if="fieldErrors.observacion" class="text-xs text-red-500 mt-1">
               {{ fieldErrors.observacion }}
@@ -1004,7 +1099,7 @@ const saveSolicitud = async () => {
           </div>
 
           <!-- Footer -->
-          <div class="pt-8 border-t border-gray-100 flex justify-end gap-3 mt-8">
+	          <div v-if="!isReadOnly" class="pt-8 border-t border-gray-100 flex justify-end gap-3 mt-8">
             <button @click="handleCancelBtn" type="button"
               class="px-6 py-2.5 rounded-xl font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
               :disabled="isSubmitting">
@@ -1066,3 +1161,65 @@ const saveSolicitud = async () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.details-grid {
+  display: grid;
+  grid-template-columns: 8rem minmax(16rem, 1fr) 7rem 4rem;
+  align-items: center;
+}
+
+.details-grid--inventory {
+  grid-template-columns: 8rem minmax(16rem, 1fr) 7rem 8rem 4rem;
+}
+
+.details-row {
+  position: relative;
+}
+
+.discarded-row::before {
+  content: 'Descartado';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: #6b7280;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.discarded-row::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: 78px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  pointer-events: none;
+}
+
+.discarded-row .px-4 {
+  position: relative;
+}
+
+.discarded-row .px-4::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 2px solid #9ca3af;
+  pointer-events: none;
+  z-index: 1;
+}
+</style>
