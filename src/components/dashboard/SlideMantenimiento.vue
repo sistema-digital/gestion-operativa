@@ -1222,6 +1222,7 @@ const weeklyAreaSummary = computed(() => {
       const hoursPerOrder = hoursPerOrderByArea[normalizeAreaKey(row.area)] || 0;
       return hoursPerOrder > 0 ? sum + (Number(row.horas_calculadas || 0) / hoursPerOrder) : sum;
     }, 0);
+    const lostHours = areaHoursRows.reduce((sum, row) => sum + Number(row.horas_calculadas || 0), 0);
 
     const denominator = areaOrders.length;
     const realProgress = denominator > 0 ? Number(((concludedInVisibleWeeks / denominator) * 100).toFixed(2)) : 0;
@@ -1232,6 +1233,7 @@ const weeklyAreaSummary = computed(() => {
       denominator,
       concluded: concludedInVisibleWeeks,
       lostEquivalent,
+      lostHours: Number(lostHours.toFixed(2)),
       realProgress,
       lostProgress,
       optimalProgress: Number((realProgress + lostProgress).toFixed(2))
@@ -1243,15 +1245,35 @@ const weeklyAreaSummaryTotal = computed(() => {
   const denominator = weeklyAreaSummary.value.reduce((sum, row) => sum + row.denominator, 0);
   const concluded = weeklyAreaSummary.value.reduce((sum, row) => sum + row.concluded, 0);
   const lostEquivalent = weeklyAreaSummary.value.reduce((sum, row) => sum + row.lostEquivalent, 0);
+  const lostHours = weeklyAreaSummary.value.reduce((sum, row) => sum + Number(row.lostHours || 0), 0);
   const realProgress = denominator > 0 ? Number(((concluded / denominator) * 100).toFixed(2)) : 0;
   const lostProgress = denominator > 0 ? Number(((lostEquivalent / denominator) * 100).toFixed(2)) : 0;
 
   return {
+    lostHours: Number(lostHours.toFixed(2)),
     realProgress,
     lostProgress,
     optimalProgress: Number((realProgress + lostProgress).toFixed(2))
   };
 });
+
+const formatWorkDaysFromHours = (hours: number) => {
+  const totalHours = Math.max(0, Number(hours) || 0);
+  let days = Math.floor(totalHours / 8);
+  let remainingHours = Math.round(totalHours - (days * 8));
+
+  if (remainingHours >= 8) {
+    days += 1;
+    remainingHours = 0;
+  }
+
+  return `(${
+          [
+            days > 0 ? `${days}d` : "",
+            remainingHours > 0 ? `${remainingHours}h` : ""
+          ].filter(Boolean).join(" ") || "0h"
+        })`;
+};
 
 const weeklyEChartOption = computed(() => {
   const data = weeklyProgress.value;
@@ -1925,13 +1947,17 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
                   <tr v-for="row in weeklyAreaSummary" :key="row.area" class="hover:bg-gray-50/50 transition-colors">
                     <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.area }}</td>
                     <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ row.realProgress.toFixed(1) }}%</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#C0392B]">{{ row.lostProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#C0392B]">
+                      {{ row.lostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(row.lostHours) }}</span>
+                    </td>
                     <td class="px-4 py-3 text-sm font-bold font-mono text-right text-gray-800">{{ row.optimalProgress.toFixed(1) }}%</td>
                   </tr>
                   <tr v-if="weeklyAreaSummary.length > 0" class="bg-gray-50 border-t border-gray-200">
                     <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
                     <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#004236]">{{ weeklyAreaSummaryTotal.realProgress.toFixed(1) }}%</td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#C0392B]">{{ weeklyAreaSummaryTotal.lostProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#C0392B]">
+                      {{ weeklyAreaSummaryTotal.lostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.lostHours) }}</span>
+                    </td>
                     <td class="px-4 py-3 text-sm font-black font-mono text-right text-gray-900">{{ weeklyAreaSummaryTotal.optimalProgress.toFixed(1) }}%</td>
                   </tr>
                   <tr v-if="weeklyAreaSummary.length === 0">
