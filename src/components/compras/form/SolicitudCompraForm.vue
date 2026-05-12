@@ -984,7 +984,7 @@ const saveSolicitud = async () => {
                       class="details-grid details-row min-h-[72px] items-center transition-colors hover:bg-gray-50/70"
                       :class="{
                         'details-grid--inventory': showCantidad,
-                        'discarded-row bg-gray-50 text-gray-400': item.descartado
+                        'discarded-row bg-gray-500 text-gray-400': item.descartado
                       }"
                     >
                       <div class="px-4 py-4">
@@ -1061,10 +1061,10 @@ const saveSolicitud = async () => {
                         <button
                           v-else
                           @click="undoDiscardDetalle(item.ui_id)"
-                          class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-main"
+                          class="relative z-10 inline-flex h-[37px] w-[37px] items-center justify-center rounded-lg bg-white text-main shadow-sm ring-1 ring-gray-200 transition-colors hover:bg-gray-100 hover:text-main-dark"
                           title="Deshacer descarte"
                         >
-                          <Undo2 class="w-4 h-4" />
+                          <Undo2 class="h-[18px] w-[18px]" :stroke-width="3" />
                         </button>
                       </div>
                     </div>
