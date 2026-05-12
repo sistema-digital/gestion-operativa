@@ -2,8 +2,13 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import SolicitudCompraForm from '@/components/compras/form/SolicitudCompraForm.vue';
+import MessageModal from '@/components/MessageModal.vue';
 import { supabase, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 import { useComprasStore } from '@/stores/comprasStore';
+import {
+  getPermisosFormSolicitud,
+  type PermisosFormSolicitud
+} from '@/components/compras/form/permisosForm';
 
 const route = useRoute();
 const router = useRouter();
@@ -13,7 +18,11 @@ const formRef = ref<any>(null);
 
 const id = route.params.id as string;
 const initialData = ref<any>(null);
+const permisosForm = ref<PermisosFormSolicitud | null>(null);
 const isLoading = ref(true);
+const showEditingMessage = ref(false);
+const isReadOnly = ref(false);
+const hasEditingLock = ref(false);
 
 const userEmail = ref('');
 const userArea = ref('');
@@ -22,18 +31,22 @@ const isSaved = ref(false);
 onBeforeRouteLeave((to, from, next) => {
   const customNext = async (arg?: boolean | string | object) => {
     if (arg === false || arg instanceof Error) {
-      next(arg);
+      next(arg as any);
       return;
     }
 
-    if (!isSaved.value && userEmail.value) {
+    if (!isSaved.value && userEmail.value && hasEditingLock.value) {
       try {
         await store.cancelarEdicionSolicitud(id, userEmail.value);
       } catch(e) {
         console.error('No se pudo cancelar la edición:', e);
       }
     }
-    next(arg);
+    if (arg === undefined) {
+      next();
+    } else {
+      next(arg as any);
+    }
   };
 
   if (formRef.value) {
@@ -49,6 +62,11 @@ const handleClose = () => {
 
 const handleUpdated = () => {
   isSaved.value = true;
+  router.push(`/compras/${id}`);
+};
+
+const closeEditingMessage = () => {
+  showEditingMessage.value = false;
   router.push(`/compras/${id}`);
 };
 
@@ -75,9 +93,10 @@ onMounted(async () => {
       const takeResult = await store.tomarSolicitudParaEdicion(id, estadoEdicionId, userEmail.value);
       // If it fails because it's already in revision state by somebody else, maybe block form?
       if (takeResult && !takeResult.success && takeResult.estado_actual_id !== estadoEdicionId) {
-         alert(takeResult.message || 'No puedes editar la solicitud en este momento.');
-         // We can redirect back if needed
-         // router.push(`/compras/${id}`);
+        isReadOnly.value = true;
+        showEditingMessage.value = true;
+      } else if (takeResult?.success) {
+        hasEditingLock.value = true;
       }
     }
 
@@ -104,6 +123,12 @@ onMounted(async () => {
       equipos: eqData || []
     };
 
+    permisosForm.value = getPermisosFormSolicitud({
+      mode: 'edit',
+      initialData: initialData.value,
+      userArea: userArea.value
+    });
+
   } catch (e) {
     console.error(e);
   } finally {
@@ -114,9 +139,17 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-if="isLoading" class="flex-1 flex items-center justify-center h-full text-center">
-    <div class="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+  <div class="flex h-full min-h-0 flex-1">
+    <div v-if="isLoading" class="flex-1 flex items-center justify-center h-full text-center">
+      <div class="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+    </div>
+    <SolicitudCompraForm v-else-if="initialData" ref="formRef" mode="edit" :initial-data="initialData"
+      :permisos-form="permisosForm" :readonly="isReadOnly" @close="handleClose" @updated="handleUpdated" />
+
+    <MessageModal
+      v-if="showEditingMessage"
+      message="La solicitud está siendo editada por otro usuario y solo puede ver los datos."
+      :ok="closeEditingMessage"
+    />
   </div>
-  <SolicitudCompraForm v-else-if="initialData" ref="formRef" mode="edit" :initial-data="initialData" @close="handleClose"
-    @updated="handleUpdated" />
 </template>

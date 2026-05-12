@@ -34,6 +34,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'click', params: any): void;
   (e: 'zrClick', params: any): void;
+  (e: 'legendselectchanged', params: any): void;
 }>();
 
 const chartRef = ref<HTMLElement | null>(null);
@@ -54,6 +55,10 @@ const initChart = () => {
   
   chartInstance.value.getZr().on('click', (params) => {
     emit('zrClick', params);
+  });
+
+  chartInstance.value.on('legendselectchanged', (params) => {
+    emit('legendselectchanged', params);
   });
 };
 

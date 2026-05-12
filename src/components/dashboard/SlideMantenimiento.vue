@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useMaintenanceStore } from '@/stores/maintenanceStore';
+import { useHorasTrabajoStore } from '@/stores/horasTrabajoStore';
 import { storeToRefs } from 'pinia';
 import EChart from '@/components/ui/EChart.vue';
 import {
@@ -40,12 +41,15 @@ interface OrdenMantenimiento {
 }
 
 const maintenanceStore = useMaintenanceStore();
+const horasTrabajoStore = useHorasTrabajoStore();
 const { allOrders, isLoading: isStoreLoading, loadingProgress, activeFilters } = storeToRefs(maintenanceStore);
+const { data: horasTrabajoData } = storeToRefs(horasTrabajoStore);
 const { setStatusFilter, setWeekFilter } = maintenanceStore;
 
 const isRefreshing = ref(false);
 const userArea = ref('');
 const targetLabel = "META 2.94% MIN";
+const defaultEtapa = 'ZAFRA';
 
 const windowWidth = ref(window.innerWidth);
 const MAX_VISIBLE_BARS = computed(() => {
@@ -56,7 +60,7 @@ const isLoading = computed(() => isStoreLoading.value || !userArea.value);
 
 // Filters
 const filters = ref({
-  etapa: '',
+  etapa: defaultEtapa,
   area: '',
   item: '',
   idEquipo: ''
@@ -72,7 +76,115 @@ const searchQueries = ref({
 
 const selectedEquipmentId = ref<string | null>(null);
 const showScrollButton = ref(false);
+const weeklyLossVisible = ref(false);
+const weeklyAreaCurrentWeekOnly = ref(false);
 let scrollButtonTimer: ReturnType<typeof setTimeout> | null = null;
+
+const normalizeAreaKey = (area: string) => String(area || '')
+  .trim()
+  .toUpperCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '');
+
+const hoursPerOrderByArea: Record<string, number> = {
+  'COSECHA AGRICOLA': 2,
+  'COSECHA MECANIZADA': 4,
+  'ENGRASE': 8,
+  'EQUIPO PESADO': 5,
+};
+
+const weeklyAreaSummaryAreaKeys = new Set([
+  ...Object.keys(hoursPerOrderByArea),
+  'MECANICA DE TRANSPORTE',
+]);
+
+const progress2025StartWeek = 15;
+
+const progress2025General: Record<string, number> = {
+  '20': 0.20, '21': 1.20, '22': 1.10, '23': 0.60, '24': 1.10,
+  '25': 0.80, '26': 1.60, '27': 1.10, '28': 1.20, '29': 1.10,
+  '30': 0.70, '31': 0.90, '32': 1.80, '33': 2.20, '34': 2.00,
+  '35': 1.90, '36': 2.40, '37': 2.10, '38': 2.50, '39': 2.40,
+  '40': 2.20, '41': 2.30, '42': 3.30, '43': 3.10, '44': 2.70,
+  '45': 0.60, '46': 2.40, '47': 2.50, '48': 1.70, '49': 2.50,
+  '50': 2.10, '51': 3.80, '52': 0.70
+};
+
+const progress2025ByArea: Record<string, Record<string, number>> = {
+  'COSECHA AGRICOLA': {
+    '20': 0.00, '21': 0.00, '22': 0.10, '23': 0.20, '24': 0.20,
+    '25': 0.60, '26': 0.50, '27': 0.30, '28': 0.30, '29': 0.20,
+    '30': 0.30, '31': 0.10, '32': 0.10, '33': 0.40, '34': 0.20,
+    '35': 0.40, '36': 0.50, '37': 0.30, '38': 0.40, '39': 0.40,
+    '40': 0.60, '41': 0.50, '42': 0.80, '43': 0.70, '44': 0.70,
+    '45': 0.20, '46': 0.40, '47': 0.30, '48': 0.40, '49': 0.40
+  },
+  'MECANICA DE TRANSPORTE': {
+    '21': 0.60, '22': 0.20, '24': 0.30, '26': 0.10, '32': 0.10,
+    '33': 0.30, '36': 0.20, '37': 0.20, '38': 0.40, '39': 0.10,
+    '40': 0.10, '41': 0.40, '42': 0.20, '43': 0.10, '44': 0.20,
+    '46': 0.10
+  },
+  'ENGRASE': {
+    '24': 0.10, '25': 0.10, '26': 0.10, '27': 0.10, '28': 0.00,
+    '29': 0.00, '30': 0.10, '31': 0.10, '32': 0.10, '33': 0.30,
+    '34': 0.10, '35': 0.20, '36': 0.20, '37': 0.10, '38': 0.00,
+    '39': 0.10, '40': 0.10, '41': 0.10, '42': 0.00, '43': 0.00,
+    '44': 0.00
+  },
+  'COSECHA MECANIZADA': {
+    '20': 0.20, '21': 0.50, '22': 0.40, '23': 0.10, '24': 0.30,
+    '25': 0.10, '26': 0.30, '27': 0.50, '28': 0.30, '29': 0.40,
+    '30': 0.40, '31': 0.20, '32': 0.50, '33': 0.80, '34': 1.10,
+    '35': 0.70, '36': 0.80, '37': 1.00, '38': 0.90, '39': 0.80,
+    '40': 0.90, '41': 0.90, '42': 0.90, '43': 1.00, '44': 1.20,
+    '45': 0.30, '46': 0.90, '47': 0.80, '48': 0.40, '49': 1.00
+  },
+  'EQUIPO PESADO': {
+    '21': 0.60, '22': 0.20, '24': 0.30, '26': 0.10, '32': 0.10,
+    '33': 0.30, '36': 0.20, '37': 0.20, '38': 0.40, '39': 0.10,
+    '40': 0.10, '41': 0.40, '42': 0.20, '43': 0.10, '44': 0.20,
+    '46': 0.10
+  }
+};
+
+const getProgress2025AreaKey = () => {
+  const areaFixed = userArea.value?.toUpperCase();
+
+  if (areaFixed && areaFixed !== 'ALL') {
+    const userAreaKey = normalizeAreaKey(userArea.value);
+    return progress2025ByArea[userAreaKey] ? userAreaKey : null;
+  }
+
+  if (filters.value.area) {
+    const selectedAreaKey = normalizeAreaKey(filters.value.area);
+    return progress2025ByArea[selectedAreaKey] ? selectedAreaKey : null;
+  }
+
+  if (activeFilters.value.serie) {
+    const serieAreaKey = normalizeAreaKey(activeFilters.value.serie);
+    return progress2025ByArea[serieAreaKey] ? serieAreaKey : null;
+  }
+
+  return null;
+};
+
+const getProgress2025Dataset = () => {
+  const areaKey = getProgress2025AreaKey();
+  return areaKey ? progress2025ByArea[areaKey] : progress2025General;
+};
+
+const getProgress2025Value = (week: string) => {
+  const dataset = getProgress2025Dataset();
+  const sourceWeeks = Object.keys(dataset).map(Number).filter(Number.isFinite);
+  const firstSourceWeek = sourceWeeks.length > 0 ? Math.min(...sourceWeeks) : progress2025StartWeek;
+  const normalizedWeek = Number(week);
+
+  if (!Number.isFinite(normalizedWeek)) return 0;
+
+  const sourceWeek = firstSourceWeek + (normalizedWeek - progress2025StartWeek);
+  return dataset[String(sourceWeek)] || 0;
+};
 
 const scrollToTable = () => {
   const el = document.getElementById('equipment-details-table');
@@ -289,7 +401,7 @@ const crossFilteredData = computed(() => {
 
 const clearFilters = () => {
   filters.value = {
-    etapa: '',
+    etapa: defaultEtapa,
     area: '',
     item: '',
     idEquipo: ''
@@ -331,6 +443,12 @@ const fetchData = async (forceRefresh = false) => {
     }
 
     await maintenanceStore.fetchAllOrders(forceRefresh);
+
+    const zafraEtapa = Array.from(new Set(allOrders.value.map(d => d.Etapa).filter(Boolean)))
+      .find(etapa => normalizeAreaKey(String(etapa)) === defaultEtapa);
+    if (zafraEtapa && normalizeAreaKey(filters.value.etapa) === defaultEtapa) {
+      filters.value.etapa = String(zafraEtapa);
+    }
   } catch (e) {
     console.error("Error fetching maintenance data:", e);
   } finally {
@@ -338,7 +456,12 @@ const fetchData = async (forceRefresh = false) => {
   }
 };
 
-watch(() => filters.value.etapa, () => { filters.value.area = ''; filters.value.item = ''; filters.value.idEquipo = ''; });
+watch(() => filters.value.etapa, () => {
+  filters.value.area = '';
+  filters.value.item = '';
+  filters.value.idEquipo = '';
+  weeklyLossVisible.value = false;
+});
 watch(() => filters.value.area, () => { filters.value.item = ''; filters.value.idEquipo = ''; });
 watch(() => filters.value.item, () => { filters.value.idEquipo = ''; });
 
@@ -351,6 +474,7 @@ const handleWindowClick = (e: MouseEvent) => {
 
 onMounted(() => {
   fetchData();
+  horasTrabajoStore.fetchData();
   window.addEventListener('click', handleWindowClick);
   window.addEventListener('resize', () => { windowWidth.value = window.innerWidth; });
 });
@@ -770,23 +894,46 @@ const handleEChartClick = (dimensionKey: string, params: any) => {
 };
 
 const allWeeksComparison = computed(() => {
-  const areaFixed = userArea.value?.toUpperCase();
+  const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
+  const weeks = allWeeklyProgress.value;
+  const globalTotal = weeks[0]?.globalTotal || 0;
+  const totalConcluidas = weeks.reduce((sum, week) => sum + week.concluidas, 0);
+  const sum2026 = globalTotal > 0 ? Number(((totalConcluidas / globalTotal) * 100).toFixed(2)) : 0;
+  const sum2025 = isZafra
+    ? weeks.reduce((sum, week) => sum + getProgress2025Value(week.semana), 0)
+    : 0;
 
-  let globalList = areaFixed === 'ALL'
+  return {
+    isZafra,
+    weeksCount: weeks.length,
+    sum2026: Math.min(sum2026, 100),
+    sum2025: Math.min(sum2025, 100)
+  };
+});
+
+const comparisonAreaRows = computed(() => {
+  const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
+  const weeks = new Set(allWeeklyProgress.value.map(d => String(d.semana)));
+  const areaFixed = userArea.value?.toUpperCase();
+  const areaFixedKey = normalizeAreaKey(userArea.value || '');
+
+  let orderList = areaFixed === 'ALL'
     ? allOrders.value
-    : allOrders.value.filter(d => d.Área?.toUpperCase() === areaFixed);
+    : allOrders.value.filter(d => normalizeAreaKey(d.Área || '') === areaFixedKey);
 
   if (filters.value.etapa) {
-    globalList = globalList.filter(d => d.Etapa === filters.value.etapa);
+    orderList = orderList.filter(d => d.Etapa === filters.value.etapa);
   }
 
-  let areaFilteredList = globalList;
+  const generalTotal = orderList.length;
+
   if (areaFixed === 'ALL' && filters.value.area) {
-    areaFilteredList = areaFilteredList.filter(d => d.Área === filters.value.area);
+    const selectedAreaKey = normalizeAreaKey(filters.value.area);
+    orderList = orderList.filter(d => normalizeAreaKey(d.Área || '') === selectedAreaKey);
   }
 
   if (activeFilters.value.serie) {
-    areaFilteredList = areaFilteredList.filter(d =>
+    orderList = orderList.filter(d =>
       d.Área === activeFilters.value.serie ||
       d.Sistema === activeFilters.value.serie ||
       d.ITEM === activeFilters.value.serie ||
@@ -795,56 +942,71 @@ const allWeeksComparison = computed(() => {
   }
 
   if (activeFilters.value.estado) {
-    areaFilteredList = areaFilteredList.filter(d => d.Estatus === activeFilters.value.estado);
+    orderList = orderList.filter(d => d.Estatus === activeFilters.value.estado);
   }
 
-  const uniqueWeeksSet = new Set<string>();
-  areaFilteredList.forEach(d => {
-    if (d.Semana) uniqueWeeksSet.add(String(d.Semana));
-  });
+  const areaKeys = Array.from(new Set(
+    orderList
+      .map(d => normalizeAreaKey(d.Área || ''))
+      .filter(areaKey => areaKey && progress2025ByArea[areaKey])
+  ));
 
-  const uniqueWeeks = Array.from(uniqueWeeksSet).sort((a, b) => Number(a) - Number(b));
-
-  const data2025Obj: Record<string, number> = {
-    '15': 0.2, '16': 1.2, '17': 1.1, '18': 0.6, '19': 1.1,
-    '20': 0.8, '21': 1.6, '22': 1.1, '23': 1.2, '24': 1.1,
-    '25': 0.7, '26': 0.9, '27': 1.8, '28': 2.2, '29': 2.0,
-    '30': 1.9, '31': 2.4, '32': 2.1, '33': 2.5, '34': 2.4,
-    '35': 2.2, '36': 2.3, '37': 3.2, '38': 3.1, '39': 2.7,
-    '40': 0.6, '41': 2.4, '42': 2.5, '43': 1.7, '44': 2.4
-  };
-
-  let sum2026 = 0;
-  let sum2025 = 0;
-  const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
-
-  uniqueWeeks.forEach(sem => {
-    const semRows = areaFilteredList.filter(o => String(o['Semana']) === sem);
-    const concluidas = semRows.filter(o => {
-      const s = o.Estatus?.toLowerCase() || '';
-      return s.includes('concluida');
+  const rows = areaKeys.map(areaKey => {
+    const areaOrders = orderList.filter(d => normalizeAreaKey(d.Área || '') === areaKey);
+    const concluded = areaOrders.filter(o => {
+      const status = String(o.Estatus || '').toLowerCase();
+      return weeks.has(String(o.Semana)) && status.includes('concluida');
     }).length;
-
-    const avanceSemana2026 = globalList.length > 0 
-      ? Number(((concluidas / globalList.length) * 100).toFixed(2)) 
+    const total = areaOrders.length;
+    const avance2026 = generalTotal > 0 ? Number(((concluded / generalTotal) * 100).toFixed(2)) : 0;
+    const avance2025 = isZafra
+      ? allWeeklyProgress.value.reduce((sum, week) => {
+        const dataset = progress2025ByArea[areaKey];
+        const sourceWeeks = Object.keys(dataset).map(Number).filter(Number.isFinite);
+        const firstSourceWeek = sourceWeeks.length > 0 ? Math.min(...sourceWeeks) : progress2025StartWeek;
+        const sourceWeek = firstSourceWeek + (Number(week.semana) - progress2025StartWeek);
+        return sum + (dataset[String(sourceWeek)] || 0);
+      }, 0)
       : 0;
-      
-    sum2026 += avanceSemana2026;
-    if (isZafra) {
-      sum2025 += data2025Obj[sem] || 0;
-    }
-  });
 
-  return {
-    isZafra,
-    weeksCount: uniqueWeeks.length,
-    sum2026: Math.min(sum2026, 100),
-    sum2025: Math.min(sum2025, 100)
+    return {
+      area: areaOrders[0]?.Área || areaKey,
+      total,
+      concluded,
+      avance2026,
+      avance2025: Math.min(avance2025, 100),
+      difference: Number((avance2026 - Math.min(avance2025, 100)).toFixed(2))
+    };
+  }).sort((a, b) => b.avance2026 - a.avance2026);
+
+  const totalRow = {
+    area: 'TOTAL',
+    total: rows.reduce((sum, row) => sum + row.total, 0),
+    concluded: rows.reduce((sum, row) => sum + row.concluded, 0),
+    avance2026: generalTotal > 0
+      ? Number(((rows.reduce((sum, row) => sum + row.concluded, 0) / generalTotal) * 100).toFixed(2))
+      : 0,
+    avance2025: isZafra ? Math.min(rows.reduce((sum, row) => sum + row.avance2025, 0), 100) : 0,
+    difference: 0
   };
+  totalRow.difference = Number((totalRow.avance2026 - totalRow.avance2025).toFixed(2));
+
+  return { rows, totalRow, isZafra };
 });
 
-const weeklyProgress = computed(() => {
+const getWeekNumber = (date: Date) => {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+};
+
+const currentWeek = computed(() => getWeekNumber(new Date()));
+
+const buildWeeklyProgress = (limitToLastFive: boolean) => {
   const areaFixed = userArea.value?.toUpperCase();
+  const areaFixedKey = normalizeAreaKey(userArea.value || '');
 
   let globalList = areaFixed === 'ALL'
     ? allOrders.value
@@ -873,21 +1035,23 @@ const weeklyProgress = computed(() => {
   }
 
   const now = new Date();
-  const getWeekNumber = (date: Date) => {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  };
-
+  const currentWeekNumber = getWeekNumber(now);
   let weeks: string[] = [];
-  for (let i = 0; i < 5; i++) {
-    const temp = new Date(now);
-    temp.setDate(now.getDate() - (i * 7));
-    weeks.push(String(getWeekNumber(temp)));
+
+  if (limitToLastFive) {
+    for (let i = 0; i < 5; i++) {
+      const temp = new Date(now);
+      temp.setDate(now.getDate() - (i * 7));
+      weeks.push(String(getWeekNumber(temp)));
+    }
+    weeks = weeks.reverse();
+  } else {
+    const minWeek = progress2025StartWeek;
+    const maxWeek = currentWeekNumber;
+    for (let week = minWeek; week <= maxWeek; week++) {
+      weeks.push(String(week));
+    }
   }
-  weeks = weeks.reverse();
 
   const results = weeks.map(sem => {
     const semRows = areaFilteredList.filter(o => String(o['Semana']) === sem);
@@ -897,6 +1061,51 @@ const weeklyProgress = computed(() => {
       return s.includes('concluida');
     }).length;
 
+    const horasRows = horasTrabajoData.value.filter(row => {
+      const status = String(row.estatus || '').trim().toLowerCase();
+      const areaKey = normalizeAreaKey(row.area);
+
+      if (String(row.semana_inicio) !== String(sem)) return false;
+      if (status !== 'retrasada' && status !== 'ausencia') return false;
+      if (!hoursPerOrderByArea[areaKey]) return false;
+
+      if (areaFixed !== 'ALL' && normalizeAreaKey(row.area) !== areaFixedKey) return false;
+      if (areaFixed === 'ALL' && filters.value.area && areaKey !== normalizeAreaKey(filters.value.area)) return false;
+
+      if (activeFilters.value.serie) {
+        return areaKey === normalizeAreaKey(activeFilters.value.serie) || row.equipo === activeFilters.value.serie;
+      }
+
+      return true;
+    });
+
+    const equivalentByStatus = horasRows.reduce((acc, row) => {
+      const status = String(row.estatus || '').trim().toLowerCase();
+      const areaKey = normalizeAreaKey(row.area);
+      const hoursPerOrder = hoursPerOrderByArea[areaKey];
+      const equivalentOrders = hoursPerOrder > 0 ? (Number(row.horas_calculadas || 0) / hoursPerOrder) : 0;
+
+      if (status === 'retrasada') {
+        acc.retrasada += equivalentOrders;
+        acc.horasRetrasada += Number(row.horas_calculadas || 0);
+      }
+      if (status === 'ausencia') {
+        acc.ausencia += equivalentOrders;
+        acc.horasAusencia += Number(row.horas_calculadas || 0);
+      }
+
+      return acc;
+    }, {
+      retrasada: 0,
+      ausencia: 0,
+      horasRetrasada: 0,
+      horasAusencia: 0
+    });
+
+    const toGlobalPercent = (value: number) => globalList.length > 0
+      ? Number(((value / globalList.length) * 100).toFixed(2))
+      : 0;
+
     return {
       semana: sem,
       total,
@@ -904,34 +1113,184 @@ const weeklyProgress = computed(() => {
       globalTotal: globalList.length,
       avance: globalList.length > 0
         ? Number(((concluidas / globalList.length) * 100).toFixed(2))
-        : 0
+        : 0,
+      retrasadaEquivalente: Number(equivalentByStatus.retrasada.toFixed(2)),
+      ausenciaEquivalente: Number(equivalentByStatus.ausencia.toFixed(2)),
+      horasRetrasada: Number(equivalentByStatus.horasRetrasada.toFixed(2)),
+      horasAusencia: Number(equivalentByStatus.horasAusencia.toFixed(2)),
+      retrasadaAvance: toGlobalPercent(equivalentByStatus.retrasada),
+      ausenciaAvance: toGlobalPercent(equivalentByStatus.ausencia)
     };
   });
 
   return results;
+};
+
+const allWeeklyProgress = computed(() => buildWeeklyProgress(false));
+const weeklyProgress = computed(() => buildWeeklyProgress(true));
+
+const hasWeeklyAreaProgress = (week: typeof allWeeklyProgress.value[number]) => (
+  week.concluidas > 0 ||
+  week.horasRetrasada > 0 ||
+  week.horasAusencia > 0
+);
+
+const weeklyAreaSelectedWeeks = computed(() => {
+  if (!weeklyAreaCurrentWeekOnly.value) {
+    return allWeeklyProgress.value.map(d => String(d.semana));
+  }
+
+  const currentWeekValue = String(currentWeek.value);
+  const currentWeekData = allWeeklyProgress.value.find(d => String(d.semana) === currentWeekValue);
+  const currentHasData = !!currentWeekData && hasWeeklyAreaProgress(currentWeekData);
+
+  if (currentHasData) return [currentWeekValue];
+
+  const latestWeekWithData = allWeeklyProgress.value
+    .filter(d => Number(d.semana) <= Number(currentWeek.value))
+    .filter(hasWeeklyAreaProgress)
+    .sort((a, b) => Number(b.semana) - Number(a.semana))[0]?.semana;
+
+  return [String(latestWeekWithData || currentWeekValue)];
 });
+
+const weeklyAreaPeriodLabel = computed(() => {
+  if (!weeklyAreaCurrentWeekOnly.value) return `Acumulado (${allWeeklyProgress.value.length} sem)`;
+  return `Semana ${weeklyAreaSelectedWeeks.value[0] || currentWeek.value}`;
+});
+
+const weeklyAreaSummary = computed(() => {
+  const areaFixed = userArea.value?.toUpperCase();
+  const areaFixedKey = normalizeAreaKey(userArea.value || '');
+  const weeks = new Set(weeklyAreaSelectedWeeks.value);
+
+  let orderList = areaFixed === 'ALL'
+    ? allOrders.value
+    : allOrders.value.filter(d => normalizeAreaKey(d.Área || '') === areaFixedKey);
+
+  if (filters.value.etapa) {
+    orderList = orderList.filter(d => d.Etapa === filters.value.etapa);
+  }
+
+  if (areaFixed === 'ALL' && filters.value.area) {
+    const selectedAreaKey = normalizeAreaKey(filters.value.area);
+    orderList = orderList.filter(d => normalizeAreaKey(d.Área || '') === selectedAreaKey);
+  }
+
+  if (activeFilters.value.serie) {
+    orderList = orderList.filter(d =>
+      d.Área === activeFilters.value.serie ||
+      d.Sistema === activeFilters.value.serie ||
+      d.ITEM === activeFilters.value.serie ||
+      d["ID_#EQUIPO"] === activeFilters.value.serie
+    );
+  }
+
+  if (activeFilters.value.estado) {
+    orderList = orderList.filter(d => d.Estatus === activeFilters.value.estado);
+  }
+
+  const areaKeys = Array.from(new Set(
+    orderList
+      .map(d => normalizeAreaKey(d.Área || ''))
+      .filter(areaKey => areaKey && weeklyAreaSummaryAreaKeys.has(areaKey))
+  ));
+
+  return areaKeys.map(areaKey => {
+    const areaOrders = orderList.filter(d => normalizeAreaKey(d.Área || '') === areaKey);
+    const concludedInVisibleWeeks = areaOrders.filter(o => {
+      const status = String(o.Estatus || '').toLowerCase();
+      return weeks.has(String(o.Semana)) && status.includes('concluida');
+    }).length;
+
+    const areaHoursRows = horasTrabajoData.value.filter(row => {
+      const rowAreaKey = normalizeAreaKey(row.area);
+      const status = String(row.estatus || '').trim().toLowerCase();
+
+      if (rowAreaKey !== areaKey) return false;
+      if (!weeks.has(String(row.semana_inicio))) return false;
+      if (status !== 'retrasada' && status !== 'ausencia') return false;
+
+      if (activeFilters.value.serie) {
+        return rowAreaKey === normalizeAreaKey(activeFilters.value.serie) || row.equipo === activeFilters.value.serie;
+      }
+
+      return true;
+    });
+
+    const lostEquivalent = areaHoursRows.reduce((sum, row) => {
+      const hoursPerOrder = hoursPerOrderByArea[normalizeAreaKey(row.area)] || 0;
+      return hoursPerOrder > 0 ? sum + (Number(row.horas_calculadas || 0) / hoursPerOrder) : sum;
+    }, 0);
+    const lostHours = areaHoursRows.reduce((sum, row) => sum + Number(row.horas_calculadas || 0), 0);
+
+    const denominator = areaOrders.length;
+    const realProgress = denominator > 0 ? Number(((concludedInVisibleWeeks / denominator) * 100).toFixed(2)) : 0;
+    const lostProgress = denominator > 0 ? Number(((lostEquivalent / denominator) * 100).toFixed(2)) : 0;
+
+    return {
+      area: areaOrders[0]?.Área || areaKey,
+      denominator,
+      concluded: concludedInVisibleWeeks,
+      lostEquivalent,
+      lostHours: Number(lostHours.toFixed(2)),
+      realProgress,
+      lostProgress,
+      optimalProgress: Number((realProgress + lostProgress).toFixed(2))
+    };
+  }).sort((a, b) => b.optimalProgress - a.optimalProgress);
+});
+
+const weeklyAreaSummaryTotal = computed(() => {
+  const denominator = weeklyAreaSummary.value.reduce((sum, row) => sum + row.denominator, 0);
+  const concluded = weeklyAreaSummary.value.reduce((sum, row) => sum + row.concluded, 0);
+  const lostEquivalent = weeklyAreaSummary.value.reduce((sum, row) => sum + row.lostEquivalent, 0);
+  const lostHours = weeklyAreaSummary.value.reduce((sum, row) => sum + Number(row.lostHours || 0), 0);
+  const realProgress = denominator > 0 ? Number(((concluded / denominator) * 100).toFixed(2)) : 0;
+  const lostProgress = denominator > 0 ? Number(((lostEquivalent / denominator) * 100).toFixed(2)) : 0;
+
+  return {
+    lostHours: Number(lostHours.toFixed(2)),
+    realProgress,
+    lostProgress,
+    optimalProgress: Number((realProgress + lostProgress).toFixed(2))
+  };
+});
+
+const formatWorkDaysFromHours = (hours: number) => {
+  const totalHours = Math.max(0, Number(hours) || 0);
+  let days = Math.floor(totalHours / 8);
+  let remainingHours = Math.round(totalHours - (days * 8));
+
+  if (remainingHours >= 8) {
+    days += 1;
+    remainingHours = 0;
+  }
+
+  return `(${
+          [
+            days > 0 ? `${days}d` : "",
+            remainingHours > 0 ? `${remainingHours}h` : ""
+          ].filter(Boolean).join(" ") || "0h"
+        })`;
+};
 
 const weeklyEChartOption = computed(() => {
   const data = weeklyProgress.value;
   const labels = data.map(d => d.semana);
   const avanceValues = data.map(d => d.avance);
+  const perdidaValues = data.map(d => Number((d.retrasadaAvance + d.ausenciaAvance).toFixed(2)));
   const targetValue = 2.94;
   const targetPerc = 0.0294;
   const targetValues = labels.map(() => targetValue);
 
-  const data2025Obj: Record<string, number> = {
-    '15': 0.2, '16': 1.2, '17': 1.1, '18': 0.6, '19': 1.1,
-    '20': 0.8, '21': 1.6, '22': 1.1, '23': 1.2, '24': 1.1,
-    '25': 0.7, '26': 0.9, '27': 1.8, '28': 2.2, '29': 2.0,
-    '30': 1.9, '31': 2.4, '32': 2.1, '33': 2.5, '34': 2.4,
-    '35': 2.2, '36': 2.3, '37': 3.2, '38': 3.1, '39': 2.7,
-    '40': 0.6, '41': 2.4, '42': 2.5, '43': 1.7, '44': 2.4
-  };
   const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
-  const avanceValues2025 = isZafra ? labels.map(sem => data2025Obj[sem] || 0) : [];
+  const showLoss = isZafra && weeklyLossVisible.value;
+  const avanceValues2025 = isZafra ? labels.map(sem => getProgress2025Value(sem)) : [];
 
-  const maxAvance = data.length > 0 ? Math.max(...data.map(d => d.avance)) : 0;
-  const maxAvance2025 = isZafra && Object.keys(data2025Obj).length > 0 ? Math.max(...avanceValues2025) : 0;
+  const stacked2026Values = data.map(d => d.avance + (showLoss ? d.retrasadaAvance + d.ausenciaAvance : 0));
+  const maxAvance = stacked2026Values.length > 0 ? Math.max(...stacked2026Values) : 0;
+  const maxAvance2025 = isZafra && avanceValues2025.length > 0 ? Math.max(...avanceValues2025) : 0;
   const overallMax = Math.max(maxAvance, maxAvance2025);
   const chartMax = overallMax > 5 ? Math.ceil(overallMax) + 1 : 5;
 
@@ -943,8 +1302,9 @@ const weeklyEChartOption = computed(() => {
         type: 'bar',
         color: '#4b9b7a',
         data: avanceValues2025,
-        barMaxWidth: 24,
-        barGap: '15%',
+        barMaxWidth: 18,
+        barGap: '45%',
+        barCategoryGap: '38%',
         itemStyle: {
           borderRadius: [4, 4, 0, 0],
           color: (p: any) => {
@@ -962,6 +1322,7 @@ const weeklyEChartOption = computed(() => {
             return matchesSemana ? '#4b9b7a' : 'transparent';
           },
           fontWeight: 'bold',
+          fontSize: 10,
           formatter: (p: any) => p.value > 0 ? `${p.value}%` : ''
         }
       });
@@ -970,10 +1331,12 @@ const weeklyEChartOption = computed(() => {
   seriesTemplate.push({
         name: 'Avance 2026',
         type: 'bar',
+        stack: 'avance2026',
         color: '#004236',
         data: avanceValues,
-        barMaxWidth: 24,
-        barGap: '15%',
+        barMaxWidth: 18,
+        barGap: '45%',
+        barCategoryGap: '38%',
         itemStyle: {
           borderRadius: [4, 4, 0, 0],
           color: (p: any) => {
@@ -991,9 +1354,53 @@ const weeklyEChartOption = computed(() => {
             return matchesSemana ? '#004236' : 'transparent';
           },
           fontWeight: 'bold',
-          formatter: (p: any) => p.value > 0 ? `${p.value}%` : ''
+          fontSize: 10,
+          formatter: (p: any) => (!isZafra || !showLoss) && p.value > 0 ? `${p.value}%` : ''
         }
       });
+
+  if (isZafra) {
+    seriesTemplate.push({
+          name: 'Pérdida',
+          type: 'bar',
+          stack: 'avance2026',
+          color: '#C0392B',
+          data: perdidaValues,
+          barMaxWidth: 18,
+          barGap: '45%',
+          barCategoryGap: '38%',
+          itemStyle: {
+            borderRadius: [4, 4, 0, 0],
+            color: (p: any) => {
+              const hasSemanaFilter = !!activeFilters.value.semana;
+              const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
+              return matchesSemana ? '#C0392B' : applyAlpha('#C0392B', 0.25);
+            }
+          },
+          label: {
+            show: true,
+            position: 'top',
+            distance: 4,
+            fontWeight: 'bold',
+            formatter: (p: any) => {
+              const hasSemanaFilter = !!activeFilters.value.semana;
+              const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
+              const weekData = data.find(d => String(d.semana) === String(p.name));
+              if (!matchesSemana || !weekData) return '';
+
+              const perdida = Number((weekData.retrasadaAvance + weekData.ausenciaAvance).toFixed(2));
+              if (weekData.avance <= 0 && perdida <= 0) return '';
+
+              return `{real|${weekData.avance}%}{sep| | }{lost|${Number((weekData.avance + perdida).toFixed(2))}%}`;
+            },
+            rich: {
+              real: { color: '#004236', fontWeight: 'bold' },
+              sep: { color: '#64748b', fontWeight: 'bold' },
+              lost: { color: '#C0392B', fontWeight: 'bold' }
+            }
+          }
+        });
+  }
 
   seriesTemplate.push({
         name: 'Objetivo',
@@ -1028,12 +1435,21 @@ const weeklyEChartOption = computed(() => {
         if (barP) {
           res += `<div>Avance 2026: ${barP.value || 0}% (<span style="font-size: 0.9em">Concluidas: ${weekData?.concluidas || 0} / ${weekData?.total || 0}</span>)</div>`;
         }
+        if (weekData && showLoss) {
+          const perdidaTotal = Number((weekData.retrasadaAvance + weekData.ausenciaAvance).toFixed(2));
+          if (perdidaTotal > 0) {
+            res += `<div>Retrasada: ${weekData.retrasadaAvance}% <span style="font-size: 0.9em">(${Math.round(weekData.retrasadaEquivalente)} órdenes eq. / ${weekData.horasRetrasada} hrs)</span></div>`;
+            res += `<div>Ausencia: ${weekData.ausenciaAvance}% <span style="font-size: 0.9em">(${Math.round(weekData.ausenciaEquivalente)} órdenes eq. / ${weekData.horasAusencia} hrs)</span></div>`;
+            res += `<div style="color:#C0392B;font-weight:bold">Pérdida total: ${perdidaTotal}%</div>`;
+          }
+        }
         res += `<div>Objetivo: ${targetValue}% (${targetQty})</div>`;
         return res;
       }
     },
     legend: {
-      data: isZafra ? ['Objetivo', 'Avance 2025', 'Avance 2026'] : ['Objetivo', 'Avance 2026'],
+      data: isZafra ? ['Objetivo', 'Avance 2025', 'Avance 2026', 'Pérdida'] : ['Objetivo', 'Avance 2026'],
+      selected: isZafra ? { 'Pérdida': weeklyLossVisible.value } : {},
       top: 0,
       icon: 'circle',
       textStyle: { fontSize: 10, fontWeight: 'bold' }
@@ -1059,6 +1475,12 @@ const handleWeeklyChartClick = (params: any) => {
   if ((params.componentType === 'series' && params.seriesType === 'bar') || params.componentType === 'xAxis') {
     const label = params.name || params.value;
     if (label) setWeekFilter(String(label));
+  }
+};
+
+const handleWeeklyLegendSelectChanged = (params: any) => {
+  if (params?.selected && Object.prototype.hasOwnProperty.call(params.selected, 'Pérdida')) {
+    weeklyLossVisible.value = !!params.selected['Pérdida'];
   }
 };
 
@@ -1426,9 +1848,9 @@ const handleWeeklyChartClick = (params: any) => {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6 mb-8 items-start">
+        <div class="grid grid-cols-1 gap-6 mb-8 items-start">
           <div id="slide-maint-weekly-chart"
-            class="xl:col-span-3 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
+            class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
             <div class="mb-6 flex items-center justify-between">
               <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE SEMANAL (ÚLTIMAS 5
                 SEMANAS)</h2>
@@ -1439,12 +1861,15 @@ const handleWeeklyChartClick = (params: any) => {
             </div>
 
             <div class="h-[250px] xl:h-[320px] w-full block overflow-hidden">
-              <EChart :key="JSON.stringify(activeFilters)" :option="weeklyEChartOption" @click="handleWeeklyChartClick" />
+              <EChart :key="JSON.stringify(activeFilters)" :option="weeklyEChartOption" @click="handleWeeklyChartClick"
+                @legendselectchanged="handleWeeklyLegendSelectChanged" />
             </div>
           </div>
+        </div>
 
+        <div class="grid grid-cols-1 xl:grid-cols-[2fr_3fr] gap-6 mb-8 items-start">
           <div
-            class="xl:col-span-1 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
+            class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
             <div class="mb-6">
               <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">COMPARATIVO ACUMULADO</h2>
             </div>
@@ -1453,23 +1878,32 @@ const handleWeeklyChartClick = (params: any) => {
               <table class="w-full text-left">
                 <thead class="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">AÑO</th>
-                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE ({{ allWeeksComparison.weeksCount }} SEM)</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">ÁREA</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">2026</th>
+                    <th v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">2025</th>
+                    <th v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">DIF.</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
-                  <tr class="hover:bg-gray-50/50 transition-colors">
-                    <td class="px-4 py-3 text-sm font-bold text-gray-700">2026</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ allWeeksComparison.sum2026.toFixed(2) }}%</td>
+                  <tr v-for="row in comparisonAreaRows.rows" :key="row.area" class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.area }}</td>
+                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ row.avance2026.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-bold font-mono text-right text-[#4b9b7a]">{{ row.avance2025.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-bold font-mono text-right" :class="row.difference >= 0 ? 'text-success' : 'text-danger'">
+                      {{ row.difference > 0 ? '+' : '' }}{{ row.difference.toFixed(1) }}%
+                    </td>
                   </tr>
-                  <tr v-if="allWeeksComparison.isZafra" class="hover:bg-gray-50/50 transition-colors">
-                    <td class="px-4 py-3 text-sm font-bold text-gray-700">2025</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#4b9b7a]">{{ allWeeksComparison.sum2025.toFixed(2) }}%</td>
+                  <tr v-if="comparisonAreaRows.rows.length > 0" class="bg-gray-50 border-t border-gray-200">
+                    <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
+                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#004236]">{{ comparisonAreaRows.totalRow.avance2026.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-black font-mono text-right text-[#4b9b7a]">{{ comparisonAreaRows.totalRow.avance2025.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-black font-mono text-right" :class="comparisonAreaRows.totalRow.difference >= 0 ? 'text-success' : 'text-danger'">
+                      {{ comparisonAreaRows.totalRow.difference > 0 ? '+' : '' }}{{ comparisonAreaRows.totalRow.difference.toFixed(1) }}%
+                    </td>
                   </tr>
-                   <tr v-if="allWeeksComparison.isZafra" class="bg-gray-50/50">
-                    <td class="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Diferencia</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right" :class="(allWeeksComparison.sum2026 - allWeeksComparison.sum2025) >= 0 ? 'text-success' : 'text-danger'">
-                      {{ (allWeeksComparison.sum2026 - allWeeksComparison.sum2025) > 0 ? '+' : '' }}{{ (allWeeksComparison.sum2026 - allWeeksComparison.sum2025).toFixed(2) }}%
+                  <tr v-if="comparisonAreaRows.rows.length === 0">
+                    <td :colspan="comparisonAreaRows.isZafra ? 4 : 2" class="px-4 py-8 text-center text-xs font-bold text-gray-300 uppercase tracking-widest">
+                      Sin datos por área
                     </td>
                   </tr>
                 </tbody>
@@ -1478,6 +1912,62 @@ const handleWeeklyChartClick = (params: any) => {
             <p v-if="!allWeeksComparison.isZafra" class="text-xs text-gray-400 mt-4 italic">
               * Datos comparativos 2025 solo disponibles en la etapa ZAFRA.
             </p>
+          </div>
+
+          <div
+            class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
+            <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE REAL VS AVANCE APROXIMADO SIN RETRASOS</h2>
+                <p class="mt-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{{ weeklyAreaPeriodLabel }}</p>
+              </div>
+              <button type="button" @click="weeklyAreaCurrentWeekOnly = !weeklyAreaCurrentWeekOnly"
+                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors self-start sm:self-auto"
+                :class="weeklyAreaCurrentWeekOnly ? 'border-main bg-main text-white' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'">
+                <span class="relative inline-flex h-4 w-7 rounded-full transition-colors"
+                  :class="weeklyAreaCurrentWeekOnly ? 'bg-white/25' : 'bg-gray-200'">
+                  <span class="absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform"
+                    :class="weeklyAreaCurrentWeekOnly ? 'translate-x-3.5' : 'translate-x-0.5'"></span>
+                </span>
+                Esta semana
+              </button>
+            </div>
+
+            <div class="overflow-hidden border border-gray-100 rounded-xl">
+              <table class="w-full text-left">
+                <thead class="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">ÁREA</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE REAL</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE PERDIDO</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE SIN RETRASOS</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <tr v-for="row in weeklyAreaSummary" :key="row.area" class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.area }}</td>
+                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ row.realProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#C0392B]">
+                      {{ row.lostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(row.lostHours) }}</span>
+                    </td>
+                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-gray-800">{{ row.optimalProgress.toFixed(1) }}%</td>
+                  </tr>
+                  <tr v-if="weeklyAreaSummary.length > 0" class="bg-gray-50 border-t border-gray-200">
+                    <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
+                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#004236]">{{ weeklyAreaSummaryTotal.realProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#C0392B]">
+                      {{ weeklyAreaSummaryTotal.lostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.lostHours) }}</span>
+                    </td>
+                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-gray-900">{{ weeklyAreaSummaryTotal.optimalProgress.toFixed(1) }}%</td>
+                  </tr>
+                  <tr v-if="weeklyAreaSummary.length === 0">
+                    <td colspan="4" class="px-4 py-8 text-center text-xs font-bold text-gray-300 uppercase tracking-widest">
+                      Sin datos por área
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 

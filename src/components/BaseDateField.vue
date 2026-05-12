@@ -9,6 +9,7 @@ interface Props {
   placeholder?: string;
   id?: string;
   error?: string | boolean;
+  disabled?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -16,7 +17,8 @@ const props = withDefaults(defineProps<Props>(), {
   label: '',
   placeholder: 'Seleccionar fecha',
   id: () => `date-${Math.random().toString(36).substr(2, 9)}`,
-  error: false
+  error: false,
+  disabled: false
 });
 
 const emit = defineEmits<{
@@ -35,7 +37,7 @@ const onDateChange = (e: Event) => {
 };
 
 const openPicker = () => {
-  if (inputRef.value) {
+  if (!props.disabled && inputRef.value) {
     (inputRef.value as any).showPicker?.();
   }
 };
@@ -50,12 +52,18 @@ const openPicker = () => {
         type="date" 
         :id="id"
         :value="modelValue"
+        :disabled="disabled"
         @input="onDateChange"
-        class="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+        class="absolute inset-0 opacity-0 w-full h-full z-10"
+        :class="disabled ? 'cursor-not-allowed' : 'cursor-pointer'"
       />
       <div 
-        class="flex items-center justify-between w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:border-gray-300 transition-colors pointer-events-none"
-        :class="{ 'border-red-500': error }"
+        class="flex items-center justify-between w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl transition-colors pointer-events-none"
+        :class="{
+          'border-red-500': error,
+          'cursor-not-allowed opacity-80': disabled,
+          'cursor-pointer hover:border-gray-300': !disabled
+        }"
       >
         <span :class="displayValue ? 'text-gray-900 font-medium' : 'text-gray-400'">
           {{ displayValue || placeholder }}
