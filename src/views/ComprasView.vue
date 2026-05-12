@@ -29,12 +29,13 @@ const isNewFormOpen = ref(false);
 const userArea = computed(() => userStore.area);
 
 const fetchData = async () => {
-  await userStore.fetchCurrentUserProfile();
   await store.fetchEstados();
   await store.fetchSolicitudes(userStore.getArea(), userStore.getEmailsFilter());
 };
 
 onMounted(async () => {
+  await userStore.fetchCurrentUserProfile();
+  await store.escucharSolicitudesComprasUsuario(userStore.idsUser.compras);
   await fetchData();
   if (store.selectedEstadoId === null) {
     store.selectedEstadoId = 1;

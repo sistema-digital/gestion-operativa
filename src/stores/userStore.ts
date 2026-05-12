@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseCompras, supabaseEquipos, supabaseRatings } from '@/lib/supabase';
 
 export interface UserProfile {
   id: number;
@@ -11,9 +11,22 @@ export interface UserProfile {
   role: string | null;
 }
 
+export interface UserAuthDatabaseIds {
+  compras: string | null;
+  mantenimiento: string | null;
+  equipos: string | null;
+  calificaciones: string | null;
+}
+
 export const useUserStore = defineStore('user', () => {
   const profile = ref<UserProfile | null>(null);
   const email = ref('');
+  const idsUser = ref<UserAuthDatabaseIds>({
+    compras: null,
+    mantenimiento: null,
+    equipos: null,
+    calificaciones: null,
+  });
   const allProfiles = ref<UserProfile[]>([]);
   const emailsFilter = ref<string[]>([]);
   const isLoading = ref(false);
@@ -33,6 +46,19 @@ export const useUserStore = defineStore('user', () => {
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
+
+      const [comprasAuth, equiposAuth, ratingsAuth] = await Promise.all([
+        supabaseCompras.auth.getUser(),
+        supabaseEquipos.auth.getUser(),
+        supabaseRatings.auth.getUser(),
+      ]);
+
+      idsUser.value = {
+        mantenimiento: user?.id || null,
+        compras: comprasAuth.data.user?.id || null,
+        equipos: equiposAuth.data.user?.id || null,
+        calificaciones: ratingsAuth.data.user?.id || null,
+      };
 
       email.value = user?.email || '';
       profile.value = null;
@@ -117,6 +143,12 @@ export const useUserStore = defineStore('user', () => {
   const reset = () => {
     profile.value = null;
     email.value = '';
+    idsUser.value = {
+      compras: null,
+      mantenimiento: null,
+      equipos: null,
+      calificaciones: null,
+    };
     allProfiles.value = [];
     emailsFilter.value = [];
     isLoaded.value = false;
@@ -126,6 +158,7 @@ export const useUserStore = defineStore('user', () => {
   return {
     profile,
     email,
+    idsUser,
     nombre,
     area,
     role,

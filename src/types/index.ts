@@ -40,3 +40,36 @@ export type DetalleSolicitud = {
   cantidad_inventario: number | null
   cantidad_subida_sistema_compra: number | null
 }
+
+export type SolicitudCompraEstadoBroadcast = {
+  solicitud_id: string;
+  folio_sol: string | null;
+  estado_id: number;
+  estado_actual_id: number;
+  historial_id: string;
+  fecha_inicio: string;
+  event_at: string;
+};
+
+
+export type TomarSolicitudParaEdicionResponse =
+  | {
+      success: true
+      message: string
+      solicitud_id: string
+      folio_sol: string
+      estado_anterior_id: number
+      estado_actual_id: number
+      historial_cerrado: boolean
+      historial_insertado: boolean
+    }
+  | {
+      success: false
+      message: string
+      solicitud_id: string
+      folio_sol: string
+      estado_actual_id: number
+      estado_nuevo_id: number
+      historial_cerrado: boolean
+      historial_insertado: boolean
+    }
