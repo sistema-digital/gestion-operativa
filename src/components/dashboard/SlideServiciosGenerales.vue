@@ -82,9 +82,32 @@ const getISOWeek = (dateArg: Date) => {
   return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
 };
 
+const isBusinessDay = (date: Date) => {
+  const day = date.getDay();
+  return day !== 0 && day !== 6;
+};
+
+const calculateBusinessDaysDiff = (target: Date, reference: Date) => {
+  const start = new Date(reference);
+  const end = new Date(target);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  if (start.getTime() === end.getTime()) return 0;
+
+  const direction = end.getTime() > start.getTime() ? 1 : -1;
+  let days = 0;
+  const current = new Date(start);
+
+  while (current.getTime() !== end.getTime()) {
+    current.setDate(current.getDate() + direction);
+    if (isBusinessDay(current)) days += direction;
+  }
+
+  return days;
+};
+
 const calculateOrderDays = (o: OMSGWithOm) => {
-  if (o.dias !== null && o.dias !== undefined) return Number(o.dias);
-  
   const targetDateStr = o.fecha_entrega_sg || o.fecha_entrega || (o as any)['Fecha Entrega'];
   const conclusionDateStr = o["Fecha conclusion"];
   
@@ -94,12 +117,8 @@ const calculateOrderDays = (o: OMSGWithOm) => {
   const isConcluded = o.Estatus?.toLowerCase().includes('concluida');
   const reference = (isConcluded && conclusionDateStr) ? parseDateSafe(conclusionDateStr) : new Date();
   
-  target.setHours(0,0,0,0);
-  reference.setHours(0,0,0,0);
-  
   // dias = target - reference (Positive/Zero = On Time, Negative = Delayed)
-  const diffTime = target.getTime() - reference.getTime();
-  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return calculateBusinessDaysDiff(target, reference);
 };
 
 const filteredOrders = computed(() => {
