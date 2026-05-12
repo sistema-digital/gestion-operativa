@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { supabase, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
+import type { ActualizarSolicitudAlmacen, ActualizarSolicitudAlmacenResponse } from '@/components/compras/list/types';
 import type { TomarSolicitudParaEdicionResponse } from '@/types';
 
 type ComprasRealtimeChannel = ReturnType<typeof supabaseCompras.channel>;
@@ -220,6 +221,51 @@ export const useComprasStore = defineStore('compras', {
 
       if (response.folio_sol?.trim()) {
         solicitud.folio_sol = response.folio_sol;
+      }
+    },
+
+    actualizarSolicitudDesdeRespuestaAlmacen(response: ActualizarSolicitudAlmacenResponse) {
+      if (!response?.success || !response.solicitud_id || typeof response.estado_actual_id !== 'number') return;
+
+      const solicitud = this.solicitudes.find(item => item.id === response.solicitud_id);
+      if (!solicitud) return;
+
+      solicitud.estado_id = response.estado_actual_id;
+
+
+      solicitud.historial_estado_actual = {
+        ...(solicitud.historial_estado_actual || {}),
+        estado_id: response.estado_actual_id,
+        fecha_inicio: response.fechaInicioEstadoActuial
+      };
+    },
+
+    async actualizarSolicitudAlmacenConDetalles(payload: ActualizarSolicitudAlmacen) {
+      try {
+        const { data, error } = await supabaseCompras.rpc(
+          'actualizar_solicitud_almacen_con_detalles',
+          {
+            p_solicitud_id: payload.solicitud_id,
+            p_estado_actual_id: payload.estado_actual,
+            p_detalles: payload.detallesActualizar,
+            p_creado_por: payload.creadoPor
+          }
+        );
+
+        if (error) throw error;
+
+        const response = data as ActualizarSolicitudAlmacenResponse;
+
+        if (!response?.success) {
+          throw new Error(response?.message || 'No se pudo actualizar la solicitud de almacén');
+        }
+
+        this.actualizarSolicitudDesdeRespuestaAlmacen(response);
+
+        return response;
+      } catch (err: any) {
+        console.error('Error al actualizar solicitud de almacén:', err);
+        throw err;
       }
     },
 

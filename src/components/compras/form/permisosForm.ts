@@ -20,11 +20,21 @@ export interface PermisosFormSolicitud {
   area: PermisosFormArea;
   showCantidad: boolean;
   areThereCantidad: boolean;
+  canEditCantidadInventario: boolean;
+  canEditFechaEntrega: boolean;
+  canEditEquipos: boolean;
+  canEditObservacion: boolean;
+  canManageProductos: boolean;
 }
 
 type PermisoCantidadRule = {
   area: PermisosFormArea;
   showCantidad: (input: SolicitudPermisosFormInput, areThereCantidad: boolean) => boolean;
+  canEditCantidadInventario: (input: SolicitudPermisosFormInput) => boolean;
+  canEditFechaEntrega: boolean;
+  canEditEquipos: boolean;
+  canEditObservacion: boolean;
+  canManageProductos: boolean;
 };
 
 const normalizeArea = (area?: string | null) =>
@@ -43,6 +53,14 @@ const AREAS_OPERATIVAS = new Set([
   'SERVICIOS GENERALES',
 ]);
 
+const ESTADOS_EDITABLES_ALMACEN = new Set([1, 2, 10]);
+
+const isEditMode = (input: SolicitudPermisosFormInput) => input.mode === 'edit';
+
+const canEditCantidadInventarioAlmacen = (input: SolicitudPermisosFormInput) =>
+  isEditMode(input) &&
+  ESTADOS_EDITABLES_ALMACEN.has(Number(input.initialData?.estado_id));
+
 export const getAreaPermisosFormSolicitud = (area?: string | null): PermisosFormArea => {
   const areaKey = normalizeArea(area);
 
@@ -58,26 +76,48 @@ export const getAreaPermisosFormSolicitud = (area?: string | null): PermisosForm
 export const permisosFormSolicitud: PermisoCantidadRule[] = [
   {
     area: 'all',
-    showCantidad: input => input.mode === 'edit'
+    showCantidad: input => isEditMode(input),
+    canEditCantidadInventario: canEditCantidadInventarioAlmacen,
+    canEditFechaEntrega: true,
+    canEditEquipos: true,
+    canEditObservacion: true,
+    canManageProductos: true
   },
   {
     area: 'operativa',
-    showCantidad: (input, areThereCantidad) =>
-      input.mode === 'edit' &&
-      Number(input.initialData?.estado_id) !== 1 &&
-      areThereCantidad
+    showCantidad: (input, areThereCantidad) => isEditMode(input) && areThereCantidad,
+    canEditCantidadInventario: () => false,
+    canEditFechaEntrega: true,
+    canEditEquipos: true,
+    canEditObservacion: true,
+    canManageProductos: true
   },
   {
     area: 'gerencia',
-    showCantidad: input => input.mode === 'edit'
+    showCantidad: () => false,
+    canEditCantidadInventario: () => false,
+    canEditFechaEntrega: true,
+    canEditEquipos: true,
+    canEditObservacion: true,
+    canManageProductos: true
   },
   {
     area: 'almacen',
-    showCantidad: () => false
+    showCantidad: input => isEditMode(input),
+    canEditCantidadInventario: canEditCantidadInventarioAlmacen,
+    canEditFechaEntrega: false,
+    canEditEquipos: false,
+    canEditObservacion: false,
+    canManageProductos: false
   },
   {
     area: 'secretaria',
-    showCantidad: () => false
+    showCantidad: () => false,
+    canEditCantidadInventario: () => false,
+    canEditFechaEntrega: true,
+    canEditEquipos: true,
+    canEditObservacion: true,
+    canManageProductos: true
   }
 ];
 
@@ -97,12 +137,18 @@ export const getPermisosFormSolicitud = (
     input.initialData?.detalles?.some((detalle: DetalleSolicitud) => {
       const valor = detalle.cantidad_inventario;
 
-      return valor !== null && valor !== undefined;
+      return valor !== null && valor !== undefined && Number(valor) >= 0;
     }) ?? false;
+  const permiso = permisosPorArea[area];
 
   return {
     area,
-    showCantidad: permisosPorArea[area].showCantidad(input, areThereCantidad),
-    areThereCantidad
+    showCantidad: permiso.showCantidad(input, areThereCantidad),
+    areThereCantidad,
+    canEditCantidadInventario: permiso.canEditCantidadInventario(input),
+    canEditFechaEntrega: permiso.canEditFechaEntrega,
+    canEditEquipos: permiso.canEditEquipos,
+    canEditObservacion: permiso.canEditObservacion,
+    canManageProductos: permiso.canManageProductos
   };
 };

@@ -5,6 +5,7 @@ import { supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 import BaseDateField from '@/components/BaseDateField.vue';
 import { useComprasStore } from '@/stores/comprasStore';
 import { useUserStore } from '@/stores/userStore';
+import type { ActualizarSolicitudAlmacen } from '@/components/compras/list/types';
 import {
   X,
   Search,
@@ -67,6 +68,22 @@ const permisosFormSolicitud = computed(() =>
 const showCantidad = computed(() => permisosFormSolicitud.value.showCantidad);
 const canEditCantidadInventario = computed(
   () => !props.readonly && permisosFormSolicitud.value.canEditCantidadInventario
+);
+const canEditFechaEntrega = computed(
+  () => !props.readonly && permisosFormSolicitud.value.canEditFechaEntrega
+);
+const canEditEquipos = computed(
+  () => !props.readonly && permisosFormSolicitud.value.canEditEquipos
+);
+const canEditObservacion = computed(
+  () => !props.readonly && permisosFormSolicitud.value.canEditObservacion
+);
+const canManageProductos = computed(
+  () => !props.readonly && permisosFormSolicitud.value.canManageProductos
+);
+const isAlmacen = computed(() => permisosFormSolicitud.value.area === 'almacen');
+const showPriorityUrgentBadge = computed(
+  () => Number(props.initialData?.prioridad_id) === 3
 );
 const isReadOnly = computed(() => props.readonly);
 
@@ -204,6 +221,7 @@ interface DetalleManual {
   unidad: string|null;
   cantidad: number|null;
   cantidad_inventario: number|null;
+  estatus_detalle: number|null;
   descartado: boolean;
 }
 
@@ -295,6 +313,7 @@ onMounted(async () => {
           unidad: unidadAbreviatura,
           cantidad: d.cantidad,
           cantidad_inventario: d.cantidad_inventario ?? null,
+          estatus_detalle: d.estatus_detalle ?? d.estatus_datalle ?? null,
           descartado: false
         };
       });
@@ -316,7 +335,7 @@ const filteredEquipos = computed(() => {
 });
 
 const toggleEquipo = (equipo: any) => {
-  if (isReadOnly.value) return;
+  if (!canEditEquipos.value) return;
 
   const index = selectedEquipos.value.findIndex(
     e => e.cod_equipo === equipo.cod_equipo
@@ -334,7 +353,7 @@ const isEquipoSelected = (cod: string) => {
 };
 
 const removeEquipo = (cod: string) => {
-  if (isReadOnly.value) return;
+  if (!canEditEquipos.value) return;
 
   selectedEquipos.value = selectedEquipos.value.filter(
     e => e.cod_equipo !== cod
@@ -408,7 +427,7 @@ const performProductSearch = async (
 };
 
 watch(searchProducto, newVal => {
-  if (isReadOnly.value) return;
+  if (!canManageProductos.value) return;
 
   if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
 
@@ -425,7 +444,7 @@ watch(searchProducto, newVal => {
 });
 
 const loadMoreProducts = () => {
-  if (isReadOnly.value) return;
+  if (!canManageProductos.value) return;
 
   productosOffset.value += 30;
   performProductSearch(searchProducto.value, productosOffset.value, true);
@@ -436,7 +455,7 @@ const isProductoSelected = (cod: string) => {
 };
 
 const toggleProducto = (prod: any) => {
-  if (isReadOnly.value) return;
+  if (!canManageProductos.value) return;
 
   const index = detalles.value.findIndex(
     d => d.cod_producto === prod.cod_producto && !d.isManual
@@ -459,13 +478,14 @@ const toggleProducto = (prod: any) => {
       unidad: prod.unidad_medida?.abreviatura || null,
       cantidad: null,
       cantidad_inventario: null,
+      estatus_detalle: null,
       descartado: false
     });
   }
 };
 
 const addManualItem = () => {
-  if (isReadOnly.value) return;
+  if (!canManageProductos.value) return;
 
   detalles.value.push({
     ui_id: crypto.randomUUID(),
@@ -477,6 +497,7 @@ const addManualItem = () => {
     unidad: null,
     cantidad: null,
     cantidad_inventario: null,
+    estatus_detalle: null,
     descartado: false
   });
 };
@@ -499,6 +520,21 @@ const undoDiscardDetalle = (uiId: string) => {
   }
 };
 
+const buildActualizarSolicitudAlmacenPayload = (solicitudId: string): ActualizarSolicitudAlmacen => ({
+  solicitud_id: solicitudId,
+  estado_actual: Number(props.initialData?.estado_id),
+  creadoPor: userStore.getEmail(),
+  detallesActualizar: detalles.value
+    .filter(d => Boolean(d.db_id))
+    .map(d => ({
+      id_db: String(d.db_id),
+      cantidad_inventario: Number(d.cantidad_inventario ?? 0),
+      estatus_detalle: d.descartado ? 2 : Number(d.estatus_detalle ?? 1),
+      status_producto: !d.descartado,
+      cod_producto: d.cod_producto || ''
+    }))
+});
+
 const saveSolicitud = async () => {
   if (isReadOnly.value) return;
 
@@ -517,12 +553,12 @@ const saveSolicitud = async () => {
     hasError = true;
   }
 
-  if (!observacion.value) {
+  if (canEditObservacion.value && !observacion.value) {
     fieldErrors.value.observacion = 'Observación es requerida';
     hasError = true;
   }
 
-  if (selectedEquipos.value.length === 0) {
+  if (canEditEquipos.value && selectedEquipos.value.length === 0) {
     fieldErrors.value.equipos = 'Debe seleccionar al menos un equipo';
     hasError = true;
   }
@@ -632,6 +668,17 @@ const saveSolicitud = async () => {
       // UPDATE MODE
       const solId = props.initialData.id;
 
+      if (isAlmacen.value) {
+        await comprasStore.actualizarSolicitudAlmacenConDetalles(
+          buildActualizarSolicitudAlmacenPayload(solId)
+        );
+
+        isNavigationAllowed = true;
+        emit('updated');
+        closeForm();
+        return;
+      }
+
       const detallesPayload = detalles.value.map(d => {
         const isManual =
           d.isManual ||
@@ -673,19 +720,21 @@ const saveSolicitud = async () => {
         throw new Error('No se pudo actualizar la solicitud');
       }
 
-      const { data: equiposData, error: equiposError } = await supabaseEquipos.rpc(
-        'sincronizar_equipos_solicitud',
-        {
-          p_solicitud_id: solId,
-          p_folio_sol: updateData.folio_sol,
-          p_cod_equipos: selectedEquipos.value.map(eq => eq.cod_equipo)
+      if (canEditEquipos.value) {
+        const { data: equiposData, error: equiposError } = await supabaseEquipos.rpc(
+          'sincronizar_equipos_solicitud',
+          {
+            p_solicitud_id: solId,
+            p_folio_sol: updateData.folio_sol,
+            p_cod_equipos: selectedEquipos.value.map(eq => eq.cod_equipo)
+          }
+        );
+
+        if (equiposError) throw equiposError;
+
+        if (!equiposData?.success) {
+          throw new Error('No se pudieron sincronizar los equipos');
         }
-      );
-
-      if (equiposError) throw equiposError;
-
-      if (!equiposData?.success) {
-        throw new Error('No se pudieron sincronizar los equipos');
       }
 
 
@@ -747,7 +796,7 @@ const saveSolicitud = async () => {
             <!-- Fecha Entrega -->
             <div class="space-y-1.5 flex flex-col justify-end">
               <BaseDateField v-model="fechaEntrega" label="Fecha de Entrega *" :error="fieldErrors.fechaEntrega"
-                :disabled="isReadOnly" />
+                :disabled="!canEditFechaEntrega" />
             </div>
 
             <!-- Auto email display -->
@@ -776,7 +825,7 @@ const saveSolicitud = async () => {
           </label>
 
           <!-- Selector de Equipos -->
-          <div class="space-y-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+          <div v-if="!isAlmacen" class="space-y-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
             <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">
               Equipos Asociados <span class="text-red-500">*</span>
             </label>
@@ -786,25 +835,25 @@ const saveSolicitud = async () => {
                 class="bg-main text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2">
                 <span>{{ eq.cod_equipo }}</span>
 
-                <button v-if="!isReadOnly" @click="removeEquipo(eq.cod_equipo)" class="text-white hover:text-red-300">
+                <button v-if="canEditEquipos" @click="removeEquipo(eq.cod_equipo)" class="text-white hover:text-red-300">
                   <X class="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
-            <div class="relative">
-              <div v-if="showEquiposDropdown" class="fixed inset-0 z-10" @click="showEquiposDropdown = false"></div>
+            <div v-if="canEditEquipos" class="relative">
+              <div v-if="showEquiposDropdown && canEditEquipos" class="fixed inset-0 z-10" @click="showEquiposDropdown = false"></div>
 
               <div class="flex items-center relative z-20">
                 <Search class="absolute left-3 w-4 h-4 text-gray-400" />
 
-                <input v-model="searchEquipo" @focus="showEquiposDropdown = !isReadOnly" type="text"
-                  :disabled="isReadOnly"
+                <input v-model="searchEquipo" @focus="showEquiposDropdown = canEditEquipos" type="text"
+                  :disabled="!canEditEquipos"
                   placeholder="Buscar equipo por código o nombre..."
                   class="w-full pl-9 pr-4 py-2 border border-gray-200 bg-white rounded-xl focus:ring-2 focus:ring-accent outline-none relative disabled:bg-gray-50 disabled:cursor-not-allowed" />
               </div>
 
-              <div v-if="showEquiposDropdown && filteredEquipos.length > 0"
+              <div v-if="showEquiposDropdown && canEditEquipos && filteredEquipos.length > 0"
                 class="absolute z-30 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                 <div v-for="eq in filteredEquipos" :key="eq.cod_equipo" @click.stop="toggleEquipo(eq)"
                   class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0 flex items-center gap-3">
@@ -820,7 +869,7 @@ const saveSolicitud = async () => {
                 </div>
               </div>
 
-              <div v-else-if="showEquiposDropdown && searchEquipo"
+              <div v-else-if="showEquiposDropdown && canEditEquipos && searchEquipo"
                 class="absolute z-30 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-4 text-sm text-gray-500 text-center">
                 No se encontraron equipos
               </div>
@@ -831,6 +880,14 @@ const saveSolicitud = async () => {
             </p>
           </div>
 
+          <div
+            v-if="showPriorityUrgentBadge"
+            class="inline-flex w-fit items-center gap-2 rounded-xl border border-red-300/70 bg-red-500/15 px-4 py-2 text-sm font-black uppercase tracking-wide text-red-700 shadow-sm backdrop-blur-md"
+          >
+            <AlertTriangle class="h-4 w-4" />
+            URGENTE
+          </div>
+
           <!-- Selector de Productos y Tabla -->
           <div class="space-y-4">
             <div class="flex items-center justify-between">
@@ -838,21 +895,21 @@ const saveSolicitud = async () => {
                 Productos / Servicios <span class="text-red-500">*</span>
               </label>
 
-              <button v-if="!isReadOnly" @click="addManualItem"
+              <button v-if="canManageProductos" @click="addManualItem"
                 class="text-xs font-bold text-main hover:text-accent flex items-center gap-1 bg-main/5 px-2 py-1 rounded cursor-pointer">
                 <Plus class="w-3.5 h-3.5" />
                 Agregar Ítem Manual
               </button>
             </div>
 
-            <div class="relative mt-2">
+            <div v-if="canManageProductos" class="relative mt-2">
               <div v-if="showProductosDropdown" class="fixed inset-0 z-10" @click="showProductosDropdown = false"></div>
 
               <div class="flex items-center relative z-20">
                 <Search class="absolute left-3 w-4 h-4 text-gray-400" />
 
-                <input v-model="searchProducto" @focus="showProductosDropdown = !isReadOnly" type="text"
-                  :disabled="isReadOnly"
+                <input v-model="searchProducto" @focus="showProductosDropdown = canManageProductos" type="text"
+                  :disabled="!canManageProductos"
                   placeholder="Buscar producto de almacén..."
                   class="w-full pl-9 pr-4 py-2 border border-gray-200 bg-white rounded-xl focus:ring-2 focus:ring-accent outline-none relative disabled:bg-gray-50 disabled:cursor-not-allowed" />
               </div>
@@ -1003,9 +1060,9 @@ const saveSolicitud = async () => {
                           v-model="item.descripcion"
                           type="text"
                           maxlength="255"
-	                          placeholder="Descripción manual..."
-	                          :readonly="isReadOnly"
-	                          class="w-full px-3 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm"
+                          placeholder="Descripción manual..."
+                          :readonly="!canManageProductos"
+                          class="w-full px-3 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm"
                         />
 
                         <span v-else class="block text-sm leading-6 text-gray-600">
@@ -1016,9 +1073,9 @@ const saveSolicitud = async () => {
                       <div class="px-4 py-4 text-center">
                         <select
                           v-if="item.isManual"
-	                          v-model="item.unidad_id"
-	                          :disabled="isReadOnly"
-	                          class="w-full px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm bg-white cursor-pointer"
+                          v-model="item.unidad_id"
+                          :disabled="!canManageProductos"
+                          class="w-full px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm bg-white cursor-pointer"
                         >
                           <option value="" disabled>
                             Seleccionar
@@ -1048,7 +1105,7 @@ const saveSolicitud = async () => {
                         </span>
                       </div>
 
-	                      <div v-if="!isReadOnly" class="relative z-20 px-4 py-4 text-right">
+                      <div v-if="!isReadOnly" class="relative z-20 px-4 py-4 text-right">
                         <button
                           v-if="!item.descartado"
                           @click="discardDetalle(item.ui_id)"
@@ -1071,7 +1128,7 @@ const saveSolicitud = async () => {
                   </div>
 
                   <div v-else class="py-8 text-center text-sm text-gray-400">
-                    Agregue productos desde la búsqueda o como ítem manual.
+                    {{ canManageProductos ? 'Agregue productos desde la búsqueda o como ítem manual.' : 'No hay productos en la solicitud.' }}
                   </div>
                 </div>
               </div>
@@ -1083,15 +1140,15 @@ const saveSolicitud = async () => {
           </div>
 
           <!-- Observacion -->
-          <div class="space-y-1.5 pt-4">
+          <div v-if="!isAlmacen" class="space-y-1.5 pt-4">
             <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">
               Observación <span class="text-red-500">*</span>
             </label>
 
-	            <textarea v-model="observacion" rows="2" placeholder="Justificación o detalles de la solicitud..."
-	              :readonly="isReadOnly"
-	              class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-accent outline-none transition-all resize-none read-only:bg-gray-50"
-	              :class="{ 'border-red-500': fieldErrors.observacion }"></textarea>
+            <textarea v-model="observacion" rows="2" placeholder="Justificación o detalles de la solicitud..."
+              :readonly="!canEditObservacion"
+              class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-accent outline-none transition-all resize-none read-only:bg-gray-50"
+              :class="{ 'border-red-500': fieldErrors.observacion }"></textarea>
 
             <p v-if="fieldErrors.observacion" class="text-xs text-red-500 mt-1">
               {{ fieldErrors.observacion }}
