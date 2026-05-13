@@ -190,6 +190,24 @@ const globalMetrics = computed(() => {
     count: insps.length
   }
 });
+
+const formatHora = (hora?: string | null): string => {
+  if (!hora) return '---'
+
+  const [hh, mm] = hora.split(':')
+
+  let hour = Number(hh)
+  const minute = mm ?? '00'
+
+  if (Number.isNaN(hour)) return hora
+
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+
+  hour = hour % 12
+  if (hour === 0) hour = 12
+
+  return `${hour}:${minute.padStart(2, '0')} ${ampm}`
+}
 </script>
 
 <template>
@@ -277,7 +295,7 @@ const globalMetrics = computed(() => {
             <tbody>
               <tr v-for="insp in displayedInspections" :key="insp.id_inspeccion" class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
                 <td class="py-3 text-sm text-gray-500">
-                  {{ insp.fecha }}
+                  {{ insp.fecha }} | {{ formatHora(insp.hora) }}
                 </td>
                 <td class="py-3 text-sm text-gray-800 font-medium">
                   {{ getSupName(insp.final_supervisor_id) }}
@@ -287,8 +305,10 @@ const globalMetrics = computed(() => {
                     {{ Number(((insp.puntuacion_promedio / 5) * 100).toFixed(1)) }}%
                   </span>
                 </td>
-                <td class="py-3 text-[11px] text-gray-500 line-clamp-2 max-w-[200px]" :title="insp.observacion">
-                  {{ insp.observacion || '---' }}
+                <td class="py-3 text-[11px] text-gray-500 max-w-[220px] md:max-w-[420px] whitespace-normal break-words align-top" :title="insp.observacion">
+                  <div class="line-clamp-2 md:line-clamp-none">
+                    {{ insp.observacion || '---' }}
+                  </div>
                 </td>
                 <td class="py-3 text-right">
                   <button 
