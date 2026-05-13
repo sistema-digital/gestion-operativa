@@ -6,6 +6,7 @@ import BaseDateField from '@/components/BaseDateField.vue';
 import { useComprasStore } from '@/stores/comprasStore';
 import { useUserStore } from '@/stores/userStore';
 import type { ActualizarSolicitudAlmacen } from '@/components/compras/list/types';
+import type { SolicitudCompraInitialData } from '@/views/compras/type';
 import {
   X,
   Search,
@@ -26,7 +27,7 @@ const props = defineProps({
     default: 'create' // 'create' | 'edit'
   },
   initialData: {
-    type: Object,
+    type: Object as () => SolicitudCompraInitialData | null,
     default: null
   },
   permisosForm: {
@@ -46,7 +47,7 @@ const userStore = useUserStore();
 // Form Data
 const fechaEntrega = ref('');
 const observacion = ref('');
-const isUrgent = ref(false);
+const prioridadSolicitada = ref(false);
 const selectedEquipos = ref<{ cod_equipo: string }[]>([]);
 const searchEquipo = ref('');
 const searchProducto = ref('');
@@ -82,19 +83,17 @@ const canManageProductos = computed(
   () => !props.readonly && permisosFormSolicitud.value.canManageProductos
 );
 const isAlmacen = computed(() => permisosFormSolicitud.value.area === 'almacen');
+const isOperativa = computed(() => permisosFormSolicitud.value.area === 'operativa');
 const showPriorityUrgentBadge = computed(
   () => Number(props.initialData?.prioridad_id) === 3
 );
 const isReadOnly = computed(() => props.readonly);
+const showOperativaPriorityCheck = computed(
+  () => isOperativa.value && [1, 2].includes(Number(props.initialData?.prioridad_id ?? 1))
+);
 
-const showUrgencyCheck = computed(() => {
-  if (props.mode === 'create') return true;
-  return [1, 2].includes(Number(props.initialData?.estado_id));
-});
-
-const getInitialUrgency = () => {
-  const data = props.initialData || {};
-  return Boolean(data.isUrgent ?? data.is_urgent ?? data.isurgent);
+const getInitialPrioridadSolicitada = () => {
+  return Number(props.initialData?.prioridad_id) === 2;
 };
 
 const fieldErrors = ref({
@@ -118,7 +117,7 @@ const hasUnsavedChanges = computed(() => {
     return (
       fechaEntrega.value !== origFecha ||
       observacion.value !== origObs ||
-      isUrgent.value !== getInitialUrgency() ||
+      (isOperativa.value && prioridadSolicitada.value !== getInitialPrioridadSolicitada()) ||
       selectedEquipos.value.length !== origEquipos ||
       detalles.value.length !== origDetalles
     );
@@ -126,7 +125,7 @@ const hasUnsavedChanges = computed(() => {
   return (
     fechaEntrega.value !== '' ||
     observacion.value !== '' ||
-    isUrgent.value ||
+    (isOperativa.value && prioridadSolicitada.value) ||
     selectedEquipos.value.length > 0 ||
     detalles.value.length > 0
   );
@@ -267,7 +266,7 @@ onMounted(async () => {
   if (props.mode === 'edit' && props.initialData) {
     fechaEntrega.value = props.initialData.fecha_entrega || '';
     observacion.value = props.initialData.observacion || '';
-    isUrgent.value = getInitialUrgency();
+    prioridadSolicitada.value = getInitialPrioridadSolicitada();
     selectedEquipos.value = props.initialData.equipos
       ? [...props.initialData.equipos]
       : [];
@@ -607,7 +606,7 @@ const saveSolicitud = async () => {
         observacion: observacion.value,
         estado_id: 1,
         fecha_entrega: fechaEntrega.value,
-        isUrgent: isUrgent.value
+        prioridad_id: isOperativa.value && prioridadSolicitada.value ? 2 : 1
       };
 
       const detallesPayload = detalles.value.map(d => {
@@ -666,6 +665,10 @@ const saveSolicitud = async () => {
       closeForm();
     } else {
       // UPDATE MODE
+      if (!props.initialData) {
+        throw new Error('No se encontraron datos iniciales para actualizar la solicitud');
+      }
+
       const solId = props.initialData.id;
 
       if (isAlmacen.value) {
@@ -701,8 +704,8 @@ const saveSolicitud = async () => {
         fecha_entrega: fechaEntrega.value
       };
 
-      if (showUrgencyCheck.value) {
-        solicitudUpdatePayload.isUrgent = isUrgent.value;
+      if (isOperativa.value) {
+        solicitudUpdatePayload.prioridad_id = prioridadSolicitada.value ? 2 : 1;
       }
 
       const { data: updateData, error: updateError } = await supabaseCompras.rpc(
@@ -809,20 +812,15 @@ const saveSolicitud = async () => {
                 {{ userName }}
               </div>
             </div>
-          </div>
 
-          <label
-            v-if="showUrgencyCheck"
-            class="inline-flex w-fit items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-bold text-yellow-800 cursor-pointer"
-          >
-            <input
-              v-model="isUrgent"
-              type="checkbox"
-              :disabled="isReadOnly"
-              class="w-4 h-4 rounded border-yellow-300 text-yellow-600 focus:ring-yellow-500 accent-yellow-500 cursor-pointer"
-            />
-            <span>Solicitar Urgencia</span>
-          </label>
+            <div
+              v-if="showPriorityUrgentBadge"
+              class="inline-flex w-fit items-center gap-2 rounded-xl border border-red-300/70 bg-red-500/15 px-4 py-2 text-sm font-black uppercase tracking-wide text-red-700 shadow-sm backdrop-blur-md"
+            >
+              <AlertTriangle class="h-4 w-4" />
+              URGENTE
+            </div>
+          </div>
 
           <!-- Selector de Equipos -->
           <div v-if="!isAlmacen" class="space-y-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
@@ -878,14 +876,6 @@ const saveSolicitud = async () => {
             <p v-if="fieldErrors.equipos" class="text-xs text-red-500 mt-2">
               {{ fieldErrors.equipos }}
             </p>
-          </div>
-
-          <div
-            v-if="showPriorityUrgentBadge"
-            class="inline-flex w-fit items-center gap-2 rounded-xl border border-red-300/70 bg-red-500/15 px-4 py-2 text-sm font-black uppercase tracking-wide text-red-700 shadow-sm backdrop-blur-md"
-          >
-            <AlertTriangle class="h-4 w-4" />
-            URGENTE
           </div>
 
           <!-- Selector de Productos y Tabla -->
@@ -1138,6 +1128,21 @@ const saveSolicitud = async () => {
               {{ fieldErrors.productos }}
             </p>
           </div>
+
+          <label
+            v-if="showOperativaPriorityCheck"
+            class="inline-flex w-fit items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-bold text-yellow-800"
+            :class="isReadOnly ? 'cursor-not-allowed' : 'cursor-pointer'"
+          >
+            <input
+              v-model="prioridadSolicitada"
+              type="checkbox"
+              :disabled="isReadOnly"
+              class="w-4 h-4 rounded border-yellow-300 text-yellow-600 focus:ring-yellow-500 accent-yellow-500"
+              :class="isReadOnly ? 'cursor-not-allowed' : 'cursor-pointer'"
+            />
+            <span>Solicitar Urgencia</span>
+          </label>
 
           <!-- Observacion -->
           <div v-if="!isAlmacen" class="space-y-1.5 pt-4">

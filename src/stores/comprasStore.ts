@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { supabase, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 import type { ActualizarSolicitudAlmacen, ActualizarSolicitudAlmacenResponse } from '@/components/compras/list/types';
 import type { TomarSolicitudParaEdicionResponse } from '@/types';
+import type { SolicitudCompraConDetalles } from '@/views/compras/type';
 
 type ComprasRealtimeChannel = ReturnType<typeof supabaseCompras.channel>;
 
@@ -17,7 +18,6 @@ export interface SolicitudCompra {
   estado_id: number;
   prioridad?: string | null;
   prioridad_id?: number | null;
-  isUrgent?: boolean;
   fecha_entrega: string;
   fecha_creacion: string;
   observacion: string;
@@ -206,6 +206,18 @@ export const useComprasStore = defineStore('compras', {
     
     getEstadoName(id: number) {
       return this.estados.find(e => e.id === id)?.name || 'Desconocido';
+    },
+
+    async obtenerSolicitudCompraConDetalles(solicitudId: string): Promise<SolicitudCompraConDetalles> {
+      const { data, error } = await supabaseCompras
+        .rpc('get_solicitud_compra_con_detalles', {
+          p_solicitud_id: solicitudId
+        });
+
+      if (error) throw error;
+      if (!data) throw new Error('No se encontró la solicitud de compra');
+
+      return data as SolicitudCompraConDetalles;
     },
 
     actualizarSolicitudDesdeRespuestaEdicion(response: TomarSolicitudParaEdicionResponse) {

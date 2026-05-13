@@ -3,21 +3,25 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import SolicitudCompraForm from '@/components/compras/form/SolicitudCompraForm.vue';
 import MessageModal from '@/components/MessageModal.vue';
-import { supabase, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 import { useComprasStore } from '@/stores/comprasStore';
+import { useUserStore } from '@/stores/userStore';
+import { useEquipoSolicitudesStore } from '@/stores/dbequipos/equiposolicitudes/equipoSolicitudes.store';
 import {
   getPermisosFormSolicitud,
   type PermisosFormSolicitud
 } from '@/components/compras/form/permisosForm';
+import type { SolicitudCompraInitialData } from './type';
 
 const route = useRoute();
 const router = useRouter();
 const store = useComprasStore();
+const userStore = useUserStore();
+const equipoSolicitudesStore = useEquipoSolicitudesStore();
 
 const formRef = ref<any>(null);
 
 const id = route.params.id as string;
-const initialData = ref<any>(null);
+const initialData = ref<SolicitudCompraInitialData | null>(null);
 const permisosForm = ref<PermisosFormSolicitud | null>(null);
 const isLoading = ref(true);
 const showEditingMessage = ref(false);
@@ -72,14 +76,9 @@ const closeEditingMessage = () => {
 
 onMounted(async () => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user && user.email) {
-      userEmail.value = user.email;
-      const { data: profile } = await supabase.from('PROFILE').select('area').eq('email', user.email).maybeSingle();
-      if (profile) {
-        userArea.value = (profile.area || '').toUpperCase();
-      }
-    }
+    await userStore.fetchCurrentUserProfile();
+    userEmail.value = userStore.getEmail();
+    userArea.value = userStore.getArea();
 
     // Call tomar_solicitud_para_edicion
     let estadoEdicionId = 12; // Operativa by default
@@ -100,19 +99,9 @@ onMounted(async () => {
       }
     }
 
-    const { data: solData, error: solError } = await supabaseCompras
-      .rpc('get_solicitud_compra_con_detalles', {
-        p_solicitud_id: id
-      });
+    const solData = await store.obtenerSolicitudCompraConDetalles(id);
 
-    if (solError) throw solError;
-
-    const { data: eqData, error: eqError } = await supabaseEquipos
-      .from('equipo_solicitudes')
-      .select('cod_equipo')
-      .eq('solicitud_id', id);
-
-    if (eqError) throw eqError;
+    const eqData = await equipoSolicitudesStore.obtenerEquiposSolicitud(id);
 
     const cachedSol = store.solicitudes.find(s => s.id === id);
 

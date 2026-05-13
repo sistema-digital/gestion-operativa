@@ -1,5 +1,3 @@
-import type { DetalleSolicitud } from '@/types';
-
 export type PermisosFormArea =
   | 'all'
   | 'operativa'
@@ -7,11 +5,15 @@ export type PermisosFormArea =
   | 'almacen'
   | 'secretaria';
 
+export interface PermisosFormDetalleInput {
+  cantidad_inventario?: number | null;
+}
+
 export interface SolicitudPermisosFormInput {
   mode: string;
   initialData?: {
     estado_id?: number | string | null;
-    detalles?: DetalleSolicitud[];
+    detalles?: PermisosFormDetalleInput[];
   } | null;
   userArea?: string | null;
 }
@@ -134,7 +136,7 @@ export const getPermisosFormSolicitud = (
 ): PermisosFormSolicitud => {
   const area = getAreaPermisosFormSolicitud(input.userArea);
   const areThereCantidad =
-    input.initialData?.detalles?.some((detalle: DetalleSolicitud) => {
+    input.initialData?.detalles?.some((detalle) => {
       const valor = detalle.cantidad_inventario;
 
       return valor !== null && valor !== undefined && Number(valor) >= 0;
