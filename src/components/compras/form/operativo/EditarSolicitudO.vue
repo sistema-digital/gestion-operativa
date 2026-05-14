@@ -76,6 +76,7 @@ const {
   getCantidadInventarioAccessLevel,
   getCantidadGerenciaAccessLevel,
   getCantidadSistemaAccessLevel,
+  getCodProductoAccessLevel,
 
   submitForm
 } = useSolicitudCompraEditableForm(props, emit);
@@ -389,12 +390,19 @@ defineExpose({ checkNavigation })
                       class="details-grid details-row min-h-[72px] items-center transition-colors hover:bg-gray-50/70"
                     >
                       <div class="px-4 py-4">
-                        <input
-                          v-model="item.cod_producto"
-                          type="text"
-                          placeholder="Código"
-                          class="w-full px-3 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm"
-                        />
+                        <div
+                          v-if="getCodProductoAccessLevel(item) === AccessLevel.READ"
+                          class="text-sm font-bold text-gray-800"
+                        >
+                          {{ item.cod_producto }}
+                        </div>
+
+                        <div
+                          v-else-if="getCodProductoAccessLevel(item) === AccessLevel.NONE"
+                          class="inline-flex rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-400"
+                        >
+                          No asignado
+                        </div>
                       </div>
 
                       <div class="px-4 py-4">

@@ -72,10 +72,26 @@ export const getAccessLevelsOperativoSolicitud = () => {
         return AccessLevel.NONE
     }
 
+    const CodProducto = ({ area, detalle}: {area: string; detalle?: { isManual: boolean ,cod_producto?: string|null} }): AccessLevel => {
+        const isAreaReadable:boolean=  areasOperativas.includes(area.toUpperCase());
+
+        console.log(detalle?.cod_producto);
+        
+
+        const isVisible = !detalle?.isManual && detalle?.cod_producto ? !detalle.cod_producto.trim().startsWith('MNL-') : false;
+
+        if ( isVisible&& isAreaReadable) {
+            return AccessLevel.READ
+        } 
+
+        return AccessLevel.NONE
+    }
+
     return {
         Cantidad,
         CantidadInventario,
         CantidadGerencia,
-        CantidadSistema
+        CantidadSistema,
+        CodProducto
     }
 }
