@@ -26,12 +26,13 @@ export type UnidadMedida = {
 export type ProductoDetalle = {
   descripcion: string
   unidad_medida: UnidadMedida | null
+  activo: boolean
 }
 
 export type DetalleSolicitud = {
   id: string
   cantidad: number | null
-  producto: ProductoDetalle | null
+  producto: ProductoDetalle
   folio_sol: string
   cod_producto: string
   solicitud_id: string

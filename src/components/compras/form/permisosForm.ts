@@ -7,6 +7,11 @@ export type PermisosFormArea =
 
 export interface PermisosFormDetalleInput {
   cantidad_inventario?: number | null;
+  estatus_detalle?: number | null;
+  estatus_datalle?: number | null;
+  producto?: {
+    activo?: boolean | null;
+  } | null;
 }
 
 export interface SolicitudPermisosFormInput {
@@ -27,6 +32,10 @@ export interface PermisosFormSolicitud {
   canEditEquipos: boolean;
   canEditObservacion: boolean;
   canManageProductos: boolean;
+  canAddManualItem: boolean;
+  canEditCantidadOperativa: boolean;
+  canRemoveDetalleOperativa: boolean;
+  canDiscardDetalleAlmacen: boolean;
 }
 
 type PermisoCantidadRule = {
@@ -56,12 +65,44 @@ const AREAS_OPERATIVAS = new Set([
 ]);
 
 const ESTADOS_EDITABLES_ALMACEN = new Set([1, 2, 10]);
+const ESTADOS_OPERATIVA_DETALLES = new Set([1, 2, 12, 16]);
+const ESTADOS_OPERATIVA_EDITA_CANTIDAD = new Set([2, 3, 12, 16]);
 
 const isEditMode = (input: SolicitudPermisosFormInput) => input.mode === 'edit';
 
 const canEditCantidadInventarioAlmacen = (input: SolicitudPermisosFormInput) =>
   isEditMode(input) &&
   ESTADOS_EDITABLES_ALMACEN.has(Number(input.initialData?.estado_id));
+
+const canUseOperativaDetalleActions = (input: SolicitudPermisosFormInput, area: PermisosFormArea) =>
+  area === 'operativa' &&
+  ESTADOS_OPERATIVA_DETALLES.has(Number(input.initialData?.estado_id ?? 1));
+
+const canEditCantidadOperativa = (input: SolicitudPermisosFormInput, area: PermisosFormArea) =>
+  area === 'operativa' &&
+  ESTADOS_OPERATIVA_EDITA_CANTIDAD.has(Number(input.initialData?.estado_id));
+
+const canUseAlmacenDetalleActions = (input: SolicitudPermisosFormInput, area: PermisosFormArea) =>
+  area === 'almacen' &&
+  isEditMode(input) &&
+  ESTADOS_EDITABLES_ALMACEN.has(Number(input.initialData?.estado_id));
+
+const detalleTieneCantidadVisible = (detalle: PermisosFormDetalleInput, area: PermisosFormArea) => {
+  const valor = detalle.cantidad_inventario;
+  const tieneCantidadInventario = valor !== null && valor !== undefined && Number(valor) >= 0;
+
+  if (area !== 'operativa') return true;
+
+  const estadoDetalle = Number(detalle.estatus_detalle ?? detalle.estatus_datalle ?? 1);
+
+  return detalle.producto?.activo !== false && estadoDetalle !== 2 && tieneCantidadInventario;
+};
+
+const detallePermiteCantidadOperativa = (detalle: PermisosFormDetalleInput) => {
+  const estadoDetalle = Number(detalle.estatus_detalle ?? detalle.estatus_datalle ?? 1);
+
+  return detalle.producto?.activo === true && estadoDetalle !== 2;
+};
 
 export const getAreaPermisosFormSolicitud = (area?: string | null): PermisosFormArea => {
   const areaKey = normalizeArea(area);
@@ -135,12 +176,13 @@ export const getPermisosFormSolicitud = (
   input: SolicitudPermisosFormInput
 ): PermisosFormSolicitud => {
   const area = getAreaPermisosFormSolicitud(input.userArea);
+  const canEditCantidadOperativaValue = canEditCantidadOperativa(input, area);
   const areThereCantidad =
-    input.initialData?.detalles?.some((detalle) => {
-      const valor = detalle.cantidad_inventario;
-
-      return valor !== null && valor !== undefined && Number(valor) >= 0;
-    }) ?? false;
+    input.initialData?.detalles?.some((detalle) => (
+      canEditCantidadOperativaValue
+        ? detallePermiteCantidadOperativa(detalle)
+        : detalleTieneCantidadVisible(detalle, area)
+    )) ?? false;
   const permiso = permisosPorArea[area];
 
   return {
@@ -151,6 +193,10 @@ export const getPermisosFormSolicitud = (
     canEditFechaEntrega: permiso.canEditFechaEntrega,
     canEditEquipos: permiso.canEditEquipos,
     canEditObservacion: permiso.canEditObservacion,
-    canManageProductos: permiso.canManageProductos
+    canManageProductos: permiso.canManageProductos,
+    canAddManualItem: permiso.canManageProductos && canUseOperativaDetalleActions(input, area),
+    canEditCantidadOperativa: canEditCantidadOperativaValue,
+    canRemoveDetalleOperativa: canUseOperativaDetalleActions(input, area),
+    canDiscardDetalleAlmacen: canUseAlmacenDetalleActions(input, area)
   };
 };
