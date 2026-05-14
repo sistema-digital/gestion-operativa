@@ -58,9 +58,24 @@ export const getAccessLevelsOperativoSolicitud = () => {
         return AccessLevel.NONE
     }
 
+    const CantidadSistema = ({ area, detalle}: {area: string; detalle?: { cantidad_sistema?: number|null,producto:string,activo?:boolean} }): AccessLevel => {
+        const isAreaReadable:boolean=  areasOperativas.includes(area.toUpperCase());
+        
+        const hasCantidadDetalle =detalle?.cantidad_sistema
+                                    ?detalle.activo && detalle.cantidad_sistema! >= 0
+                                    : false;
+        if ( hasCantidadDetalle&& isAreaReadable) {
+            return AccessLevel.READ
+        } 
+        
+
+        return AccessLevel.NONE
+    }
+
     return {
         Cantidad,
         CantidadInventario,
-        CantidadGerencia
+        CantidadGerencia,
+        CantidadSistema
     }
 }

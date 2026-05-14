@@ -75,6 +75,7 @@ const {
   getCantidadAccessLevel,
   getCantidadInventarioAccessLevel,
   getCantidadGerenciaAccessLevel,
+  getCantidadSistemaAccessLevel,
 
   submitForm
 } = useSolicitudCompraEditableForm(props, emit);
@@ -461,12 +462,12 @@ defineExpose({ checkNavigation })
                       </div>
 
                       <div class="px-4 py-4 text-center">
-                        <input
-                          v-model.number="item.cantidad_subida_sistema_compra"
-                          type="number"
-                          min="0"
-                          class="w-24 px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm text-center"
-                        />
+                        <div
+                          v-if="getCantidadSistemaAccessLevel(item) === AccessLevel.READ"
+                          class="w-24 mx-auto px-2 py-1.5 text-sm font-semibold text-gray-600 text-center"
+                        >
+                          {{ item.cantidad_subida_sistema_compra ?? '-' }}
+                        </div>
                       </div>
 
                       <div class="px-4 py-4 text-right">
