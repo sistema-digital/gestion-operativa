@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import SolicitudCompraForm from '@/components/compras/form/SolicitudCompraForm.vue';
 import MessageModal from '@/components/MessageModal.vue';
@@ -11,6 +11,7 @@ import {
   type PermisosFormSolicitud
 } from '@/components/compras/form/permisosForm';
 import type { SolicitudCompraInitialData } from './type';
+import EditarSolicitudO from '@/components/compras/form/operativo/EditarSolicitudO.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -31,7 +32,21 @@ const hasEditingLock = ref(false);
 const userEmail = ref('');
 const userArea = ref('');
 const isSaved = ref(false);
+const AREAS_OPERATIVAS = [
+  'COSECHA MECANIZADA',
+  'COSECHA AGRICOLA',
+  'MECANICA DE TRANSPORTE',
+  'ENGRASE',
+  'EQUIPO PESADO',
+  'SERVICIOS GENERALES',
+  'OPERATIVA'
+];
 
+const isOperativaArea = computed(() => {
+  const area = permisosForm.value?.area?.trim().toUpperCase()
+
+  return area ? AREAS_OPERATIVAS.includes(area) : false
+});
 onBeforeRouteLeave((to, from, next) => {
   const customNext = async (arg?: boolean | string | object) => {
     if (arg === false || arg instanceof Error) {
@@ -132,9 +147,26 @@ onMounted(async () => {
     <div v-if="isLoading" class="flex-1 flex items-center justify-center h-full text-center">
       <div class="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
     </div>
-    <SolicitudCompraForm v-else-if="initialData" ref="formRef" mode="edit" :initial-data="initialData"
-      :permisos-form="permisosForm" :readonly="isReadOnly" @close="handleClose" @updated="handleUpdated" />
-
+    <EditarSolicitudO
+      v-else-if="initialData && isOperativaArea"
+      ref="formRef"
+      mode="edit"
+      :initial-data="initialData"
+      :permisos-form="permisosForm"
+      :readonly="isReadOnly"
+      @close="handleClose"
+      @updated="handleUpdated"
+    />
+    <SolicitudCompraForm
+      v-else-if="initialData"
+      ref="formRef"
+      mode="edit"
+      :initial-data="initialData"
+      :permisos-form="permisosForm"
+      :readonly="isReadOnly"
+      @close="handleClose"
+      @updated="handleUpdated"
+    />
     <MessageModal
       v-if="showEditingMessage"
       message="La solicitud está siendo editada por otro usuario y solo puede ver los datos."
