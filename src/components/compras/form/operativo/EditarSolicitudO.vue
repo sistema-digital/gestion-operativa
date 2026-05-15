@@ -155,7 +155,16 @@ defineExpose({ checkNavigation })
             <h2 class="font-display font-bold text-xl text-main-dark">
               {{ title }}
             </h2>
+
+            
           </div>
+          <div v-if="Number(props.initialData?.prioridad_id) === 3">
+              <span
+                class="inline-flex w-fit items-center gap-2 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"
+              >
+                URGENTE
+              </span>
+            </div>
         </div>
 
         <button
@@ -187,36 +196,14 @@ defineExpose({ checkNavigation })
 
               <input
                 v-model="userName"
+                :disabled="true"
                 type="text"
                 class="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-700 font-medium focus:ring-2 focus:ring-accent outline-none"
               />
             </div>
 
-            <!-- Email -->
-            <div class="space-y-1.5">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                Email
-              </label>
+            
 
-              <input
-                v-model="userEmail"
-                type="email"
-                class="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-700 font-medium focus:ring-2 focus:ring-accent outline-none"
-              />
-            </div>
-
-            <!-- Prioridad -->
-            <label
-              class="inline-flex w-fit items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-bold text-yellow-800 cursor-pointer"
-            >
-              <input
-                v-model="prioridadSolicitada"
-                type="checkbox"
-                class="w-4 h-4 rounded border-yellow-300 text-yellow-600 focus:ring-yellow-500 accent-yellow-500 cursor-pointer"
-              />
-
-              <span>Solicitar Urgencia</span>
-            </label>
           </div>
 
           <!-- Equipos -->
@@ -910,6 +897,24 @@ defineExpose({ checkNavigation })
               </div>
             </div>
           </div>
+
+          
+          <!-- Prioridad -->
+          <div id="prioridad_ui" v-if="props.initialData?.prioridad_id!=3">
+            <label
+              class="inline-flex w-fit items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-bold text-yellow-800 cursor-pointer"
+            >
+              <input
+                v-model="prioridadSolicitada"
+                type="checkbox"
+                class="w-4 h-4 rounded border-yellow-300 text-yellow-600 focus:ring-yellow-500 accent-yellow-500 cursor-pointer"
+              />
+
+              <span>Solicitar Urgencia</span>
+            </label>
+          </div>
+
+          
 
           <!-- Observación -->
           <div class="space-y-1.5 pt-4">
