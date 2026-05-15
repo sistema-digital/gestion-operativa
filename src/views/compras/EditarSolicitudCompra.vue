@@ -1,23 +1,28 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import SolicitudCompraForm from '@/components/compras/form/SolicitudCompraForm.vue';
 import MessageModal from '@/components/MessageModal.vue';
-import { supabase, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 import { useComprasStore } from '@/stores/comprasStore';
+import { useUserStore } from '@/stores/userStore';
+import { useEquipoSolicitudesStore } from '@/stores/dbequipos/equiposolicitudes/equipoSolicitudes.store';
 import {
   getPermisosFormSolicitud,
   type PermisosFormSolicitud
 } from '@/components/compras/form/permisosForm';
+import type { SolicitudCompraInitialData } from './type';
+import EditarSolicitudO from '@/components/compras/form/operativo/EditarSolicitudO.vue';
 
 const route = useRoute();
 const router = useRouter();
 const store = useComprasStore();
+const userStore = useUserStore();
+const equipoSolicitudesStore = useEquipoSolicitudesStore();
 
 const formRef = ref<any>(null);
 
 const id = route.params.id as string;
-const initialData = ref<any>(null);
+const initialData = ref<SolicitudCompraInitialData | null>(null);
 const permisosForm = ref<PermisosFormSolicitud | null>(null);
 const isLoading = ref(true);
 const showEditingMessage = ref(false);
@@ -27,7 +32,21 @@ const hasEditingLock = ref(false);
 const userEmail = ref('');
 const userArea = ref('');
 const isSaved = ref(false);
+const AREAS_OPERATIVAS = [
+  'COSECHA MECANIZADA',
+  'COSECHA AGRICOLA',
+  'MECANICA DE TRANSPORTE',
+  'ENGRASE',
+  'EQUIPO PESADO',
+  'SERVICIOS GENERALES',
+  'OPERATIVA'
+];
 
+const isOperativaArea = computed(() => {
+  const area = permisosForm.value?.area?.trim().toUpperCase()
+
+  return area ? AREAS_OPERATIVAS.includes(area) : false
+});
 onBeforeRouteLeave((to, from, next) => {
   const customNext = async (arg?: boolean | string | object) => {
     if (arg === false || arg instanceof Error) {
@@ -72,14 +91,9 @@ const closeEditingMessage = () => {
 
 onMounted(async () => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user && user.email) {
-      userEmail.value = user.email;
-      const { data: profile } = await supabase.from('PROFILE').select('area').eq('email', user.email).maybeSingle();
-      if (profile) {
-        userArea.value = (profile.area || '').toUpperCase();
-      }
-    }
+    await userStore.fetchCurrentUserProfile();
+    userEmail.value = userStore.getEmail();
+    userArea.value = userStore.getArea();
 
     // Call tomar_solicitud_para_edicion
     let estadoEdicionId = 12; // Operativa by default
@@ -100,19 +114,9 @@ onMounted(async () => {
       }
     }
 
-    const { data: solData, error: solError } = await supabaseCompras
-      .rpc('get_solicitud_compra_con_detalles', {
-        p_solicitud_id: id
-      });
+    const solData = await store.obtenerSolicitudCompraConDetalles(id);
 
-    if (solError) throw solError;
-
-    const { data: eqData, error: eqError } = await supabaseEquipos
-      .from('equipo_solicitudes')
-      .select('cod_equipo')
-      .eq('solicitud_id', id);
-
-    if (eqError) throw eqError;
+    const eqData = await equipoSolicitudesStore.obtenerEquiposSolicitud(id);
 
     const cachedSol = store.solicitudes.find(s => s.id === id);
 
@@ -143,9 +147,26 @@ onMounted(async () => {
     <div v-if="isLoading" class="flex-1 flex items-center justify-center h-full text-center">
       <div class="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
     </div>
-    <SolicitudCompraForm v-else-if="initialData" ref="formRef" mode="edit" :initial-data="initialData"
-      :permisos-form="permisosForm" :readonly="isReadOnly" @close="handleClose" @updated="handleUpdated" />
-
+    <EditarSolicitudO
+      v-else-if="initialData && isOperativaArea"
+      ref="formRef"
+      mode="edit"
+      :initial-data="initialData"
+      :permisos-form="permisosForm"
+      :readonly="isReadOnly"
+      @close="handleClose"
+      @updated="handleUpdated"
+    />
+    <SolicitudCompraForm
+      v-else-if="initialData"
+      ref="formRef"
+      mode="edit"
+      :initial-data="initialData"
+      :permisos-form="permisosForm"
+      :readonly="isReadOnly"
+      @close="handleClose"
+      @updated="handleUpdated"
+    />
     <MessageModal
       v-if="showEditingMessage"
       message="La solicitud está siendo editada por otro usuario y solo puede ver los datos."

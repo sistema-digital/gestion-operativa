@@ -1,5 +1,10 @@
 import { defineStore } from 'pinia';
 import { supabase, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
+import type { ActualizarSolicitudAlmacen, ActualizarSolicitudAlmacenResponse } from '@/components/compras/list/types';
+import type { TomarSolicitudParaEdicionResponse } from '@/types';
+import type { SolicitudCompraConDetalles } from '@/views/compras/type';
+
+type ComprasRealtimeChannel = ReturnType<typeof supabaseCompras.channel>;
 
 export interface EstadoCompra {
   id: number;
@@ -13,7 +18,6 @@ export interface SolicitudCompra {
   estado_id: number;
   prioridad?: string | null;
   prioridad_id?: number | null;
-  isUrgent?: boolean;
   fecha_entrega: string;
   fecha_creacion: string;
   observacion: string;
@@ -85,6 +89,8 @@ export const useComprasStore = defineStore('compras', {
     selectedEstadoId: null as number | null,
     isLoading: false,
     error: null as string | null,
+    comprasSolicitudesUserChannel: null as ComprasRealtimeChannel | null,
+    comprasSolicitudesUserChannelId: null as string | null,
   }),
 
   actions: {
@@ -202,6 +208,112 @@ export const useComprasStore = defineStore('compras', {
       return this.estados.find(e => e.id === id)?.name || 'Desconocido';
     },
 
+    async obtenerSolicitudCompraConDetalles(solicitudId: string): Promise<SolicitudCompraConDetalles> {
+      const { data, error } = await supabaseCompras
+        .rpc('get_solicitud_compra_con_detalles', {
+          p_solicitud_id: solicitudId
+        });
+
+      if (error) throw error;
+      if (!data) throw new Error('No se encontró la solicitud de compra');
+
+      return data as SolicitudCompraConDetalles;
+    },
+
+    actualizarSolicitudDesdeRespuestaEdicion(response: TomarSolicitudParaEdicionResponse) {
+      if (!response?.solicitud_id || typeof response.estado_actual_id !== 'number') return;
+      console.log("ACTUALIZANDO BRAODCAST");
+      
+      const solicitud = this.solicitudes.find(item => item.id === response.solicitud_id);
+      if (!solicitud) return;
+
+      if (solicitud.estado_id !== response.estado_actual_id) {
+        solicitud.estado_id = response.estado_actual_id;
+      }
+
+      if (response.folio_sol?.trim()) {
+        solicitud.folio_sol = response.folio_sol;
+      }
+    },
+
+    actualizarSolicitudDesdeRespuestaAlmacen(response: ActualizarSolicitudAlmacenResponse) {
+      if (!response?.success || !response.solicitud_id || typeof response.estado_actual_id !== 'number') return;
+
+      const solicitud = this.solicitudes.find(item => item.id === response.solicitud_id);
+      if (!solicitud) return;
+
+      solicitud.estado_id = response.estado_actual_id;
+
+
+      solicitud.historial_estado_actual = {
+        ...(solicitud.historial_estado_actual || {}),
+        estado_id: response.estado_actual_id,
+        fecha_inicio: response.fechaInicioEstadoActuial
+      };
+    },
+
+    async actualizarSolicitudAlmacenConDetalles(payload: ActualizarSolicitudAlmacen) {
+      try {
+        const { data, error } = await supabaseCompras.rpc(
+          'actualizar_solicitud_almacen_con_detalles',
+          {
+            p_solicitud_id: payload.solicitud_id,
+            p_estado_actual_id: payload.estado_actual,
+            p_detalles: payload.detallesActualizar,
+            p_creado_por: payload.creadoPor
+          }
+        );
+
+        if (error) throw error;
+
+        const response = data as ActualizarSolicitudAlmacenResponse;
+
+        if (!response?.success) {
+          throw new Error(response?.message || 'No se pudo actualizar la solicitud de almacén');
+        }
+
+        this.actualizarSolicitudDesdeRespuestaAlmacen(response);
+
+        return response;
+      } catch (err: any) {
+        console.error('Error al actualizar solicitud de almacén:', err);
+        throw err;
+      }
+    },
+
+    async escucharSolicitudesComprasUsuario(userId: string | null | undefined) {
+      if (!userId) return null;
+
+      if (this.comprasSolicitudesUserChannel && this.comprasSolicitudesUserChannelId === userId) {
+        return this.comprasSolicitudesUserChannel;
+      }
+
+      if (this.comprasSolicitudesUserChannel) {
+        await this.comprasSolicitudesUserChannel.unsubscribe();
+      }
+
+      const channelName = `compras-solicitudes-user-${userId}`;
+      const channel = supabaseCompras
+        .channel(channelName, {
+          config: {
+            private: true,
+          },
+        })
+        .on('broadcast',  { event: 'solicitud_compra_estado_actualizado' }, ({ payload }) => {
+          this.actualizarSolicitudDesdeRespuestaEdicion(payload as TomarSolicitudParaEdicionResponse);
+        })
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            console.error(`Error en canal realtime de compras: ${channelName}`);
+          }
+        });
+
+      this.comprasSolicitudesUserChannel = channel;
+      this.comprasSolicitudesUserChannelId = userId;
+
+      return channel;
+    },
+
     async tomarSolicitudParaEdicion(solicitudId: string, estadoEdicionId: number, emailUsuario: string) {
       try {
         const { data, error } = await supabaseCompras.rpc('tomar_solicitud_para_edicion', {
@@ -211,12 +323,17 @@ export const useComprasStore = defineStore('compras', {
         });
         if (error) throw error;
         
-        // Update local state if successful
-        if (data.success) {
+        const result = data as TomarSolicitudParaEdicionResponse
+        if (result.success) {
            const sol = this.solicitudes.find(s => s.id === solicitudId);
            if (sol) {
               sol.estado_id = estadoEdicionId;
+              if (result.folio_sol?.trim()) {
+                sol.folio_sol = result.folio_sol;
+              }
            }
+        }else{
+          this.actualizarSolicitudDesdeRespuestaEdicion(result);
         }
         
         return data;

@@ -78,6 +78,10 @@ const selectedEquipmentId = ref<string | null>(null);
 const showScrollButton = ref(false);
 const weeklyLossVisible = ref(false);
 const weeklyAreaCurrentWeekOnly = ref(false);
+const lostProgressCurrentWeekOnly = ref(false);
+const showStatusCharts = ref(false);
+const showLostProgressPercent = ref(false);
+const showLostProgressTime = ref(true);
 let scrollButtonTimer: ReturnType<typeof setTimeout> | null = null;
 
 const normalizeAreaKey = (area: string) => String(area || '')
@@ -147,6 +151,62 @@ const progress2025ByArea: Record<string, Record<string, number>> = {
     '46': 0.10
   }
 };
+
+const delayedAbsenceHours2025ByArea: Record<string, Record<string, number>> = {
+  'COSECHA AGRICOLA': {
+    '15': 16.0, '16': 66.0, '17': 34.5, '18': 46.0, '19': 25.0,
+    '20': 6.0, '21': 52.0, '22': 7.0, '23': 4.0, '24': 4.0,
+    '25': 20.0, '26': 22.0, '27': 16.0, '28': 18.0, '29': 14.0,
+    '30': 5.0, '31': 0.0, '32': 4.9, '33': 8.0, '34': 5.0,
+    '35': 4.0, '36': 10.0, '37': 3.5, '38': 0.0, '39': 0.0,
+    '40': 0.0, '41': 0.0, '42': 0.0, '43': 6.0, '44': 0.0,
+    '45': 0.0, '46': 0.0
+  },
+  'COSECHA MECANIZADA': {
+    '15': 100.0, '16': 59.0, '17': 74.0, '18': 74.0, '19': 56.0,
+    '20': 60.0, '21': 85.0, '22': 50.0, '23': 60.0, '24': 40.0,
+    '25': 76.0, '26': 40.0, '27': 50.0, '28': 68.0, '29': 66.0,
+    '30': 32.0, '31': 8.0, '32': 4.0, '33': 9.0, '34': 22.0,
+    '35': 8.0, '36': 12.0, '37': 9.0, '38': 4.0, '39': 8.0,
+    '40': 0.0, '41': 0.0, '42': 0.0, '43': 0.0, '44': 24.0,
+    '45': 0.0, '46': 0.0
+  },
+  'ENGRASE': {
+    '15': 32.0, '16': 40.0, '17': 40.0, '18': 20.0, '19': 0.0,
+    '20': 0.0, '21': 4.0, '22': 0.0, '23': 4.0, '24': 6.0,
+    '25': 24.0, '26': 24.0, '27': 8.0, '28': 0.0, '29': 0.0,
+    '30': 0.0, '31': 0.0, '32': 5.0, '33': 0.0, '34': 0.0,
+    '35': 0.0, '36': 0.0, '37': 4.0, '38': 6.0, '39': 0.0,
+    '40': 0.0, '41': 0.0, '42': 0.0
+  },
+  'EQUIPO PESADO': {
+    '15': 8.0, '16': 12.0, '17': 0.0, '18': 11.0, '19': 0.0,
+    '20': 4.0, '21': 16.0, '22': 12.0, '23': 24.0, '24': 16.0,
+    '25': 87.0, '26': 32.0, '27': 16.0, '28': 8.0, '29': 0.0,
+    '30': 4.0, '31': 10.0, '32': 21.0, '33': 25.0, '34': 0.0,
+    '35': 2.0, '36': 26.0, '37': 26.0, '38': 0.0, '39': 0.0,
+    '40': 9.0, '41': 4.0, '42': 0.0, '43': 0.0, '44': 6.0,
+    '45': 8.0, '46': 0.0, '47': 0.0
+  },
+  'MECANICA DE TRANSPORTE': {}
+};
+
+const delayedAbsenceHours2025Total: Record<string, number> = {
+  '15': 156.0, '16': 177.0, '17': 148.5, '18': 151.0, '19': 81.0,
+  '20': 70.0, '21': 157.0, '22': 69.0, '23': 92.0, '24': 66.0,
+  '25': 207.0, '26': 118.0, '27': 90.0, '28': 94.0, '29': 80.0,
+  '30': 41.0, '31': 18.0, '32': 34.9, '33': 42.0, '34': 27.0,
+  '35': 14.0, '36': 48.0, '37': 42.5, '38': 10.0, '39': 8.0,
+  '40': 9.0, '41': 4.0, '42': 0.0, '43': 6.0, '44': 30.0,
+  '45': 8.0, '46': 0.0, '47': 0.0
+};
+
+const delayedAbsence2025AreaNameMismatches = Object.keys(delayedAbsenceHours2025ByArea)
+  .filter(areaKey => !progress2025ByArea[areaKey]);
+
+if (delayedAbsence2025AreaNameMismatches.length > 0) {
+  console.warn('Áreas 2025 sin coincidencia en progress2025ByArea:', delayedAbsence2025AreaNameMismatches);
+}
 
 const getProgress2025AreaKey = () => {
   const areaFixed = userArea.value?.toUpperCase();
@@ -1004,6 +1064,72 @@ const getWeekNumber = (date: Date) => {
 
 const currentWeek = computed(() => getWeekNumber(new Date()));
 
+const isConcludedOrder = (order: OrdenMantenimiento) => {
+  return String(order.Estatus || '').trim().toLowerCase().includes('concluida');
+};
+
+const weeklyConcludedComparison = computed(() => {
+  const areaFixed = userArea.value?.toUpperCase();
+  const areaFixedKey = normalizeAreaKey(userArea.value || '');
+  const currentWeekValue = currentWeek.value;
+  const previousWeekValue = currentWeekValue - 1;
+
+  let orderList = areaFixed === 'ALL'
+    ? filteredData.value
+    : filteredData.value.filter(d => normalizeAreaKey(d.Área || '') === areaFixedKey);
+
+  if (activeFilters.value.serie) {
+    orderList = orderList.filter(d =>
+      d.Área === activeFilters.value.serie ||
+      d.Sistema === activeFilters.value.serie ||
+      d.ITEM === activeFilters.value.serie ||
+      d["ID_#EQUIPO"] === activeFilters.value.serie
+    );
+  }
+
+  const denominator = orderList.length;
+  const areaKeys = Array.from(new Set(
+    orderList
+      .map(d => normalizeAreaKey(d.Área || ''))
+      .filter(Boolean)
+  ));
+
+  const buildRow = (areaOrders: OrdenMantenimiento[], area: string) => {
+    const concludedOrders = areaOrders.filter(isConcludedOrder);
+    const previousConcluded = concludedOrders.filter(order => {
+      const week = Number(order.Semana);
+      return Number.isFinite(week) && week <= previousWeekValue;
+    }).length;
+    const currentConcluded = concludedOrders.length;
+    const thisWeekConcluded = Math.max(currentConcluded - previousConcluded, 0);
+    const toPercent = (count: number) => denominator > 0
+      ? Number(((count / denominator) * 100).toFixed(2))
+      : 0;
+
+    return {
+      area,
+      previousProgress: toPercent(previousConcluded),
+      thisWeekProgress: toPercent(thisWeekConcluded),
+      currentProgress: toPercent(currentConcluded),
+      previousConcluded,
+      thisWeekConcluded,
+      currentConcluded
+    };
+  };
+
+  const rows = areaKeys.map(areaKey => {
+    const areaOrders = orderList.filter(d => normalizeAreaKey(d.Área || '') === areaKey);
+    return buildRow(areaOrders, areaOrders[0]?.Área || areaKey);
+  }).sort((a, b) => b.currentProgress - a.currentProgress);
+
+  return {
+    previousWeek: previousWeekValue,
+    currentWeek: currentWeekValue,
+    rows,
+    totalRow: buildRow(orderList, 'TOTAL')
+  };
+});
+
 const buildWeeklyProgress = (limitToLastFive: boolean) => {
   const areaFixed = userArea.value?.toUpperCase();
   const areaFixedKey = normalizeAreaKey(userArea.value || '');
@@ -1257,7 +1383,162 @@ const weeklyAreaSummaryTotal = computed(() => {
   };
 });
 
-const formatWorkDaysFromHours = (hours: number) => {
+const getLostProgressOrderList = () => {
+  const areaFixed = userArea.value?.toUpperCase();
+  const areaFixedKey = normalizeAreaKey(userArea.value || '');
+
+  let orderList = areaFixed === 'ALL'
+    ? allOrders.value
+    : allOrders.value.filter(d => normalizeAreaKey(d.Área || '') === areaFixedKey);
+
+  if (filters.value.etapa) {
+    orderList = orderList.filter(d => d.Etapa === filters.value.etapa);
+  }
+
+  if (areaFixed === 'ALL' && filters.value.area) {
+    const selectedAreaKey = normalizeAreaKey(filters.value.area);
+    orderList = orderList.filter(d => normalizeAreaKey(d.Área || '') === selectedAreaKey);
+  }
+
+  if (activeFilters.value.serie) {
+    orderList = orderList.filter(d =>
+      d.Área === activeFilters.value.serie ||
+      d.Sistema === activeFilters.value.serie ||
+      d.ITEM === activeFilters.value.serie ||
+      d["ID_#EQUIPO"] === activeFilters.value.serie
+    );
+  }
+
+  return orderList;
+};
+
+const getLostProgressAreaKeys = (orderList: OrdenMantenimiento[]) => {
+  const selectedAreaKey = filters.value.area ? normalizeAreaKey(filters.value.area) : '';
+  const areaFixed = userArea.value?.toUpperCase();
+  const userAreaKey = normalizeAreaKey(userArea.value || '');
+  const includeStatic2025Areas = !activeFilters.value.serie;
+
+  let areaKeys = Array.from(new Set([
+    ...orderList.map(d => normalizeAreaKey(d.Área || '')),
+    ...(includeStatic2025Areas ? Object.keys(delayedAbsenceHours2025ByArea) : [])
+  ])).filter(areaKey => areaKey && weeklyAreaSummaryAreaKeys.has(areaKey));
+
+  if (areaFixed && areaFixed !== 'ALL') {
+    areaKeys = areaKeys.filter(areaKey => areaKey === userAreaKey);
+  }
+
+  if (selectedAreaKey) {
+    areaKeys = areaKeys.filter(areaKey => areaKey === selectedAreaKey);
+  }
+
+  return areaKeys;
+};
+
+const lostProgressWeeks = computed(() => {
+  const maxWeek = Number(currentWeek.value);
+  const weeks: string[] = [];
+  for (let week = progress2025StartWeek; week <= maxWeek; week++) {
+    weeks.push(String(week));
+  }
+  return weeks;
+});
+
+const lostProgressSelectedWeeks = computed(() => (
+  lostProgressCurrentWeekOnly.value
+    ? [String(currentWeek.value)]
+    : lostProgressWeeks.value
+));
+
+const lostProgressPeriodLabel = computed(() => (
+  lostProgressCurrentWeekOnly.value
+    ? `Semana ${currentWeek.value}`
+    : `Acumulado (${lostProgressWeeks.value.length} sem)`
+));
+
+const lostProgressAreaRows = computed(() => {
+  const orderList = getLostProgressOrderList();
+  const weeks = new Set(lostProgressSelectedWeeks.value);
+  const areaKeys = getLostProgressAreaKeys(orderList);
+
+  const rows = areaKeys.map(areaKey => {
+    const areaOrders = orderList.filter(d => normalizeAreaKey(d.Área || '') === areaKey);
+    const denominator = areaOrders.length;
+    const hoursPerOrder = hoursPerOrderByArea[areaKey] || 0;
+
+    const hours2026 = horasTrabajoData.value.reduce((sum, row) => {
+      const status = String(row.estatus || '').trim().toLowerCase();
+      const rowAreaKey = normalizeAreaKey(row.area);
+
+      if (rowAreaKey !== areaKey) return sum;
+      if (!weeks.has(String(row.semana_inicio))) return sum;
+      if (status !== 'retrasada' && status !== 'ausencia') return sum;
+
+      if (activeFilters.value.serie) {
+        const serieKey = normalizeAreaKey(activeFilters.value.serie);
+        if (rowAreaKey !== serieKey && row.equipo !== activeFilters.value.serie) return sum;
+      }
+
+      return sum + Number(row.horas_calculadas || 0);
+    }, 0);
+
+    const hours2025 = Object.entries(delayedAbsenceHours2025ByArea[areaKey] || {})
+      .filter(([week]) => weeks.has(String(week)) && Number(week) <= Number(currentWeek.value))
+      .reduce((sum, [, hours]) => sum + Number(hours || 0), 0);
+
+    const equivalent2026 = hoursPerOrder > 0 ? hours2026 / hoursPerOrder : 0;
+    const equivalent2025 = hoursPerOrder > 0 ? hours2025 / hoursPerOrder : 0;
+    const lostProgress2026 = denominator > 0 ? Number(((equivalent2026 / denominator) * 100).toFixed(2)) : 0;
+    const lostProgress2025 = denominator > 0 ? Number(((equivalent2025 / denominator) * 100).toFixed(2)) : 0;
+
+    return {
+      area: areaOrders[0]?.Área || areaKey,
+      denominator,
+      hours2026: Number(hours2026.toFixed(2)),
+      hours2025: Number(hours2025.toFixed(2)),
+      lostProgress2026,
+      lostProgress2025,
+      difference: Number((lostProgress2025 - lostProgress2026).toFixed(2)),
+      differenceHours: Number((hours2025 - hours2026).toFixed(2))
+    };
+  });
+
+  return rows.sort((a, b) => b.lostProgress2026 - a.lostProgress2026);
+});
+
+const lostProgressAreaTotal = computed(() => {
+  const denominator = lostProgressAreaRows.value.reduce((sum, row) => sum + row.denominator, 0);
+  const equivalent2026 = lostProgressAreaRows.value.reduce((sum, row) => {
+    const hoursPerOrder = hoursPerOrderByArea[normalizeAreaKey(row.area)] || 0;
+    return hoursPerOrder > 0 ? sum + (row.hours2026 / hoursPerOrder) : sum;
+  }, 0);
+  const equivalent2025 = lostProgressAreaRows.value.reduce((sum, row) => {
+    const hoursPerOrder = hoursPerOrderByArea[normalizeAreaKey(row.area)] || 0;
+    return hoursPerOrder > 0 ? sum + (row.hours2025 / hoursPerOrder) : sum;
+  }, 0);
+  const hours2026 = lostProgressAreaRows.value.reduce((sum, row) => sum + row.hours2026, 0);
+  const useGeneral2025Hours = !lostProgressCurrentWeekOnly.value
+    && userArea.value?.toUpperCase() === 'ALL'
+    && !filters.value.area
+    && !activeFilters.value.serie;
+  const hours2025 = useGeneral2025Hours
+    ? lostProgressWeeks.value
+      .filter(week => Number(week) <= Number(currentWeek.value))
+      .reduce((sum, week) => sum + Number(delayedAbsenceHours2025Total[week] || 0), 0)
+    : lostProgressAreaRows.value.reduce((sum, row) => sum + row.hours2025, 0);
+  const lostProgress2026 = denominator > 0 ? Number(((equivalent2026 / denominator) * 100).toFixed(2)) : 0;
+  const lostProgress2025 = denominator > 0 ? Number(((equivalent2025 / denominator) * 100).toFixed(2)) : 0;
+
+  return {
+    hours2026: Number(hours2026.toFixed(2)),
+    hours2025: Number(hours2025.toFixed(2)),
+    lostProgress2026,
+    lostProgress2025,
+    difference: Number((lostProgress2025 - lostProgress2026).toFixed(2)),
+    differenceHours: Number((hours2025 - hours2026).toFixed(2))
+  };
+});
+
+const formatWorkDaysFromHours = (hours: number, wrapInParentheses = true) => {
   const totalHours = Math.max(0, Number(hours) || 0);
   let days = Math.floor(totalHours / 8);
   let remainingHours = Math.round(totalHours - (days * 8));
@@ -1267,13 +1548,137 @@ const formatWorkDaysFromHours = (hours: number) => {
     remainingHours = 0;
   }
 
-  return `(${
-          [
-            days > 0 ? `${days}d` : "",
-            remainingHours > 0 ? `${remainingHours}h` : ""
-          ].filter(Boolean).join(" ") || "0h"
-        })`;
+  const formatted = [
+    days > 0 ? `${days}d` : "",
+    remainingHours > 0 ? `${remainingHours}h` : ""
+  ].filter(Boolean).join(" ") || "0h";
+
+  return wrapInParentheses ? `(${formatted})` : formatted;
 };
+
+const lostProgressEChartOption = computed(() => {
+  const currentYearColor = '#2563eb';
+  const lastYearColor = '#64748b';
+  const labels = lostProgressWeeks.value;
+  const orderList = getLostProgressOrderList();
+  const areaKeys = getLostProgressAreaKeys(orderList);
+  const denominator = orderList.filter(d => areaKeys.includes(normalizeAreaKey(d.Área || ''))).length;
+
+  const build2026Week = (week: string) => {
+    const equivalent = horasTrabajoData.value.reduce((sum, row) => {
+      const status = String(row.estatus || '').trim().toLowerCase();
+      const areaKey = normalizeAreaKey(row.area);
+      const hoursPerOrder = hoursPerOrderByArea[areaKey] || 0;
+
+      if (!areaKeys.includes(areaKey)) return sum;
+      if (!hoursPerOrder) return sum;
+      if (String(row.semana_inicio) !== String(week)) return sum;
+      if (status !== 'retrasada' && status !== 'ausencia') return sum;
+
+      if (activeFilters.value.serie) {
+        const serieKey = normalizeAreaKey(activeFilters.value.serie);
+        if (areaKey !== serieKey && row.equipo !== activeFilters.value.serie) return sum;
+      }
+
+      return sum + (Number(row.horas_calculadas || 0) / hoursPerOrder);
+    }, 0);
+
+    return denominator > 0 ? Number(((equivalent / denominator) * 100).toFixed(2)) : 0;
+  };
+
+  const build2025Week = (week: string) => {
+    const equivalent = areaKeys.reduce((sum, areaKey) => {
+      const hoursPerOrder = hoursPerOrderByArea[areaKey] || 0;
+      const hours = Number(delayedAbsenceHours2025ByArea[areaKey]?.[week] || 0);
+      return hoursPerOrder > 0 ? sum + (hours / hoursPerOrder) : sum;
+    }, 0);
+
+    return denominator > 0 ? Number(((equivalent / denominator) * 100).toFixed(2)) : 0;
+  };
+
+  const data2026 = labels.map(build2026Week);
+  const data2025 = labels.map(build2025Week);
+  const maxValue = Math.max(...data2026, ...data2025, 0);
+  const chartMax = maxValue > 0 ? Number((maxValue * 1.3).toFixed(2)) : 1;
+
+  return {
+    grid: { left: '8%', right: '5%', top: '15%', bottom: '10%' },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: 'white',
+      borderColor: '#f1f5f9',
+      borderWidth: 1,
+      textStyle: { color: '#475569' },
+      formatter: (params: any[]) => {
+        const week = String(params[0]?.axisValue || '');
+        const value2026 = params.find(p => p.seriesName === 'Avance perdido 2026')?.value || 0;
+        const value2025 = params.find(p => p.seriesName === 'Avance perdido 2025')?.value || 0;
+        const hours2026 = horasTrabajoData.value.reduce((sum, row) => {
+          const status = String(row.estatus || '').trim().toLowerCase();
+          const areaKey = normalizeAreaKey(row.area);
+          if (!areaKeys.includes(areaKey)) return sum;
+          if (String(row.semana_inicio) !== week) return sum;
+          if (status !== 'retrasada' && status !== 'ausencia') return sum;
+          if (activeFilters.value.serie) {
+            const serieKey = normalizeAreaKey(activeFilters.value.serie);
+            if (areaKey !== serieKey && row.equipo !== activeFilters.value.serie) return sum;
+          }
+          return sum + Number(row.horas_calculadas || 0);
+        }, 0);
+        const hours2025 = areaKeys.length === Object.keys(delayedAbsenceHours2025ByArea).length
+          ? Number(delayedAbsenceHours2025Total[week] || 0)
+          : areaKeys.reduce((sum, areaKey) => sum + Number(delayedAbsenceHours2025ByArea[areaKey]?.[week] || 0), 0);
+
+        return `
+          <div style="color:#1e293b;font-weight:bold;margin-bottom:4px">Semana ${week}</div>
+          <div style="color:${currentYearColor}">Avance perdido 2026: ${value2026}% (${hours2026.toFixed(1)} hrs)</div>
+          <div style="color:${lastYearColor}">Avance perdido 2025: ${value2025}% (${hours2025.toFixed(1)} hrs)</div>
+        `;
+      }
+    },
+    legend: {
+      data: ['Avance perdido 2026', 'Avance perdido 2025'],
+      top: 0,
+      icon: 'circle',
+      textStyle: { fontSize: 10, fontWeight: 'bold' }
+    },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisLabel: { color: '#64748b', fontSize: 11, fontWeight: 'bold' },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      max: chartMax,
+      splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+      axisLabel: { color: '#94a3b8', fontSize: 10, formatter: '{value}%' }
+    },
+    series: [
+      {
+        name: 'Avance perdido 2026',
+        type: 'line',
+        smooth: true,
+        color: currentYearColor,
+        data: data2026,
+        symbolSize: 6,
+        lineStyle: { width: 3 },
+        itemStyle: { color: currentYearColor },
+      },
+      {
+        name: 'Avance perdido 2025',
+        type: 'line',
+        smooth: true,
+        color: lastYearColor,
+        data: data2025,
+        symbolSize: 6,
+        lineStyle: { width: 3 },
+        itemStyle: { color: lastYearColor },
+      }
+    ]
+  };
+});
 
 const weeklyEChartOption = computed(() => {
   const data = weeklyProgress.value;
@@ -1484,6 +1889,17 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
   }
 };
 
+const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
+  if (type === 'percent') {
+    if (showLostProgressPercent.value && !showLostProgressTime.value) return;
+    showLostProgressPercent.value = !showLostProgressPercent.value;
+    return;
+  }
+
+  if (showLostProgressTime.value && !showLostProgressPercent.value) return;
+  showLostProgressTime.value = !showLostProgressTime.value;
+};
+
 </script>
 
 <template>
@@ -1634,6 +2050,16 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
         <div class="flex-1 min-w-[20px] pointer-events-auto"></div>
 
         <div class="flex items-center gap-1 border-l border-gray-100 pl-3 pointer-events-auto pr-1">
+          <button type="button" @click="showStatusCharts = !showStatusCharts"
+            class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors flex-shrink-0"
+            :class="showStatusCharts ? 'border-main bg-main text-white' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'">
+            <span class="relative inline-flex h-4 w-7 rounded-full transition-colors"
+              :class="showStatusCharts ? 'bg-white/25' : 'bg-gray-200'">
+              <span class="absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform"
+                :class="showStatusCharts ? 'translate-x-3.5' : 'translate-x-0.5'"></span>
+            </span>
+            Gráficas estatus
+          </button>
           <button @click="clearFilters"
             class="p-2 text-gray-400 hover:text-danger hover:bg-danger/5 rounded-lg transition-colors flex-shrink-0"
             title="Limpiar filtros">
@@ -1784,15 +2210,15 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
                 class="grid grid-cols-3 gap-2 text-xs font-medium text-gray-600 bg-gray-50/80 p-3 rounded-xl border border-gray-100">
                 <div class="flex flex-col gap-0.5">
                   <span class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">FECHA INICIAL</span>
-                  <span class="text-gray-800 font-bold font-mono">{{ progressMetrics.startDateStr }}</span>
+                  <span class="text-gray-800 font-bold">{{ progressMetrics.startDateStr }}</span>
                 </div>
                 <div class="flex flex-col gap-0.5">
                   <span class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">FECHA FINAL</span>
-                  <span class="text-gray-800 font-bold font-mono">{{ progressMetrics.endDateStr }}</span>
+                  <span class="text-gray-800 font-bold">{{ progressMetrics.endDateStr }}</span>
                 </div>
                 <div class="flex flex-col gap-0.5">
                   <span class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">DÍAS HÁBILES</span>
-                  <span class="text-gray-800 font-bold font-mono">{{ progressMetrics.totalWorkingDays }}</span>
+                  <span class="text-gray-800 font-bold">{{ progressMetrics.totalWorkingDays }}</span>
                 </div>
               </div>
             </div>
@@ -1808,20 +2234,20 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
                   DIFERENCIA</div>
               </div>
               <div v-for="row in progressMetrics.rows" :key="row.label"
-                class="grid grid-cols-[28%_24%_24%_24%] items-center border-b border-gray-50 font-bold text-sm  font-mono hover:bg-gray-50/50 transition-all duration-300">
+                class="grid grid-cols-[28%_24%_24%_24%] items-center border-b border-gray-50 font-bold text-sm hover:bg-gray-50/50 transition-all duration-300">
                 <div class="px-2 py-2  text-gray-700 truncate">
                   {{ row.displayLabel }}
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono text-main whitespace-nowrap">
+                <div class="px-2 py-2 text-right text-main whitespace-nowrap">
                   {{ row.idealProgress.toFixed(1) }}%
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono whitespace-nowrap">
+                <div class="px-2 py-2 text-right whitespace-nowrap">
                   {{ row.actualProgress.toFixed(1) }}%
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono whitespace-nowrap"
+                <div class="px-2 py-2 text-right whitespace-nowrap"
                   :class="row.difference >= 0 ? 'text-success' : 'text-danger'">
                   {{ row.difference.toFixed(1) }}%
                 </div>
@@ -1831,15 +2257,15 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
                   TOTAL
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono whitespace-nowrap text-main">
+                <div class="px-2 py-2 text-right whitespace-nowrap text-main">
                   {{ progressMetrics.totalRow.idealProgress.toFixed(1) }}%
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono whitespace-nowra text-gray-800">
+                <div class="px-2 py-2 text-right whitespace-nowra text-gray-800">
                   {{ progressMetrics.totalRow.actualProgress.toFixed(1) }}%
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono whitespace-nowrap"
+                <div class="px-2 py-2 text-right whitespace-nowrap"
                   :class="progressMetrics.totalRow.difference >= 0 ? 'text-success' : 'text-danger'">
                   {{ progressMetrics.totalRow.difference.toFixed(1) }}%
                 </div>
@@ -1848,9 +2274,9 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-6 mb-8 items-start">
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6 mb-8 items-start">
           <div id="slide-maint-weekly-chart"
-            class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
+            class="min-w-0 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start overflow-hidden">
             <div class="mb-6 flex items-center justify-between">
               <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE SEMANAL (ÚLTIMAS 5
                 SEMANAS)</h2>
@@ -1860,11 +2286,69 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
               </div>
             </div>
 
-            <div class="h-[250px] xl:h-[320px] w-full block overflow-hidden">
+            <div class="h-[250px] xl:h-[320px] w-full min-w-0 block overflow-hidden">
               <EChart :key="JSON.stringify(activeFilters)" :option="weeklyEChartOption" @click="handleWeeklyChartClick"
                 @legendselectchanged="handleWeeklyLegendSelectChanged" />
             </div>
           </div>
+
+          <div
+            class="min-w-0 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start overflow-hidden">
+            <div class="mb-6">
+              <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE CONCLUIDO SEMANAL</h2>
+            </div>
+            <div class="overflow-x-auto border border-gray-100 rounded-xl">
+              <table class="w-full min-w-[420px] table-fixed text-left">
+                <thead class="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th class="w-[30%] px-3 py-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest">ÁREA</th>
+                    <th class="w-[23%] px-3 py-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest text-right">
+                      SEMANA {{ weeklyConcludedComparison.previousWeek }}
+                    </th>
+                    <th class="w-[23%] px-3 py-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest text-right">
+                     ESTA SEMANA
+                    </th>
+                    <th class="w-[24%] px-3 py-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest text-right">
+                      AVANCE ACTUAL
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <tr v-for="row in weeklyConcludedComparison.rows" :key="row.area"
+                    class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-3 py-3 text-xs font-bold text-gray-700 truncate">{{ row.area }}</td>
+                    <td class="px-3 py-3 text-xs font-bold text-right text-[#64748b]">
+                      {{ row.previousProgress.toFixed(1) }}%
+                    </td>
+                    <td class="px-3 py-3 text-xs font-bold text-right text-[#2d8a54]">
+                      {{ row.thisWeekProgress.toFixed(1) }}%
+                    </td>
+                    <td class="px-3 py-3 text-xs font-bold text-right text-[#004236]">
+                      {{ row.currentProgress.toFixed(1) }}%
+                    </td>
+                  </tr>
+                  <tr v-if="weeklyConcludedComparison.rows.length > 0" class="bg-gray-50 border-t border-gray-200">
+                    <td class="px-3 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
+                    <td class="px-3 py-3 text-xs font-black text-right text-[#64748b]">
+                      {{ weeklyConcludedComparison.totalRow.previousProgress.toFixed(1) }}%
+                    </td>
+                    <td class="px-3 py-3 text-xs font-black text-right text-[#2d8a54]">
+                      {{ weeklyConcludedComparison.totalRow.thisWeekProgress.toFixed(1) }}%
+                    </td>
+                    <td class="px-3 py-3 text-xs font-black text-right text-[#004236]">
+                      {{ weeklyConcludedComparison.totalRow.currentProgress.toFixed(1) }}%
+                    </td>
+                  </tr>
+                  <tr v-if="weeklyConcludedComparison.rows.length === 0">
+                    <td colspan="4" class="px-4 py-8 text-center text-xs font-bold text-gray-300 uppercase tracking-widest">
+                      Sin concluidas por área
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-[2fr_3fr] gap-6 mb-8 items-start">
@@ -1887,17 +2371,17 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
                 <tbody class="divide-y divide-gray-50">
                   <tr v-for="row in comparisonAreaRows.rows" :key="row.area" class="hover:bg-gray-50/50 transition-colors">
                     <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.area }}</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ row.avance2026.toFixed(1) }}%</td>
-                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-bold font-mono text-right text-[#4b9b7a]">{{ row.avance2025.toFixed(1) }}%</td>
-                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-bold font-mono text-right" :class="row.difference >= 0 ? 'text-success' : 'text-danger'">
+                    <td class="px-4 py-3 text-sm font-bold text-right text-[#004236]">{{ row.avance2026.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-bold text-right text-[#4b9b7a]">{{ row.avance2025.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-bold text-right" :class="row.difference >= 0 ? 'text-success' : 'text-danger'">
                       {{ row.difference > 0 ? '+' : '' }}{{ row.difference.toFixed(1) }}%
                     </td>
                   </tr>
                   <tr v-if="comparisonAreaRows.rows.length > 0" class="bg-gray-50 border-t border-gray-200">
                     <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#004236]">{{ comparisonAreaRows.totalRow.avance2026.toFixed(1) }}%</td>
-                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-black font-mono text-right text-[#4b9b7a]">{{ comparisonAreaRows.totalRow.avance2025.toFixed(1) }}%</td>
-                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-black font-mono text-right" :class="comparisonAreaRows.totalRow.difference >= 0 ? 'text-success' : 'text-danger'">
+                    <td class="px-4 py-3 text-sm font-black text-right text-[#004236]">{{ comparisonAreaRows.totalRow.avance2026.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-black text-right text-[#4b9b7a]">{{ comparisonAreaRows.totalRow.avance2025.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-black text-right" :class="comparisonAreaRows.totalRow.difference >= 0 ? 'text-success' : 'text-danger'">
                       {{ comparisonAreaRows.totalRow.difference > 0 ? '+' : '' }}{{ comparisonAreaRows.totalRow.difference.toFixed(1) }}%
                     </td>
                   </tr>
@@ -1946,19 +2430,19 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
                 <tbody class="divide-y divide-gray-50">
                   <tr v-for="row in weeklyAreaSummary" :key="row.area" class="hover:bg-gray-50/50 transition-colors">
                     <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.area }}</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ row.realProgress.toFixed(1) }}%</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#C0392B]">
+                    <td class="px-4 py-3 text-sm font-bold text-right text-[#004236]">{{ row.realProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-bold text-right text-[#C0392B]">
                       {{ row.lostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(row.lostHours) }}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-gray-800">{{ row.optimalProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-bold text-right text-gray-800">{{ row.optimalProgress.toFixed(1) }}%</td>
                   </tr>
                   <tr v-if="weeklyAreaSummary.length > 0" class="bg-gray-50 border-t border-gray-200">
                     <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#004236]">{{ weeklyAreaSummaryTotal.realProgress.toFixed(1) }}%</td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#C0392B]">
+                    <td class="px-4 py-3 text-sm font-black text-right text-[#004236]">{{ weeklyAreaSummaryTotal.realProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-black text-right text-[#C0392B]">
                       {{ weeklyAreaSummaryTotal.lostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.lostHours) }}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-gray-900">{{ weeklyAreaSummaryTotal.optimalProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-black text-right text-gray-900">{{ weeklyAreaSummaryTotal.optimalProgress.toFixed(1) }}%</td>
                   </tr>
                   <tr v-if="weeklyAreaSummary.length === 0">
                     <td colspan="4" class="px-4 py-8 text-center text-xs font-bold text-gray-300 uppercase tracking-widest">
@@ -1971,7 +2455,110 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8 items-start">
+        <div class="grid grid-cols-1 xl:grid-cols-[45fr_55fr] gap-6 mb-8 items-start">
+          <div
+            class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
+            <div class="mb-6">
+              <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE PERDIDO POR SEMANA 2026 vs 2025</h2>
+            </div>
+
+            <div class="h-[250px] xl:h-[320px] w-full block overflow-hidden">
+              <EChart :key="JSON.stringify(activeFilters) + lostProgressCurrentWeekOnly" :option="lostProgressEChartOption" />
+            </div>
+          </div>
+
+          <div
+            class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
+            <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE PERDIDO 2026 VS 2025</h2>
+                <p class="mt-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{{ lostProgressPeriodLabel }}</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                <div class="inline-flex overflow-hidden rounded-full border border-gray-200 bg-gray-50 p-0.5">
+                  <button type="button" @click="toggleLostProgressDisplay('percent')"
+                    class="px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full transition-colors"
+                    :class="showLostProgressPercent ? 'bg-main text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'">
+                    %
+                  </button>
+                  <button type="button" @click="toggleLostProgressDisplay('time')"
+                    class="px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full transition-colors"
+                    :class="showLostProgressTime ? 'bg-main text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'">
+                    Días/hrs
+                  </button>
+                </div>
+                <button type="button" @click="lostProgressCurrentWeekOnly = !lostProgressCurrentWeekOnly"
+                  class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                  :class="lostProgressCurrentWeekOnly ? 'border-main bg-main text-white' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'">
+                  <span class="relative inline-flex h-4 w-7 rounded-full transition-colors"
+                    :class="lostProgressCurrentWeekOnly ? 'bg-white/25' : 'bg-gray-200'">
+                    <span class="absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform"
+                      :class="lostProgressCurrentWeekOnly ? 'translate-x-3.5' : 'translate-x-0.5'"></span>
+                  </span>
+                  Esta semana
+                </button>
+              </div>
+            </div>
+
+            <div class="overflow-hidden border border-gray-100 rounded-xl">
+              <table class="w-full text-left">
+                <thead class="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">ÁREA</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE PERDIDO 2025</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE PERDIDO 2026</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">DIF.</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <tr v-for="row in lostProgressAreaRows" :key="row.area" class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.area }}</td>
+                    <td class="px-4 py-3 text-sm font-bold text-right text-[#64748b]">
+                      <span v-if="showLostProgressPercent">{{ row.lostProgress2025.toFixed(1) }}%</span>
+                      <span v-if="showLostProgressPercent && showLostProgressTime"> </span>
+                      <span v-if="showLostProgressTime" class="opacity-80">{{ formatWorkDaysFromHours(row.hours2025, showLostProgressPercent) }}</span>
+                    </td>
+                    <td class="px-4 py-3 text-sm font-bold text-right text-[#2563eb]">
+                      <span v-if="showLostProgressPercent">{{ row.lostProgress2026.toFixed(1) }}%</span>
+                      <span v-if="showLostProgressPercent && showLostProgressTime"> </span>
+                      <span v-if="showLostProgressTime" class="opacity-80">{{ formatWorkDaysFromHours(row.hours2026, showLostProgressPercent) }}</span>
+                    </td>
+                    <td class="px-4 py-3 text-sm font-bold text-right" :class="row.difference >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'">
+                      <span v-if="showLostProgressPercent">{{ row.difference > 0 ? '+' : '' }}{{ row.difference.toFixed(1) }}%</span>
+                      <span v-if="showLostProgressPercent && showLostProgressTime"> </span>
+                      <span v-if="showLostProgressTime" class="opacity-80">{{ formatWorkDaysFromHours(Math.abs(row.differenceHours), showLostProgressPercent) }}</span>
+                    </td>
+                  </tr>
+                  <tr v-if="lostProgressAreaRows.length > 0" class="bg-gray-50 border-t border-gray-200">
+                    <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
+                    <td class="px-4 py-3 text-sm font-black text-right text-[#64748b]">
+                      <span v-if="showLostProgressPercent">{{ lostProgressAreaTotal.lostProgress2025.toFixed(1) }}%</span>
+                      <span v-if="showLostProgressPercent && showLostProgressTime"> </span>
+                      <span v-if="showLostProgressTime" class="opacity-80">{{ formatWorkDaysFromHours(lostProgressAreaTotal.hours2025, showLostProgressPercent) }}</span>
+                    </td>
+                    <td class="px-4 py-3 text-sm font-black text-right text-[#2563eb]">
+                      <span v-if="showLostProgressPercent">{{ lostProgressAreaTotal.lostProgress2026.toFixed(1) }}%</span>
+                      <span v-if="showLostProgressPercent && showLostProgressTime"> </span>
+                      <span v-if="showLostProgressTime" class="opacity-80">{{ formatWorkDaysFromHours(lostProgressAreaTotal.hours2026, showLostProgressPercent) }}</span>
+                    </td>
+                    <td class="px-4 py-3 text-sm font-black text-right" :class="lostProgressAreaTotal.difference >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'">
+                      <span v-if="showLostProgressPercent">{{ lostProgressAreaTotal.difference > 0 ? '+' : '' }}{{ lostProgressAreaTotal.difference.toFixed(1) }}%</span>
+                      <span v-if="showLostProgressPercent && showLostProgressTime"> </span>
+                      <span v-if="showLostProgressTime" class="opacity-80">{{ formatWorkDaysFromHours(Math.abs(lostProgressAreaTotal.differenceHours), showLostProgressPercent) }}</span>
+                    </td>
+                  </tr>
+                  <tr v-if="lostProgressAreaRows.length === 0">
+                    <td colspan="4" class="px-4 py-8 text-center text-xs font-bold text-gray-300 uppercase tracking-widest">
+                      Sin datos por área
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="showStatusCharts" class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8 items-start">
           <div
             class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-300 self-start">
             <div class="mb-4">
@@ -1997,7 +2584,7 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8 items-start">
+        <div v-if="showStatusCharts" class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8 items-start">
           <div
             class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-400 self-start">
             <div class="mb-2 flex justify-between items-center">

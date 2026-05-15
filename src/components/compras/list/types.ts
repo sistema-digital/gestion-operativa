@@ -1,4 +1,8 @@
 import type { SolicitudCompra } from '@/stores/comprasStore';
+export type {
+  ActualizarSolicitudAlmacen,
+  ActualizarSolicitudAlmacenResponse
+} from '@/types';
 
 export type SolicitudColumnType =
   | 'solicitud'
