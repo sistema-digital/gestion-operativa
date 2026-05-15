@@ -78,6 +78,7 @@ const {
   getCantidadSistemaAccessLevel,
   getCodProductoAccessLevel,
   getDescripcionAccessLevel,
+  getUnidadAccessLevel,
 
   submitForm
 } = useSolicitudCompraEditableForm(props, emit);
@@ -361,7 +362,7 @@ defineExpose({ checkNavigation })
                       Descripción
                     </div>
 
-                    <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">
+                    <div class="px-1 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">
                       Unidad
                     </div>
 
@@ -425,9 +426,11 @@ defineExpose({ checkNavigation })
                         </div>
                       </div>
 
-                      <div class="px-4 py-4 text-center">
+                      <div class="px-1 py-4 text-center">
                         <select
+                          v-if="getUnidadAccessLevel(item) === AccessLevel.EDIT"
                           v-model="item.unidad_id"
+                          required
                           class="w-full px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm bg-white cursor-pointer"
                         >
                           <option value="">
@@ -442,6 +445,17 @@ defineExpose({ checkNavigation })
                             {{ u.abreviatura }}
                           </option>
                         </select>
+
+                        <div
+                          v-else-if="getUnidadAccessLevel(item) === AccessLevel.READ"
+                          class="text-sm font-semibold text-gray-600"
+                        >
+                          {{
+                            unidadesMedida.find(u => String(u.id) === String(item.unidad_id))?.abreviatura ||
+                            item.unidad ||
+                            '-'
+                          }}
+                        </div>
                       </div>
 
                       <div class="px-4 py-4 text-center">

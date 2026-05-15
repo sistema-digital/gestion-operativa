@@ -101,12 +101,17 @@ export const getAccessLevelsOperativoSolicitud = () => {
         return AccessLevel.READ;
     }
 
+    const Unidad = ({ area, detalle}: {area: string; detalle?: { isManual: boolean ,cod_producto?: string|null} }): AccessLevel => {
+        return Descripcion({ area, detalle });
+    }
+
     return {
         Cantidad,
         CantidadInventario,
         CantidadGerencia,
         CantidadSistema,
         CodProducto,
-        Descripcion
+        Descripcion,
+        Unidad
     }
 }
