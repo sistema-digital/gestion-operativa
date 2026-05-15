@@ -79,6 +79,7 @@ const {
   getCodProductoAccessLevel,
   getDescripcionAccessLevel,
   getUnidadAccessLevel,
+  getColCantidadAccessLevel,
   getColCantidadInventarioAccessLevel,
   getColCantidadGerenciaAccessLevel,
 
@@ -358,6 +359,7 @@ defineExpose({ checkNavigation })
                   <div
                     class="details-grid border-b border-gray-200 bg-stone-50"
                     :class="{
+                      'details-grid--without-cantidad': getColCantidadAccessLevel(detalles) === AccessLevel.NONE,
                       'details-grid--without-inventario': getColCantidadInventarioAccessLevel(detalles) === AccessLevel.NONE,
                       'details-grid--without-gerencia': getColCantidadGerenciaAccessLevel(detalles) === AccessLevel.NONE
                     }"
@@ -374,7 +376,10 @@ defineExpose({ checkNavigation })
                       Unidad
                     </div>
 
-                    <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">
+                    <div
+                      v-if="getColCantidadAccessLevel(detalles) === AccessLevel.READ"
+                      class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center"
+                    >
                       Cantidad
                     </div>
 
@@ -405,6 +410,7 @@ defineExpose({ checkNavigation })
                       :key="item.ui_id"
                       class="details-grid details-row min-h-[72px] items-center transition-colors hover:bg-gray-50/70"
                       :class="{
+                        'details-grid--without-cantidad': getColCantidadAccessLevel(detalles) === AccessLevel.NONE,
                         'details-grid--without-inventario': getColCantidadInventarioAccessLevel(detalles) === AccessLevel.NONE,
                         'details-grid--without-gerencia': getColCantidadGerenciaAccessLevel(detalles) === AccessLevel.NONE
                       }"
@@ -476,7 +482,10 @@ defineExpose({ checkNavigation })
                         </div>
                       </div>
 
-                      <div class="px-4 py-4 text-center">
+                      <div
+                        v-if="getColCantidadAccessLevel(detalles) === AccessLevel.READ"
+                        class="px-4 py-4 text-center"
+                      >
                         <input
                           v-if="getCantidadAccessLevel(item) === AccessLevel.EDIT"
                           v-model.number="item.cantidad"
@@ -650,9 +659,20 @@ defineExpose({ checkNavigation })
   grid-template-columns:
     8rem
     minmax(16rem, 1fr)
+    5.5rem
+    5rem
+    5rem
+    10rem
+    4rem;
+}
+
+.details-grid--without-cantidad {
+  grid-template-columns:
     8rem
-    8rem
-    8rem
+    minmax(16rem, 1fr)
+    5.5rem
+    5rem
+    5rem
     10rem
     4rem;
 }
@@ -661,19 +681,30 @@ defineExpose({ checkNavigation })
   grid-template-columns:
     8rem
     minmax(16rem, 1fr)
-    8rem
-    8rem
-    8rem
+    5.5rem
+    5rem
+    5rem
     10rem
     4rem;
 }
 
+.details-grid--without-cantidad.details-grid--without-inventario,
+.details-grid--without-cantidad.details-grid--without-gerencia,
 .details-grid--without-inventario.details-grid--without-gerencia {
   grid-template-columns:
     8rem
     minmax(16rem, 1fr)
+    5.5rem
+    5rem
+    10rem
+    4rem;
+}
+
+.details-grid--without-cantidad.details-grid--without-inventario.details-grid--without-gerencia {
+  grid-template-columns:
     8rem
-    8rem
+    minmax(16rem, 1fr)
+    5.5rem
     10rem
     4rem;
 }

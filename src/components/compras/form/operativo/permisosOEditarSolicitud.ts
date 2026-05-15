@@ -118,6 +118,10 @@ export const getAccessLevelsOperativoSolicitud = () => {
         return AccessLevel.NONE
     };
 
+    const ColCantidad = ({ area, detalle}: { area: string; detalle?: {cantidad?: number|null, cantidad_inventario?: number|null,producto:string,activo?:boolean}[] }): AccessLevel => {
+        return ColCantidadInventario({ area, detalle });
+    };
+
     const ColCantidadGerencia = ({ area, detalle}: { area: string; detalle?: {cantidad?: number|null, cantidad_gerencia?: number|null,producto:string,activo?:boolean}[] }): AccessLevel => {
         
     
@@ -125,6 +129,19 @@ export const getAccessLevelsOperativoSolicitud = () => {
                                     ?d.activo && d.cantidad_gerencia! >= 0
                                     : false);
         if ( hasCantidadGerenciaDetalle) {
+            return AccessLevel.READ
+        } 
+
+        return AccessLevel.NONE
+    };
+
+    const ColCantidadSistema = ({ area, detalle}: { area: string; detalle?: {cantidad?: number|null, cantidad_sistema?: number|null,producto:string,activo?:boolean}[] }): AccessLevel => {
+        
+    
+        const hasCantidadSistemaDetalle =detalle?.some(d=>d.cantidad_sistema
+                                    ?d.activo && d.cantidad_sistema! >= 0
+                                    : false);
+        if ( hasCantidadSistemaDetalle) {
             return AccessLevel.READ
         } 
 
@@ -141,6 +158,8 @@ export const getAccessLevelsOperativoSolicitud = () => {
         Descripcion,
         Unidad,
         ColCantidadInventario,
-        ColCantidadGerencia
+        ColCantidad,
+        ColCantidadGerencia,
+        ColCantidadSistema
     }
 }
