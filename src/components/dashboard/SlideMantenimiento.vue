@@ -2303,10 +2303,10 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
                   <tr>
                     <th class="w-[30%] px-3 py-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest">ÁREA</th>
                     <th class="w-[23%] px-3 py-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest text-right">
-                      AVANCE SEMANA {{ weeklyConcludedComparison.previousWeek }}
+                      SEMANA {{ weeklyConcludedComparison.previousWeek }}
                     </th>
                     <th class="w-[23%] px-3 py-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest text-right">
-                      AVANCE ESTA SEMANA
+                     ESTA SEMANA
                     </th>
                     <th class="w-[24%] px-3 py-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest text-right">
                       AVANCE ACTUAL
