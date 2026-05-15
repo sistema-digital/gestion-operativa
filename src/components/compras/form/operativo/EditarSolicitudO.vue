@@ -608,11 +608,11 @@ defineExpose({ checkNavigation })
   display: grid;
   grid-template-columns:
     8rem
-    minmax(16rem, 1fr)
-    8rem
-    8rem
-    8rem
-    8rem
+    minmax(16rem, 0.8fr)
+    5.5rem
+    5rem
+    5rem
+    5rem
     10rem
     4rem;
   align-items: center;
