@@ -314,6 +314,17 @@ export function useSolicitudCompraEditableForm(
     })
   }
 
+  const getColCantidadSistemaAccessLevel = (detalles: DetalleEditable[]) => {
+    return getAccessLevelsOperativoSolicitud().ColCantidadSistema({
+      area: userStore.getArea(),
+      detalle: detalles.map(detalle => ({
+        cantidad: detalle.cantidad,
+        cantidad_sistema: detalle.cantidad_subida_sistema_compra,
+        producto: detalle.producto,
+        activo: detalle.detalleSolicitud?.producto.activo
+      }))
+    })
+  }
 
   const normalizeDetalle = (d: any): DetalleEditable => {
     const codProducto = d.cod_producto ? String(d.cod_producto) : null
@@ -682,6 +693,7 @@ export function useSolicitudCompraEditableForm(
     getColCantidadAccessLevel,
     getColCantidadInventarioAccessLevel,
     getColCantidadGerenciaAccessLevel,
+    getColCantidadSistemaAccessLevel,
     toggleEquipo,
     isEquipoSelected,
     removeEquipo,

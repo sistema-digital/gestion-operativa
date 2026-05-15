@@ -82,6 +82,7 @@ const {
   getColCantidadAccessLevel,
   getColCantidadInventarioAccessLevel,
   getColCantidadGerenciaAccessLevel,
+  getColCantidadSistemaAccessLevel,
 
   submitForm
 } = useSolicitudCompraEditableForm(props, emit);
@@ -361,7 +362,8 @@ defineExpose({ checkNavigation })
                     :class="{
                       'details-grid--without-cantidad': getColCantidadAccessLevel(detalles) === AccessLevel.NONE,
                       'details-grid--without-inventario': getColCantidadInventarioAccessLevel(detalles) === AccessLevel.NONE,
-                      'details-grid--without-gerencia': getColCantidadGerenciaAccessLevel(detalles) === AccessLevel.NONE
+                      'details-grid--without-gerencia': getColCantidadGerenciaAccessLevel(detalles) === AccessLevel.NONE,
+                      'details-grid--without-sistema': getColCantidadSistemaAccessLevel(detalles) === AccessLevel.NONE
                     }"
                   >
                     <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">
@@ -397,7 +399,10 @@ defineExpose({ checkNavigation })
                       Gerencia
                     </div>
 
-                    <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">
+                    <div
+                      v-if="getColCantidadSistemaAccessLevel(detalles) === AccessLevel.READ"
+                      class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center"
+                    >
                       Sistema Compra
                     </div>
 
@@ -412,7 +417,8 @@ defineExpose({ checkNavigation })
                       :class="{
                         'details-grid--without-cantidad': getColCantidadAccessLevel(detalles) === AccessLevel.NONE,
                         'details-grid--without-inventario': getColCantidadInventarioAccessLevel(detalles) === AccessLevel.NONE,
-                        'details-grid--without-gerencia': getColCantidadGerenciaAccessLevel(detalles) === AccessLevel.NONE
+                        'details-grid--without-gerencia': getColCantidadGerenciaAccessLevel(detalles) === AccessLevel.NONE,
+                        'details-grid--without-sistema': getColCantidadSistemaAccessLevel(detalles) === AccessLevel.NONE
                       }"
                     >
                       <div class="px-4 py-4">
@@ -526,7 +532,10 @@ defineExpose({ checkNavigation })
                         </div>
                       </div>
 
-                      <div class="px-4 py-4 text-center">
+                      <div
+                        v-if="getColCantidadSistemaAccessLevel(detalles) === AccessLevel.READ"
+                        class="px-4 py-4 text-center"
+                      >
                         <div
                           v-if="getCantidadSistemaAccessLevel(item) === AccessLevel.READ"
                           class="w-24 mx-auto px-2 py-1.5 text-sm font-semibold text-gray-600 text-center"
@@ -641,12 +650,12 @@ defineExpose({ checkNavigation })
   display: grid;
   grid-template-columns:
     8rem
-    minmax(16rem, 0.8fr)
+    minmax(16rem, 1fr)
     5.5rem
-    5rem
-    5rem
-    5rem
-    10rem
+    var(--cantidad-col, 5rem)
+    var(--inventario-col, 5rem)
+    var(--gerencia-col, 5rem)
+    var(--sistema-col, 10rem)
     4rem;
   align-items: center;
 }
@@ -656,56 +665,18 @@ defineExpose({ checkNavigation })
 }
 
 .details-grid--without-inventario {
-  grid-template-columns:
-    8rem
-    minmax(16rem, 1fr)
-    5.5rem
-    5rem
-    5rem
-    10rem
-    4rem;
+  --inventario-col: ;
 }
 
 .details-grid--without-cantidad {
-  grid-template-columns:
-    8rem
-    minmax(16rem, 1fr)
-    5.5rem
-    5rem
-    5rem
-    10rem
-    4rem;
+  --cantidad-col: ;
 }
 
 .details-grid--without-gerencia {
-  grid-template-columns:
-    8rem
-    minmax(16rem, 1fr)
-    5.5rem
-    5rem
-    5rem
-    10rem
-    4rem;
+  --gerencia-col: ;
 }
 
-.details-grid--without-cantidad.details-grid--without-inventario,
-.details-grid--without-cantidad.details-grid--without-gerencia,
-.details-grid--without-inventario.details-grid--without-gerencia {
-  grid-template-columns:
-    8rem
-    minmax(16rem, 1fr)
-    5.5rem
-    5rem
-    10rem
-    4rem;
-}
-
-.details-grid--without-cantidad.details-grid--without-inventario.details-grid--without-gerencia {
-  grid-template-columns:
-    8rem
-    minmax(16rem, 1fr)
-    5.5rem
-    10rem
-    4rem;
+.details-grid--without-sistema {
+  --sistema-col: ;
 }
 </style>

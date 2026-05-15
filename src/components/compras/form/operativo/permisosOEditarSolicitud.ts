@@ -90,9 +90,10 @@ export const getAccessLevelsOperativoSolicitud = () => {
     const Descripcion = ({ area, detalle}: {area: string; detalle?: { isManual: boolean ,cod_producto?: string|null} }): AccessLevel => {
         const isAreaReadable:boolean=  areasOperativas.includes(area.toUpperCase());
 
+        console.log(detalle,'MANUAL');
         
 
-        const isEdit = detalle?.isManual && detalle?.cod_producto ? detalle.cod_producto.trim().startsWith('MNL-') : false;
+        const isEdit = detalle?.isManual && detalle?.cod_producto ? detalle.cod_producto.trim().startsWith('MNL-') : detalle?.isManual && detalle?.cod_producto === null;
 
         if ( isEdit&& isAreaReadable) {
             return AccessLevel.EDIT
@@ -124,11 +125,11 @@ export const getAccessLevelsOperativoSolicitud = () => {
 
     const ColCantidadGerencia = ({ area, detalle}: { area: string; detalle?: {cantidad?: number|null, cantidad_gerencia?: number|null,producto:string,activo?:boolean}[] }): AccessLevel => {
         
-    
+        const hasCantidadAndInventario = ColCantidad({ area, detalle }) === AccessLevel.READ;
         const hasCantidadGerenciaDetalle =detalle?.some(d=>d.cantidad_gerencia
                                     ?d.activo && d.cantidad_gerencia! >= 0
                                     : false);
-        if ( hasCantidadGerenciaDetalle) {
+        if ( hasCantidadGerenciaDetalle && hasCantidadAndInventario) {
             return AccessLevel.READ
         } 
 
@@ -138,10 +139,12 @@ export const getAccessLevelsOperativoSolicitud = () => {
     const ColCantidadSistema = ({ area, detalle}: { area: string; detalle?: {cantidad?: number|null, cantidad_sistema?: number|null,producto:string,activo?:boolean}[] }): AccessLevel => {
         
     
+        const hasCantidadGerencia = ColCantidadGerencia({ area, detalle }) === AccessLevel.READ;
+
         const hasCantidadSistemaDetalle =detalle?.some(d=>d.cantidad_sistema
                                     ?d.activo && d.cantidad_sistema! >= 0
                                     : false);
-        if ( hasCantidadSistemaDetalle) {
+        if ( hasCantidadSistemaDetalle && hasCantidadGerencia) {
             return AccessLevel.READ
         } 
 
