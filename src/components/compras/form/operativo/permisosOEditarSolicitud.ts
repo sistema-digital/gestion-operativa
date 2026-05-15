@@ -89,8 +89,6 @@ export const getAccessLevelsOperativoSolicitud = () => {
 
     const Descripcion = ({ area, detalle}: {area: string; detalle?: { isManual: boolean ,cod_producto?: string|null} }): AccessLevel => {
         const isAreaReadable:boolean=  areasOperativas.includes(area.toUpperCase());
-
-        console.log(detalle,'MANUAL');
         
 
         const isEdit = detalle?.isManual && detalle?.cod_producto ? detalle.cod_producto.trim().startsWith('MNL-') : detalle?.isManual && detalle?.cod_producto === null;
