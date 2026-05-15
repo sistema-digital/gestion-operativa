@@ -277,6 +277,31 @@ export function useSolicitudCompraEditableForm(
       }
     })
   }
+  
+  const getColCantidadInventarioAccessLevel = (detalles: DetalleEditable[]) => {
+    return getAccessLevelsOperativoSolicitud().ColCantidadInventario({
+      area: userStore.getArea(),
+      detalle: detalles.map(detalle => ({
+        cantidad: detalle.cantidad,
+        cantidad_inventario: detalle.cantidad_inventario,
+        producto: detalle.producto,
+        activo: detalle.detalleSolicitud?.producto.activo
+      }))
+    })
+  }
+
+  const getColCantidadGerenciaAccessLevel = (detalles: DetalleEditable[]) => {
+    return getAccessLevelsOperativoSolicitud().ColCantidadGerencia({
+      area: userStore.getArea(),
+      detalle: detalles.map(detalle => ({
+        cantidad: detalle.cantidad,
+        cantidad_gerencia: detalle.cantidad_gerencia,
+        producto: detalle.producto,
+        activo: detalle.detalleSolicitud?.producto.activo
+      }))
+    })
+  }
+
 
   const normalizeDetalle = (d: any): DetalleEditable => {
     const codProducto = d.cod_producto ? String(d.cod_producto) : null
@@ -642,6 +667,8 @@ export function useSolicitudCompraEditableForm(
     getCodProductoAccessLevel,
     getDescripcionAccessLevel,
     getUnidadAccessLevel,
+    getColCantidadInventarioAccessLevel,
+    getColCantidadGerenciaAccessLevel,
     toggleEquipo,
     isEquipoSelected,
     removeEquipo,
