@@ -258,6 +258,16 @@ export function useSolicitudCompraEditableForm(
     })
   }
 
+  const getDescripcionAccessLevel = (detalle: DetalleEditable) => {
+    return getAccessLevelsOperativoSolicitud().Descripcion({
+      area: userStore.getArea(),
+      detalle: {
+        isManual: detalle.isManual,
+        cod_producto: detalle.cod_producto,
+      }
+    })
+  } 
+
   const normalizeDetalle = (d: any): DetalleEditable => {
     const codProducto = d.cod_producto ? String(d.cod_producto) : null
 
@@ -620,6 +630,7 @@ export function useSolicitudCompraEditableForm(
     getCantidadGerenciaAccessLevel,
     getCantidadSistemaAccessLevel,
     getCodProductoAccessLevel,
+    getDescripcionAccessLevel,
     toggleEquipo,
     isEquipoSelected,
     removeEquipo,

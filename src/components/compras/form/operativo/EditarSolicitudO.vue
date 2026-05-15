@@ -77,6 +77,7 @@ const {
   getCantidadGerenciaAccessLevel,
   getCantidadSistemaAccessLevel,
   getCodProductoAccessLevel,
+  getDescripcionAccessLevel,
 
   submitForm
 } = useSolicitudCompraEditableForm(props, emit);
@@ -407,12 +408,21 @@ defineExpose({ checkNavigation })
 
                       <div class="px-4 py-4">
                         <input
+                          v-if="getDescripcionAccessLevel(item) === AccessLevel.EDIT"
                           v-model="item.descripcion"
                           type="text"
+                          required
                           maxlength="255"
                           placeholder="Descripción..."
                           class="w-full px-3 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm"
                         />
+
+                        <div
+                          v-else-if="getDescripcionAccessLevel(item) === AccessLevel.READ"
+                          class="text-sm font-semibold text-gray-600"
+                        >
+                          {{ item.descripcion || '-' }}
+                        </div>
                       </div>
 
                       <div class="px-4 py-4 text-center">
