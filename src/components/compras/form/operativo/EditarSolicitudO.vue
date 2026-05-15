@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import BaseDateField from '@/components/BaseDateField.vue'
 import type { SolicitudCompraInitialData } from '@/views/compras/type'
 import type { PermisosFormSolicitud } from '@/components/compras/form/permisosForm'
@@ -86,6 +87,56 @@ const {
 
   submitForm
 } = useSolicitudCompraEditableForm(props, emit);
+
+const detailsGridTemplate = computed(() => {
+  const columns = [
+    '8rem',
+    'minmax(8rem, 1fr)',
+    '8rem'
+  ]
+
+  if (getColCantidadAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    columns.push('5rem')
+  }
+
+  if (getColCantidadInventarioAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    columns.push('5rem')
+  }
+
+  if (getColCantidadGerenciaAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    columns.push('5rem')
+  }
+
+  if (getColCantidadSistemaAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    columns.push('10rem')
+  }
+
+  columns.push('4rem')
+
+  return columns.join(' ')
+})
+
+const detailsGridMinWidth = computed(() => {
+  let width = 8 + 8 +  6 + 6
+
+  if (getColCantidadAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    width += 5
+  }
+
+  if (getColCantidadInventarioAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    width += 5
+  }
+
+  if (getColCantidadGerenciaAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    width += 5
+  }
+
+  if (getColCantidadSistemaAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    width += 10
+  }
+
+  return `${width}rem`
+})
 
 defineExpose({ checkNavigation })
 </script>
@@ -356,15 +407,10 @@ defineExpose({ checkNavigation })
             <!-- Details grid -->
             <div class="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
               <div class="overflow-x-auto">
-                <div class="min-w-[1100px]">
+                <div :style="{ minWidth: detailsGridMinWidth }">
                   <div
                     class="details-grid border-b border-gray-200 bg-stone-50"
-                    :class="{
-                      'details-grid--without-cantidad': getColCantidadAccessLevel(detalles) === AccessLevel.NONE,
-                      'details-grid--without-inventario': getColCantidadInventarioAccessLevel(detalles) === AccessLevel.NONE,
-                      'details-grid--without-gerencia': getColCantidadGerenciaAccessLevel(detalles) === AccessLevel.NONE,
-                      'details-grid--without-sistema': getColCantidadSistemaAccessLevel(detalles) === AccessLevel.NONE
-                    }"
+                    :style="{ gridTemplateColumns: detailsGridTemplate }"
                   >
                     <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">
                       Código
@@ -379,28 +425,28 @@ defineExpose({ checkNavigation })
                     </div>
 
                     <div
-                      v-if="getColCantidadAccessLevel(detalles) === AccessLevel.READ"
+                      v-if="getColCantidadAccessLevel(detalles) !== AccessLevel.NONE"
                       class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center"
                     >
                       Cantidad
                     </div>
 
                     <div
-                      v-if="getColCantidadInventarioAccessLevel(detalles) === AccessLevel.READ"
+                      v-if="getColCantidadInventarioAccessLevel(detalles) !== AccessLevel.NONE"
                       class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center"
                     >
                       Inventario
                     </div>
 
                     <div
-                      v-if="getColCantidadGerenciaAccessLevel(detalles) === AccessLevel.READ"
+                      v-if="getColCantidadGerenciaAccessLevel(detalles) !== AccessLevel.NONE"
                       class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center"
                     >
                       Gerencia
                     </div>
 
                     <div
-                      v-if="getColCantidadSistemaAccessLevel(detalles) === AccessLevel.READ"
+                      v-if="getColCantidadSistemaAccessLevel(detalles) !== AccessLevel.NONE"
                       class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center"
                     >
                       Sistema Compra
@@ -414,12 +460,7 @@ defineExpose({ checkNavigation })
                       v-for="item in detalles"
                       :key="item.ui_id"
                       class="details-grid details-row min-h-[72px] items-center transition-colors hover:bg-gray-50/70"
-                      :class="{
-                        'details-grid--without-cantidad': getColCantidadAccessLevel(detalles) === AccessLevel.NONE,
-                        'details-grid--without-inventario': getColCantidadInventarioAccessLevel(detalles) === AccessLevel.NONE,
-                        'details-grid--without-gerencia': getColCantidadGerenciaAccessLevel(detalles) === AccessLevel.NONE,
-                        'details-grid--without-sistema': getColCantidadSistemaAccessLevel(detalles) === AccessLevel.NONE
-                      }"
+                      :style="{ gridTemplateColumns: detailsGridTemplate }"
                     >
                       <div class="px-4 py-4">
                         <div
@@ -489,7 +530,7 @@ defineExpose({ checkNavigation })
                       </div>
 
                       <div
-                        v-if="getColCantidadAccessLevel(detalles) === AccessLevel.READ"
+                        v-if="getColCantidadAccessLevel(detalles) !== AccessLevel.NONE"
                         class="px-4 py-4 text-center"
                       >
                         <input
@@ -509,7 +550,7 @@ defineExpose({ checkNavigation })
                       </div>
 
                       <div
-                        v-if="getColCantidadInventarioAccessLevel(detalles) === AccessLevel.READ"
+                        v-if="getColCantidadInventarioAccessLevel(detalles) !== AccessLevel.NONE"
                         class="px-4 py-4 text-center"
                       >
                         <div
@@ -521,7 +562,7 @@ defineExpose({ checkNavigation })
                       </div>
 
                       <div
-                        v-if="getColCantidadGerenciaAccessLevel(detalles) === AccessLevel.READ"
+                        v-if="getColCantidadGerenciaAccessLevel(detalles) !== AccessLevel.NONE"
                         class="px-4 py-4 text-center"
                       >
                         <div
@@ -533,7 +574,7 @@ defineExpose({ checkNavigation })
                       </div>
 
                       <div
-                        v-if="getColCantidadSistemaAccessLevel(detalles) === AccessLevel.READ"
+                        v-if="getColCantidadSistemaAccessLevel(detalles) !== AccessLevel.NONE"
                         class="px-4 py-4 text-center"
                       >
                         <div
@@ -648,15 +689,6 @@ defineExpose({ checkNavigation })
 <style scoped>
 .details-grid {
   display: grid;
-  grid-template-columns:
-    8rem
-    minmax(16rem, 1fr)
-    5.5rem
-    var(--cantidad-col, 5rem)
-    var(--inventario-col, 5rem)
-    var(--gerencia-col, 5rem)
-    var(--sistema-col, 10rem)
-    4rem;
   align-items: center;
 }
 
@@ -664,19 +696,4 @@ defineExpose({ checkNavigation })
   position: relative;
 }
 
-.details-grid--without-inventario {
-  --inventario-col: ;
-}
-
-.details-grid--without-cantidad {
-  --cantidad-col: ;
-}
-
-.details-grid--without-gerencia {
-  --gerencia-col: ;
-}
-
-.details-grid--without-sistema {
-  --sistema-col: ;
-}
 </style>
