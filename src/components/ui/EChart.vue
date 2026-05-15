@@ -63,6 +63,7 @@ const initChart = () => {
 };
 
 let resizeTimeout: any;
+let resizeObserver: ResizeObserver | null = null;
 const handleWindowResize = () => {
   if (resizeTimeout) clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(() => {
@@ -72,11 +73,16 @@ const handleWindowResize = () => {
 
 onMounted(() => {
   initChart();
+  if (chartRef.value && 'ResizeObserver' in window) {
+    resizeObserver = new ResizeObserver(handleWindowResize);
+    resizeObserver.observe(chartRef.value);
+  }
   window.addEventListener('resize', handleWindowResize);
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleWindowResize);
+  resizeObserver?.disconnect();
   chartInstance.value?.dispose();
 });
 

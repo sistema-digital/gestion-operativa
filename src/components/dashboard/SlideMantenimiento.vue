@@ -1064,6 +1064,72 @@ const getWeekNumber = (date: Date) => {
 
 const currentWeek = computed(() => getWeekNumber(new Date()));
 
+const isConcludedOrder = (order: OrdenMantenimiento) => {
+  return String(order.Estatus || '').trim().toLowerCase().includes('concluida');
+};
+
+const weeklyConcludedComparison = computed(() => {
+  const areaFixed = userArea.value?.toUpperCase();
+  const areaFixedKey = normalizeAreaKey(userArea.value || '');
+  const currentWeekValue = currentWeek.value;
+  const previousWeekValue = currentWeekValue - 1;
+
+  let orderList = areaFixed === 'ALL'
+    ? filteredData.value
+    : filteredData.value.filter(d => normalizeAreaKey(d.Área || '') === areaFixedKey);
+
+  if (activeFilters.value.serie) {
+    orderList = orderList.filter(d =>
+      d.Área === activeFilters.value.serie ||
+      d.Sistema === activeFilters.value.serie ||
+      d.ITEM === activeFilters.value.serie ||
+      d["ID_#EQUIPO"] === activeFilters.value.serie
+    );
+  }
+
+  const denominator = orderList.length;
+  const areaKeys = Array.from(new Set(
+    orderList
+      .map(d => normalizeAreaKey(d.Área || ''))
+      .filter(Boolean)
+  ));
+
+  const buildRow = (areaOrders: OrdenMantenimiento[], area: string) => {
+    const concludedOrders = areaOrders.filter(isConcludedOrder);
+    const previousConcluded = concludedOrders.filter(order => {
+      const week = Number(order.Semana);
+      return Number.isFinite(week) && week <= previousWeekValue;
+    }).length;
+    const currentConcluded = concludedOrders.length;
+    const thisWeekConcluded = Math.max(currentConcluded - previousConcluded, 0);
+    const toPercent = (count: number) => denominator > 0
+      ? Number(((count / denominator) * 100).toFixed(2))
+      : 0;
+
+    return {
+      area,
+      previousProgress: toPercent(previousConcluded),
+      thisWeekProgress: toPercent(thisWeekConcluded),
+      currentProgress: toPercent(currentConcluded),
+      previousConcluded,
+      thisWeekConcluded,
+      currentConcluded
+    };
+  };
+
+  const rows = areaKeys.map(areaKey => {
+    const areaOrders = orderList.filter(d => normalizeAreaKey(d.Área || '') === areaKey);
+    return buildRow(areaOrders, areaOrders[0]?.Área || areaKey);
+  }).sort((a, b) => b.currentProgress - a.currentProgress);
+
+  return {
+    previousWeek: previousWeekValue,
+    currentWeek: currentWeekValue,
+    rows,
+    totalRow: buildRow(orderList, 'TOTAL')
+  };
+});
+
 const buildWeeklyProgress = (limitToLastFive: boolean) => {
   const areaFixed = userArea.value?.toUpperCase();
   const areaFixedKey = normalizeAreaKey(userArea.value || '');
@@ -2144,15 +2210,15 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
                 class="grid grid-cols-3 gap-2 text-xs font-medium text-gray-600 bg-gray-50/80 p-3 rounded-xl border border-gray-100">
                 <div class="flex flex-col gap-0.5">
                   <span class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">FECHA INICIAL</span>
-                  <span class="text-gray-800 font-bold font-mono">{{ progressMetrics.startDateStr }}</span>
+                  <span class="text-gray-800 font-bold">{{ progressMetrics.startDateStr }}</span>
                 </div>
                 <div class="flex flex-col gap-0.5">
                   <span class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">FECHA FINAL</span>
-                  <span class="text-gray-800 font-bold font-mono">{{ progressMetrics.endDateStr }}</span>
+                  <span class="text-gray-800 font-bold">{{ progressMetrics.endDateStr }}</span>
                 </div>
                 <div class="flex flex-col gap-0.5">
                   <span class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">DÍAS HÁBILES</span>
-                  <span class="text-gray-800 font-bold font-mono">{{ progressMetrics.totalWorkingDays }}</span>
+                  <span class="text-gray-800 font-bold">{{ progressMetrics.totalWorkingDays }}</span>
                 </div>
               </div>
             </div>
@@ -2168,20 +2234,20 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
                   DIFERENCIA</div>
               </div>
               <div v-for="row in progressMetrics.rows" :key="row.label"
-                class="grid grid-cols-[28%_24%_24%_24%] items-center border-b border-gray-50 font-bold text-sm  font-mono hover:bg-gray-50/50 transition-all duration-300">
+                class="grid grid-cols-[28%_24%_24%_24%] items-center border-b border-gray-50 font-bold text-sm hover:bg-gray-50/50 transition-all duration-300">
                 <div class="px-2 py-2  text-gray-700 truncate">
                   {{ row.displayLabel }}
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono text-main whitespace-nowrap">
+                <div class="px-2 py-2 text-right text-main whitespace-nowrap">
                   {{ row.idealProgress.toFixed(1) }}%
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono whitespace-nowrap">
+                <div class="px-2 py-2 text-right whitespace-nowrap">
                   {{ row.actualProgress.toFixed(1) }}%
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono whitespace-nowrap"
+                <div class="px-2 py-2 text-right whitespace-nowrap"
                   :class="row.difference >= 0 ? 'text-success' : 'text-danger'">
                   {{ row.difference.toFixed(1) }}%
                 </div>
@@ -2191,15 +2257,15 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
                   TOTAL
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono whitespace-nowrap text-main">
+                <div class="px-2 py-2 text-right whitespace-nowrap text-main">
                   {{ progressMetrics.totalRow.idealProgress.toFixed(1) }}%
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono whitespace-nowra text-gray-800">
+                <div class="px-2 py-2 text-right whitespace-nowra text-gray-800">
                   {{ progressMetrics.totalRow.actualProgress.toFixed(1) }}%
                 </div>
 
-                <div class="px-2 py-2 text-right font-mono whitespace-nowrap"
+                <div class="px-2 py-2 text-right whitespace-nowrap"
                   :class="progressMetrics.totalRow.difference >= 0 ? 'text-success' : 'text-danger'">
                   {{ progressMetrics.totalRow.difference.toFixed(1) }}%
                 </div>
@@ -2208,9 +2274,9 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-6 mb-8 items-start">
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6 mb-8 items-start">
           <div id="slide-maint-weekly-chart"
-            class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
+            class="min-w-0 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start overflow-hidden">
             <div class="mb-6 flex items-center justify-between">
               <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE SEMANAL (ÚLTIMAS 5
                 SEMANAS)</h2>
@@ -2220,11 +2286,69 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
               </div>
             </div>
 
-            <div class="h-[250px] xl:h-[320px] w-full block overflow-hidden">
+            <div class="h-[250px] xl:h-[320px] w-full min-w-0 block overflow-hidden">
               <EChart :key="JSON.stringify(activeFilters)" :option="weeklyEChartOption" @click="handleWeeklyChartClick"
                 @legendselectchanged="handleWeeklyLegendSelectChanged" />
             </div>
           </div>
+
+          <div
+            class="min-w-0 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start overflow-hidden">
+            <div class="mb-6">
+              <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE CONCLUIDO SEMANAL</h2>
+            </div>
+            <div class="overflow-x-auto border border-gray-100 rounded-xl">
+              <table class="w-full min-w-[420px] table-fixed text-left">
+                <thead class="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th class="w-[30%] px-3 py-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest">ÁREA</th>
+                    <th class="w-[23%] px-3 py-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest text-right">
+                      AVANCE SEMANA {{ weeklyConcludedComparison.previousWeek }}
+                    </th>
+                    <th class="w-[23%] px-3 py-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest text-right">
+                      AVANCE ESTA SEMANA
+                    </th>
+                    <th class="w-[24%] px-3 py-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest text-right">
+                      AVANCE ACTUAL
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <tr v-for="row in weeklyConcludedComparison.rows" :key="row.area"
+                    class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-3 py-3 text-xs font-bold text-gray-700 truncate">{{ row.area }}</td>
+                    <td class="px-3 py-3 text-xs font-bold text-right text-[#64748b]">
+                      {{ row.previousProgress.toFixed(1) }}%
+                    </td>
+                    <td class="px-3 py-3 text-xs font-bold text-right text-[#2d8a54]">
+                      {{ row.thisWeekProgress.toFixed(1) }}%
+                    </td>
+                    <td class="px-3 py-3 text-xs font-bold text-right text-[#004236]">
+                      {{ row.currentProgress.toFixed(1) }}%
+                    </td>
+                  </tr>
+                  <tr v-if="weeklyConcludedComparison.rows.length > 0" class="bg-gray-50 border-t border-gray-200">
+                    <td class="px-3 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
+                    <td class="px-3 py-3 text-xs font-black text-right text-[#64748b]">
+                      {{ weeklyConcludedComparison.totalRow.previousProgress.toFixed(1) }}%
+                    </td>
+                    <td class="px-3 py-3 text-xs font-black text-right text-[#2d8a54]">
+                      {{ weeklyConcludedComparison.totalRow.thisWeekProgress.toFixed(1) }}%
+                    </td>
+                    <td class="px-3 py-3 text-xs font-black text-right text-[#004236]">
+                      {{ weeklyConcludedComparison.totalRow.currentProgress.toFixed(1) }}%
+                    </td>
+                  </tr>
+                  <tr v-if="weeklyConcludedComparison.rows.length === 0">
+                    <td colspan="4" class="px-4 py-8 text-center text-xs font-bold text-gray-300 uppercase tracking-widest">
+                      Sin concluidas por área
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-[2fr_3fr] gap-6 mb-8 items-start">
@@ -2247,17 +2371,17 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
                 <tbody class="divide-y divide-gray-50">
                   <tr v-for="row in comparisonAreaRows.rows" :key="row.area" class="hover:bg-gray-50/50 transition-colors">
                     <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.area }}</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ row.avance2026.toFixed(1) }}%</td>
-                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-bold font-mono text-right text-[#4b9b7a]">{{ row.avance2025.toFixed(1) }}%</td>
-                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-bold font-mono text-right" :class="row.difference >= 0 ? 'text-success' : 'text-danger'">
+                    <td class="px-4 py-3 text-sm font-bold text-right text-[#004236]">{{ row.avance2026.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-bold text-right text-[#4b9b7a]">{{ row.avance2025.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-bold text-right" :class="row.difference >= 0 ? 'text-success' : 'text-danger'">
                       {{ row.difference > 0 ? '+' : '' }}{{ row.difference.toFixed(1) }}%
                     </td>
                   </tr>
                   <tr v-if="comparisonAreaRows.rows.length > 0" class="bg-gray-50 border-t border-gray-200">
                     <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#004236]">{{ comparisonAreaRows.totalRow.avance2026.toFixed(1) }}%</td>
-                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-black font-mono text-right text-[#4b9b7a]">{{ comparisonAreaRows.totalRow.avance2025.toFixed(1) }}%</td>
-                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-black font-mono text-right" :class="comparisonAreaRows.totalRow.difference >= 0 ? 'text-success' : 'text-danger'">
+                    <td class="px-4 py-3 text-sm font-black text-right text-[#004236]">{{ comparisonAreaRows.totalRow.avance2026.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-black text-right text-[#4b9b7a]">{{ comparisonAreaRows.totalRow.avance2025.toFixed(1) }}%</td>
+                    <td v-if="comparisonAreaRows.isZafra" class="px-4 py-3 text-sm font-black text-right" :class="comparisonAreaRows.totalRow.difference >= 0 ? 'text-success' : 'text-danger'">
                       {{ comparisonAreaRows.totalRow.difference > 0 ? '+' : '' }}{{ comparisonAreaRows.totalRow.difference.toFixed(1) }}%
                     </td>
                   </tr>
@@ -2306,19 +2430,19 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
                 <tbody class="divide-y divide-gray-50">
                   <tr v-for="row in weeklyAreaSummary" :key="row.area" class="hover:bg-gray-50/50 transition-colors">
                     <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.area }}</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#004236]">{{ row.realProgress.toFixed(1) }}%</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#C0392B]">
+                    <td class="px-4 py-3 text-sm font-bold text-right text-[#004236]">{{ row.realProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-bold text-right text-[#C0392B]">
                       {{ row.lostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(row.lostHours) }}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-gray-800">{{ row.optimalProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-bold text-right text-gray-800">{{ row.optimalProgress.toFixed(1) }}%</td>
                   </tr>
                   <tr v-if="weeklyAreaSummary.length > 0" class="bg-gray-50 border-t border-gray-200">
                     <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#004236]">{{ weeklyAreaSummaryTotal.realProgress.toFixed(1) }}%</td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#C0392B]">
+                    <td class="px-4 py-3 text-sm font-black text-right text-[#004236]">{{ weeklyAreaSummaryTotal.realProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-black text-right text-[#C0392B]">
                       {{ weeklyAreaSummaryTotal.lostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.lostHours) }}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-gray-900">{{ weeklyAreaSummaryTotal.optimalProgress.toFixed(1) }}%</td>
+                    <td class="px-4 py-3 text-sm font-black text-right text-gray-900">{{ weeklyAreaSummaryTotal.optimalProgress.toFixed(1) }}%</td>
                   </tr>
                   <tr v-if="weeklyAreaSummary.length === 0">
                     <td colspan="4" class="px-4 py-8 text-center text-xs font-bold text-gray-300 uppercase tracking-widest">
@@ -2389,17 +2513,17 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
                 <tbody class="divide-y divide-gray-50">
                   <tr v-for="row in lostProgressAreaRows" :key="row.area" class="hover:bg-gray-50/50 transition-colors">
                     <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.area }}</td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#64748b]">
+                    <td class="px-4 py-3 text-sm font-bold text-right text-[#64748b]">
                       <span v-if="showLostProgressPercent">{{ row.lostProgress2025.toFixed(1) }}%</span>
                       <span v-if="showLostProgressPercent && showLostProgressTime"> </span>
                       <span v-if="showLostProgressTime" class="opacity-80">{{ formatWorkDaysFromHours(row.hours2025, showLostProgressPercent) }}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right text-[#2563eb]">
+                    <td class="px-4 py-3 text-sm font-bold text-right text-[#2563eb]">
                       <span v-if="showLostProgressPercent">{{ row.lostProgress2026.toFixed(1) }}%</span>
                       <span v-if="showLostProgressPercent && showLostProgressTime"> </span>
                       <span v-if="showLostProgressTime" class="opacity-80">{{ formatWorkDaysFromHours(row.hours2026, showLostProgressPercent) }}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm font-bold font-mono text-right" :class="row.difference >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'">
+                    <td class="px-4 py-3 text-sm font-bold text-right" :class="row.difference >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'">
                       <span v-if="showLostProgressPercent">{{ row.difference > 0 ? '+' : '' }}{{ row.difference.toFixed(1) }}%</span>
                       <span v-if="showLostProgressPercent && showLostProgressTime"> </span>
                       <span v-if="showLostProgressTime" class="opacity-80">{{ formatWorkDaysFromHours(Math.abs(row.differenceHours), showLostProgressPercent) }}</span>
@@ -2407,17 +2531,17 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
                   </tr>
                   <tr v-if="lostProgressAreaRows.length > 0" class="bg-gray-50 border-t border-gray-200">
                     <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#64748b]">
+                    <td class="px-4 py-3 text-sm font-black text-right text-[#64748b]">
                       <span v-if="showLostProgressPercent">{{ lostProgressAreaTotal.lostProgress2025.toFixed(1) }}%</span>
                       <span v-if="showLostProgressPercent && showLostProgressTime"> </span>
                       <span v-if="showLostProgressTime" class="opacity-80">{{ formatWorkDaysFromHours(lostProgressAreaTotal.hours2025, showLostProgressPercent) }}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right text-[#2563eb]">
+                    <td class="px-4 py-3 text-sm font-black text-right text-[#2563eb]">
                       <span v-if="showLostProgressPercent">{{ lostProgressAreaTotal.lostProgress2026.toFixed(1) }}%</span>
                       <span v-if="showLostProgressPercent && showLostProgressTime"> </span>
                       <span v-if="showLostProgressTime" class="opacity-80">{{ formatWorkDaysFromHours(lostProgressAreaTotal.hours2026, showLostProgressPercent) }}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm font-black font-mono text-right" :class="lostProgressAreaTotal.difference >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'">
+                    <td class="px-4 py-3 text-sm font-black text-right" :class="lostProgressAreaTotal.difference >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'">
                       <span v-if="showLostProgressPercent">{{ lostProgressAreaTotal.difference > 0 ? '+' : '' }}{{ lostProgressAreaTotal.difference.toFixed(1) }}%</span>
                       <span v-if="showLostProgressPercent && showLostProgressTime"> </span>
                       <span v-if="showLostProgressTime" class="opacity-80">{{ formatWorkDaysFromHours(Math.abs(lostProgressAreaTotal.differenceHours), showLostProgressPercent) }}</span>
