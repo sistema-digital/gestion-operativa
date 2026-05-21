@@ -1,107 +1,151 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { supabase } from '@/lib/supabase';
+import { horasTrabajoService } from './horasTrabajo.service';
+import type {
+  HoraTrabajoData,
+  WorkOrderTodayRow,
+  WorkOrderUpdatePayload,
+} from './horasTrabajo.types';
 
-// Tipo de los datos
-export interface HoraTrabajoData {
-  id_registro: string;
-  area: string;
-  equipo: string;
-  estatus: string;
-  semana_inicio: string;
-  horas_calculadas: number;
+export type { HoraTrabajoData, WorkOrderTodayRow, WorkOrderUpdatePayload };
 
-  // Specific to retrasadas
-  is_retrasada: boolean;
-  fecha_base?: string;
-  descripcion_orden?: string;
-  causa_retraso?: string;
-}
+type DashboardRawRow = Record<string, unknown>;
+
+const readString = (row: DashboardRawRow, key: string): string | undefined => {
+  const value = row[key];
+  return typeof value === 'string' ? value : undefined;
+};
+
+const readNumber = (row: DashboardRawRow, key: string): number => {
+  const value = row[key];
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
   const data = ref<HoraTrabajoData[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
 
+  const todayWorkOrders = ref<WorkOrderTodayRow[]>([]);
+  const todayWorkOrdersLoading = ref(false);
+  const todayWorkOrdersError = ref<string | null>(null);
+
+  const fetchDashboardTable = async (table: string): Promise<DashboardRawRow[]> => {
+    const rows: DashboardRawRow[] = [];
+    let from = 0;
+    const limit = 1000;
+
+    while (true) {
+      const { data: pageData, error: pageError } = await supabase
+        .from(table)
+        .select('*')
+        .order('semana', { ascending: true })
+        .range(from, from + limit - 1);
+
+      if (pageError) throw pageError;
+      if (!pageData || pageData.length === 0) break;
+
+      rows.push(...(pageData as unknown as DashboardRawRow[]));
+      if (pageData.length < limit) break;
+      from += limit;
+    }
+
+    return rows;
+  };
+
+  const mapRetrasada = (row: DashboardRawRow, index: number): HoraTrabajoData => ({
+    id_registro: `RET-${index}`,
+    is_retrasada: true,
+    area: readString(row, 'area') || 'Sin Área',
+    equipo: readString(row, 'equipo') || 'Sin Equipo',
+    estatus: 'Retrasada',
+    semana_inicio: String(row.semana || '0'),
+    horas_calculadas: readNumber(row, 'horas_retraso'),
+    fecha_base: readString(row, 'fecha'),
+    descripcion_orden: readString(row, 'descripcion_orden'),
+    causa_retraso: readString(row, 'causa'),
+  });
+
+  const mapOtroEstado = (row: DashboardRawRow, index: number): HoraTrabajoData => ({
+    id_registro: `OTR-${index}`,
+    is_retrasada: false,
+    area: readString(row, 'area') || 'Sin Área',
+    equipo: readString(row, 'equipo') || 'NO ASIGNADA',
+    estatus: readString(row, 'estado') || 'Desconocido',
+    semana_inicio: String(row.semana || '0'),
+    horas_calculadas: readNumber(row, 'horas_asignadas'),
+  });
+
   const fetchData = async () => {
     loading.value = true;
     error.value = null;
-    
+
     try {
-      const fetchAll = async (table: string) => {
-        let allData: any[] = [];
-        let from = 0;
-        const limit = 1000;
-        
-        while (true) {
-          const { data, error } = await supabase
-            .from(table)
-            .select('*')
-            .order('semana', { ascending: true })
-            .range(from, from + limit - 1);
-            
-          if (error) throw error;
-          if (!data || data.length === 0) break;
-          
-          allData = [...allData, ...data];
-          
-          if (data.length < limit) break;
-          
-          from += limit;
-        }
-        return allData;
-      };
-
-      // Fetch both views from Supabase using pagination
       const [retrasadasData, otrosEstadosData] = await Promise.all([
-        fetchAll('vw_ot_retrasadas_dashboard'),
-        fetchAll('vw_ot_otros_estados_dashboard')
+        fetchDashboardTable('vw_ot_retrasadas_dashboard'),
+        fetchDashboardTable('vw_ot_otros_estados_dashboard'),
       ]);
-      
-      const unifiedData: HoraTrabajoData[] = [];
-      let counter = 0;
 
-      // Process Retrasadas
-      if (retrasadasData) {
-        retrasadasData.forEach((d: any) => {
-          unifiedData.push({
-            id_registro: `RET-${counter++}`,
-            is_retrasada: true,
-            area: d.area || 'Sin Área',
-            equipo: d.equipo || 'Sin Equipo',
-            estatus: 'Retrasada',
-            semana_inicio: d.semana ? String(d.semana) : '0',
-            horas_calculadas: d.horas_retraso || 0,
-            fecha_base: d.fecha || undefined,
-            descripcion_orden: d.descripcion_orden || undefined,
-            causa_retraso: d.causa || undefined,
-          });
-        });
-      }
+      const retrasadas = retrasadasData.map(mapRetrasada);
+      const otrosEstados = otrosEstadosData.map((row, index) => (
+        mapOtroEstado(row, retrasadas.length + index)
+      ));
 
-      // Process Otros Estados
-      if (otrosEstadosData) {
-        otrosEstadosData.forEach((d: any) => {
-          unifiedData.push({
-            id_registro: `OTR-${counter++}`,
-            is_retrasada: false,
-            area: d.area || 'Sin Área',
-            equipo: d.equipo || 'NO ASIGNADA',
-            estatus: d.estado || 'Desconocido',
-            semana_inicio: d.semana ? String(d.semana) : '0',
-            horas_calculadas: d.horas_asignadas || 0,
-          });
-        });
-      }
-
-      data.value = unifiedData;
-    } catch (err: any) {
+      data.value = [...retrasadas, ...otrosEstados];
+    } catch (err) {
       console.error('Error fetching horas de trabajo:', err);
-      error.value = err.message || 'There was an error loading the data.';
+      error.value = err instanceof Error
+        ? err.message
+        : 'There was an error loading the data.';
     } finally {
       loading.value = false;
     }
   };
 
-  return { data, loading, error, fetchData };
+  const fetchTodayWorkOrders = async () => {
+    todayWorkOrdersLoading.value = true;
+    todayWorkOrdersError.value = null;
+
+    try {
+      todayWorkOrders.value = await horasTrabajoService.fetchTodayWorkOrders();
+    } catch (err) {
+      todayWorkOrdersError.value = err instanceof Error
+        ? err.message
+        : 'No se pudieron cargar las órdenes de hoy';
+      throw err;
+    } finally {
+      todayWorkOrdersLoading.value = false;
+    }
+  };
+
+  const updateWorkOrder = async (id: string, payload: WorkOrderUpdatePayload) => {
+    const updated = await horasTrabajoService.updateWorkOrder(id, payload);
+    const index = todayWorkOrders.value.findIndex((row) => row.idOt === id);
+
+    if (index >= 0) {
+      todayWorkOrders.value[index] = updated;
+    }
+
+    return updated;
+  };
+
+  const deleteWorkOrder = async (id: string) => {
+    await horasTrabajoService.deleteWorkOrder(id);
+    todayWorkOrders.value = todayWorkOrders.value.filter((row) => row.idOt !== id);
+  };
+
+  return {
+    data,
+    loading,
+    error,
+    todayWorkOrders,
+    todayWorkOrdersLoading,
+    todayWorkOrdersError,
+    fetchData,
+    fetchTodayWorkOrders,
+    updateWorkOrder,
+    deleteWorkOrder,
+  };
 });

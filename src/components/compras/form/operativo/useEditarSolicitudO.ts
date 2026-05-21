@@ -248,6 +248,84 @@ export function useSolicitudCompraEditableForm(
     })
   }
 
+  const getCodProductoAccessLevel = (detalle: DetalleEditable) => {
+    return getAccessLevelsOperativoSolicitud().CodProducto({
+      area: userStore.getArea(),
+      detalle: {
+        isManual: detalle.isManual,
+        cod_producto: detalle.cod_producto
+      }
+    })
+  }
+
+  const getDescripcionAccessLevel = (detalle: DetalleEditable) => {
+    return getAccessLevelsOperativoSolicitud().Descripcion({
+      area: userStore.getArea(),
+      detalle: {
+        isManual: detalle.isManual,
+        cod_producto: detalle.cod_producto,
+      }
+    })
+  } 
+
+  const getUnidadAccessLevel = (detalle:DetalleEditable)=>{
+    return getAccessLevelsOperativoSolicitud().Unidad({
+      area: userStore.getArea(),
+      detalle: {
+        isManual: detalle.isManual,
+        cod_producto: detalle.cod_producto,
+      }
+    })
+  }
+  
+  const getColCantidadInventarioAccessLevel = (detalles: DetalleEditable[]) => {
+    return getAccessLevelsOperativoSolicitud().ColCantidadInventario({
+      area: userStore.getArea(),
+      detalle: detalles.map(detalle => ({
+        cantidad: detalle.cantidad,
+        cantidad_inventario: detalle.cantidad_inventario,
+        producto: detalle.producto,
+        activo: detalle.detalleSolicitud?.producto.activo
+      }))
+    })
+  }
+
+  const getColCantidadAccessLevel = (detalles: DetalleEditable[]) => {
+    return getAccessLevelsOperativoSolicitud().ColCantidad({
+      area: userStore.getArea(),
+      detalle: detalles.map(detalle => ({
+        cantidad: detalle.cantidad,
+        cantidad_inventario: detalle.cantidad_inventario,
+        producto: detalle.producto,
+        activo: detalle.detalleSolicitud?.producto.activo
+      }))
+    })
+  }
+
+  const getColCantidadGerenciaAccessLevel = (detalles: DetalleEditable[]) => {
+    return getAccessLevelsOperativoSolicitud().ColCantidadGerencia({
+      area: userStore.getArea(),
+      detalle: detalles.map(detalle => ({
+        cantidad: detalle.cantidad,
+        cantidad_gerencia: detalle.cantidad_gerencia,
+        producto: detalle.producto,
+        activo: detalle.detalleSolicitud?.producto.activo
+      }))
+    })
+  }
+
+  const getColCantidadSistemaAccessLevel = (detalles: DetalleEditable[]) => {
+    return getAccessLevelsOperativoSolicitud().ColCantidadSistema({
+      area: userStore.getArea(),
+      detalle: detalles.map(detalle => ({
+        cantidad: detalle.cantidad,
+        cantidad_sistema: detalle.cantidad_subida_sistema_compra,
+        producto: detalle.producto,
+        activo: detalle.detalleSolicitud?.producto.activo
+      }))
+    })
+  }
+
   const normalizeDetalle = (d: any): DetalleEditable => {
     const codProducto = d.cod_producto ? String(d.cod_producto) : null
 
@@ -609,6 +687,13 @@ export function useSolicitudCompraEditableForm(
     getCantidadInventarioAccessLevel,
     getCantidadGerenciaAccessLevel,
     getCantidadSistemaAccessLevel,
+    getCodProductoAccessLevel,
+    getDescripcionAccessLevel,
+    getUnidadAccessLevel,
+    getColCantidadAccessLevel,
+    getColCantidadInventarioAccessLevel,
+    getColCantidadGerenciaAccessLevel,
+    getColCantidadSistemaAccessLevel,
     toggleEquipo,
     isEquipoSelected,
     removeEquipo,

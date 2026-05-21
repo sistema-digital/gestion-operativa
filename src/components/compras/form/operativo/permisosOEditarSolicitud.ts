@@ -72,10 +72,95 @@ export const getAccessLevelsOperativoSolicitud = () => {
         return AccessLevel.NONE
     }
 
+    const CodProducto = ({ area, detalle}: {area: string; detalle?: { isManual: boolean ,cod_producto?: string|null} }): AccessLevel => {
+        const isAreaReadable:boolean=  areasOperativas.includes(area.toUpperCase());
+
+        console.log(detalle?.cod_producto);
+        
+
+        const isVisible = !detalle?.isManual && detalle?.cod_producto ? !detalle.cod_producto.trim().startsWith('MNL-') : false;
+
+        if ( isVisible&& isAreaReadable) {
+            return AccessLevel.READ
+        } 
+
+        return AccessLevel.NONE
+    }
+
+    const Descripcion = ({ area, detalle}: {area: string; detalle?: { isManual: boolean ,cod_producto?: string|null} }): AccessLevel => {
+        const isAreaReadable:boolean=  areasOperativas.includes(area.toUpperCase());
+        
+
+        const isEdit = detalle?.isManual && detalle?.cod_producto ? detalle.cod_producto.trim().startsWith('MNL-') : detalle?.isManual && detalle?.cod_producto === null;
+
+        if ( isEdit&& isAreaReadable) {
+            return AccessLevel.EDIT
+        } 
+
+        return AccessLevel.READ;
+    }
+
+    const Unidad = ({ area, detalle}: {area: string; detalle?: { isManual: boolean ,cod_producto?: string|null} }): AccessLevel => {
+        return Descripcion({ area, detalle });
+    }
+
+    const ColCantidadInventario = ({ area, detalle}: { area: string; detalle?: {cantidad?: number|null, cantidad_inventario?: number|null,producto:string,activo?:boolean}[] }): AccessLevel => {
+        
+    
+        const hasCantidadIventarioDetalle =detalle?.some(d=>d.cantidad_inventario
+                                    ?d.activo && d.cantidad_inventario! >= 0
+                                    : false);
+        if ( hasCantidadIventarioDetalle) {
+            return AccessLevel.READ
+        } 
+
+        return AccessLevel.NONE
+    };
+
+    const ColCantidad = ({ area, detalle}: { area: string; detalle?: {cantidad?: number|null, cantidad_inventario?: number|null,producto:string,activo?:boolean}[] }): AccessLevel => {
+        return ColCantidadInventario({ area, detalle });
+    };
+
+    const ColCantidadGerencia = ({ area, detalle}: { area: string; detalle?: {cantidad?: number|null, cantidad_gerencia?: number|null,producto:string,activo?:boolean}[] }): AccessLevel => {
+        
+        const hasCantidadAndInventario = ColCantidad({ area, detalle }) === AccessLevel.READ;
+        const hasCantidadGerenciaDetalle =detalle?.some(d=>d.cantidad_gerencia
+                                    ?d.activo && d.cantidad_gerencia! >= 0
+                                    : false);
+        if ( hasCantidadGerenciaDetalle && hasCantidadAndInventario) {
+            return AccessLevel.READ
+        } 
+
+        return AccessLevel.NONE
+    };
+
+    const ColCantidadSistema = ({ area, detalle}: { area: string; detalle?: {cantidad?: number|null, cantidad_sistema?: number|null,producto:string,activo?:boolean}[] }): AccessLevel => {
+        
+    
+        const hasCantidadGerencia = ColCantidadGerencia({ area, detalle }) === AccessLevel.READ;
+
+        const hasCantidadSistemaDetalle =detalle?.some(d=>d.cantidad_sistema
+                                    ?d.activo && d.cantidad_sistema! >= 0
+                                    : false);
+        if ( hasCantidadSistemaDetalle && hasCantidadGerencia) {
+            return AccessLevel.READ
+        } 
+
+        return AccessLevel.NONE
+    };
+
+
     return {
         Cantidad,
         CantidadInventario,
         CantidadGerencia,
-        CantidadSistema
+        CantidadSistema,
+        CodProducto,
+        Descripcion,
+        Unidad,
+        ColCantidadInventario,
+        ColCantidad,
+        ColCantidadGerencia,
+        ColCantidadSistema
     }
 }

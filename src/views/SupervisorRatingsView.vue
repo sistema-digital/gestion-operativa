@@ -382,11 +382,52 @@ const groupedAssignedHours = computed(() => {
 
 const resolveTipoTrabajo = (row: any) => {
   if (row.ORDEN_MANTENIMIENTO && row.ORDEN_MANTENIMIENTO.Descripcion) return row.ORDEN_MANTENIMIENTO.Descripcion;
-  if (row.OM_SG && row.OM_SG.tipo_trabajo) return row.OM_SG.tipo_trabajo;
+  if (row.OM_SG && row.OM_SG.trabajo_realizar) return row.OM_SG.trabajo_realizar;
   if (row.OM_SG?.ORDEN_MANTENIMIENTO?.Descripcion) return row.OM_SG.ORDEN_MANTENIMIENTO.Descripcion;
   return 'Trabajo General';
 };
 
+const formatCreatedDate = (value: string | null | undefined) => {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const getPanamaParts = (targetDate: Date) => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Panama',
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(targetDate);
+
+    const getPart = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value || '';
+
+    return {
+      day: getPart('day'),
+      month: getPart('month'),
+      year: getPart('year'),
+      hours: getPart('hour'),
+      minutes: getPart('minute'),
+    };
+  };
+
+  const parts = getPanamaParts(date);
+  const today = getPanamaParts(new Date());
+  const yesterday = getPanamaParts(new Date(Date.now() - 86400000));
+  const dateKey = `${parts.day}-${parts.month}-${parts.year}`;
+  const time = `${parts.hours}:${parts.minutes}`;
+  const todayKey = `${today.day}-${today.month}-${today.year}`;
+  const yesterdayKey = `${yesterday.day}-${yesterday.month}-${yesterday.year}`;
+
+  if (dateKey === todayKey) return `Hoy ${time}`;
+  if (dateKey === yesterdayKey) return `Ayer ${time}`;
+
+  return `${dateKey} ${time}`;
+};
 const filesToUpload = ref<File[]>([]);
 const existingPhotos = ref<string[]>([]); // New variable to track existing photos when editing
 
@@ -1155,9 +1196,10 @@ onUnmounted(() => {
                                   <div class="min-w-[120px] flex-1">
                                      <p class="font-medium text-gray-800 line-clamp-2" :title="resolveTipoTrabajo(item)">{{ resolveTipoTrabajo(item) }}</p>
                                   </div>
-                                  <div class="text-right flex items-center gap-3 w-32 justify-end shrink-0">
+                                  <div class="text-right flex flex-wrap items-center gap-2 md:gap-3 w-48 md:w-60 justify-end shrink-0">
                                      <span class="font-bold text-main">{{ item['Duración (horas)'] || '0' }}h</span>
                                      <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-sm" :class="item.Estatus === 'Cerrada' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'">{{ item.Estatus || 'Abierta' }}</span>
+                                     <span v-if="formatCreatedDate(item.created)" class="text-[10px] font-medium text-gray-400 whitespace-nowrap">{{ formatCreatedDate(item.created) }}</span>
                                   </div>
                                </div>
                             </div>
@@ -1175,9 +1217,10 @@ onUnmounted(() => {
                                <div class="min-w-[120px] flex-1">
                                   <p class="font-medium text-gray-800 line-clamp-2" :title="resolveTipoTrabajo(item)">{{ resolveTipoTrabajo(item) }}</p>
                                </div>
-                               <div class="text-right flex items-center gap-3 w-32 justify-end shrink-0">
+                               <div class="text-right flex flex-wrap items-center gap-2 md:gap-3 w-48 md:w-60 justify-end shrink-0">
                                   <span class="font-bold text-main">{{ item['Duración (horas)'] || '0' }}h</span>
                                   <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-sm" :class="item.Estatus === 'Cerrada' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'">{{ item.Estatus || 'Abierta' }}</span>
+                                  <span v-if="formatCreatedDate(item.created)" class="text-[10px] font-medium text-gray-400 whitespace-nowrap">{{ formatCreatedDate(item.created) }}</span>
                                </div>
                             </div>
                          </div>

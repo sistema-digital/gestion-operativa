@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import BaseDateField from '@/components/BaseDateField.vue'
 import type { SolicitudCompraInitialData } from '@/views/compras/type'
 import type { PermisosFormSolicitud } from '@/components/compras/form/permisosForm'
@@ -76,9 +77,66 @@ const {
   getCantidadInventarioAccessLevel,
   getCantidadGerenciaAccessLevel,
   getCantidadSistemaAccessLevel,
+  getCodProductoAccessLevel,
+  getDescripcionAccessLevel,
+  getUnidadAccessLevel,
+  getColCantidadAccessLevel,
+  getColCantidadInventarioAccessLevel,
+  getColCantidadGerenciaAccessLevel,
+  getColCantidadSistemaAccessLevel,
 
   submitForm
 } = useSolicitudCompraEditableForm(props, emit);
+
+const detailsGridTemplate = computed(() => {
+  const columns = [
+    '8rem',
+    'minmax(8rem, 1fr)',
+    '8rem'
+  ]
+
+  if (getColCantidadAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    columns.push('5rem')
+  }
+
+  if (getColCantidadInventarioAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    columns.push('5rem')
+  }
+
+  if (getColCantidadGerenciaAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    columns.push('5rem')
+  }
+
+  if (getColCantidadSistemaAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    columns.push('10rem')
+  }
+
+  columns.push('4rem')
+
+  return columns.join(' ')
+})
+
+const detailsGridMinWidth = computed(() => {
+  let width = 8 + 8 +  6 + 6
+
+  if (getColCantidadAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    width += 5
+  }
+
+  if (getColCantidadInventarioAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    width += 5
+  }
+
+  if (getColCantidadGerenciaAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    width += 5
+  }
+
+  if (getColCantidadSistemaAccessLevel(detalles.value) !== AccessLevel.NONE) {
+    width += 10
+  }
+
+  return `${width}rem`
+})
 
 defineExpose({ checkNavigation })
 </script>
@@ -97,7 +155,16 @@ defineExpose({ checkNavigation })
             <h2 class="font-display font-bold text-xl text-main-dark">
               {{ title }}
             </h2>
+
+            
           </div>
+          <div v-if="Number(props.initialData?.prioridad_id) === 3">
+              <span
+                class="inline-flex w-fit items-center gap-2 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"
+              >
+                URGENTE
+              </span>
+            </div>
         </div>
 
         <button
@@ -129,36 +196,14 @@ defineExpose({ checkNavigation })
 
               <input
                 v-model="userName"
+                :disabled="true"
                 type="text"
                 class="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-700 font-medium focus:ring-2 focus:ring-accent outline-none"
               />
             </div>
 
-            <!-- Email -->
-            <div class="space-y-1.5">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                Email
-              </label>
+            
 
-              <input
-                v-model="userEmail"
-                type="email"
-                class="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-700 font-medium focus:ring-2 focus:ring-accent outline-none"
-              />
-            </div>
-
-            <!-- Prioridad -->
-            <label
-              class="inline-flex w-fit items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-bold text-yellow-800 cursor-pointer"
-            >
-              <input
-                v-model="prioridadSolicitada"
-                type="checkbox"
-                class="w-4 h-4 rounded border-yellow-300 text-yellow-600 focus:ring-yellow-500 accent-yellow-500 cursor-pointer"
-              />
-
-              <span>Solicitar Urgencia</span>
-            </label>
           </div>
 
           <!-- Equipos -->
@@ -348,9 +393,12 @@ defineExpose({ checkNavigation })
 
             <!-- Details grid -->
             <div class="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <div class="overflow-x-auto">
-                <div class="min-w-[1100px]">
-                  <div class="details-grid border-b border-gray-200 bg-stone-50">
+              <div class="hidden overflow-x-auto md:block">
+                <div :style="{ minWidth: detailsGridMinWidth }">
+                  <div
+                    class="details-grid border-b border-gray-200 bg-stone-50"
+                    :style="{ gridTemplateColumns: detailsGridTemplate }"
+                  >
                     <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">
                       Código
                     </div>
@@ -359,23 +407,35 @@ defineExpose({ checkNavigation })
                       Descripción
                     </div>
 
-                    <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">
+                    <div class="px-1 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">
                       Unidad
                     </div>
 
-                    <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">
+                    <div
+                      v-if="getColCantidadAccessLevel(detalles) !== AccessLevel.NONE"
+                      class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center"
+                    >
                       Cantidad
                     </div>
 
-                    <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">
+                    <div
+                      v-if="getColCantidadInventarioAccessLevel(detalles) !== AccessLevel.NONE"
+                      class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center"
+                    >
                       Inventario
                     </div>
 
-                    <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">
+                    <div
+                      v-if="getColCantidadGerenciaAccessLevel(detalles) !== AccessLevel.NONE"
+                      class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center"
+                    >
                       Gerencia
                     </div>
 
-                    <div class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">
+                    <div
+                      v-if="getColCantidadSistemaAccessLevel(detalles) !== AccessLevel.NONE"
+                      class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center"
+                    >
                       Sistema Compra
                     </div>
 
@@ -386,31 +446,97 @@ defineExpose({ checkNavigation })
                     <div
                       v-for="item in detalles"
                       :key="item.ui_id"
-                      class="details-grid details-row min-h-[72px] items-center transition-colors hover:bg-gray-50/70"
+                      class="details-grid details-row min-h-[72px] items-center transition-colors"
+                      :class="
+                        item.detalleSolicitud?.producto.activo === false
+                          ? 'bg-gray-50 text-gray-400'
+                          : 'hover:bg-gray-50/70'
+                      "
+                      :style="{ gridTemplateColumns: detailsGridTemplate }"
                     >
                       <div class="px-4 py-4">
-                        <input
-                          v-model="item.cod_producto"
-                          type="text"
-                          placeholder="Código"
-                          class="w-full px-3 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm"
-                        />
+                        <div
+                          v-if="getCodProductoAccessLevel(item) === AccessLevel.READ"
+                          class="text-sm font-bold"
+                          :class="
+                            item.detalleSolicitud?.producto.activo === false
+                              ? 'text-gray-400 line-through decoration-gray-300'
+                              : 'text-gray-800'
+                          "
+                        >
+                          {{ item.cod_producto }}
+                        </div>
+
+                        <div
+                          v-else-if="getCodProductoAccessLevel(item) === AccessLevel.NONE"
+                          class="inline-flex rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-400"
+                        >
+                          No asignado
+                        </div>
                       </div>
 
                       <div class="px-4 py-4">
-                        <input
-                          v-model="item.descripcion"
-                          type="text"
-                          maxlength="255"
-                          placeholder="Descripción..."
-                          class="w-full px-3 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm"
-                        />
+                        <div
+                          v-if="getDescripcionAccessLevel(item) === AccessLevel.EDIT"
+                          class="flex flex-col gap-1"
+                        >
+                          <span
+                            v-if="item.detalleSolicitud?.producto.activo === false"
+                            class="inline-flex w-fit items-center rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-600"
+                          >
+                            Descartado
+                          </span>
+
+                          <input
+                            v-model="item.descripcion"
+                            type="text"
+                            required
+                            maxlength="255"
+                            placeholder="Descripción..."
+                            class="w-full px-3 py-1.5 border border-dashed rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm"
+                            :class="
+                              item.detalleSolicitud?.producto.activo === false
+                                ? 'border-gray-200 bg-gray-50 text-gray-400'
+                                : 'border-gray-300'
+                            "
+                          />
+                        </div>
+
+                        <div
+                          v-else-if="getDescripcionAccessLevel(item) === AccessLevel.READ"
+                          class="flex flex-col gap-1"
+                        >
+                          <span
+                            v-if="item.detalleSolicitud?.producto.activo === false"
+                            class="inline-flex w-fit items-center rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-600"
+                          >
+                            Descartado
+                          </span>
+
+                          <span
+                            class="text-sm font-semibold"
+                            :class="
+                              item.detalleSolicitud?.producto.activo === false
+                                ? 'text-gray-400 line-through decoration-gray-300'
+                                : 'text-gray-600'
+                            "
+                          >
+                            {{ item.descripcion || '-' }}
+                          </span>
+                        </div>
                       </div>
 
-                      <div class="px-4 py-4 text-center">
+                      <div class="px-1 py-4 text-center">
                         <select
+                          v-if="getUnidadAccessLevel(item) === AccessLevel.EDIT"
                           v-model="item.unidad_id"
-                          class="w-full px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm bg-white cursor-pointer"
+                          required
+                          class="w-full px-2 py-1.5 border border-dashed rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm cursor-pointer"
+                          :class="
+                            item.detalleSolicitud?.producto.activo === false
+                              ? 'border-gray-200 bg-gray-50 text-gray-400'
+                              : 'border-gray-300 bg-white'
+                          "
                         >
                           <option value="">
                             Seleccionar
@@ -424,47 +550,100 @@ defineExpose({ checkNavigation })
                             {{ u.abreviatura }}
                           </option>
                         </select>
+
+                        <div
+                          v-else-if="getUnidadAccessLevel(item) === AccessLevel.READ"
+                          class="text-sm font-semibold"
+                          :class="
+                            item.detalleSolicitud?.producto.activo === false
+                              ? 'text-gray-400 line-through decoration-gray-300'
+                              : 'text-gray-600'
+                          "
+                        >
+                          {{
+                            unidadesMedida.find(u => String(u.id) === String(item.unidad_id))?.abreviatura ||
+                            item.unidad ||
+                            '-'
+                          }}
+                        </div>
                       </div>
 
-                      <div class="px-4 py-4 text-center">
+                      <div
+                        v-if="getColCantidadAccessLevel(detalles) !== AccessLevel.NONE"
+                        class="px-4 py-4 text-center"
+                      >
                         <input
                           v-if="getCantidadAccessLevel(item) === AccessLevel.EDIT"
                           v-model.number="item.cantidad"
                           type="number"
                           min="0"
-                          class="w-24 px-2 py-1.5 border border-dashed border-gray-300 rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm text-center"
+                          class="w-[4.5rem] px-2 py-1.5 border border-dashed rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm text-center"
+                          :class="
+                            item.detalleSolicitud?.producto.activo === false
+                              ? 'border-gray-200 bg-gray-50 text-gray-400'
+                              : 'border-gray-300'
+                          "
                         />
 
                         <div
                           v-else-if="getCantidadAccessLevel(item) === AccessLevel.READ"
-                          class="w-24 mx-auto px-2 py-1.5 text-sm font-semibold text-gray-600 text-center"
+                          class="w-[4.5rem] mx-auto px-2 py-1.5 text-sm font-semibold text-center"
+                          :class="
+                            item.detalleSolicitud?.producto.activo === false
+                              ? 'text-gray-400 line-through decoration-gray-300'
+                              : 'text-gray-600'
+                          "
                         >
                           {{ item.cantidad ?? '-' }}
                         </div>
                       </div>
 
-                      <div class="px-4 py-4 text-center">
+                      <div
+                        v-if="getColCantidadInventarioAccessLevel(detalles) !== AccessLevel.NONE"
+                        class="px-4 py-4 text-center"
+                      >
                         <div
                           v-if="getCantidadInventarioAccessLevel(item) === AccessLevel.READ"
-                          class="w-24 mx-auto px-2 py-1.5 text-sm font-semibold text-gray-600 text-center"
+                          class="w-24 mx-auto px-2 py-1.5 text-sm font-semibold text-center"
+                          :class="
+                            item.detalleSolicitud?.producto.activo === false
+                              ? 'text-gray-400 line-through decoration-gray-300'
+                              : 'text-gray-600'
+                          "
                         >
                           {{ item.cantidad_inventario ?? '-' }}
                         </div>
                       </div>
 
-                      <div class="px-4 py-4 text-center">
+                      <div
+                        v-if="getColCantidadGerenciaAccessLevel(detalles) !== AccessLevel.NONE"
+                        class="px-4 py-4 text-center"
+                      >
                         <div
                           v-if="getCantidadGerenciaAccessLevel(item) === AccessLevel.READ"
-                          class="w-24 mx-auto px-2 py-1.5 text-sm font-semibold text-gray-600 text-center"
+                          class="w-24 mx-auto px-2 py-1.5 text-sm font-semibold text-center"
+                          :class="
+                            item.detalleSolicitud?.producto.activo === false
+                              ? 'text-gray-400 line-through decoration-gray-300'
+                              : 'text-gray-600'
+                          "
                         >
                           {{ item.cantidad_gerencia ?? '-' }}
                         </div>
                       </div>
 
-                      <div class="px-4 py-4 text-center">
+                      <div
+                        v-if="getColCantidadSistemaAccessLevel(detalles) !== AccessLevel.NONE"
+                        class="px-4 py-4 text-center"
+                      >
                         <div
                           v-if="getCantidadSistemaAccessLevel(item) === AccessLevel.READ"
-                          class="w-24 mx-auto px-2 py-1.5 text-sm font-semibold text-gray-600 text-center"
+                          class="w-24 mx-auto px-2 py-1.5 text-sm font-semibold text-center"
+                          :class="
+                            item.detalleSolicitud?.producto.activo === false
+                              ? 'text-gray-400 line-through decoration-gray-300'
+                              : 'text-gray-600'
+                          "
                         >
                           {{ item.cantidad_subida_sistema_compra ?? '-' }}
                         </div>
@@ -488,8 +667,254 @@ defineExpose({ checkNavigation })
                   </div>
                 </div>
               </div>
+
+              <div v-if="detalles.length > 0" class="space-y-3 p-3 md:hidden">
+                <div
+                  v-for="item in detalles"
+                  :key="item.ui_id"
+                  class="details-row space-y-4 rounded-xl border p-4 transition-colors"
+                  :class="
+                    item.detalleSolicitud?.producto.activo === false
+                      ? 'border-gray-200 bg-gray-50 text-gray-400'
+                      : 'border-gray-200 bg-white'
+                  "
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 space-y-1">
+                      <div
+                        v-if="getCodProductoAccessLevel(item) === AccessLevel.READ"
+                        class="text-xs font-bold uppercase tracking-wide"
+                        :class="
+                          item.detalleSolicitud?.producto.activo === false
+                            ? 'text-gray-400 line-through decoration-gray-300'
+                            : 'text-gray-800'
+                        "
+                      >
+                        {{ item.cod_producto }}
+                      </div>
+
+                      <div
+                        v-else-if="getCodProductoAccessLevel(item) === AccessLevel.NONE"
+                        class="inline-flex rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-400"
+                      >
+                        No asignado
+                      </div>
+
+                      <span
+                        v-if="item.detalleSolicitud?.producto.activo === false"
+                        class="inline-flex w-fit items-center rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-600"
+                      >
+                        Descartado
+                      </span>
+                    </div>
+
+                    <button
+                      @click="removeDetalle(item.ui_id)"
+                      type="button"
+                      class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                      title="Eliminar"
+                    >
+                      <X class="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div>
+                    <label class="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                      Descripción
+                    </label>
+
+                    <div
+                      v-if="getDescripcionAccessLevel(item) === AccessLevel.EDIT"
+                      class="mt-1"
+                    >
+                      <input
+                        v-model="item.descripcion"
+                        type="text"
+                        required
+                        maxlength="255"
+                        placeholder="Descripción..."
+                        class="w-full px-3 py-1.5 border border-dashed rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm"
+                        :class="
+                          item.detalleSolicitud?.producto.activo === false
+                            ? 'border-gray-200 bg-gray-50 text-gray-400'
+                            : 'border-gray-300'
+                        "
+                      />
+                    </div>
+
+                    <div
+                      v-else-if="getDescripcionAccessLevel(item) === AccessLevel.READ"
+                      class="mt-1 text-sm font-semibold"
+                      :class="
+                        item.detalleSolicitud?.producto.activo === false
+                          ? 'text-gray-400 line-through decoration-gray-300'
+                          : 'text-gray-600'
+                      "
+                    >
+                      {{ item.descripcion || '-' }}
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label class="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                        Unidad
+                      </label>
+
+                      <select
+                        v-if="getUnidadAccessLevel(item) === AccessLevel.EDIT"
+                        v-model="item.unidad_id"
+                        required
+                        class="mt-1 w-full px-2 py-1.5 border border-dashed rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm cursor-pointer"
+                        :class="
+                          item.detalleSolicitud?.producto.activo === false
+                            ? 'border-gray-200 bg-gray-50 text-gray-400'
+                            : 'border-gray-300 bg-white'
+                        "
+                      >
+                        <option value="">
+                          Seleccionar
+                        </option>
+
+                        <option
+                          v-for="u in unidadesMedida"
+                          :key="u.id"
+                          :value="String(u.id)"
+                        >
+                          {{ u.abreviatura }}
+                        </option>
+                      </select>
+
+                      <div
+                        v-else-if="getUnidadAccessLevel(item) === AccessLevel.READ"
+                        class="mt-1 text-sm font-semibold"
+                        :class="
+                          item.detalleSolicitud?.producto.activo === false
+                            ? 'text-gray-400 line-through decoration-gray-300'
+                            : 'text-gray-600'
+                        "
+                      >
+                        {{
+                          unidadesMedida.find(u => String(u.id) === String(item.unidad_id))?.abreviatura ||
+                          item.unidad ||
+                          '-'
+                        }}
+                      </div>
+                    </div>
+
+                    
+                    <div v-if="getColCantidadInventarioAccessLevel(detalles) !== AccessLevel.NONE">
+                      <label class="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                        Inventario
+                      </label>
+
+                      <div
+                        v-if="getCantidadInventarioAccessLevel(item) === AccessLevel.READ"
+                        class="mt-1 text-sm font-semibold"
+                        :class="
+                          item.detalleSolicitud?.producto.activo === false
+                            ? 'text-gray-400 line-through decoration-gray-300'
+                            : 'text-gray-600'
+                        "
+                      >
+                        {{ item.cantidad_inventario ?? '-' }}
+                      </div>
+                    </div>
+
+                    <div v-if="getColCantidadAccessLevel(detalles) !== AccessLevel.NONE">
+                      <label class="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                        Cantidad
+                      </label>
+
+                      <input
+                        v-if="getCantidadAccessLevel(item) === AccessLevel.EDIT"
+                        v-model.number="item.cantidad"
+                        type="number"
+                        min="0"
+                        class="mt-1 w-full px-2 py-1.5 border border-dashed rounded focus:border-accent focus:ring-1 focus:ring-accent outline-none text-sm"
+                        :class="
+                          item.detalleSolicitud?.producto.activo === false
+                            ? 'border-gray-200 bg-gray-50 text-gray-400'
+                            : 'border-gray-300'
+                        "
+                      />
+
+                      <div
+                        v-else-if="getCantidadAccessLevel(item) === AccessLevel.READ"
+                        class="mt-1 text-sm font-semibold"
+                        :class="
+                          item.detalleSolicitud?.producto.activo === false
+                            ? 'text-gray-400 line-through decoration-gray-300'
+                            : 'text-gray-600'
+                        "
+                      >
+                        {{ item.cantidad ?? '-' }}
+                      </div>
+                    </div>
+
+
+                    <div v-if="getColCantidadGerenciaAccessLevel(detalles) !== AccessLevel.NONE">
+                      <label class="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                        Gerencia
+                      </label>
+
+                      <div
+                        v-if="getCantidadGerenciaAccessLevel(item) === AccessLevel.READ"
+                        class="mt-1 text-sm font-semibold"
+                        :class="
+                          item.detalleSolicitud?.producto.activo === false
+                            ? 'text-gray-400 line-through decoration-gray-300'
+                            : 'text-gray-600'
+                        "
+                      >
+                        {{ item.cantidad_gerencia ?? '-' }}
+                      </div>
+                    </div>
+
+                    <div v-if="getColCantidadSistemaAccessLevel(detalles) !== AccessLevel.NONE">
+                      <label class="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                        Sistema Compra
+                      </label>
+
+                      <div
+                        v-if="getCantidadSistemaAccessLevel(item) === AccessLevel.READ"
+                        class="mt-1 text-sm font-semibold"
+                        :class="
+                          item.detalleSolicitud?.producto.activo === false
+                            ? 'text-gray-400 line-through decoration-gray-300'
+                            : 'text-gray-600'
+                        "
+                      >
+                        {{ item.cantidad_subida_sistema_compra ?? '-' }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else class="py-8 text-center text-sm text-gray-400 md:hidden">
+                Agregue productos desde la búsqueda o como ítem manual.
+              </div>
             </div>
           </div>
+
+          
+          <!-- Prioridad -->
+          <div id="prioridad_ui" v-if="props.initialData?.prioridad_id!=3">
+            <label
+              class="inline-flex w-fit items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-bold text-yellow-800 cursor-pointer"
+            >
+              <input
+                v-model="prioridadSolicitada"
+                type="checkbox"
+                class="w-4 h-4 rounded border-yellow-300 text-yellow-600 focus:ring-yellow-500 accent-yellow-500 cursor-pointer"
+              />
+
+              <span>Solicitar Urgencia</span>
+            </label>
+          </div>
+
+          
 
           <!-- Observación -->
           <div class="space-y-1.5 pt-4">
@@ -574,19 +999,11 @@ defineExpose({ checkNavigation })
 <style scoped>
 .details-grid {
   display: grid;
-  grid-template-columns:
-    8rem
-    minmax(16rem, 1fr)
-    8rem
-    8rem
-    8rem
-    8rem
-    10rem
-    4rem;
   align-items: center;
 }
 
 .details-row {
   position: relative;
 }
+
 </style>

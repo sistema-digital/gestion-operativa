@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRouter, useRoute } from 'vue-router';
 import { supabase, supabaseRatings, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
+import { useFeatureAccessStore } from '@/stores/db_mantenimiento/app_feature_access/featureAccess.store';
 import { 
   BarChart3, 
   Wrench, 
@@ -10,46 +12,65 @@ import {
   Menu, 
   Plus,
   LayoutDashboard,
-  ShoppingCart
+  ShoppingCart,
+  ShieldCheck
 } from 'lucide-vue-next';
 
 const router = useRouter();
 const route = useRoute();
+const featureAccessStore = useFeatureAccessStore();
+const { isLoaded: isFeatureAccessLoaded } = storeToRefs(featureAccessStore);
 const isSidebarOpen = ref(true);
 
 const userProfile = ref<{ nombre?: string; role?: string; area?: string } | null>(null);
 const userEmail = ref('');
+const PANEL_ADMIN_FEATURE = 'panel_admin';
 
 const allMenuItems = [
   { name: 'Calificaciones', path: '/calificaciones', icon: BarChart3 },
   { name: 'Reparaciones', path: '/reparaciones', icon: Wrench },
   { name: 'Mantenimiento', path: '/mantenimiento', icon: Calendar },
   { name: 'Compras', path: '/compras', icon: ShoppingCart },
+  { name: 'Panel Admin', path: '/panel-admin', icon: ShieldCheck, requiredFeature: PANEL_ADMIN_FEATURE },
 ];
 
 const menuItems = computed(() => {
   const area = userProfile.value?.area?.toUpperCase() || '';
+  let items = allMenuItems;
+
   if (area === 'EVALUADOR') {
-    return allMenuItems.filter(i => i.name === 'Calificaciones');
-  }
-  if (area === 'ALMACEN') {
-    return allMenuItems.filter(i => i.name === 'Compras');
-  }
-  if (area === 'ALL') {
-    return [
+    items = allMenuItems.filter(i => i.name === 'Calificaciones');
+  } else if (area === 'ALMACEN') {
+    items = allMenuItems.filter(i => i.name === 'Compras');
+  } else if (area === 'ALL') {
+    items = [
       { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
       ...allMenuItems
     ];
   }
-  return allMenuItems;
+
+  return items.filter((item) => {
+    const requiredFeature = 'requiredFeature' in item ? item.requiredFeature : undefined;
+
+    if (!requiredFeature) {
+      return true;
+    }
+
+    return isFeatureAccessLoaded.value && featureAccessStore.tieneFuncionalidad(requiredFeature);
+  });
 });
 
 const viewTitle = computed(() => {
   if (route.path.startsWith('/compras')) return 'SOLICITUD COMPRA';
+  if (route.path.startsWith('/panel-admin')) return 'PANEL ADMINISTRADOR';
   return menuItems.value.find(i => isActive(i.path))?.name || 'Dashboard';
 });
 
 onMounted(async () => {
+  featureAccessStore.cargarFuncionalidadesPermitidas().catch((error) => {
+    console.error('Error cargando funcionalidades permitidas:', error);
+  });
+
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
     userEmail.value = user.email || '';
