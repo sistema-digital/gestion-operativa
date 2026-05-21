@@ -44,6 +44,7 @@ export const useAssignedHoursStore = defineStore('assignedHours', () => {
         const summarySelect = `
           ID_OT,
           id_om,
+          created,
           id_sg,
           Fecha,
           "Duración (horas)",
