@@ -9,6 +9,7 @@ import SlideMantenimiento from '@/components/dashboard/SlideMantenimiento.vue';
 import SlideHorasTrabajo from '@/components/dashboard/SlideHorasTrabajo.vue';
 import SlideServiciosGenerales from '@/components/dashboard/SlideServiciosGenerales.vue';
 import SlideCalificaciones from '@/components/dashboard/SlideCalificaciones.vue';
+import SlideProductividadSemanal from '@/components/dashboard/SlideProductividadSemanal.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -18,6 +19,7 @@ const allSlides = [
   { id: 'calificaciones', label: 'Calificaciones', component: SlideCalificaciones },
   { id: 'mantenimiento', label: 'Mantenimiento', component: SlideMantenimiento },
   { id: 'horas_trabajo', label: 'Horas Trabajo', component: SlideHorasTrabajo },
+  { id: 'productividad_semanal', label: 'Productividad', component: SlideProductividadSemanal },
   { id: 'servicios_generales', label: 'Servicios G.', component: SlideServiciosGenerales },
   { id: 'reparaciones', label: 'Reparaciones', component: SlideReparaciones },
 ];
@@ -40,7 +42,7 @@ const slides = computed(() => {
   }
   
   // Para el resto de usuarios (Mantenimiento y Reparaciones)
-  return allSlides.filter(s => s.id === 'reparaciones' || s.id === 'mantenimiento' || s.id === 'horas_trabajo');
+  return allSlides.filter(s => s.id === 'reparaciones' || s.id === 'mantenimiento' || s.id === 'horas_trabajo' || s.id === 'productividad_semanal');
 });
 
 const containerRef = ref<HTMLElement | null>(null);

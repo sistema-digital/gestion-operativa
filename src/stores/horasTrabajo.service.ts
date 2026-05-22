@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { useUserStore } from './userStore';
 import {
   getTodayLocalTimestampRange,
   isTestWorkOrderArea,
@@ -6,6 +7,9 @@ import {
   toWorkOrderUpdateDbPayload,
 } from './horasTrabajo.helpers';
 import type {
+  ProductividadSemanalPorEquipoResponse,
+  ProductividadSemanalResponse,
+  ProductividadSemanalServiciosGeneralesResponse,
   WorkOrderTodayDbRow,
   WorkOrderTodayRow,
   WorkOrderUpdatePayload,
@@ -33,7 +37,95 @@ const todayWorkOrdersSelect = `
   )
 `;
 
+const normalizeArea = (area: string | null | undefined): string => (
+  area || ''
+).trim().toLowerCase();
+
 export const horasTrabajoService = {
+  async fetchProductividadSemanalPorEquipo(
+    semana: string,
+    topLimit = 3
+  ): Promise<ProductividadSemanalPorEquipoResponse> {
+    const { data, error } = await supabase.rpc(
+      'rpc_productividad_semanal_por_equipo',
+      {
+        p_semana: semana,
+        p_top_limit: topLimit,
+      }
+    );
+
+    if (error) {
+      throw new Error(error.message || 'No se pudo cargar la productividad semanal por equipo');
+    }
+
+    const response = data as ProductividadSemanalPorEquipoResponse | null;
+
+    if (!response?.success) {
+      throw new Error('No se pudo cargar la productividad semanal por equipo');
+    }
+
+    return response;
+  },
+
+  async fetchProductividadSemanalServiciosGenerales(
+    semana: string,
+    topLimit = 3
+  ): Promise<ProductividadSemanalServiciosGeneralesResponse> {
+    const { data, error } = await supabase.rpc(
+      'rpc_productividad_semanal_servicios_generales',
+      {
+        p_semana: semana,
+        p_top_limit: topLimit,
+      }
+    );
+
+    if (error) {
+      throw new Error(error.message || 'No se pudo cargar la productividad semanal de Servicios Generales');
+    }
+
+    const response = data as ProductividadSemanalServiciosGeneralesResponse | null;
+
+    if (!response?.success) {
+      throw new Error(response?.message || 'No se pudo cargar la productividad semanal de Servicios Generales');
+    }
+
+    return response;
+  },
+
+  async fetchProductividadSemanal(
+    semana: string,
+    topLimit = 3
+  ): Promise<ProductividadSemanalResponse> {
+    const userStore = useUserStore();
+    const profile = await userStore.fetchCurrentUserProfile();
+    const area = normalizeArea(profile?.area || userStore.getArea());
+
+    if (!area) {
+      throw new Error('No se pudo identificar el área del usuario autenticado');
+    }
+
+    if (area === 'all') {
+      const [productividadGeneral, productividadServiciosGenerales] = await Promise.all([
+        this.fetchProductividadSemanalPorEquipo(semana, topLimit),
+        this.fetchProductividadSemanalServiciosGenerales(semana, topLimit),
+      ]);
+
+      return {
+        ...productividadGeneral,
+        areas: [
+          ...productividadGeneral.areas,
+          ...productividadServiciosGenerales.areas,
+        ],
+      };
+    }
+
+    if (area === 'servicios generales') {
+      return this.fetchProductividadSemanalServiciosGenerales(semana, topLimit);
+    }
+
+    return this.fetchProductividadSemanalPorEquipo(semana, topLimit);
+  },
+
   async fetchTodayWorkOrders(): Promise<WorkOrderTodayRow[]> {
     const { start, end } = getTodayLocalTimestampRange();
     const { data, error } = await supabase

@@ -80,3 +80,57 @@ export interface WorkOrderTodayDbRow {
   created: string | null;
   MECANICOS?: MecanicoTrabajoRow | MecanicoTrabajoRow[] | null;
 }
+
+export interface ProductividadSemanalSupervisor {
+  area: string;
+  email: string;
+  nombre: string;
+  area_autenticada?: string;
+}
+
+export interface ProductividadSemanalTotales {
+  retraso: number;
+  horas_asignadas: number;
+  horas_trabajadas: number;
+  equipos_atendidos: number;
+  equipo_con_mas_horas: string | null;
+}
+
+export interface ProductividadSemanalEquipo {
+  equipo: string;
+  descripcion: string;
+  horas_trabajadas: number;
+  horas_asignadas: number;
+  retraso: number;
+  posicion?: number;
+}
+
+export interface ProductividadSemanalResto {
+  equipos: ProductividadSemanalEquipo[];
+  parrafo: string;
+  retraso: number;
+  horas_asignadas: number;
+  cantidad_equipos: number;
+  horas_trabajadas: number;
+}
+
+export interface ProductividadSemanalArea {
+  area: string;
+  supervisor: ProductividadSemanalSupervisor;
+  totales: ProductividadSemanalTotales;
+  top_equipos: ProductividadSemanalEquipo[];
+  resto: ProductividadSemanalResto | null;
+}
+
+export interface ProductividadSemanalResponse {
+  success: boolean;
+  semana: string;
+  areas: ProductividadSemanalArea[];
+  message?: string;
+}
+
+export type ProductividadSemanalPorEquipoResponse =
+  ProductividadSemanalResponse;
+
+export type ProductividadSemanalServiciosGeneralesResponse =
+  ProductividadSemanalResponse;
