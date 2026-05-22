@@ -165,12 +165,18 @@ watch(() => route.query.slide, (newSlide) => {
         v-for="slide in slides" 
         :key="slide.id"
         :id="'dashboard-slide-' + slide.id"
-        class="min-w-full w-full flex-shrink-0 snap-center px-4 pb-6 md:px-6 md:pb-6 md:pt-0 lg:px-10 lg:pb-10 lg:pt-0 pb-[120px] md:pb-8 lg:pb-10 overflow-y-auto"
+        class="min-w-full w-full flex-shrink-0 snap-center"
+        :class="slide.id === 'productividad_semanal'
+          ? 'overflow-hidden'
+          : 'px-4 pb-[120px] md:px-6 md:pb-8 md:pt-0 lg:px-10 lg:pb-10 lg:pt-0 overflow-y-auto'"
       >
         <div class="flex flex-col gap-0">
           <component :is="slide.component" />
           <!-- End of scroll spacer to separate from bottom nav -->
-          <div class="h-10 w-full flex-shrink-0 lg:hidden"></div>
+          <div
+            v-if="slide.id !== 'productividad_semanal'"
+            class="h-10 w-full flex-shrink-0 lg:hidden"
+          ></div>
         </div>
       </div>
     </div>

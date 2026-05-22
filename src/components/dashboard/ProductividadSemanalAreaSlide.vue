@@ -3,11 +3,11 @@ import { computed } from 'vue';
 import {
   CalendarDays,
   Clock3,
-  Construction,
   FileText,
+  Forklift,
   MapPin,
+  Tractor,
   UserRound,
-  UsersRound,
 } from 'lucide-vue-next';
 import type {
   ProductividadSemanalArea,
@@ -73,14 +73,19 @@ const rankClass = (index: number) => {
           <div>
             <strong>{{ formatHours(props.area.totales.horas_trabajadas) }} h</strong>
             <p>Horas totales trabajadas</p>
-            <p class="delay-hours">
-              {{ formatHours(props.area.totales.retraso) }} h retrasadas
-            </p>
+          </div>
+        </div>
+
+        <div class="summary-row delay-row">
+          <span class="summary-icon delay-icon"><Clock3 class="h-7 w-7" /></span>
+          <div>
+            <strong>{{ formatHours(props.area.totales.retraso) }} h</strong>
+            <p>Horas retrasadas</p>
           </div>
         </div>
 
         <div class="summary-row">
-          <span class="summary-icon"><UsersRound class="h-7 w-7" /></span>
+          <span class="summary-icon"><Tractor class="h-7 w-7" /></span>
           <div>
             <strong>{{ props.area.totales.equipos_atendidos }} equipos</strong>
             <p>Equipos con actividad</p>
@@ -88,7 +93,7 @@ const rankClass = (index: number) => {
         </div>
 
         <div class="summary-row">
-          <span class="summary-icon"><Construction class="h-7 w-7" /></span>
+          <span class="summary-icon"><Forklift class="h-7 w-7" /></span>
           <div>
             <strong>{{ props.area.totales.equipo_con_mas_horas || 'Sin equipo' }}</strong>
             <p>Equipo con más horas</p>
@@ -122,15 +127,17 @@ const rankClass = (index: number) => {
 
 <style scoped>
 .productivity-slide {
+  --productivity-slide-scale: 0.76;
+
   display: flex;
-  width: 131.58%;
-  height: 131.58%;
+  width: calc(100% / var(--productivity-slide-scale));
+  height: calc(100% / var(--productivity-slide-scale));
   min-height: 0;
   flex-direction: column;
   gap: 0.9rem;
   padding: 0.75rem 0 0;
   color: var(--color-gray-700);
-  transform: scale(0.76);
+  transform: scale(var(--productivity-slide-scale));
   transform-origin: top left;
 }
 
@@ -157,15 +164,16 @@ const rankClass = (index: number) => {
 .hero-content {
   position: relative;
   z-index: 1;
-  max-width: 820px;
+  max-width: calc(100% - 330px);
   padding: 2rem 1.75rem 1.35rem;
 }
 
 h1 {
   color: var(--color-main);
-  font-size: clamp(2rem, 4.2vw, 3.35rem);
+  font-size: clamp(1.9rem, 3.4vw, 3rem);
   font-weight: 800;
   line-height: 0.98;
+  white-space: nowrap;
 }
 
 .hero-meta {
@@ -256,10 +264,22 @@ h1 {
   line-height: 1.35;
 }
 
-.delay-hours {
-  margin-top: 0.15rem;
-  color: var(--color-danger) !important;
-  font-weight: 800;
+.delay-row {
+  margin: 0.35rem 0;
+  border-top: 0 !important;
+}
+
+.delay-row + .summary-row {
+  border-top: 0;
+}
+
+.delay-icon {
+  background: rgba(192, 57, 43, 0.12);
+  color: var(--color-danger);
+}
+
+.delay-row strong {
+  color: var(--color-danger);
 }
 
 .ranking-list {
@@ -273,6 +293,7 @@ h1 {
   align-items: center;
   gap: 1rem;
   min-height: 78px;
+  max-height: 95px;
   border-radius: 10px;
   padding: 0.8rem 1.15rem;
 }
@@ -325,7 +346,9 @@ h1 {
 }
 
 @media (max-width: 1100px) {
+  .productivity-slide { --productivity-slide-scale: 0.82; }
   .hero-art { display: none; }
+  .hero-content { max-width: none; }
   .content-grid { grid-template-columns: 1fr; padding: 0 1.25rem; }
   .ranking-card { grid-template-columns: 64px 1fr 96px; }
   .ranking-card p { grid-column: 2 / -1; }
@@ -334,8 +357,10 @@ h1 {
 }
 
 @media (max-width: 640px) {
+  .productivity-slide { --productivity-slide-scale: 0.72; }
   .productivity-slide { padding-top: 0.75rem; }
   .hero-content { padding: 2.25rem 1.25rem; }
+  h1 { font-size: 1.55rem; }
   .hero-meta { gap: 0.65rem; }
   .hero-meta span { width: 100%; }
   .summary-card { padding: 1rem 1.25rem; }

@@ -146,7 +146,7 @@ onMounted(() => {
 
 <style scoped>
 .weekly-productivity-section {
-  height: clamp(460px, calc(100dvh - 7rem), 760px);
+  height: 100%;
 }
 
 .weekly-productivity-frame {
