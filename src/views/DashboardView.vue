@@ -9,6 +9,7 @@ import SlideMantenimiento from '@/components/dashboard/SlideMantenimiento.vue';
 import SlideHorasTrabajo from '@/components/dashboard/SlideHorasTrabajo.vue';
 import SlideServiciosGenerales from '@/components/dashboard/SlideServiciosGenerales.vue';
 import SlideCalificaciones from '@/components/dashboard/SlideCalificaciones.vue';
+import SlideProductividadSemanal from '@/components/dashboard/SlideProductividadSemanal.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -18,6 +19,7 @@ const allSlides = [
   { id: 'calificaciones', label: 'Calificaciones', component: SlideCalificaciones },
   { id: 'mantenimiento', label: 'Mantenimiento', component: SlideMantenimiento },
   { id: 'horas_trabajo', label: 'Horas Trabajo', component: SlideHorasTrabajo },
+  { id: 'productividad_semanal', label: 'Productividad', component: SlideProductividadSemanal },
   { id: 'servicios_generales', label: 'Servicios G.', component: SlideServiciosGenerales },
   { id: 'reparaciones', label: 'Reparaciones', component: SlideReparaciones },
 ];
@@ -40,7 +42,7 @@ const slides = computed(() => {
   }
   
   // Para el resto de usuarios (Mantenimiento y Reparaciones)
-  return allSlides.filter(s => s.id === 'reparaciones' || s.id === 'mantenimiento' || s.id === 'horas_trabajo');
+  return allSlides.filter(s => s.id === 'reparaciones' || s.id === 'mantenimiento' || s.id === 'horas_trabajo' || s.id === 'productividad_semanal');
 });
 
 const containerRef = ref<HTMLElement | null>(null);
@@ -163,12 +165,18 @@ watch(() => route.query.slide, (newSlide) => {
         v-for="slide in slides" 
         :key="slide.id"
         :id="'dashboard-slide-' + slide.id"
-        class="min-w-full w-full flex-shrink-0 snap-center px-4 pb-6 md:px-6 md:pb-6 md:pt-0 lg:px-10 lg:pb-10 lg:pt-0 pb-[120px] md:pb-8 lg:pb-10 overflow-y-auto"
+        class="min-w-full w-full flex-shrink-0 snap-center"
+        :class="slide.id === 'productividad_semanal'
+          ? 'overflow-hidden'
+          : 'px-4 pb-[120px] md:px-6 md:pb-8 md:pt-0 lg:px-10 lg:pb-10 lg:pt-0 overflow-y-auto'"
       >
         <div class="flex flex-col gap-0">
           <component :is="slide.component" />
           <!-- End of scroll spacer to separate from bottom nav -->
-          <div class="h-10 w-full flex-shrink-0 lg:hidden"></div>
+          <div
+            v-if="slide.id !== 'productividad_semanal'"
+            class="h-10 w-full flex-shrink-0 lg:hidden"
+          ></div>
         </div>
       </div>
     </div>

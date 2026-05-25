@@ -4,11 +4,17 @@ import { supabase } from '@/lib/supabase';
 import { horasTrabajoService } from './horasTrabajo.service';
 import type {
   HoraTrabajoData,
+  ProductividadSemanalResponse,
   WorkOrderTodayRow,
   WorkOrderUpdatePayload,
 } from './horasTrabajo.types';
 
-export type { HoraTrabajoData, WorkOrderTodayRow, WorkOrderUpdatePayload };
+export type {
+  HoraTrabajoData,
+  ProductividadSemanalResponse,
+  WorkOrderTodayRow,
+  WorkOrderUpdatePayload,
+};
 
 type DashboardRawRow = Record<string, unknown>;
 
@@ -31,6 +37,10 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
   const todayWorkOrders = ref<WorkOrderTodayRow[]>([]);
   const todayWorkOrdersLoading = ref(false);
   const todayWorkOrdersError = ref<string | null>(null);
+
+  const productividadSemanal = ref<ProductividadSemanalResponse | null>(null);
+  const productividadSemanalLoading = ref(false);
+  const productividadSemanalError = ref<string | null>(null);
 
   const fetchDashboardTable = async (table: string): Promise<DashboardRawRow[]> => {
     const rows: DashboardRawRow[] = [];
@@ -120,6 +130,27 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
     }
   };
 
+  const fetchProductividadSemanalPorEquipo = async (
+    semana: string,
+    topLimit = 3
+  ) => {
+    productividadSemanalLoading.value = true;
+    productividadSemanalError.value = null;
+
+    try {
+      const response = await horasTrabajoService.fetchProductividadSemanal(semana, topLimit);
+      productividadSemanal.value = response;
+      return response;
+    } catch (err) {
+      productividadSemanalError.value = err instanceof Error
+        ? err.message
+        : 'No se pudo cargar la productividad semanal por equipo';
+      throw err;
+    } finally {
+      productividadSemanalLoading.value = false;
+    }
+  };
+
   const updateWorkOrder = async (id: string, payload: WorkOrderUpdatePayload) => {
     const updated = await horasTrabajoService.updateWorkOrder(id, payload);
     const index = todayWorkOrders.value.findIndex((row) => row.idOt === id);
@@ -143,8 +174,12 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
     todayWorkOrders,
     todayWorkOrdersLoading,
     todayWorkOrdersError,
+    productividadSemanal,
+    productividadSemanalLoading,
+    productividadSemanalError,
     fetchData,
     fetchTodayWorkOrders,
+    fetchProductividadSemanalPorEquipo,
     updateWorkOrder,
     deleteWorkOrder,
   };
