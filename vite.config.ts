@@ -1,24 +1,45 @@
 import vue from '@vitejs/plugin-vue';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
+import fs from 'fs';
 import { defineConfig, loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
+
+  const isGithubPages = mode === 'github';
+
   return {
-    base: './',
-    plugins: [vue(), tailwindcss()],
+    base: isGithubPages ? './' : '/',
+
+    plugins: [
+      vue(),
+      tailwindcss(),
+
+      {
+        name: 'github-pages-nojekyll',
+        closeBundle() {
+          if (!isGithubPages) return;
+
+          const nojekyllPath = path.resolve(__dirname, 'docs/.nojekyll');
+          fs.writeFileSync(nojekyllPath, '');
+        },
+      },
+    ],
+
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
+
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
-        'vue': 'vue/dist/vue.esm-bundler.js',
+        vue: 'vue/dist/vue.esm-bundler.js',
       },
     },
+
     build: {
-      outDir: 'docs',
+      outDir: isGithubPages ? 'docs' : 'dist',
       emptyOutDir: true,
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
@@ -28,18 +49,19 @@ export default defineConfig(({ mode }) => {
               if (id.includes('echarts') || id.includes('zrender')) {
                 return 'echarts-vendor';
               }
+
               if (id.includes('@supabase')) {
                 return 'supabase-vendor';
               }
-              return 'vendor'; // all other modules
+
+              return 'vendor';
             }
-          }
-        }
-      }
+          },
+        },
+      },
     },
+
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       port: 3000,
       host: '0.0.0.0',

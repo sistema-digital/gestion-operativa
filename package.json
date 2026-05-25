@@ -6,9 +6,10 @@
   "packageManager": "pnpm@11.1.1",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build && touch docs/.nojekyll",
+    "build": "vite build",
+    "build:github": "vite build --mode github",
     "preview": "vite preview",
-    "clean": "rm -rf docs",
+    "clean": "rm -rf dist docs",
     "lint": "vue-tsc --noEmit"
   },
   "dependencies": {
