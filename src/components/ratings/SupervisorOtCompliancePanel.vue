@@ -166,6 +166,63 @@ const estadoClass = (aTiempo: boolean) => (
     ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
     : 'bg-rose-50 text-rose-700 border-rose-100'
 );
+
+const mechanicComplianceBadgeClass = (aTiempo: number, total: number) => {
+  if (total <= 0) return '!bg-gray-50 !text-gray-500 border !border-gray-200';
+
+  const percentage = (aTiempo / total) * 100;
+
+  if (percentage <= 33) return '!bg-rose-50 !text-rose-700 border !border-rose-200';
+  if (percentage <= 70) return '!bg-amber-50 !text-amber-700 border !border-amber-200';
+
+  return '!bg-emerald-50 !text-emerald-700 border !border-emerald-200';
+};
+
+const getPanamaDateKey = (date: Date) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Panama',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value || '';
+
+  return `${getPart('year')}-${getPart('month')}-${getPart('day')}`;
+};
+
+const getOtDescripcion = (ot: PuntuacionSupervisorOtOrden) => {
+  const descripcion = ot.origen.descripcion?.trim();
+
+  if (descripcion) return descripcion;
+  return ot.origen.id || 'Sin descripción';
+};
+
+const getOtFechaHora = (ot: PuntuacionSupervisorOtOrden) => (
+  ot.actualizaciones[0]?.fecha_hora
+  || ot.cumplimiento.primer_movimiento?.fecha_hora
+  || null
+);
+
+const formatFechaHora = (value: string | null) => {
+  if (!value) return '--';
+
+  const [datePart, timePart = ''] = value.split(' ');
+  const [year, month, day] = datePart.split('-').map(Number);
+
+  if (!year || !month || !day) return value;
+
+  const todayKey = getPanamaDateKey(new Date());
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = getPanamaDateKey(yesterday);
+  const time = timePart.slice(0, 5);
+
+  if (datePart === todayKey) return `Hoy ${time}`;
+  if (datePart === yesterdayKey) return `Ayer ${time}`;
+
+  return time ? `${datePart} ${time}` : datePart;
+};
 </script>
 
 <template>
@@ -208,14 +265,17 @@ const estadoClass = (aTiempo: boolean) => (
                 :key="mecanico.key"
                 :title="mecanico.nombre"
                 :extra="`${mecanico.aTiempo}/${mecanico.total} a tiempo`"
+                :extra-class="mechanicComplianceBadgeClass(mecanico.aTiempo, mecanico.total)"
                 :initiallyOpen="false"
                 class="border-gray-100 bg-white shadow-sm"
               >
                 <div class="record-list">
                   <article v-for="ot in mecanico.ots" :key="ot.id" class="record-row">
                     <div class="min-w-0">
-                      <p class="record-title">{{ ot.origen.tipo }} · {{ ot.origen.id || 'Sin origen' }}</p>
-                      <p class="record-meta">{{ ot.estado_actual || 'Sin estado' }} · {{ ot.hora_creacion || '--:--' }}</p>
+                      <p class="record-title">{{ getOtDescripcion(ot) }}</p>
+                      <p class="record-update">
+                        {{ ot.estado_actual || 'Sin estado' }} · {{ formatFechaHora(getOtFechaHora(ot)) }}
+                      </p>
                     </div>
                     <span class="record-status" :class="estadoClass(ot.cumplimiento.a_tiempo)">
                       {{ casoLabel(ot.cumplimiento.caso) }}
@@ -237,7 +297,6 @@ const estadoClass = (aTiempo: boolean) => (
           <ShieldCheck class="h-6 w-6" aria-hidden="true" />
         </div>
         <div class="min-w-0">
-          <p class="compliance-kicker">Datos automáticos del sistema</p>
           <h4>Cumplimiento de Cierre de Jornada</h4>
           <p>{{ area?.supervisor.nombre || 'Seleccione un supervisor' }}</p>
         </div>
@@ -288,20 +347,19 @@ const estadoClass = (aTiempo: boolean) => (
             :key="mecanico.key"
             :title="mecanico.nombre"
             :extra="`${mecanico.aTiempo}/${mecanico.total} a tiempo`"
+            :extra-class="mechanicComplianceBadgeClass(mecanico.aTiempo, mecanico.total)"
             :initiallyOpen="false"
             class="border-gray-100 bg-white shadow-sm"
           >
             <div class="record-list">
               <article v-for="ot in mecanico.ots" :key="ot.id" class="record-row">
                 <div class="min-w-0">
-                  <p class="record-title">{{ ot.origen.tipo }} · {{ ot.origen.id || 'Sin origen' }}</p>
+                  <p class="record-title">{{ getOtDescripcion(ot) }}</p>
                   <p class="record-meta">
                     {{ ot.estado_actual || 'Sin estado' }}
-                    <ChevronRight class="inline h-3 w-3" aria-hidden="true" />
-                    {{ ot.hora_creacion || '--:--' }}
                   </p>
-                  <p v-if="ot.actualizaciones[0]" class="record-update">
-                    Última actualización {{ ot.actualizaciones[0].fecha_hora }}
+                  <p class="record-update">
+                    Última actualización {{ formatFechaHora(getOtFechaHora(ot)) }}
                   </p>
                 </div>
                 <span class="record-status" :class="estadoClass(ot.cumplimiento.a_tiempo)">
