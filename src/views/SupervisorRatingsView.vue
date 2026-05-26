@@ -563,11 +563,11 @@ const getCreatedDateKey = (value: string | null | undefined) => {
 const createdDateBadgeClass = (value: string | null | undefined) => {
   const createdDate = getCreatedDateKey(value);
 
-  if (!createdDate) return 'bg-gray-100 text-gray-500 border-gray-200';
-  if (createdDate === form.value.fecha) return 'bg-rose-50 text-rose-700 border-rose-200';
-  if (createdDate < form.value.fecha) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (!createdDate) return 'text-gray-500';
+  if (createdDate === form.value.fecha) return 'text-rose-700';
+  if (createdDate < form.value.fecha) return 'text-emerald-700';
 
-  return 'bg-amber-50 text-amber-700 border-amber-200';
+  return 'text-amber-700';
 };
 
 const assignedHeaderClass = (isAssigned: boolean) => (
@@ -577,10 +577,16 @@ const assignedHeaderClass = (isAssigned: boolean) => (
 );
 
 const assignedBadgeClass = (isAssigned: boolean) => (
-  isAssigned
-    ? 'bg-white text-accent border-gray-100'
-    : 'bg-rose-100 text-rose-700 border-rose-200'
+  isAssigned ? 'bg-white text-accent border-gray-100' : 'bg-rose-100 text-rose-700 border-rose-200'
 );
+
+const assignedHoursBadgeClass = (isAssigned: boolean, total: number) => {
+  if (!isAssigned) return 'bg-rose-100 text-rose-700 border-rose-200';
+  if (total === 8) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (total < 8) return 'bg-rose-50 text-rose-700 border-rose-200';
+
+  return 'bg-orange-50 text-orange-700 border-orange-200';
+};
 
 const assignedBadgeText = (isAssigned: boolean, total: number) => (
   isAssigned ? `${total} hrs` : 'No asignado'
@@ -1402,7 +1408,7 @@ onUnmounted(() => {
                               :class="assignedHeaderClass(mech.isAssigned)"
                             >
                                <span><HardHat class="w-3 h-3 inline mr-1 text-gray-400 relative -top-[1px]" /> {{ mech.name }}</span>
-                               <span class="px-2 py-0.5 rounded border text-[10px]" :class="assignedBadgeClass(mech.isAssigned)">
+                               <span class="px-2 py-0.5 rounded border text-[10px]" :class="assignedHoursBadgeClass(mech.isAssigned, mech.total)">
                                  {{ assignedBadgeText(mech.isAssigned, mech.total) }}
                                </span>
                             </div>
@@ -1416,7 +1422,7 @@ onUnmounted(() => {
                                      <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-sm" :class="item.Estatus === 'Cerrada' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'">{{ item.Estatus || 'Abierta' }}</span>
                                      <span
                                        v-if="formatCreatedDate(item.created)"
-                                       class="text-[10px] font-bold whitespace-nowrap border px-1.5 py-0.5 rounded"
+                                       class="text-[10px] font-bold whitespace-nowrap"
                                        :class="createdDateBadgeClass(item.created)"
                                      >
                                        {{ formatCreatedDate(item.created) }}
@@ -1437,7 +1443,7 @@ onUnmounted(() => {
                            :class="assignedHeaderClass(group.isAssigned)"
                          >
                             <span><HardHat class="w-3 h-3 inline mr-1 text-gray-500 relative -top-[1px]"/> {{ group.name }}</span>
-                            <span class="px-2 py-0.5 rounded border font-bold" :class="assignedBadgeClass(group.isAssigned)">
+                            <span class="px-2 py-0.5 rounded border font-bold" :class="assignedHoursBadgeClass(group.isAssigned, group.total)">
                               {{ assignedBadgeText(group.isAssigned, group.total) }}
                             </span>
                          </div>
@@ -1451,7 +1457,7 @@ onUnmounted(() => {
                                   <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-sm" :class="item.Estatus === 'Cerrada' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'">{{ item.Estatus || 'Abierta' }}</span>
                                   <span
                                     v-if="formatCreatedDate(item.created)"
-                                    class="text-[10px] font-bold whitespace-nowrap border px-1.5 py-0.5 rounded"
+                                    class="text-[10px] font-bold whitespace-nowrap"
                                     :class="createdDateBadgeClass(item.created)"
                                   >
                                     {{ formatCreatedDate(item.created) }}

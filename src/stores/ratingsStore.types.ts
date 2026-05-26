@@ -95,6 +95,7 @@ export interface PuntuacionSupervisorOtResumen {
 export interface PuntuacionSupervisorOtOrigen {
   id: string | null;
   tipo: PuntuacionSupervisorOtTipoOrigen;
+  descripcion: string | null;
 }
 
 export interface PuntuacionSupervisorOtMecanico {
