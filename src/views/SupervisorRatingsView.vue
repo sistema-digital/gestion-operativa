@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
 import { supabaseRatings, supabase } from '@/lib/supabase';
 import { 
   Users, 
@@ -24,6 +25,8 @@ import BaseInput from '@/components/BaseInput.vue';
 import BaseToggle from '@/components/BaseToggle.vue';
 import BaseRow from '@/components/BaseRow.vue';
 import BaseButton from '@/components/BaseButton.vue';
+import SupervisorOtCompliancePanel from '@/components/ratings/SupervisorOtCompliancePanel.vue';
+import type { PuntuacionSupervisorOtArea } from '@/stores/ratingsStore.types';
 
 interface Inspeccion {
   id_inspeccion: number;
@@ -53,6 +56,12 @@ interface SupervisorScore {
 
 const ratingsStore = useRatingsStore();
 const assignedHoursStore = useAssignedHoursStore();
+const {
+  puntuacionSupervisoresOt,
+  fechaPuntuacionSupervisoresOt,
+  isPuntuacionSupervisoresOtLoading,
+  errorPuntuacionSupervisoresOt,
+} = storeToRefs(ratingsStore);
 
 const now = new Date();
 const tzOffset = now.getTimezoneOffset() * 60000;
@@ -240,9 +249,62 @@ const form = ref({
   detalles: {} as Record<number, number> // id_criterio -> puntuacion (1 a 5)
 });
 
+const getPreviousBusinessDate = (dateString: string) => {
+  const baseDate = new Date(`${dateString}T00:00:00`);
+
+  if (Number.isNaN(baseDate.getTime())) return dateString;
+
+  const day = baseDate.getDay();
+  const daysToSubtract = day === 1 ? 3 : 1;
+  const previousDate = new Date(baseDate.getTime() - daysToSubtract * 86400000);
+  const year = previousDate.getFullYear();
+  const month = String(previousDate.getMonth() + 1).padStart(2, '0');
+  const date = String(previousDate.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${date}`;
+};
+
+const fechaCumplimientoOt = ref(getPreviousBusinessDate(form.value.fecha));
+
 const actualAssignedHours = ref<any[]>([]);
 const isAssignedHoursLoading = ref(false);
 const activeSupervisorArea = ref('');
+
+const selectedSupervisorForForm = computed(() => {
+  if (!form.value.id_supervisor) return null;
+
+  return formEmpleados.value.find(
+    (empleado) => empleado.id_empleado.toString() === form.value.id_supervisor.toString()
+  ) || null;
+});
+
+const selectedSupervisorEmail = computed(() => {
+  const supervisor = selectedSupervisorForForm.value;
+
+  return (supervisor?.correo || supervisor?.email || '').toLowerCase().trim();
+});
+
+const selectedSupervisorOtArea = computed<PuntuacionSupervisorOtArea | null>(() => {
+  const response = puntuacionSupervisoresOt.value;
+  const email = selectedSupervisorEmail.value;
+
+  if (!response?.ok || !email) return null;
+
+  return response.areas.find((area) => (
+    area.supervisor.email || ''
+  ).toLowerCase().trim() === email) || null;
+});
+
+const loadOtComplianceForDate = async (fecha: string) => {
+  if (!fecha) return;
+  if (fechaPuntuacionSupervisoresOt.value === fecha && puntuacionSupervisoresOt.value) return;
+
+  try {
+    await ratingsStore.fetchPuntuacionSupervisoresOt(fecha);
+  } catch (error) {
+    console.error('Error cargando cumplimiento OT', error);
+  }
+};
 
 const loadAssignedHours = async (force = false) => {
   if (!form.value.id_supervisor || !form.value.fecha) {
@@ -279,6 +341,15 @@ watch(() => [form.value.id_supervisor, form.value.fecha], () => {
     loadAssignedHours();
   }
 });
+
+watch(() => form.value.fecha, (fecha) => {
+  fechaCumplimientoOt.value = getPreviousBusinessDate(fecha);
+});
+
+watch(() => [showModal.value, fechaCumplimientoOt.value] as const, ([isOpen, fecha]) => {
+  if (!isOpen || !fecha) return;
+  loadOtComplianceForDate(fecha);
+}, { immediate: true });
 
 const sgFilterEquipo = ref('');
 const selectedExtraSupervisorIds = ref<string[]>([]);
@@ -482,6 +553,7 @@ const openNewModal = async () => {
     observacion: '',
     detalles: {}
   };
+  fechaCumplimientoOt.value = getPreviousBusinessDate(form.value.fecha);
   filesToUpload.value = []; // Reset files
   existingPhotos.value = [];
   
@@ -565,6 +637,7 @@ const openEditModal = async (insp: any) => {
     observacion: insp.observacion || '',
     detalles: {}
   };
+  fechaCumplimientoOt.value = getPreviousBusinessDate(form.value.fecha);
   
   const hasData = formEmpleados.value.length > 0 && formNiveles.value.length > 0 && formCriterios.value.length > 0;
 
@@ -1060,20 +1133,22 @@ onUnmounted(() => {
 
     <!-- Modal Nuevo Registro -->
     <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl overflow-hidden flex flex-col h-[90vh] max-h-[90vh]">
+        <div class="p-6 border-b border-gray-100 flex flex-none items-center justify-between bg-gray-50">
           <h3 class="font-display text-xl text-gray-900 tracking-tight">{{ isEditing ? 'Actualizar Inspección' : 'Nueva Inspección' }}</h3>
           <button @click="showModal = false" class="text-gray-400 hover:text-gray-600">
             <X class="w-5 h-5" />
           </button>
         </div>
         
-        <div class="p-6 overflow-y-auto flex-1 space-y-6">
+        <div class="p-6 overflow-hidden flex-1 min-h-0">
           <div v-if="modalLoading" class="py-10 flex justify-center">
             <Loader2 class="w-8 h-8 animate-spin text-main" />
           </div>
           
           <template v-else>
+            <div class="grid h-full min-h-0 overflow-hidden gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
+              <div class="min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1 lg:pr-3 space-y-6">
             <!-- Basic Info -->
             <div class="grid grid-cols-2 gap-4">
               <BaseInput type="date" v-model="form.fecha" label="Fecha de Inspección" />
@@ -1230,6 +1305,22 @@ onUnmounted(() => {
               </div>
             </BaseToggle>
 
+            <div v-if="form.id_supervisor && form.fecha" class="lg:hidden">
+              <BaseInput
+                type="date"
+                v-model="fechaCumplimientoOt"
+                label="Fecha de Cumplimiento de Cierre"
+              />
+              <SupervisorOtCompliancePanel
+                class="mt-3"
+                mode="toggle"
+                :area="selectedSupervisorOtArea"
+                :fecha="fechaCumplimientoOt"
+                :is-loading="isPuntuacionSupervisoresOtLoading"
+                :error="errorPuntuacionSupervisoresOt"
+              />
+            </div>
+
             <!-- Extra Supervisors (SG) -->
             <BaseToggle
               v-if="form.id_supervisor && form.fecha && isServiciosGenerales"
@@ -1365,10 +1456,28 @@ onUnmounted(() => {
             </div>
 
             <div v-if="errorMsg" class="p-3 bg-danger-bg text-danger text-[11px] font-bold rounded-lg">{{ errorMsg }}</div>
+              </div>
+
+              <div class="hidden lg:block min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1">
+                <div class="space-y-3">
+                  <BaseInput
+                    type="date"
+                    v-model="fechaCumplimientoOt"
+                    label="Fecha de Cumplimiento de Cierre"
+                  />
+                  <SupervisorOtCompliancePanel
+                    :area="selectedSupervisorOtArea"
+                    :fecha="fechaCumplimientoOt"
+                    :is-loading="isPuntuacionSupervisoresOtLoading"
+                    :error="errorPuntuacionSupervisoresOt"
+                  />
+                </div>
+              </div>
+            </div>
           </template>
         </div>
         
-        <div class="p-4 border-t border-gray-100 bg-white flex justify-end gap-3">
+        <div class="p-4 border-t border-gray-100 bg-white flex flex-none justify-end gap-3">
           <BaseButton variant="tertiary" @click="showModal = false">Cancelar</BaseButton>
           <BaseButton variant="primary" :disabled="modalLoading || btnSaving" @click="saveInspeccion">
             <span v-if="!btnSaving">{{ isEditing ? 'Actualizar Inspección' : 'Guardar Inspección' }}</span>
