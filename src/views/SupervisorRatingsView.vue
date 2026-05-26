@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
 import { supabaseRatings, supabase } from '@/lib/supabase';
 import { 
   Users, 
@@ -19,11 +20,15 @@ import {
 } from 'lucide-vue-next';
 import { useRatingsStore } from '@/stores/ratingsStore';
 import { useAssignedHoursStore } from '@/stores/assignedHoursStore';
+import { useMecanicosStore } from '@/stores/db_mantenimiento/mecanicos/mecanicos.store';
 import BaseKPI from '@/components/BaseKPI.vue';
 import BaseInput from '@/components/BaseInput.vue';
 import BaseToggle from '@/components/BaseToggle.vue';
 import BaseRow from '@/components/BaseRow.vue';
 import BaseButton from '@/components/BaseButton.vue';
+import SupervisorOtCompliancePanel from '@/components/ratings/SupervisorOtCompliancePanel.vue';
+import type { PuntuacionSupervisorOtArea } from '@/stores/ratingsStore.types';
+import type { MecanicoMantenimiento } from '@/stores/db_mantenimiento/mecanicos/mecanicos.types';
 
 interface Inspeccion {
   id_inspeccion: number;
@@ -51,8 +56,41 @@ interface SupervisorScore {
   groupedInsps?: InspGroup[];
 }
 
+interface MecanicoHorasAsignadas {
+  name: string;
+  total: number;
+  isAssigned: boolean;
+  items: any[];
+}
+
+type HorasAsignadasGrupo =
+  | {
+      isSG: true;
+      name: string;
+      total: number;
+      mecanicos: MecanicoHorasAsignadas[];
+    }
+  | {
+      isSG: false;
+      name: string;
+      total: number;
+      isAssigned: boolean;
+      items: any[];
+    };
+
 const ratingsStore = useRatingsStore();
 const assignedHoursStore = useAssignedHoursStore();
+const mecanicosStore = useMecanicosStore();
+const {
+  puntuacionSupervisoresOt,
+  fechaPuntuacionSupervisoresOt,
+  isPuntuacionSupervisoresOtLoading,
+  errorPuntuacionSupervisoresOt,
+} = storeToRefs(ratingsStore);
+const {
+  mecanicosPorArea,
+  isLoading: isMecanicosLoading,
+} = storeToRefs(mecanicosStore);
 
 const now = new Date();
 const tzOffset = now.getTimezoneOffset() * 60000;
@@ -240,9 +278,62 @@ const form = ref({
   detalles: {} as Record<number, number> // id_criterio -> puntuacion (1 a 5)
 });
 
+const getPreviousBusinessDate = (dateString: string) => {
+  const baseDate = new Date(`${dateString}T00:00:00`);
+
+  if (Number.isNaN(baseDate.getTime())) return dateString;
+
+  const day = baseDate.getDay();
+  const daysToSubtract = day === 1 ? 3 : 1;
+  const previousDate = new Date(baseDate.getTime() - daysToSubtract * 86400000);
+  const year = previousDate.getFullYear();
+  const month = String(previousDate.getMonth() + 1).padStart(2, '0');
+  const date = String(previousDate.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${date}`;
+};
+
+const fechaCumplimientoOt = ref(getPreviousBusinessDate(form.value.fecha));
+
 const actualAssignedHours = ref<any[]>([]);
 const isAssignedHoursLoading = ref(false);
 const activeSupervisorArea = ref('');
+
+const selectedSupervisorForForm = computed(() => {
+  if (!form.value.id_supervisor) return null;
+
+  return formEmpleados.value.find(
+    (empleado) => empleado.id_empleado.toString() === form.value.id_supervisor.toString()
+  ) || null;
+});
+
+const selectedSupervisorEmail = computed(() => {
+  const supervisor = selectedSupervisorForForm.value;
+
+  return (supervisor?.correo || supervisor?.email || '').toLowerCase().trim();
+});
+
+const selectedSupervisorOtArea = computed<PuntuacionSupervisorOtArea | null>(() => {
+  const response = puntuacionSupervisoresOt.value;
+  const email = selectedSupervisorEmail.value;
+
+  if (!response?.ok || !email) return null;
+
+  return response.areas.find((area) => (
+    area.supervisor.email || ''
+  ).toLowerCase().trim() === email) || null;
+});
+
+const loadOtComplianceForDate = async (fecha: string) => {
+  if (!fecha) return;
+  if (fechaPuntuacionSupervisoresOt.value === fecha && puntuacionSupervisoresOt.value) return;
+
+  try {
+    await ratingsStore.fetchPuntuacionSupervisoresOt(fecha);
+  } catch (error) {
+    console.error('Error cargando cumplimiento OT', error);
+  }
+};
 
 const loadAssignedHours = async (force = false) => {
   if (!form.value.id_supervisor || !form.value.fecha) {
@@ -260,7 +351,12 @@ const loadAssignedHours = async (force = false) => {
       const area = await assignedHoursStore.fetchSupervisorArea(email, force);
       activeSupervisorArea.value = area;
       if (area) {
-        actualAssignedHours.value = await assignedHoursStore.fetchHours(area, form.value.fecha, force);
+        const [horasAsignadas] = await Promise.all([
+          assignedHoursStore.fetchHours(area, form.value.fecha, force),
+          mecanicosStore.cargarMecanicosActivosPorArea(area, force),
+        ]);
+
+        actualAssignedHours.value = horasAsignadas;
       } else {
         actualAssignedHours.value = [];
       }
@@ -279,6 +375,15 @@ watch(() => [form.value.id_supervisor, form.value.fecha], () => {
     loadAssignedHours();
   }
 });
+
+watch(() => form.value.fecha, (fecha) => {
+  fechaCumplimientoOt.value = getPreviousBusinessDate(fecha);
+});
+
+watch(() => [showModal.value, fechaCumplimientoOt.value] as const, ([isOpen, fecha]) => {
+  if (!isOpen || !fecha) return;
+  loadOtComplianceForDate(fecha);
+}, { immediate: true });
 
 const sgFilterEquipo = ref('');
 const selectedExtraSupervisorIds = ref<string[]>([]);
@@ -321,64 +426,165 @@ const criterion3Label = computed(() => {
   return c3 ? c3.descripcion_tarea : 'Trato al Cliente (3)';
 });
 
+const mecanicosActivosArea = computed(() => {
+  if (!activeSupervisorArea.value) return [];
+
+  return mecanicosPorArea.value[activeSupervisorArea.value] || [];
+});
+
+const normalizeText = (value: string | null | undefined) => (
+  value || ''
+).trim().toLowerCase();
+
+const getRowMecanicoId = (row: any) => {
+  const mecanico = Array.isArray(row.MECANICOS)
+    ? row.MECANICOS[0]
+    : row.MECANICOS;
+
+  return typeof mecanico?.id === 'number' ? mecanico.id : null;
+};
+
+const getRowMecanicoNombre = (row: any) => {
+  const mecanico = Array.isArray(row.MECANICOS)
+    ? row.MECANICOS[0]
+    : row.MECANICOS;
+
+  return mecanico?.NOMBRE || '';
+};
+
+const rowBelongsToMecanico = (row: any, mecanico: MecanicoMantenimiento) => {
+  const rowId = getRowMecanicoId(row);
+
+  if (rowId !== null) {
+    return rowId === mecanico.id;
+  }
+
+  return normalizeText(getRowMecanicoNombre(row)) === normalizeText(mecanico.NOMBRE);
+};
+
+const parseHoras = (value: unknown) => {
+  const parsed = typeof value === 'number'
+    ? value
+    : Number.parseFloat(String(value || '0'));
+
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const sgUniqueEquipos = computed(() => {
-  if (activeSupervisorArea.value !== 'Servicios Generales' || !actualAssignedHours.value) return [];
+  if (activeSupervisorArea.value !== 'Servicios Generales') return [];
+
   const equipos = new Set<string>();
-  actualAssignedHours.value.forEach(row => {
-    const eq = row.MECANICOS?.['EQUIPO DE TRABAJO'] || 'Sin Equipo';
-    equipos.add(eq);
+
+  mecanicosActivosArea.value.forEach((mecanico) => {
+    equipos.add(mecanico['EQUIPO DE TRABAJO'] || 'Sin Equipo');
   });
+
   return Array.from(equipos).sort();
 });
 
-const groupedAssignedHours = computed(() => {
-  const result: any[] = [];
+const groupedAssignedHours = computed<HorasAsignadasGrupo[]>(() => {
   const area = activeSupervisorArea.value;
+  const mecanicos = mecanicosActivosArea.value;
   
-  if (!actualAssignedHours.value || actualAssignedHours.value.length === 0) return [];
+  if (!area || mecanicos.length === 0) return [];
   
   if (area === 'Servicios Generales') {
-    const eMap: any = {};
-    actualAssignedHours.value.forEach(row => {
-      const eq = row.MECANICOS?.['EQUIPO DE TRABAJO'] || 'Sin Equipo';
+    const eMap = new Map<string, {
+      isSG: true;
+      name: string;
+      total: number;
+      mecanicos: Array<{
+        name: string;
+        total: number;
+        isAssigned: boolean;
+        items: any[];
+      }>;
+    }>();
+
+    mecanicos.forEach((mecanico) => {
+      const eq = mecanico['EQUIPO DE TRABAJO'] || 'Sin Equipo';
       
-      // Filter by Equipo if sgFilterEquipo is selected
       if (sgFilterEquipo.value && sgFilterEquipo.value !== eq) return;
 
-      const mech = row.MECANICOS?.NOMBRE || 'Desconocido';
-      if (!eMap[eq]) eMap[eq] = { total: 0, mecanicos: {} };
-      if (!eMap[eq].mecanicos[mech]) eMap[eq].mecanicos[mech] = { total: 0, items: [] };
-      
-      eMap[eq].total += parseFloat(row['Duración (horas)'] || '0');
-      eMap[eq].mecanicos[mech].total += parseFloat(row['Duración (horas)'] || '0');
-      eMap[eq].mecanicos[mech].items.push(row);
+      const items = actualAssignedHours.value.filter((row) => rowBelongsToMecanico(row, mecanico));
+      const total = items.reduce((acc, row) => acc + parseHoras(row['Duración (horas)']), 0);
+      const equipo = eMap.get(eq) || {
+        isSG: true as const,
+        name: eq,
+        total: 0,
+        mecanicos: [],
+      };
+
+      equipo.total += total;
+      equipo.mecanicos.push({
+        name: mecanico.NOMBRE || 'Sin nombre',
+        total,
+        isAssigned: items.length > 0,
+        items,
+      });
+      eMap.set(eq, equipo);
     });
     
-    Object.keys(eMap).forEach(eqKey => {
-       const mechNodes: any[] = [];
-       Object.keys(eMap[eqKey].mecanicos).forEach(mKey => {
-         mechNodes.push({ name: mKey, total: eMap[eqKey].mecanicos[mKey].total, items: eMap[eqKey].mecanicos[mKey].items });
-       });
-       result.push({ isSG: true, name: eqKey, total: eMap[eqKey].total, mecanicos: mechNodes });
-    });
-    
-    return result;
-  } else {
-    const mMap: any = {};
-    actualAssignedHours.value.forEach(row => {
-      const mech = row.MECANICOS?.NOMBRE || 'Desconocido';
-      if (!mMap[mech]) mMap[mech] = { total: 0, items: [] };
-      mMap[mech].total += parseFloat(row['Duración (horas)'] || '0');
-      mMap[mech].items.push(row);
-    });
-    
-    Object.keys(mMap).forEach(mkey => {
-      result.push({ isSG: false, name: mkey, total: mMap[mkey].total, items: mMap[mkey].items });
-    });
-    
-    return result;
+    return Array.from(eMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }
+
+  return mecanicos.map((mecanico) => {
+    const items = actualAssignedHours.value.filter((row) => rowBelongsToMecanico(row, mecanico));
+    const total = items.reduce((acc, row) => acc + parseHoras(row['Duración (horas)']), 0);
+
+    return {
+      isSG: false as const,
+      name: mecanico.NOMBRE || 'Sin nombre',
+      total,
+      isAssigned: items.length > 0,
+      items,
+    };
+  });
 });
+
+const getCreatedDateKey = (value: string | null | undefined) => {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Panama',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value || '';
+
+  return `${getPart('year')}-${getPart('month')}-${getPart('day')}`;
+};
+
+const createdDateBadgeClass = (value: string | null | undefined) => {
+  const createdDate = getCreatedDateKey(value);
+
+  if (!createdDate) return 'bg-gray-100 text-gray-500 border-gray-200';
+  if (createdDate === form.value.fecha) return 'bg-rose-50 text-rose-700 border-rose-200';
+  if (createdDate < form.value.fecha) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+  return 'bg-amber-50 text-amber-700 border-amber-200';
+};
+
+const assignedHeaderClass = (isAssigned: boolean) => (
+  isAssigned
+    ? 'bg-gray-50 text-gray-700 border-gray-100'
+    : 'bg-rose-50 text-rose-700 border-rose-100'
+);
+
+const assignedBadgeClass = (isAssigned: boolean) => (
+  isAssigned
+    ? 'bg-white text-accent border-gray-100'
+    : 'bg-rose-100 text-rose-700 border-rose-200'
+);
+
+const assignedBadgeText = (isAssigned: boolean, total: number) => (
+  isAssigned ? `${total} hrs` : 'No asignado'
+);
 
 const resolveTipoTrabajo = (row: any) => {
   if (row.ORDEN_MANTENIMIENTO && row.ORDEN_MANTENIMIENTO.Descripcion) return row.ORDEN_MANTENIMIENTO.Descripcion;
@@ -482,6 +688,7 @@ const openNewModal = async () => {
     observacion: '',
     detalles: {}
   };
+  fechaCumplimientoOt.value = getPreviousBusinessDate(form.value.fecha);
   filesToUpload.value = []; // Reset files
   existingPhotos.value = [];
   
@@ -565,6 +772,7 @@ const openEditModal = async (insp: any) => {
     observacion: insp.observacion || '',
     detalles: {}
   };
+  fechaCumplimientoOt.value = getPreviousBusinessDate(form.value.fecha);
   
   const hasData = formEmpleados.value.length > 0 && formNiveles.value.length > 0 && formCriterios.value.length > 0;
 
@@ -1060,20 +1268,22 @@ onUnmounted(() => {
 
     <!-- Modal Nuevo Registro -->
     <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl overflow-hidden flex flex-col h-[90vh] max-h-[90vh]">
+        <div class="p-6 border-b border-gray-100 flex flex-none items-center justify-between bg-gray-50">
           <h3 class="font-display text-xl text-gray-900 tracking-tight">{{ isEditing ? 'Actualizar Inspección' : 'Nueva Inspección' }}</h3>
           <button @click="showModal = false" class="text-gray-400 hover:text-gray-600">
             <X class="w-5 h-5" />
           </button>
         </div>
         
-        <div class="p-6 overflow-y-auto flex-1 space-y-6">
+        <div class="p-6 overflow-hidden flex-1 min-h-0">
           <div v-if="modalLoading" class="py-10 flex justify-center">
             <Loader2 class="w-8 h-8 animate-spin text-main" />
           </div>
           
           <template v-else>
+            <div class="grid h-full min-h-0 overflow-hidden gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
+              <div class="min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1 lg:pr-3 space-y-6">
             <!-- Basic Info -->
             <div class="grid grid-cols-2 gap-4">
               <BaseInput type="date" v-model="form.fecha" label="Fecha de Inspección" />
@@ -1152,11 +1362,11 @@ onUnmounted(() => {
                   </BaseButton>
                 </div>
                 
-                <div v-if="isAssignedHoursLoading" class="py-6 flex justify-center">
+                <div v-if="isAssignedHoursLoading || isMecanicosLoading" class="py-6 flex justify-center">
                   <Loader2 class="w-5 h-5 animate-spin text-main" />
                 </div>
-                <div v-else-if="actualAssignedHours.length === 0" class="py-4 text-center text-xs text-gray-400 italic bg-gray-50 rounded-lg">
-                  No hay horas de trabajo asignadas en mantenimiento para esta fecha.
+                <div v-else-if="groupedAssignedHours.length === 0" class="py-4 text-center text-xs text-gray-400 italic bg-gray-50 rounded-lg">
+                  No hay mecánicos activos para el área del supervisor seleccionado.
                 </div>
                 <div v-else class="flex flex-col gap-4">
                    <!-- SG Equipo Filter -->
@@ -1187,9 +1397,14 @@ onUnmounted(() => {
                             <span class="bg-white px-2 py-0.5 rounded shadow-sm text-gray-600">{{ group.total }} hrs totales</span>
                          </div>
                          <div v-for="(mech, midx) in group.mecanicos" :key="midx" class="border-b last:border-0 border-gray-100">
-                            <div class="px-4 py-2 bg-gray-50 font-bold text-gray-700 text-[11px] flex justify-between items-center">
+                            <div
+                              class="px-4 py-2 font-bold text-[11px] flex justify-between items-center border-b"
+                              :class="assignedHeaderClass(mech.isAssigned)"
+                            >
                                <span><HardHat class="w-3 h-3 inline mr-1 text-gray-400 relative -top-[1px]" /> {{ mech.name }}</span>
-                               <span class="text-accent">{{ mech.total }} hrs</span>
+                               <span class="px-2 py-0.5 rounded border text-[10px]" :class="assignedBadgeClass(mech.isAssigned)">
+                                 {{ assignedBadgeText(mech.isAssigned, mech.total) }}
+                               </span>
                             </div>
                             <div class="divide-y divide-gray-50">
                                <div v-for="item in mech.items" :key="item.ID_OT" class="px-4 py-2 hover:bg-gray-50 flex items-center justify-between gap-4 text-xs group transition-colors">
@@ -1199,8 +1414,17 @@ onUnmounted(() => {
                                   <div class="text-right flex flex-wrap items-center gap-2 md:gap-3 w-48 md:w-60 justify-end shrink-0">
                                      <span class="font-bold text-main">{{ item['Duración (horas)'] || '0' }}h</span>
                                      <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-sm" :class="item.Estatus === 'Cerrada' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'">{{ item.Estatus || 'Abierta' }}</span>
-                                     <span v-if="formatCreatedDate(item.created)" class="text-[10px] font-medium text-gray-400 whitespace-nowrap">{{ formatCreatedDate(item.created) }}</span>
+                                     <span
+                                       v-if="formatCreatedDate(item.created)"
+                                       class="text-[10px] font-bold whitespace-nowrap border px-1.5 py-0.5 rounded"
+                                       :class="createdDateBadgeClass(item.created)"
+                                     >
+                                       {{ formatCreatedDate(item.created) }}
+                                     </span>
                                   </div>
+                               </div>
+                               <div v-if="mech.items.length === 0" class="px-4 py-3 text-[11px] font-bold text-rose-600 bg-rose-50/60">
+                                  No tiene OT asignadas para esta fecha.
                                </div>
                             </div>
                          </div>
@@ -1208,9 +1432,14 @@ onUnmounted(() => {
                       
                       <!-- For other areas (1 level) -->
                       <template v-else>
-                         <div class="bg-gray-100/80 px-4 py-2 font-bold text-gray-800 flex justify-between items-center text-[11px] border-b border-gray-200">
+                         <div
+                           class="px-4 py-2 font-bold flex justify-between items-center text-[11px] border-b"
+                           :class="assignedHeaderClass(group.isAssigned)"
+                         >
                             <span><HardHat class="w-3 h-3 inline mr-1 text-gray-500 relative -top-[1px]"/> {{ group.name }}</span>
-                            <span class="bg-white px-2 py-0.5 rounded shadow-sm text-gray-600 font-bold text-accent">{{ group.total }} hrs totales</span>
+                            <span class="px-2 py-0.5 rounded border font-bold" :class="assignedBadgeClass(group.isAssigned)">
+                              {{ assignedBadgeText(group.isAssigned, group.total) }}
+                            </span>
                          </div>
                          <div class="divide-y divide-gray-50">
                             <div v-for="item in group.items" :key="item.ID_OT" class="px-4 py-2 hover:bg-gray-50 flex items-center justify-between gap-4 text-xs group transition-colors">
@@ -1220,8 +1449,17 @@ onUnmounted(() => {
                                <div class="text-right flex flex-wrap items-center gap-2 md:gap-3 w-48 md:w-60 justify-end shrink-0">
                                   <span class="font-bold text-main">{{ item['Duración (horas)'] || '0' }}h</span>
                                   <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-sm" :class="item.Estatus === 'Cerrada' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'">{{ item.Estatus || 'Abierta' }}</span>
-                                  <span v-if="formatCreatedDate(item.created)" class="text-[10px] font-medium text-gray-400 whitespace-nowrap">{{ formatCreatedDate(item.created) }}</span>
+                                  <span
+                                    v-if="formatCreatedDate(item.created)"
+                                    class="text-[10px] font-bold whitespace-nowrap border px-1.5 py-0.5 rounded"
+                                    :class="createdDateBadgeClass(item.created)"
+                                  >
+                                    {{ formatCreatedDate(item.created) }}
+                                  </span>
                                </div>
+                            </div>
+                            <div v-if="group.items.length === 0" class="px-4 py-3 text-[11px] font-bold text-rose-600 bg-rose-50/60">
+                              No tiene OT asignadas para esta fecha.
                             </div>
                          </div>
                       </template>
@@ -1229,6 +1467,22 @@ onUnmounted(() => {
                 </div>
               </div>
             </BaseToggle>
+
+            <div v-if="form.id_supervisor && form.fecha" class="lg:hidden">
+              <BaseInput
+                type="date"
+                v-model="fechaCumplimientoOt"
+                label="Fecha de Cumplimiento de Cierre"
+              />
+              <SupervisorOtCompliancePanel
+                class="mt-3"
+                mode="toggle"
+                :area="selectedSupervisorOtArea"
+                :fecha="fechaCumplimientoOt"
+                :is-loading="isPuntuacionSupervisoresOtLoading"
+                :error="errorPuntuacionSupervisoresOt"
+              />
+            </div>
 
             <!-- Extra Supervisors (SG) -->
             <BaseToggle
@@ -1365,10 +1619,28 @@ onUnmounted(() => {
             </div>
 
             <div v-if="errorMsg" class="p-3 bg-danger-bg text-danger text-[11px] font-bold rounded-lg">{{ errorMsg }}</div>
+              </div>
+
+              <div class="hidden lg:block min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1">
+                <div class="space-y-3">
+                  <BaseInput
+                    type="date"
+                    v-model="fechaCumplimientoOt"
+                    label="Fecha de Cumplimiento de Cierre"
+                  />
+                  <SupervisorOtCompliancePanel
+                    :area="selectedSupervisorOtArea"
+                    :fecha="fechaCumplimientoOt"
+                    :is-loading="isPuntuacionSupervisoresOtLoading"
+                    :error="errorPuntuacionSupervisoresOt"
+                  />
+                </div>
+              </div>
+            </div>
           </template>
         </div>
         
-        <div class="p-4 border-t border-gray-100 bg-white flex justify-end gap-3">
+        <div class="p-4 border-t border-gray-100 bg-white flex flex-none justify-end gap-3">
           <BaseButton variant="tertiary" @click="showModal = false">Cancelar</BaseButton>
           <BaseButton variant="primary" :disabled="modalLoading || btnSaving" @click="saveInspeccion">
             <span v-if="!btnSaving">{{ isEditing ? 'Actualizar Inspección' : 'Guardar Inspección' }}</span>

@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-vue-next';
 interface Props {
   title: string;
   extra?: string | number;
+  extraClass?: string;
   initiallyOpen?: boolean;
 }
 
@@ -33,7 +34,11 @@ const isOpen = ref(props.initiallyOpen);
         </span>
         <slot name="title-extra" />
       </div>
-      <div v-if="extra !== undefined" class="bg-gray-200 px-2 py-0.5 rounded text-[10px] font-bold text-gray-600">
+      <div
+        v-if="extra !== undefined"
+        class="bg-gray-200 px-2 py-0.5 rounded text-[10px] font-bold text-gray-600"
+        :class="extraClass"
+      >
         {{ extra }}
       </div>
     </div>
