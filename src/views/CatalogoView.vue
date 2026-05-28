@@ -18,6 +18,7 @@ import type { RepuestoCaptura } from '@/stores/dbequipos/repuestos/repuestos.typ
 
 import RepuestoDetailPanel from '@/components/catalogo/RepuestoDetailPanel.vue';
 import RepuestoCreatePanel from '@/components/catalogo/create/RepuestoCreatePanel.vue';
+import RepuestoUpdatePanel from '@/components/catalogo/update/RepuestoUpdatePanel.vue';
 
 // ==========================================
 // STORE & ESTADO
@@ -36,6 +37,10 @@ const itemsPerPage = 10;
 
 // Panel de creación
 const isCreatePanelOpen = ref(false);
+
+//Panel de actualizacion
+const isUpdatePanelOpen = ref(false);
+const selectedUpdateRepuesto = ref<RepuestoCaptura | null>(null);
 
 // Panel de detalles
 const isDetailPanelOpen = ref(false);
@@ -187,11 +192,23 @@ const viewRepuestoDetails = (repuesto: RepuestoCaptura) => {
 };
 
 const editRepuesto = (id: string) => {
-  console.log('Editar repuesto', id);
+  const repuesto = repuestosCaptura.value.find((item) => item.id === id);
+
+  if (!repuesto) {
+    alert('No se encontró el repuesto seleccionado.');
+    return;
+  }
+
+  selectedUpdateRepuesto.value = repuesto;
+  isUpdatePanelOpen.value = true;
 
   if (isDetailPanelOpen.value) {
     isDetailPanelOpen.value = false;
   }
+};
+
+const handleRepuestoUpdated = (updated: RepuestoCaptura) => {
+  selectedUpdateRepuesto.value = updated;
 };
 
 const deleteRepuesto = async (id: string) => {
@@ -614,6 +631,14 @@ const deleteRepuesto = async (id: string) => {
       :is-open="isCreatePanelOpen"
       @close="isCreatePanelOpen = false"
       @saved="handleRepuestoSaved"
+    />
+
+    <!--Panel de actualizació-->
+    <RepuestoUpdatePanel
+      :is-open="isUpdatePanelOpen"
+      :repuesto="selectedUpdateRepuesto"
+      @close="isUpdatePanelOpen = false"
+      @updated="handleRepuestoUpdated"
     />
 
     <!-- Panel de detalles -->
