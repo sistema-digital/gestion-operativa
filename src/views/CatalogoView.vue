@@ -7,11 +7,14 @@ import {
   Plus, 
   Edit, 
   Trash2, 
+  Eye,
   ChevronLeft, 
   ChevronRight,
   Loader2,
   Settings
 } from 'lucide-vue-next';
+import type { RepuestoCaptura } from '@/stores/dbequipos/repuestos/repuestos.types';
+import RepuestoDetailPanel from '@/components/catalogo/RepuestoDetailPanel.vue';
 
 // ==========================================
 // STORE & ESTADO
@@ -22,6 +25,10 @@ const { repuestosCaptura, isLoading } = storeToRefs(repuestosStore);
 const searchQuery = ref('');
 const currentPage = ref(1);
 const itemsPerPage = 10;
+
+// Estado para el panel de detalles
+const isDetailPanelOpen = ref(false);
+const selectedRepuesto = ref<RepuestoCaptura | null>(null);
 
 // Cargar datos al montar la vista
 onMounted(async () => {
@@ -55,7 +62,6 @@ const paginatedRepuestos = computed(() => {
   return filteredRepuestos.value.slice(start, end);
 });
 
-// Resetear a página 1 cuando se busca
 const handleSearch = () => {
   currentPage.value = 1;
 };
@@ -83,13 +89,18 @@ const getCriticidadClass = (criticidad: string | null | undefined) => {
 // ACCIONES
 // ==========================================
 const openAddModal = () => {
-  // TODO: Implementar apertura de formulario/modal de agregar
   console.log('Abrir modal de agregar repuesto');
 };
 
+const viewRepuestoDetails = (repuesto: RepuestoCaptura) => {
+  selectedRepuesto.value = repuesto;
+  isDetailPanelOpen.value = true;
+};
+
 const editRepuesto = (id: string) => {
-  // TODO: Implementar apertura de formulario/modal de edición
   console.log('Editar repuesto', id);
+  // Si se abre desde el panel, cerramos el panel
+  if (isDetailPanelOpen.value) isDetailPanelOpen.value = false;
 };
 
 const deleteRepuesto = async (id: string) => {
@@ -99,6 +110,11 @@ const deleteRepuesto = async (id: string) => {
       
       if (paginatedRepuestos.value.length === 0 && currentPage.value > 1) {
         currentPage.value--;
+      }
+      
+      // Si el panel de detalles estaba abierto, lo cerramos
+      if (isDetailPanelOpen.value && selectedRepuesto.value?.id === id) {
+        isDetailPanelOpen.value = false;
       }
     } catch (error) {
       alert('Hubo un error al eliminar el repuesto.');
@@ -157,15 +173,11 @@ const deleteRepuesto = async (id: string) => {
         <table class="w-full text-center border-collapse min-w-[1100px]">
           <thead class="bg-gray-50">
             <tr>
-              <!-- FIXED COLUMNS HEADER (z-40 para estar sobre el scroll vertical y horizontal) -->
-              <th scope="col" class="sticky top-0 left-0 z-40 w-[80px] min-w-[80px] px-2 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center bg-gray-50 border-b border-gray-200">
-                Img
-              </th>
-              <th scope="col" class="sticky top-0 left-[80px] z-40 min-w-[280px] max-w-[280px] px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center bg-gray-50 border-b border-gray-200 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.05)]">
-                Nombre del Repuesto
-              </th>
+              <!-- FIXED COLUMNS -->
+              <th scope="col" class="sticky top-0 left-0 z-40 w-[80px] min-w-[80px] px-2 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center bg-gray-50 border-b border-gray-200">Img</th>
+              <th scope="col" class="sticky top-0 left-[80px] z-40 min-w-[280px] max-w-[280px] px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center bg-gray-50 border-b border-gray-200 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.05)]">Nombre del Repuesto</th>
               
-              <!-- SCROLLABLE COLUMNS HEADER (z-30 para estar sobre el scroll vertical del cuerpo) -->
+              <!-- SCROLLABLE COLUMNS -->
               <th scope="col" class="sticky top-0 z-30 px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap text-center bg-gray-50 border-b border-gray-200">Código (Orig. / Prov.)</th>
               <th scope="col" class="sticky top-0 z-30 px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap text-center bg-gray-50 border-b border-gray-200">Categoría / Sistema</th>
               <th scope="col" class="sticky top-0 z-30 px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap text-center bg-gray-50 border-b border-gray-200">Criticidad</th>
@@ -188,7 +200,6 @@ const deleteRepuesto = async (id: string) => {
               </td>
             </tr>
 
-            <!-- Se cambió bg de hover a nivel de celda para que las columnas sticky mantengan el color -->
             <tr 
               v-for="item in paginatedRepuestos" 
               :key="item.id" 
@@ -203,8 +214,8 @@ const deleteRepuesto = async (id: string) => {
               </td>
 
               <!-- 2. Nombre y Equipo (FIXED con sombra derecha) -->
-              <td class="sticky left-[80px] z-20 min-w-[280px] max-w-[280px] px-6 py-3 bg-white group-hover:bg-gray-50 border-b border-gray-100 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.05)] transition-colors text-center">
-                <div class="flex flex-col items-center">
+              <td class="sticky left-[80px] z-20 min-w-[280px] max-w-[280px] px-6 py-3 bg-white group-hover:bg-gray-50 border-b border-gray-100 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.05)] transition-colors text-center cursor-pointer" @click="viewRepuestoDetails(item)">
+                <div class="flex flex-col items-center hover:opacity-80">
                   <span class="text-sm font-semibold text-gray-900 group-hover:text-main transition-colors">{{ item.nombre_repuesto }}</span>
                   <span class="text-xs text-gray-500 mt-0.5 truncate" :title="`${item.tipo_equipo} - ${item.modelo}`">
                     {{ item.tipo_equipo }} <span v-if="item.modelo" class="mx-1">•</span> {{ item.modelo }}
@@ -259,7 +270,14 @@ const deleteRepuesto = async (id: string) => {
 
               <!-- 8. Acciones -->
               <td class="px-6 py-3 text-center border-b border-gray-100">
-                <div class="flex items-center justify-center gap-2">
+                <div class="flex items-center justify-center gap-1.5">
+                  <button 
+                    @click="viewRepuestoDetails(item)"
+                    class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Ver detalles completos"
+                  >
+                    <Eye class="w-4 h-4" />
+                  </button>
                   <button 
                     @click="editRepuesto(item.id!)"
                     class="p-1.5 text-gray-400 hover:text-main hover:bg-main/10 rounded-lg transition-colors"
@@ -321,5 +339,15 @@ const deleteRepuesto = async (id: string) => {
       </div>
       
     </div>
+
+    <!-- Panel de Detalles Superpuesto -->
+    <RepuestoDetailPanel
+      :is-open="isDetailPanelOpen"
+      :repuesto="selectedRepuesto"
+      @close="isDetailPanelOpen = false"
+      @edit="editRepuesto"
+      @delete="deleteRepuesto"
+    />
+
   </div>
 </template>
