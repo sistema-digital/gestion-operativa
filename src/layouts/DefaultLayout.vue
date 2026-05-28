@@ -13,7 +13,8 @@ import {
   Plus,
   LayoutDashboard,
   ShoppingCart,
-  ShieldCheck
+  ShieldCheck,
+  Book // Agregado el icono para Catálogo
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -25,12 +26,14 @@ const isSidebarOpen = ref(true);
 const userProfile = ref<{ nombre?: string; role?: string; area?: string } | null>(null);
 const userEmail = ref('');
 const PANEL_ADMIN_FEATURE = 'panel_admin';
+const MODULE_CATALOG_FEATURE = 'module_catalog'; // Nueva constante para el feature de catálogo
 
 const allMenuItems = [
   { name: 'Calificaciones', path: '/calificaciones', icon: BarChart3 },
   { name: 'Reparaciones', path: '/reparaciones', icon: Wrench },
   { name: 'Mantenimiento', path: '/mantenimiento', icon: Calendar },
   { name: 'Compras', path: '/compras', icon: ShoppingCart },
+  { name: 'Catálogo', path: '/catalogo', icon: Book, requiredFeature: MODULE_CATALOG_FEATURE }, // Nueva pestaña
   { name: 'Panel Admin', path: '/panel-admin', icon: ShieldCheck, requiredFeature: PANEL_ADMIN_FEATURE },
 ];
 
@@ -63,6 +66,7 @@ const menuItems = computed(() => {
 const viewTitle = computed(() => {
   if (route.path.startsWith('/compras')) return 'SOLICITUD COMPRA';
   if (route.path.startsWith('/panel-admin')) return 'PANEL ADMINISTRADOR';
+  if (route.path.startsWith('/catalogo')) return 'CATÁLOGO';
   return menuItems.value.find(i => isActive(i.path))?.name || 'Dashboard';
 });
 
