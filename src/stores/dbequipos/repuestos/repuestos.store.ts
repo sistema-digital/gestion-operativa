@@ -15,14 +15,14 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
   const proveedores = ref<CatalogItem[]>([]);
   const tiposCodigoProveedor = ref<CatalogItem[]>([]);
 
-  const repuestosCaptura = ref<RepuestoCaptura[]>([]); // Nuevo estado para la tabla principal
+  const repuestosCaptura = ref<RepuestoCaptura[]>([]);
 
   const isLoading = ref(false);
   const isLoaded = ref(false);
   const error = ref<string | null>(null);
 
   // ==========================================
-  // GETTERS (Para alimentar listas/autocompletes UI)
+  // GETTERS
   // ==========================================
   const opcionesSistemas = computed(() => sistemas.value.map(i => i.name));
   const opcionesCategorias = computed(() => categorias.value.map(i => i.name));
@@ -33,21 +33,13 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
   const opcionesTiposCodigo = computed(() => tiposCodigoProveedor.value.map(i => i.name));
 
   // ==========================================
-  // MÉTODOS PRIVADOS (Helpers)
+  // HELPERS PRIVADOS
   // ==========================================
-  
-  /**
-   * Limpia el string para comparaciones: trim, sin dobles espacios y en minúsculas.
-   * Evita duplicados en frontend antes de enviarlos a la DB.
-   */
   const normalizeText = (text: string | null | undefined): string => {
     if (!text) return '';
     return text.trim().toLowerCase().replace(/\s+/g, ' ');
   };
 
-  /**
-   * Devuelve la referencia al arreglo correspondiente según el nombre de la tabla.
-   */
   const getTargetArrayRef = (tableName: CatalogTableName) => {
     switch (tableName) {
       case 'repuesto_sistema': return sistemas;
@@ -64,11 +56,7 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
   // ACCIONES PRINCIPALES (Tabla Principal)
   // ==========================================
 
-  /**
-   * Carga la lista completa de repuestos capturados
-   */
   const cargarRepuestosCaptura = async (force = false) => {
-    // Si ya tenemos datos y no forzamos, no recargamos
     if (repuestosCaptura.value.length > 0 && !force) return;
 
     isLoading.value = true;
@@ -84,21 +72,62 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
     }
   };
 
-  /**
-   * Guarda un nuevo repuesto principal
-   */
   const guardarRepuestoCaptura = async (repuestoForm: Omit<RepuestoCaptura, 'id' | 'created_at' | 'updated_at'>) => {
     isLoading.value = true;
     error.value = null;
     try {
       const newRepuesto = await repuestosService.insertRepuestoCaptura(repuestoForm);
-      // Actualizar lista local colocándolo al inicio (más reciente)
       repuestosCaptura.value.unshift(newRepuesto);
       return newRepuesto;
     } catch (err: any) {
       error.value = err.message || 'Error al guardar el repuesto.';
       console.error('Error guardando repuesto:', err);
-      throw err; // Relanzamos el error para atraparlo en el componente UI
+      throw err;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  /**
+   * Actualiza un repuesto en la base de datos y en el estado local.
+   */
+  const actualizarRepuestoCaptura = async (id: string, repuestoForm: Partial<RepuestoCaptura>) => {
+    isLoading.value = true;
+    error.value = null;
+    try {
+      const updatedRepuesto = await repuestosService.updateRepuestoCaptura(id, repuestoForm);
+      
+      // Actualizamos el estado local
+      const index = repuestosCaptura.value.findIndex(r => r.id === id);
+      if (index !== -1) {
+        repuestosCaptura.value[index] = updatedRepuesto;
+      }
+      
+      return updatedRepuesto;
+    } catch (err: any) {
+      error.value = err.message || 'Error al actualizar el repuesto.';
+      console.error('Error actualizando repuesto:', err);
+      throw err;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  /**
+   * Elimina un repuesto de la base de datos y del estado local.
+   */
+  const eliminarRepuestoCaptura = async (id: string) => {
+    isLoading.value = true;
+    error.value = null;
+    try {
+      await repuestosService.deleteRepuestoCaptura(id);
+      
+      // Eliminamos del estado local
+      repuestosCaptura.value = repuestosCaptura.value.filter(r => r.id !== id);
+    } catch (err: any) {
+      error.value = err.message || 'Error al eliminar el repuesto.';
+      console.error('Error eliminando repuesto:', err);
+      throw err;
     } finally {
       isLoading.value = false;
     }
@@ -108,9 +137,6 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
   // ACCIONES (Catálogos Auxiliares)
   // ==========================================
 
-  /**
-   * Carga todos los catálogos auxiliares en paralelo.
-   */
   const cargarCatalogos = async (force = false) => {
     if (isLoaded.value && !force) return;
 
@@ -119,13 +145,7 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
 
     try {
       const [
-        resSistemas,
-        resCategorias,
-        resCriticidades,
-        resEstados,
-        resUnidades,
-        resProveedores,
-        resTiposCodigo
+        resSistemas, resCategorias, resCriticidades, resEstados, resUnidades, resProveedores, resTiposCodigo
       ] = await Promise.all([
         repuestosService.fetchActiveCatalog('repuesto_sistema'),
         repuestosService.fetchActiveCatalog('repuesto_categoria'),
@@ -146,54 +166,33 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
 
       isLoaded.value = true;
     } catch (err: any) {
-      error.value = err.message || 'Error al cargar los catálogos de repuestos.';
-      console.error('Error cargando catálogos de repuestos:', err);
+      error.value = err.message || 'Error al cargar los catálogos auxiliares.';
+      console.error('Error cargando catálogos auxiliares:', err);
     } finally {
       isLoading.value = false;
     }
   };
 
-  /**
-   * Verifica si un valor existe en el catálogo local. 
-   * Si no existe, lo inserta en Supabase y actualiza la lista local automáticamente.
-   * Retorna el texto final que debe guardarse en el formulario principal (el 'name').
-   */
   const asegurarValorCatalogo = async (tableName: CatalogTableName, name: string): Promise<string> => {
     if (!name || name.trim() === '') return '';
 
     const normalizedInput = normalizeText(name);
     const targetArray = getTargetArrayRef(tableName);
 
-    // 1. Buscar si ya existe localmente
     const itemExistente = targetArray.value.find(item => normalizeText(item.name) === normalizedInput);
-    
-    if (itemExistente) {
-      // Devolvemos el nombre exactamente como está en la DB para mantener consistencia
-      return itemExistente.name; 
-    }
+    if (itemExistente) return itemExistente.name;
 
-    // 2. Si no existe, lo insertamos en Supabase
     try {
       const newItem = await repuestosService.insertCatalogItem(tableName, name);
-      
-      // 3. Actualizamos la lista local para que aparezca sin recargar la página
       targetArray.value.push(newItem);
-      
-      // Opcional: Reordenar alfabéticamente tras insertar
       targetArray.value.sort((a, b) => a.name.localeCompare(b.name));
-
       return newItem.name;
     } catch (err) {
       console.error(`Error asegurando valor en ${tableName}:`, err);
-      // Fallback: Si falla la inserción (ej. restricción UNIQUE que se nos pasó, 
-      // o fallo de red), retornamos el texto ingresado para no bloquear al usuario.
       return name.trim();
     }
   };
 
-  /**
-   * Resetea el estado del store
-   */
   const resetStore = () => {
     sistemas.value = [];
     categorias.value = [];
@@ -209,33 +208,9 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
   };
 
   return {
-    // State
-    sistemas,
-    categorias,
-    criticidades,
-    estados,
-    unidades,
-    proveedores,
-    tiposCodigoProveedor,
-    repuestosCaptura,
-    isLoading,
-    isLoaded,
-    error,
-    
-    // Getters
-    opcionesSistemas,
-    opcionesCategorias,
-    opcionesCriticidades,
-    opcionesEstados,
-    opcionesUnidades,
-    opcionesProveedores,
-    opcionesTiposCodigo,
-
-    // Actions
-    cargarRepuestosCaptura,
-    guardarRepuestoCaptura,
-    cargarCatalogos,
-    asegurarValorCatalogo,
-    resetStore
+    sistemas, categorias, criticidades, estados, unidades, proveedores, tiposCodigoProveedor, repuestosCaptura, isLoading, isLoaded, error,
+    opcionesSistemas, opcionesCategorias, opcionesCriticidades, opcionesEstados, opcionesUnidades, opcionesProveedores, opcionesTiposCodigo,
+    cargarRepuestosCaptura, guardarRepuestoCaptura, actualizarRepuestoCaptura, eliminarRepuestoCaptura, // <--- Acciones expuestas aquí
+    cargarCatalogos, asegurarValorCatalogo, resetStore
   };
 });

@@ -2,6 +2,8 @@ import { supabaseEquipos } from '@/lib/supabase';
 import type { CatalogItem, CatalogTableName, RepuestoCaptura } from './repuestos.types';
 
 export const repuestosService = {
+  // ... (mantén los métodos anteriores fetchActiveCatalog, insertCatalogItem, fetchRepuestosCaptura, insertRepuestoCaptura)
+
   /**
    * Obtiene todos los registros activos de una tabla de catálogo específica.
    */
@@ -22,7 +24,6 @@ export const repuestosService = {
 
   /**
    * Inserta un nuevo valor en una tabla de catálogo.
-   * Supabase devolverá el registro insertado (incluyendo el ID generado).
    */
   async insertCatalogItem(tableName: CatalogTableName, name: string): Promise<CatalogItem> {
     const { data, error } = await supabaseEquipos
@@ -73,4 +74,43 @@ export const repuestosService = {
 
     return data as RepuestoCaptura;
   },
+
+  /**
+   * Actualiza un repuesto existente
+   */
+  async updateRepuestoCaptura(id: string, repuesto: Partial<RepuestoCaptura>): Promise<RepuestoCaptura> {
+    // Evitamos enviar campos inmutables
+    const updateData = { ...repuesto, updated_at: new Date().toISOString() };
+    delete updateData.id;
+    delete updateData.created_at;
+
+    const { data, error } = await supabaseEquipos
+      .from('catalogo_repuestos_captura')
+      .update(updateData)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('Error updating repuesto captura:', error);
+      throw error;
+    }
+
+    return data as RepuestoCaptura;
+  },
+
+  /**
+   * Elimina un repuesto permanentemente
+   */
+  async deleteRepuestoCaptura(id: string): Promise<void> {
+    const { error } = await supabaseEquipos
+      .from('catalogo_repuestos_captura')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting repuesto captura:', error);
+      throw error;
+    }
+  }
 };
