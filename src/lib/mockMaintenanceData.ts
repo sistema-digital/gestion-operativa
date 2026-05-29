@@ -73,6 +73,7 @@ export function generateMockMaintenanceData(count = 500): OrdenMantenimiento[] {
       "Semana": String(getWeek(startDate)),
       "Etapa": etapas[Math.floor(Math.random() * etapas.length)],
       "IS_SG": isSg,
+      semana_conclusion: getWeek(endDate),
       "total_ots": totalOts,
       "ots_concluidas": otsConcluidas,
       "ots_pendientes": otsPendientes

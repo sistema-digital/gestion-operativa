@@ -22,9 +22,10 @@ export interface OrdenMantenimiento {
   "Semana": string;
   "Etapa": string;
   "IS_SG": boolean;
-  "total_ots": number | null;
-  "ots_concluidas": number | null;
-  "ots_pendientes": number | null;
+  semana_conclusion: number | null;
+  "total_ots"?: number | null;
+  "ots_concluidas"?: number | null;
+  "ots_pendientes"?: number | null;
 }
 
 export const useMaintenanceStore = defineStore('maintenance', () => {
@@ -97,7 +98,7 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
 
       while (hasMore) {
         const { data, error: fetchError, count } = await supabase
-          .from('om_con_resumen_ots')
+          .from('ORDEN_MANTENIMIENTO')
           .select('*', { count: 'exact' })
           .not('ID_Orden mantenimiento', 'ilike', 'SG-%')
           .not('ID_Orden mantenimiento', 'ilike', 'OM-TEST-%')
