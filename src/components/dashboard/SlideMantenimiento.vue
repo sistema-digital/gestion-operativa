@@ -35,9 +35,10 @@ interface OrdenMantenimiento {
   "Semana": string;
   "Etapa": string;
   "IS_SG": boolean;
-  "total_ots": number | null;
-  "ots_concluidas": number | null;
-  "ots_pendientes": number | null;
+  semana_conclusion: number | null;
+  "total_ots"?: number | null;
+  "ots_concluidas"?: number | null;
+  "ots_pendientes"?: number | null;
 }
 
 const maintenanceStore = useMaintenanceStore();
@@ -302,6 +303,49 @@ const filteredData = computed(() => {
   return result;
 });
 
+const getRawStatus = (order: OrdenMantenimiento): string => String(order.Estatus || '').trim();
+
+const hasConclusionDate = (order: OrdenMantenimiento): boolean => {
+  return String(order["Fecha conclusion"] || '').trim() !== '';
+};
+
+const isNrOrder = (order: OrdenMantenimiento): boolean => {
+  return getRawStatus(order).toUpperCase() === 'NR';
+};
+
+const isConcludedOrder = (order: OrdenMantenimiento): boolean => {
+  const status = getRawStatus(order).toLowerCase();
+  return hasConclusionDate(order) || status.includes('concluida') || isNrOrder(order);
+};
+
+const getStatusBucket = (order: OrdenMantenimiento): string => {
+  if (isConcludedOrder(order)) return 'Concluida';
+  return getRawStatus(order) || 'Sin Estatus';
+};
+
+const getConcludedBreakdown = (orders: OrdenMantenimiento[]) => {
+  return orders.reduce((acc, order) => {
+    if (!isConcludedOrder(order)) return acc;
+
+    acc.total += 1;
+    if (isNrOrder(order)) {
+      acc.nr += 1;
+    } else {
+      acc.concluida += 1;
+    }
+
+    return acc;
+  }, { total: 0, concluida: 0, nr: 0 });
+};
+
+const getMaintenanceWeek = (order: OrdenMantenimiento): string => {
+  if (order.semana_conclusion !== null && order.semana_conclusion !== undefined) {
+    return String(order.semana_conclusion);
+  }
+
+  return String(order.Semana || '');
+};
+
 const progressMetrics = computed(() => {
   // Configured period
   const startDateRaw = '2026-04-06';
@@ -366,12 +410,6 @@ const progressMetrics = computed(() => {
   const startDateStr = formatDate(startDate);
   const endDateStr = formatDate(endDate);
 
-  const isConcluida = (om: OrdenMantenimiento) => {
-    const hasFecha = om["Fecha conclusion"] && String(om["Fecha conclusion"]).trim() !== '';
-    const hasEstatus = om.Estatus && String(om.Estatus).toLowerCase().includes('concluida');
-    return hasFecha || hasEstatus;
-  };
-
   const getDisplayLabel = (areaName: string) => {
     const key = String(areaName)
       .trim()
@@ -392,7 +430,7 @@ const progressMetrics = computed(() => {
 
   const calculateRowDetails = (oms: OrdenMantenimiento[], label: string, displayLabel?: string) => {
     const totalCount = oms.length;
-    const actualCount = oms.filter(isConcluida).length;
+    const actualCount = oms.filter(isConcludedOrder).length;
     const actualProgress = totalCount > 0 ? (actualCount / totalCount) * 100 : 0;
 
     const idealProgress = globalIdealProgress;
@@ -439,7 +477,7 @@ const crossFilteredData = computed(() => {
   let result = filteredData.value;
 
   if (activeFilters.value.semana) {
-    result = result.filter(d => d.Semana === activeFilters.value.semana);
+    result = result.filter(d => getMaintenanceWeek(d) === activeFilters.value.semana);
   }
 
   if (activeFilters.value.serie) {
@@ -453,7 +491,7 @@ const crossFilteredData = computed(() => {
   }
 
   if (activeFilters.value.estado) {
-    result = result.filter(d => d.Estatus === activeFilters.value.estado);
+    result = result.filter(d => getStatusBucket(d) === activeFilters.value.estado);
   }
 
   return result;
@@ -549,10 +587,21 @@ const statusStats = computed(() => {
   const total = baseChartData.value.length;
   if (total === 0) return [];
 
-  const counts: Record<string, number> = {};
+  const counts: Record<string, { total: number; concluida: number; nr: number }> = {};
   baseChartData.value.forEach(row => {
-    const s = row.Estatus || 'Sin Estatus';
-    counts[s] = (counts[s] || 0) + 1;
+    const s = getStatusBucket(row);
+    if (!counts[s]) {
+      counts[s] = { total: 0, concluida: 0, nr: 0 };
+    }
+
+    counts[s].total += 1;
+    if (s === 'Concluida') {
+      if (isNrOrder(row)) {
+        counts[s].nr += 1;
+      } else {
+        counts[s].concluida += 1;
+      }
+    }
   });
 
   const colorMap: Record<string, { bar: string, dot: string }> = {
@@ -564,14 +613,16 @@ const statusStats = computed(() => {
   const defaultColors = { bar: 'bg-gray-300', dot: 'bg-gray-400' };
 
   return ['Programado', 'Concluida', 'En Proceso'].map(label => {
-    const count = counts[label] || 0;
+    const detail = counts[label] || { total: 0, concluida: 0, nr: 0 };
     const mappingKey = Object.keys(colorMap).find(k => k.toLowerCase() === label.toLowerCase());
     const colors = mappingKey ? colorMap[mappingKey] : defaultColors;
 
     return {
       label,
-      count,
-      percentage: total > 0 ? (count / total) * 100 : 0,
+      count: detail.total,
+      concludedCount: detail.concluida,
+      nrCount: detail.nr,
+      percentage: total > 0 ? (detail.total / total) * 100 : 0,
       color: colors.bar,
       dotColor: colors.dot
     };
@@ -602,10 +653,14 @@ const echartBarOption = computed(() => {
     const item = stats.find(s => s.label.toLowerCase() === label.toLowerCase());
     labels.push(label);
     const count = item ? item.count : 0;
+    const concludedCount = item ? item.concludedCount : 0;
+    const nrCount = item ? item.nrCount : 0;
     const value = item ? Number(item.percentage.toFixed(1)) : 0;
     data.push({
       value,
       count,
+      concludedCount,
+      nrCount,
       itemStyle: { color: colorMap[label] || '#cbd5e1' }
     });
   });
@@ -620,7 +675,10 @@ const echartBarOption = computed(() => {
       textStyle: { color: '#475569' },
       formatter: (params: any[]) => {
         const p = params[0];
-        return `<span style="font-weight:bold;color:#1e293b">${p.axisValue}</span><br/>Total: ${p.data.count} (${p.data.value}%)`;
+        const detail = p.axisValue === 'Concluida'
+          ? `<br/>Concluida: ${p.data.concludedCount || 0}<br/>NR: ${p.data.nrCount || 0}`
+          : '';
+        return `<span style="font-weight:bold;color:#1e293b">${p.axisValue}</span><br/>Total: ${p.data.count} (${p.data.value}%)${detail}`;
       }
     },
     xAxis: {
@@ -689,21 +747,32 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
 
   const uniqueStatuses = ['Programado', 'Concluida', 'En Proceso'];
 
-  const groups: Record<string, { total: number; counts: Record<string, number> }> = {};
+  const groups: Record<string, {
+    total: number;
+    counts: Record<string, number>;
+    concludedDetail: { concluida: number; nr: number };
+  }> = {};
 
   data.forEach(order => {
     let key = String(order[groupKey] || 'N/A').trim();
     if (!key || key === 'null') key = 'Desconocido';
 
     if (!groups[key]) {
-      groups[key] = { total: 0, counts: {} };
+      groups[key] = { total: 0, counts: {}, concludedDetail: { concluida: 0, nr: 0 } };
       uniqueStatuses.forEach(s => groups[key].counts[s] = 0);
     }
 
-    const status = String(order.Estatus || '').trim() || 'Sin Estatus';
+    const status = getStatusBucket(order);
     groups[key].total += 1;
     if (groups[key].counts[status] !== undefined) {
       groups[key].counts[status] += 1;
+    }
+    if (status === 'Concluida') {
+      if (isNrOrder(order)) {
+        groups[key].concludedDetail.nr += 1;
+      } else {
+        groups[key].concludedDetail.concluida += 1;
+      }
     }
   });
 
@@ -737,7 +806,7 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
           d.ITEM === dSerie ||
           d["ID_#EQUIPO"] === dSerie;
 
-        const matchesStatus = !hasStatusFilter || d.Estatus === dEstado;
+        const matchesStatus = !hasStatusFilter || getStatusBucket(d) === dEstado;
 
         if (matchesSerie && matchesStatus) {
           matchingCategories.add(String(d[groupKey] || 'N/A').trim());
@@ -774,7 +843,14 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
         const count = groups[cat].counts[status] || 0;
         const total = categoryTotals[i] || 0;
         const pct = total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0;
-        return { value: pct, count, total, status };
+        return {
+          value: pct,
+          count,
+          total,
+          status,
+          concludedCount: groups[cat].concludedDetail.concluida,
+          nrCount: groups[cat].concludedDetail.nr,
+        };
       }),
       label: {
         show: true,
@@ -841,7 +917,12 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
         const total = params?.[0]?.data?.total ?? 0;
         const lines = params
           .filter(p => (p.data?.count || 0) > 0)
-          .map(p => `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color};margin-right:6px"></span>${p.seriesName}: <b>${p.data.count}</b> (${p.value}%)`)
+          .map(p => {
+            const detail = p.seriesName === 'Concluida'
+              ? ` <span style="color:#64748b">(Concluida: ${p.data.concludedCount || 0}, NR: ${p.data.nrCount || 0})</span>`
+              : '';
+            return `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color};margin-right:6px"></span>${p.seriesName}: <b>${p.data.count}</b> (${p.value}%)${detail}`;
+          })
           .join('<br/>');
         return `<b style="color:#1e293b;font-size:13px">${params[0]?.axisValue ?? ''} (${total})</b><br/>${lines}`;
       }
@@ -883,7 +964,7 @@ watch(() => activeFilters.value.serie, (newVal) => {
 const baseChartData = computed(() => {
   let res = filteredData.value;
   if (activeFilters.value.semana) {
-    res = res.filter(d => String(d.Semana) === String(activeFilters.value.semana));
+    res = res.filter(d => getMaintenanceWeek(d) === String(activeFilters.value.semana));
   }
   return res;
 });
@@ -902,7 +983,7 @@ const chartDataFor = (groupKey: string) => {
 
   if (activeFilters.value.estado && activeFilterGroupKey.value !== groupKey) {
     const validCategories = new Set(
-      res.filter(d => d.Estatus === activeFilters.value.estado).map(d => String(d[groupKey as keyof OrdenMantenimiento] || 'N/A').trim())
+      res.filter(d => getStatusBucket(d) === activeFilters.value.estado).map(d => String(d[groupKey as keyof OrdenMantenimiento] || 'N/A').trim())
     );
     res = res.filter(d => validCategories.has(String(d[groupKey as keyof OrdenMantenimiento] || 'N/A').trim()));
   }
@@ -1002,7 +1083,7 @@ const comparisonAreaRows = computed(() => {
   }
 
   if (activeFilters.value.estado) {
-    orderList = orderList.filter(d => d.Estatus === activeFilters.value.estado);
+    orderList = orderList.filter(d => getStatusBucket(d) === activeFilters.value.estado);
   }
 
   const areaKeys = Array.from(new Set(
@@ -1013,10 +1094,7 @@ const comparisonAreaRows = computed(() => {
 
   const rows = areaKeys.map(areaKey => {
     const areaOrders = orderList.filter(d => normalizeAreaKey(d.Área || '') === areaKey);
-    const concluded = areaOrders.filter(o => {
-      const status = String(o.Estatus || '').toLowerCase();
-      return weeks.has(String(o.Semana)) && status.includes('concluida');
-    }).length;
+    const concluded = areaOrders.filter(o => weeks.has(getMaintenanceWeek(o)) && isConcludedOrder(o)).length;
     const total = areaOrders.length;
     const avance2026 = generalTotal > 0 ? Number(((concluded / generalTotal) * 100).toFixed(2)) : 0;
     const avance2025 = isZafra
@@ -1064,10 +1142,6 @@ const getWeekNumber = (date: Date) => {
 
 const currentWeek = computed(() => getWeekNumber(new Date()));
 
-const isConcludedOrder = (order: OrdenMantenimiento) => {
-  return String(order.Estatus || '').trim().toLowerCase().includes('concluida');
-};
-
 const weeklyConcludedComparison = computed(() => {
   const areaFixed = userArea.value?.toUpperCase();
   const areaFixedKey = normalizeAreaKey(userArea.value || '');
@@ -1097,7 +1171,7 @@ const weeklyConcludedComparison = computed(() => {
   const buildRow = (areaOrders: OrdenMantenimiento[], area: string) => {
     const concludedOrders = areaOrders.filter(isConcludedOrder);
     const previousConcluded = concludedOrders.filter(order => {
-      const week = Number(order.Semana);
+      const week = Number(getMaintenanceWeek(order));
       return Number.isFinite(week) && week <= previousWeekValue;
     }).length;
     const currentConcluded = concludedOrders.length;
@@ -1157,7 +1231,7 @@ const buildWeeklyProgress = (limitToLastFive: boolean) => {
   }
 
   if (activeFilters.value.estado) {
-    areaFilteredList = areaFilteredList.filter(d => d.Estatus === activeFilters.value.estado);
+    areaFilteredList = areaFilteredList.filter(d => getStatusBucket(d) === activeFilters.value.estado);
   }
 
   const now = new Date();
@@ -1180,12 +1254,10 @@ const buildWeeklyProgress = (limitToLastFive: boolean) => {
   }
 
   const results = weeks.map(sem => {
-    const semRows = areaFilteredList.filter(o => String(o['Semana']) === sem);
+    const semRows = areaFilteredList.filter(o => getMaintenanceWeek(o) === sem);
     const total = semRows.length;
-    const concluidas = semRows.filter(o => {
-      const s = o.Estatus?.toLowerCase() || '';
-      return s.includes('concluida');
-    }).length;
+    const concludedBreakdown = getConcludedBreakdown(semRows);
+    const concluidas = concludedBreakdown.total;
 
     const horasRows = horasTrabajoData.value.filter(row => {
       const status = String(row.estatus || '').trim().toLowerCase();
@@ -1236,10 +1308,14 @@ const buildWeeklyProgress = (limitToLastFive: boolean) => {
       semana: sem,
       total,
       concluidas,
+      concluidasSinNr: concludedBreakdown.concluida,
+      nrConcluidas: concludedBreakdown.nr,
       globalTotal: globalList.length,
       avance: globalList.length > 0
         ? Number(((concluidas / globalList.length) * 100).toFixed(2))
         : 0,
+      concluidaAvance: toGlobalPercent(concludedBreakdown.concluida),
+      nrAvance: toGlobalPercent(concludedBreakdown.nr),
       retrasadaEquivalente: Number(equivalentByStatus.retrasada.toFixed(2)),
       ausenciaEquivalente: Number(equivalentByStatus.ausencia.toFixed(2)),
       horasRetrasada: Number(equivalentByStatus.horasRetrasada.toFixed(2)),
@@ -1313,7 +1389,7 @@ const weeklyAreaSummary = computed(() => {
   }
 
   if (activeFilters.value.estado) {
-    orderList = orderList.filter(d => d.Estatus === activeFilters.value.estado);
+    orderList = orderList.filter(d => getStatusBucket(d) === activeFilters.value.estado);
   }
 
   const areaKeys = Array.from(new Set(
@@ -1324,10 +1400,9 @@ const weeklyAreaSummary = computed(() => {
 
   return areaKeys.map(areaKey => {
     const areaOrders = orderList.filter(d => normalizeAreaKey(d.Área || '') === areaKey);
-    const concludedInVisibleWeeks = areaOrders.filter(o => {
-      const status = String(o.Estatus || '').toLowerCase();
-      return weeks.has(String(o.Semana)) && status.includes('concluida');
-    }).length;
+    const concludedInVisibleWeeks = areaOrders.filter(o => (
+      weeks.has(getMaintenanceWeek(o)) && isConcludedOrder(o)
+    )).length;
 
     const areaHoursRows = horasTrabajoData.value.filter(row => {
       const rowAreaKey = normalizeAreaKey(row.area);
@@ -1684,10 +1759,13 @@ const weeklyEChartOption = computed(() => {
   const data = weeklyProgress.value;
   const labels = data.map(d => d.semana);
   const avanceValues = data.map(d => d.avance);
+  const concluidaValues = data.map(d => d.concluidaAvance);
+  const nrValues = data.map(d => d.nrAvance);
   const perdidaValues = data.map(d => Number((d.retrasadaAvance + d.ausenciaAvance).toFixed(2)));
   const targetValue = 2.94;
   const targetPerc = 0.0294;
   const targetValues = labels.map(() => targetValue);
+  const formatWeeklyValue = (value: number | string | null | undefined) => `${Number(value || 0).toFixed(1)}%`;
 
   const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
   const showLoss = isZafra && weeklyLossVisible.value;
@@ -1728,22 +1806,22 @@ const weeklyEChartOption = computed(() => {
           },
           fontWeight: 'bold',
           fontSize: 10,
-          formatter: (p: any) => p.value > 0 ? `${p.value}%` : ''
+          formatter: (p: any) => Number(p.value || 0) > 0 ? formatWeeklyValue(p.value) : ''
         }
       });
   }
 
   seriesTemplate.push({
-        name: 'Avance 2026',
+        name: 'Concluida 2026',
         type: 'bar',
         stack: 'avance2026',
         color: '#004236',
-        data: avanceValues,
+        data: concluidaValues,
         barMaxWidth: 18,
         barGap: '45%',
         barCategoryGap: '38%',
         itemStyle: {
-          borderRadius: [4, 4, 0, 0],
+          borderRadius: [0, 0, 4, 4],
           color: (p: any) => {
             const hasSemanaFilter = !!activeFilters.value.semana;
             const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
@@ -1760,7 +1838,47 @@ const weeklyEChartOption = computed(() => {
           },
           fontWeight: 'bold',
           fontSize: 10,
-          formatter: (p: any) => (!isZafra || !showLoss) && p.value > 0 ? `${p.value}%` : ''
+          formatter: (p: any) => {
+            if ((isZafra && showLoss) || p.value <= 0) return '';
+            const weekData = data.find(d => String(d.semana) === String(p.name));
+            if (!weekData || weekData.nrAvance > 0) return '';
+            return formatWeeklyValue(weekData.avance);
+          }
+        }
+      });
+
+  seriesTemplate.push({
+        name: 'NR 2026',
+        type: 'bar',
+        stack: 'avance2026',
+        color: '#0f766e',
+        data: nrValues,
+        barMaxWidth: 18,
+        barGap: '45%',
+        barCategoryGap: '38%',
+        itemStyle: {
+          borderRadius: [4, 4, 0, 0],
+          color: (p: any) => {
+            const hasSemanaFilter = !!activeFilters.value.semana;
+            const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
+            return matchesSemana ? '#0f766e' : applyAlpha('#0f766e', 0.25);
+          }
+        },
+        label: {
+          show: true,
+          position: 'top',
+          color: (p: any) => {
+            const hasSemanaFilter = !!activeFilters.value.semana;
+            const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
+            return matchesSemana ? '#004236' : 'transparent';
+          },
+          fontWeight: 'bold',
+          fontSize: 10,
+          formatter: (p: any) => {
+            if ((isZafra && showLoss) || p.value <= 0) return '';
+            const weekData = data.find(d => String(d.semana) === String(p.name));
+            return weekData && weekData.avance > 0 ? formatWeeklyValue(weekData.avance) : '';
+          }
         }
       });
 
@@ -1796,7 +1914,7 @@ const weeklyEChartOption = computed(() => {
               const perdida = Number((weekData.retrasadaAvance + weekData.ausenciaAvance).toFixed(2));
               if (weekData.avance <= 0 && perdida <= 0) return '';
 
-              return `{real|${weekData.avance}%}{sep| | }{lost|${Number((weekData.avance + perdida).toFixed(2))}%}`;
+              return `{real|${formatWeeklyValue(weekData.avance)}}{sep| | }{lost|${formatWeeklyValue(weekData.avance + perdida)}}`;
             },
             rich: {
               real: { color: '#004236', fontWeight: 'bold' },
@@ -1827,33 +1945,34 @@ const weeklyEChartOption = computed(() => {
       borderWidth: 1,
       textStyle: { color: '#475569' },
       formatter: (params: any[]) => {
-        const barP = params.find(p => p.seriesName === 'Avance 2026');
+        const barConcluida = params.find(p => p.seriesName === 'Concluida 2026');
+        const barNr = params.find(p => p.seriesName === 'NR 2026');
         const barP2025 = params.find(p => p.seriesName === 'Avance 2025');
-        const weekStr = (barP || barP2025 || params[0])?.axisValue || '';
+        const weekStr = (barConcluida || barNr || barP2025 || params[0])?.axisValue || '';
         const weekData = data.find(d => String(d.semana) === weekStr);
         const targetQty = weekData ? Math.round(weekData.globalTotal * targetPerc) : 0;
 
         let res = `<div style="color:#1e293b;font-weight:bold;margin-bottom:4px">Semana ${weekStr}</div>`;
         if (barP2025 && isZafra) {
-          res += `<div>Avance 2025: ${barP2025.value || 0}%</div>`;
+          res += `<div>Avance 2025: ${formatWeeklyValue(barP2025.value)}</div>`;
         }
-        if (barP) {
-          res += `<div>Avance 2026: ${barP.value || 0}% (<span style="font-size: 0.9em">Concluidas: ${weekData?.concluidas || 0} / ${weekData?.total || 0}</span>)</div>`;
+        if (barConcluida || barNr) {
+          res += `<div>Avance 2026: ${formatWeeklyValue(weekData?.avance)} (<span style="font-size: 0.9em">Concluida: ${weekData?.concluidasSinNr || 0}, NR: ${weekData?.nrConcluidas || 0} / ${weekData?.total || 0}</span>)</div>`;
         }
         if (weekData && showLoss) {
           const perdidaTotal = Number((weekData.retrasadaAvance + weekData.ausenciaAvance).toFixed(2));
           if (perdidaTotal > 0) {
-            res += `<div>Retrasada: ${weekData.retrasadaAvance}% <span style="font-size: 0.9em">(${Math.round(weekData.retrasadaEquivalente)} órdenes eq. / ${weekData.horasRetrasada} hrs)</span></div>`;
-            res += `<div>Ausencia: ${weekData.ausenciaAvance}% <span style="font-size: 0.9em">(${Math.round(weekData.ausenciaEquivalente)} órdenes eq. / ${weekData.horasAusencia} hrs)</span></div>`;
-            res += `<div style="color:#C0392B;font-weight:bold">Pérdida total: ${perdidaTotal}%</div>`;
+            res += `<div>Retrasada: ${formatWeeklyValue(weekData.retrasadaAvance)} <span style="font-size: 0.9em">(${Math.round(weekData.retrasadaEquivalente)} órdenes eq. / ${weekData.horasRetrasada} hrs)</span></div>`;
+            res += `<div>Ausencia: ${formatWeeklyValue(weekData.ausenciaAvance)} <span style="font-size: 0.9em">(${Math.round(weekData.ausenciaEquivalente)} órdenes eq. / ${weekData.horasAusencia} hrs)</span></div>`;
+            res += `<div style="color:#C0392B;font-weight:bold">Pérdida total: ${formatWeeklyValue(perdidaTotal)}</div>`;
           }
         }
-        res += `<div>Objetivo: ${targetValue}% (${targetQty})</div>`;
+        res += `<div>Objetivo: ${formatWeeklyValue(targetValue)} (${targetQty})</div>`;
         return res;
       }
     },
     legend: {
-      data: isZafra ? ['Objetivo', 'Avance 2025', 'Avance 2026', 'Pérdida'] : ['Objetivo', 'Avance 2026'],
+      data: isZafra ? ['Objetivo', 'Avance 2025', 'Concluida 2026', 'NR 2026', 'Pérdida'] : ['Objetivo', 'Concluida 2026', 'NR 2026'],
       selected: isZafra ? { 'Pérdida': weeklyLossVisible.value } : {},
       top: 0,
       icon: 'circle',

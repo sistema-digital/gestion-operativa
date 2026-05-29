@@ -12,6 +12,7 @@ import WorkOrderPanel from './WorkOrderPanel.vue';
 import WorkOrderTable from './WorkOrderTable.vue';
 import { useHorasTrabajoStore } from '@/stores/horasTrabajoStore';
 import {
+  getLocalDateInputValue,
   getWorkOrderReference,
   validateWorkOrderUpdate,
 } from '@/stores/horasTrabajo.helpers';
@@ -23,13 +24,19 @@ import type {
 } from '@/stores/horasTrabajo.types';
 
 const horasTrabajoStore = useHorasTrabajoStore();
-const { todayWorkOrders, todayWorkOrdersLoading, todayWorkOrdersError } = storeToRefs(horasTrabajoStore);
+const {
+  todayWorkOrders,
+  todayWorkOrdersLoading,
+  todayWorkOrdersError,
+  todayWorkOrdersDate,
+} = storeToRefs(horasTrabajoStore);
 const confirm = useConfirm();
 const toast = useToast();
 
 const search = ref('');
 const statusFilter = ref<string | null>(null);
 const areaFilter = ref<string | null>(null);
+const selectedDate = ref(todayWorkOrdersDate.value || getLocalDateInputValue());
 const selectedRow = ref<WorkOrderTodayRow | null>(null);
 const panelMode = ref<WorkOrderPanelMode>('view');
 const isPanelVisible = ref(false);
@@ -65,12 +72,12 @@ const filteredRows = computed(() => {
 
 const loadOrders = async () => {
   try {
-    await horasTrabajoStore.fetchTodayWorkOrders();
+    await horasTrabajoStore.fetchTodayWorkOrders(selectedDate.value);
   } catch (error) {
     toast.add({
       severity: 'error',
       summary: 'No se pudo cargar',
-      detail: error instanceof Error ? error.message : 'Error al cargar las órdenes de hoy.',
+      detail: error instanceof Error ? error.message : 'Error al cargar las órdenes de trabajo.',
       life: 3500,
     });
   }
@@ -147,20 +154,32 @@ onMounted(loadOrders);
 
     <div class="mb-5">
       <div>
-        <h1 class="text-2xl font-bold text-gray-800">Horas de trabajo de hoy</h1>
+        <h1 class="text-2xl font-bold text-gray-800">Horas de trabajo por fecha</h1>
         <p class="text-sm text-gray-500">
-          Consulta, edita o elimina las órdenes registradas para la jornada actual.
+          Consulta, edita o elimina las órdenes registradas para la fecha seleccionada.
         </p>
       </div>
     </div>
 
     <div class="rounded-lg border border-gray-100 bg-white p-4 shadow-sm">
-      <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1fr)_12rem_12rem_auto]">
+      <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1fr)_11rem_12rem_12rem_auto]">
         <InputText
           v-model="search"
           placeholder="Buscar orden, mecánico o referencia"
           class="w-full"
         />
+        <div class="flex flex-col gap-1">
+          <label for="work-order-date-filter" class="text-xs font-medium text-gray-500">
+            Fecha
+          </label>
+          <input
+            id="work-order-date-filter"
+            v-model="selectedDate"
+            type="date"
+            class="work-order-date-input w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-main focus:ring-2 focus:ring-main/10"
+            @change="loadOrders"
+          />
+        </div>
         <Select
           v-model="areaFilter"
           :options="areaOptions"

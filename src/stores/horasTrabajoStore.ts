@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { supabase } from '@/lib/supabase';
+import { getLocalDateInputValue } from './horasTrabajo.helpers';
 import { horasTrabajoService } from './horasTrabajo.service';
 import type {
   HoraTrabajoData,
@@ -37,6 +38,7 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
   const todayWorkOrders = ref<WorkOrderTodayRow[]>([]);
   const todayWorkOrdersLoading = ref(false);
   const todayWorkOrdersError = ref<string | null>(null);
+  const todayWorkOrdersDate = ref(getLocalDateInputValue());
 
   const productividadSemanal = ref<ProductividadSemanalResponse | null>(null);
   const productividadSemanalLoading = ref(false);
@@ -114,16 +116,17 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
     }
   };
 
-  const fetchTodayWorkOrders = async () => {
+  const fetchTodayWorkOrders = async (date = todayWorkOrdersDate.value) => {
     todayWorkOrdersLoading.value = true;
     todayWorkOrdersError.value = null;
+    todayWorkOrdersDate.value = date;
 
     try {
-      todayWorkOrders.value = await horasTrabajoService.fetchTodayWorkOrders();
+      todayWorkOrders.value = await horasTrabajoService.fetchTodayWorkOrders(date);
     } catch (err) {
       todayWorkOrdersError.value = err instanceof Error
         ? err.message
-        : 'No se pudieron cargar las órdenes de hoy';
+        : 'No se pudieron cargar las órdenes de trabajo';
       throw err;
     } finally {
       todayWorkOrdersLoading.value = false;
@@ -174,6 +177,7 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
     todayWorkOrders,
     todayWorkOrdersLoading,
     todayWorkOrdersError,
+    todayWorkOrdersDate,
     productividadSemanal,
     productividadSemanalLoading,
     productividadSemanalError,

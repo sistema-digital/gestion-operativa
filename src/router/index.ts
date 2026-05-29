@@ -62,6 +62,11 @@ const router = createRouter({
           ]
         },
         {
+          path: 'catalogo',
+          name: 'Catalogo',
+          component: () => import('@/views/CatalogoView.vue'),
+        },
+        {
           path: 'panel-admin',
           name: 'PanelAdmin',
           component: () => import('@/views/PanelAdminView.vue'),
