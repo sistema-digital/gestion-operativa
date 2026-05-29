@@ -4,11 +4,14 @@ import { storeToRefs } from 'pinia';
 import { Loader2, Save, X } from 'lucide-vue-next';
 
 import { useRepuestosStore } from '@/stores/dbequipos/repuestos/repuestos.store';
-import type { RepuestoCaptura } from '@/stores/dbequipos/repuestos/repuestos.types';
+import type {
+  CatalogTableName,
+  RepuestoCaptura
+} from '@/stores/dbequipos/repuestos/repuestos.types';
 
 import CatalogFormSection from '@/components/catalogo/create/CatalogFormSection.vue';
 import CatalogTextField from '@/components/catalogo/create/CatalogTextField.vue';
-import CatalogSelectField from '@/components/catalogo/create/CatalogSelectField.vue';
+import CatalogSuggestionField from '@/components/catalogo/create/CatalogSuggestionField.vue';
 import CatalogImageUpload from '@/components/catalogo/create/CatalogImageUpload.vue';
 
 const props = defineProps<{
@@ -23,6 +26,7 @@ const emit = defineEmits<{
 const repuestosStore = useRepuestosStore();
 
 const {
+  repuestosCaptura,
   opcionesSistemas,
   opcionesCategorias,
   opcionesCriticidades,
@@ -57,14 +61,37 @@ const createEmptyForm = (): RepuestoForm => ({
 });
 
 const form = reactive<RepuestoForm>(createEmptyForm());
+
 const cantidadText = ref('');
 const isSaving = ref(false);
 const errors = reactive<Record<string, string>>({});
 
+const uniqueValues = (values: Array<string | null | undefined>) => {
+  return values
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .map((value) => value.trim())
+    .filter((value, index, array) => {
+      return array.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index;
+    })
+    .sort((a, b) => a.localeCompare(b));
+};
+
+const opcionesTipoEquipo = computed(() => {
+  return uniqueValues(repuestosCaptura.value.map((item) => item.tipo_equipo));
+});
+
+const opcionesModelo = computed(() => {
+  return uniqueValues(repuestosCaptura.value.map((item) => item.modelo));
+});
+
+const opcionesNombreRepuesto = computed(() => {
+  return uniqueValues(repuestosCaptura.value.map((item) => item.nombre_repuesto));
+});
+
 const estadoOptions = computed(() => {
   const base = opcionesEstados.value.length > 0
     ? opcionesEstados.value
-    : ['Activo', 'Bajo stock', 'Sin stock'];
+    : ['Activo', 'Bajo stock', 'Sin stock', 'Inactivo'];
 
   return base.includes('Activo') ? base : ['Activo', ...base];
 });
@@ -131,6 +158,17 @@ const validateForm = () => {
   return Object.keys(errors).length === 0;
 };
 
+const ensureCatalogValue = async (
+  tableName: CatalogTableName,
+  value: string | null | undefined
+) => {
+  const cleanValue = nullableText(value);
+
+  if (!cleanValue) return null;
+
+  return await repuestosStore.asegurarValorCatalogo(tableName, cleanValue);
+};
+
 const closePanel = () => {
   if (isSaving.value) return;
 
@@ -138,41 +176,77 @@ const closePanel = () => {
   emit('close');
 };
 
-const handleImageError = (message: string) => {
-  errors.imagen = message;
+const handleImageError = (field: 'imagen_1' | 'imagen_2', message: string) => {
+  errors[field] = message;
 };
 
 const handleSubmit = async () => {
   if (!validateForm()) return;
 
-  const parsedCantidad = cantidadText.value.trim()
-    ? Number(cantidadText.value)
-    : null;
-
-  const payload: Omit<RepuestoCaptura, 'id' | 'created_at' | 'updated_at'> = {
-    tipo_equipo: form.tipo_equipo.trim(),
-    modelo: form.modelo.trim(),
-    sistema: form.sistema.trim(),
-    nombre_repuesto: form.nombre_repuesto.trim(),
-    categoria: nullableText(form.categoria),
-    criticidad: nullableText(form.criticidad),
-    estado: form.estado?.trim() || 'Activo',
-    codigo_original: form.codigo_original.trim(),
-    codigo_proveedor: form.codigo_proveedor.trim(),
-    tipo_codigo_proveedor: nullableText(form.tipo_codigo_proveedor),
-    nombre_proveedor: nullableText(form.nombre_proveedor),
-    unidad: nullableText(form.unidad),
-    cantidad_requerida: parsedCantidad,
-    descripcion_corta: nullableText(form.descripcion_corta),
-    descripcion_detallada: nullableText(form.descripcion_detallada),
-    imagen_1: form.imagen_1 || null,
-    imagen_2: form.imagen_2 || null,
-    observacion: nullableText(form.observacion),
-    creado_por: nullableText(form.creado_por)
-  };
-
   try {
     isSaving.value = true;
+    clearErrors();
+
+    const parsedCantidad = cantidadText.value.trim()
+      ? Number(cantidadText.value)
+      : null;
+
+    const sistema = await repuestosStore.asegurarValorCatalogo(
+      'repuesto_sistema',
+      form.sistema.trim()
+    );
+
+    const estado = await repuestosStore.asegurarValorCatalogo(
+      'repuesto_estado',
+      form.estado?.trim() || 'Activo'
+    );
+
+    const categoria = await ensureCatalogValue(
+      'repuesto_categoria',
+      form.categoria
+    );
+
+    const criticidad = await ensureCatalogValue(
+      'repuesto_criticidad',
+      form.criticidad
+    );
+
+    const unidad = await ensureCatalogValue(
+      'repuesto_unidad',
+      form.unidad
+    );
+
+    const nombreProveedor = await ensureCatalogValue(
+      'repuesto_proveedor',
+      form.nombre_proveedor
+    );
+
+    const tipoCodigoProveedor = await ensureCatalogValue(
+      'repuesto_tipo_codigo_proveedor',
+      form.tipo_codigo_proveedor
+    );
+
+    const payload: Omit<RepuestoCaptura, 'id' | 'created_at' | 'updated_at'> = {
+      tipo_equipo: form.tipo_equipo.trim(),
+      modelo: form.modelo.trim(),
+      sistema,
+      nombre_repuesto: form.nombre_repuesto.trim(),
+      categoria,
+      criticidad,
+      estado,
+      codigo_original: form.codigo_original.trim(),
+      codigo_proveedor: form.codigo_proveedor.trim(),
+      tipo_codigo_proveedor: tipoCodigoProveedor,
+      nombre_proveedor: nombreProveedor,
+      unidad,
+      cantidad_requerida: parsedCantidad,
+      descripcion_corta: nullableText(form.descripcion_corta),
+      descripcion_detallada: nullableText(form.descripcion_detallada),
+      imagen_1: form.imagen_1 || null,
+      imagen_2: form.imagen_2 || null,
+      observacion: nullableText(form.observacion),
+      creado_por: nullableText(form.creado_por)
+    };
 
     const saved = await repuestosStore.guardarRepuestoCaptura(payload);
 
@@ -191,7 +265,10 @@ watch(
   () => props.isOpen,
   async (open) => {
     if (open) {
-      await repuestosStore.cargarCatalogos();
+      await Promise.all([
+        repuestosStore.cargarCatalogos(),
+        repuestosStore.cargarRepuestosCaptura()
+      ]);
     }
   }
 );
@@ -214,6 +291,7 @@ watch(
               <h2 class="text-xl font-bold tracking-tight text-gray-900">
                 Nuevo repuesto
               </h2>
+
               <p class="mt-1 text-xs text-gray-500">
                 Completa la información para registrar el repuesto en el catálogo.
               </p>
@@ -228,7 +306,10 @@ watch(
             </button>
           </header>
 
-          <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
+          <form
+            class="flex min-h-0 flex-1 flex-col"
+            @submit.prevent="handleSubmit"
+          >
             <!-- Body -->
             <main class="flex-1 space-y-7 overflow-y-auto px-5 py-5 md:px-7 lg:px-8">
               <div
@@ -239,61 +320,64 @@ watch(
               </div>
 
               <CatalogFormSection title="Información general">
-                <CatalogTextField
+                <CatalogSuggestionField
                   v-model="form.tipo_equipo"
                   label="Tipo de equipo"
-                  placeholder="Ej. Tractor, cosechadora..."
+                  placeholder="Escribe o selecciona tipo de equipo"
                   required
+                  :suggestions="opcionesTipoEquipo"
                   :error="errors.tipo_equipo"
                 />
 
-                <CatalogTextField
+                <CatalogSuggestionField
                   v-model="form.modelo"
                   label="Modelo"
-                  placeholder="Ej. JD 6403"
+                  placeholder="Escribe o selecciona modelo"
                   required
+                  :suggestions="opcionesModelo"
                   :error="errors.modelo"
                 />
 
-                <CatalogSelectField
+                <CatalogSuggestionField
                   v-model="form.sistema"
                   label="Sistema"
-                  placeholder="Seleccionar sistema"
+                  placeholder="Escribe o selecciona sistema"
                   required
-                  :options="opcionesSistemas"
+                  :suggestions="opcionesSistemas"
                   :error="errors.sistema"
                 />
 
-                <CatalogTextField
+                <CatalogSuggestionField
                   v-model="form.nombre_repuesto"
                   label="Nombre del repuesto"
-                  placeholder="Ej. Filtro hidráulico"
+                  placeholder="Escribe el nombre del repuesto"
                   required
+                  :suggestions="opcionesNombreRepuesto"
                   :error="errors.nombre_repuesto"
                 />
 
-                <CatalogSelectField
+                <CatalogSuggestionField
                   v-model="form.categoria"
                   label="Categoría"
-                  placeholder="Seleccionar categoría"
-                  :options="opcionesCategorias"
+                  placeholder="Escribe o selecciona categoría"
+                  :suggestions="opcionesCategorias"
                   :error="errors.categoria"
                 />
 
-                <CatalogSelectField
+                <CatalogSuggestionField
                   v-model="form.estado"
                   label="Estado"
-                  placeholder="Seleccionar estado"
+                  placeholder="Escribe o selecciona estado"
                   required
-                  :options="estadoOptions"
+                  :suggestions="estadoOptions"
                   :error="errors.estado"
                 />
 
-                <CatalogSelectField
+                <CatalogSuggestionField
                   v-model="form.criticidad"
                   label="Criticidad"
-                  placeholder="Seleccionar criticidad"
-                  :options="opcionesCriticidades"
+                  placeholder="Escribe o selecciona criticidad"
+                  :suggestions="opcionesCriticidades"
                   :error="errors.criticidad"
                 />
               </CatalogFormSection>
@@ -315,29 +399,29 @@ watch(
                   :error="errors.codigo_proveedor"
                 />
 
-                <CatalogSelectField
+                <CatalogSuggestionField
                   v-model="form.tipo_codigo_proveedor"
                   label="Tipo de código proveedor"
-                  placeholder="Seleccionar tipo"
-                  :options="opcionesTiposCodigo"
+                  placeholder="Escribe o selecciona tipo"
+                  :suggestions="opcionesTiposCodigo"
                   :error="errors.tipo_codigo_proveedor"
                 />
               </CatalogFormSection>
 
               <CatalogFormSection title="Proveedor y unidad">
-                <CatalogSelectField
+                <CatalogSuggestionField
                   v-model="form.nombre_proveedor"
                   label="Proveedor"
-                  placeholder="Seleccionar proveedor"
-                  :options="opcionesProveedores"
+                  placeholder="Escribe o selecciona proveedor"
+                  :suggestions="opcionesProveedores"
                   :error="errors.nombre_proveedor"
                 />
 
-                <CatalogSelectField
+                <CatalogSuggestionField
                   v-model="form.unidad"
                   label="Unidad"
-                  placeholder="Seleccionar unidad"
-                  :options="opcionesUnidades"
+                  placeholder="Escribe o selecciona unidad"
+                  :suggestions="opcionesUnidades"
                   :error="errors.unidad"
                 />
 
@@ -374,15 +458,15 @@ watch(
                 <CatalogImageUpload
                   v-model="form.imagen_1"
                   label="Imagen 1"
-                  :error="errors.imagen"
-                  @error="handleImageError"
+                  :error="errors.imagen_1"
+                  @error="(message) => handleImageError('imagen_1', message)"
                 />
 
                 <CatalogImageUpload
                   v-model="form.imagen_2"
                   label="Imagen 2"
-                  :error="errors.imagen"
-                  @error="handleImageError"
+                  :error="errors.imagen_2"
+                  @error="(message) => handleImageError('imagen_2', message)"
                 />
 
                 <CatalogTextField
@@ -393,6 +477,14 @@ watch(
                   textarea
                   :rows="3"
                   :error="errors.observacion"
+                />
+
+                <CatalogTextField
+                  v-model="form.creado_por"
+                  class="md:col-span-2"
+                  label="Creado por"
+                  placeholder="Usuario responsable..."
+                  :error="errors.creado_por"
                 />
               </CatalogFormSection>
             </main>
@@ -419,8 +511,16 @@ watch(
                        disabled:cursor-not-allowed disabled:opacity-70"
                 :disabled="isSaving"
               >
-                <Loader2 v-if="isSaving" class="h-4 w-4 animate-spin" />
-                <Save v-else class="h-4 w-4" />
+                <Loader2
+                  v-if="isSaving"
+                  class="h-4 w-4 animate-spin"
+                />
+
+                <Save
+                  v-else
+                  class="h-4 w-4"
+                />
+
                 Guardar
               </button>
             </footer>

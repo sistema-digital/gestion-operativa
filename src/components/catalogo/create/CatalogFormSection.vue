@@ -12,10 +12,14 @@ defineProps<{
         <h3 class="text-sm font-bold text-main">
           {{ title }}
         </h3>
+
         <div class="h-px flex-1 bg-gray-200"></div>
       </div>
 
-      <p v-if="description" class="mt-1 text-xs text-gray-500">
+      <p
+        v-if="description"
+        class="mt-1 text-xs text-gray-500"
+      >
         {{ description }}
       </p>
     </div>

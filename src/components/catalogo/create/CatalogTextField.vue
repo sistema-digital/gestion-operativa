@@ -68,7 +68,10 @@ const value = computed({
       :class="error ? 'border-red-300 bg-red-50/40' : 'border-gray-200 bg-white'"
     />
 
-    <span v-if="error" class="mt-1 block text-xs font-medium text-red-600">
+    <span
+      v-if="error"
+      class="mt-1 block text-xs font-medium text-red-600"
+    >
       {{ error }}
     </span>
   </label>

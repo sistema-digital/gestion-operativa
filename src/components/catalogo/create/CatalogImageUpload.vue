@@ -23,10 +23,6 @@ const inputRef = ref<HTMLInputElement | null>(null);
 
 const preview = computed(() => props.modelValue || '');
 
-const inputId = computed(() =>
-  `upload-${props.label.toLowerCase().replace(/\s+/g, '-')}`
-);
-
 const openPicker = () => {
   inputRef.value?.click();
 };
@@ -76,7 +72,6 @@ const handleChange = (event: Event) => {
       @click="openPicker"
     >
       <input
-        :id="inputId"
         ref="inputRef"
         type="file"
         :accept="accept"
@@ -88,7 +83,7 @@ const handleChange = (event: Event) => {
         <img
           :src="preview"
           alt="Imagen del repuesto"
-          class="h-full max-h-[140px] w-full object-cover"
+          class="h-full max-h-[150px] w-full object-cover"
         />
 
         <button
@@ -120,7 +115,10 @@ const handleChange = (event: Event) => {
       </template>
     </div>
 
-    <span v-if="error" class="mt-1 block text-xs font-medium text-red-600">
+    <span
+      v-if="error"
+      class="mt-1 block text-xs font-medium text-red-600"
+    >
       {{ error }}
     </span>
   </div>
