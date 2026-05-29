@@ -1765,6 +1765,7 @@ const weeklyEChartOption = computed(() => {
   const targetValue = 2.94;
   const targetPerc = 0.0294;
   const targetValues = labels.map(() => targetValue);
+  const formatWeeklyValue = (value: number | string | null | undefined) => `${Number(value || 0).toFixed(1)}%`;
 
   const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
   const showLoss = isZafra && weeklyLossVisible.value;
@@ -1805,7 +1806,7 @@ const weeklyEChartOption = computed(() => {
           },
           fontWeight: 'bold',
           fontSize: 10,
-          formatter: (p: any) => p.value > 0 ? `${p.value}%` : ''
+          formatter: (p: any) => Number(p.value || 0) > 0 ? formatWeeklyValue(p.value) : ''
         }
       });
   }
@@ -1841,7 +1842,7 @@ const weeklyEChartOption = computed(() => {
             if ((isZafra && showLoss) || p.value <= 0) return '';
             const weekData = data.find(d => String(d.semana) === String(p.name));
             if (!weekData || weekData.nrAvance > 0) return '';
-            return `${weekData.avance}%`;
+            return formatWeeklyValue(weekData.avance);
           }
         }
       });
@@ -1876,7 +1877,7 @@ const weeklyEChartOption = computed(() => {
           formatter: (p: any) => {
             if ((isZafra && showLoss) || p.value <= 0) return '';
             const weekData = data.find(d => String(d.semana) === String(p.name));
-            return weekData && weekData.avance > 0 ? `${weekData.avance}%` : '';
+            return weekData && weekData.avance > 0 ? formatWeeklyValue(weekData.avance) : '';
           }
         }
       });
@@ -1913,7 +1914,7 @@ const weeklyEChartOption = computed(() => {
               const perdida = Number((weekData.retrasadaAvance + weekData.ausenciaAvance).toFixed(2));
               if (weekData.avance <= 0 && perdida <= 0) return '';
 
-              return `{real|${weekData.avance}%}{sep| | }{lost|${Number((weekData.avance + perdida).toFixed(2))}%}`;
+              return `{real|${formatWeeklyValue(weekData.avance)}}{sep| | }{lost|${formatWeeklyValue(weekData.avance + perdida)}}`;
             },
             rich: {
               real: { color: '#004236', fontWeight: 'bold' },
@@ -1953,20 +1954,20 @@ const weeklyEChartOption = computed(() => {
 
         let res = `<div style="color:#1e293b;font-weight:bold;margin-bottom:4px">Semana ${weekStr}</div>`;
         if (barP2025 && isZafra) {
-          res += `<div>Avance 2025: ${barP2025.value || 0}%</div>`;
+          res += `<div>Avance 2025: ${formatWeeklyValue(barP2025.value)}</div>`;
         }
         if (barConcluida || barNr) {
-          res += `<div>Avance 2026: ${weekData?.avance || 0}% (<span style="font-size: 0.9em">Concluida: ${weekData?.concluidasSinNr || 0}, NR: ${weekData?.nrConcluidas || 0} / ${weekData?.total || 0}</span>)</div>`;
+          res += `<div>Avance 2026: ${formatWeeklyValue(weekData?.avance)} (<span style="font-size: 0.9em">Concluida: ${weekData?.concluidasSinNr || 0}, NR: ${weekData?.nrConcluidas || 0} / ${weekData?.total || 0}</span>)</div>`;
         }
         if (weekData && showLoss) {
           const perdidaTotal = Number((weekData.retrasadaAvance + weekData.ausenciaAvance).toFixed(2));
           if (perdidaTotal > 0) {
-            res += `<div>Retrasada: ${weekData.retrasadaAvance}% <span style="font-size: 0.9em">(${Math.round(weekData.retrasadaEquivalente)} órdenes eq. / ${weekData.horasRetrasada} hrs)</span></div>`;
-            res += `<div>Ausencia: ${weekData.ausenciaAvance}% <span style="font-size: 0.9em">(${Math.round(weekData.ausenciaEquivalente)} órdenes eq. / ${weekData.horasAusencia} hrs)</span></div>`;
-            res += `<div style="color:#C0392B;font-weight:bold">Pérdida total: ${perdidaTotal}%</div>`;
+            res += `<div>Retrasada: ${formatWeeklyValue(weekData.retrasadaAvance)} <span style="font-size: 0.9em">(${Math.round(weekData.retrasadaEquivalente)} órdenes eq. / ${weekData.horasRetrasada} hrs)</span></div>`;
+            res += `<div>Ausencia: ${formatWeeklyValue(weekData.ausenciaAvance)} <span style="font-size: 0.9em">(${Math.round(weekData.ausenciaEquivalente)} órdenes eq. / ${weekData.horasAusencia} hrs)</span></div>`;
+            res += `<div style="color:#C0392B;font-weight:bold">Pérdida total: ${formatWeeklyValue(perdidaTotal)}</div>`;
           }
         }
-        res += `<div>Objetivo: ${targetValue}% (${targetQty})</div>`;
+        res += `<div>Objetivo: ${formatWeeklyValue(targetValue)} (${targetQty})</div>`;
         return res;
       }
     },
