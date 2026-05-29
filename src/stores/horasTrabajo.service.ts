@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { useUserStore } from './userStore';
 import {
-  getTodayLocalTimestampRange,
+  getLocalDateInputValue,
+  getLocalTimestampRangeForDate,
   isTestWorkOrderArea,
   mapWorkOrderTodayRow,
   toWorkOrderUpdateDbPayload,
@@ -126,8 +127,8 @@ export const horasTrabajoService = {
     return this.fetchProductividadSemanalPorEquipo(semana, topLimit);
   },
 
-  async fetchTodayWorkOrders(): Promise<WorkOrderTodayRow[]> {
-    const { start, end } = getTodayLocalTimestampRange();
+  async fetchTodayWorkOrders(date = getLocalDateInputValue()): Promise<WorkOrderTodayRow[]> {
+    const { start, end } = getLocalTimestampRangeForDate(date);
     const { data, error } = await supabase
       .from('ORDEN_TRABAJO')
       .select(todayWorkOrdersSelect)
@@ -136,7 +137,7 @@ export const horasTrabajoService = {
       .order('Fecha', { ascending: false });
 
     if (error) {
-      throw new Error(error.message || 'No se pudieron cargar las órdenes de hoy');
+      throw new Error(error.message || 'No se pudieron cargar las órdenes de trabajo');
     }
 
     return ((data || []) as unknown as WorkOrderTodayDbRow[])

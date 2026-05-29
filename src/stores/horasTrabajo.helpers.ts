@@ -21,15 +21,42 @@ const formatDateForDb = (date: Date): string => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
-export const getTodayLocalTimestampRange = (): { start: string; end: string } => {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+export const getLocalDateInputValue = (date: Date = new Date()): string => {
+  const year = date.getFullYear();
+  const month = padDatePart(date.getMonth() + 1);
+  const day = padDatePart(date.getDate());
+
+  return `${year}-${month}-${day}`;
+};
+
+export const getLocalTimestampRangeForDate = (
+  dateInput: string
+): { start: string; end: string } => {
+  const [year, month, day] = dateInput.split('-').map(Number);
+  const isValidDateInput = year && month && day;
+  const baseDate = isValidDateInput
+    ? new Date(year, month - 1, day)
+    : new Date();
+
+  const start = new Date(
+    baseDate.getFullYear(),
+    baseDate.getMonth(),
+    baseDate.getDate(),
+  );
+  const end = new Date(
+    baseDate.getFullYear(),
+    baseDate.getMonth(),
+    baseDate.getDate() + 1,
+  );
 
   return {
     start: formatDateForDb(start),
     end: formatDateForDb(end),
   };
+};
+
+export const getTodayLocalTimestampRange = (): { start: string; end: string } => {
+  return getLocalTimestampRangeForDate(getLocalDateInputValue());
 };
 
 export const isDelayedStatus = (estatus: string | null | undefined): boolean => {
