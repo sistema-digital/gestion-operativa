@@ -2,6 +2,7 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useRatingsStore } from '@/stores/ratingsStore';
+import ImageZoomViewer from '@/components/common/ImageZoomViewer.vue';
 import { Bar } from 'vue-chartjs';
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
@@ -169,10 +170,23 @@ const getSupName = (id: number) => {
 
 const showPhotosModal = ref(false);
 const currentPhotos = ref<string[]>([]);
+const selectedPhoto = ref<string | null>(null);
+const showImageViewer = ref(false);
+
 const openPhotos = (urlStr: string) => {
   if (!urlStr) return;
   currentPhotos.value = urlStr.split(',').filter(u => u.trim() !== '');
   if (currentPhotos.value.length > 0) showPhotosModal.value = true;
+};
+
+const openImageViewer = (photo: string) => {
+  selectedPhoto.value = photo;
+  showImageViewer.value = true;
+};
+
+const closeImageViewer = () => {
+  selectedPhoto.value = null;
+  showImageViewer.value = false;
 };
 
 // Auto close table when filter changes instead of leaving stale clicking cache state
@@ -390,10 +404,23 @@ const formatHora = (hora?: string | null): string => {
           </button>
         </div>
         <div class="p-4 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <img v-for="(photo, idx) in currentPhotos" :key="idx" :src="photo" class="w-full h-auto rounded-xl border border-gray-200" referrerPolicy="no-referrer" />
+          <img
+            v-for="(photo, idx) in currentPhotos"
+            :key="idx"
+            :src="photo"
+            class="w-full h-auto rounded-xl border border-gray-200 cursor-zoom-in transition hover:opacity-90"
+            referrerPolicy="no-referrer"
+            @click="openImageViewer(photo)"
+          />
         </div>
       </div>
     </div>
+
+    <ImageZoomViewer
+      v-if="showImageViewer && selectedPhoto"
+      :image-url="selectedPhoto"
+      @close="closeImageViewer"
+    />
   </div>
 </template>
 
