@@ -4,12 +4,14 @@ import { storeToRefs } from 'pinia';
 import { Loader2, Save, X } from 'lucide-vue-next';
 
 import { useRepuestosStore } from '@/stores/dbequipos/repuestos/repuestos.store';
+import { getCurrentUserIdentity } from '@/utils/createdBy';
 import type {
   CatalogTableName,
   RepuestoCaptura
 } from '@/stores/dbequipos/repuestos/repuestos.types';
 
 import CatalogFormSection from '@/components/catalogo/create/CatalogFormSection.vue';
+import CatalogSelectField from '@/components/catalogo/create/CatalogSelectField.vue';
 import CatalogTextField from '@/components/catalogo/create/CatalogTextField.vue';
 import CatalogSuggestionField from '@/components/catalogo/create/CatalogSuggestionField.vue';
 import CatalogImageUpload from '@/components/catalogo/create/CatalogImageUpload.vue';
@@ -30,7 +32,6 @@ const {
   opcionesSistemas,
   opcionesCategorias,
   opcionesCriticidades,
-  opcionesEstados,
   opcionesUnidades,
   opcionesProveedores,
   opcionesTiposCodigo
@@ -48,11 +49,10 @@ const createEmptyForm = (): RepuestoForm => ({
   estado: 'Activo',
   codigo_original: '',
   codigo_proveedor: '',
-  tipo_codigo_proveedor: null,
+  tipo_codigo_proveedor: 'original',
   nombre_proveedor: null,
   unidad: null,
   cantidad_requerida: null,
-  descripcion_corta: null,
   descripcion_detallada: null,
   imagen_1: null,
   imagen_2: null,
@@ -65,6 +65,7 @@ const form = reactive<RepuestoForm>(createEmptyForm());
 const cantidadText = ref('');
 const isSaving = ref(false);
 const errors = reactive<Record<string, string>>({});
+const currentUserEmail = ref('');
 
 const uniqueValues = (values: Array<string | null | undefined>) => {
   return values
@@ -88,12 +89,20 @@ const opcionesNombreRepuesto = computed(() => {
   return uniqueValues(repuestosCaptura.value.map((item) => item.nombre_repuesto));
 });
 
-const estadoOptions = computed(() => {
-  const base = opcionesEstados.value.length > 0
-    ? opcionesEstados.value
-    : ['Activo', 'Bajo stock', 'Sin stock', 'Inactivo'];
+const criticidadOptions = computed(() => {
+  return opcionesCriticidades.value;
+});
 
-  return base.includes('Activo') ? base : ['Activo', ...base];
+const tipoCodigoProveedorOptions = computed(() => {
+  const base = opcionesTiposCodigo.value.length > 0
+    ? opcionesTiposCodigo.value
+    : ['Generico'];
+
+  return Array.from(new Set(base.map((item) => item.trim()).filter(Boolean)));
+});
+
+const isGenericProviderCode = computed(() => {
+  return form.tipo_codigo_proveedor?.trim().toLowerCase() === 'generico';
 });
 
 const clearErrors = () => {
@@ -141,13 +150,17 @@ const validateForm = () => {
     errors.codigo_original = 'El código original es obligatorio.';
   }
 
-  if (!form.codigo_proveedor.trim()) {
+  if (!form.tipo_codigo_proveedor?.trim()) {
+    errors.tipo_codigo_proveedor = 'El tipo de código proveedor es obligatorio.';
+  }
+
+  if (isGenericProviderCode.value && !form.codigo_proveedor.trim()) {
     errors.codigo_proveedor = 'El código de proveedor es obligatorio.';
   }
 
-  const cantidadValue = cantidadText.value.trim();
+  const cantidadValue = cantidadText.value;
 
-  if (cantidadValue) {
+  if (cantidadValue !== '') {
     const parsedCantidad = Number(cantidadValue);
 
     if (Number.isNaN(parsedCantidad) || parsedCantidad < 0) {
@@ -187,18 +200,18 @@ const handleSubmit = async () => {
     isSaving.value = true;
     clearErrors();
 
-    const parsedCantidad = cantidadText.value.trim()
+    const parsedCantidad = cantidadText.value !== ''
       ? Number(cantidadText.value)
       : null;
+
+    const codigoOriginal = form.codigo_original.trim();
+    const codigoProveedor = isGenericProviderCode.value
+      ? form.codigo_proveedor.trim()
+      : codigoOriginal;
 
     const sistema = await repuestosStore.asegurarValorCatalogo(
       'repuesto_sistema',
       form.sistema.trim()
-    );
-
-    const estado = await repuestosStore.asegurarValorCatalogo(
-      'repuesto_estado',
-      form.estado?.trim() || 'Activo'
     );
 
     const categoria = await ensureCatalogValue(
@@ -233,19 +246,18 @@ const handleSubmit = async () => {
       nombre_repuesto: form.nombre_repuesto.trim(),
       categoria,
       criticidad,
-      estado,
-      codigo_original: form.codigo_original.trim(),
-      codigo_proveedor: form.codigo_proveedor.trim(),
+      estado: 'Activo',
+      codigo_original: codigoOriginal,
+      codigo_proveedor: codigoProveedor,
       tipo_codigo_proveedor: tipoCodigoProveedor,
       nombre_proveedor: nombreProveedor,
       unidad,
       cantidad_requerida: parsedCantidad,
-      descripcion_corta: nullableText(form.descripcion_corta),
       descripcion_detallada: nullableText(form.descripcion_detallada),
       imagen_1: form.imagen_1 || null,
       imagen_2: form.imagen_2 || null,
       observacion: nullableText(form.observacion),
-      creado_por: nullableText(form.creado_por)
+      creado_por: currentUserEmail.value || null
     };
 
     const saved = await repuestosStore.guardarRepuestoCaptura(payload);
@@ -269,8 +281,21 @@ watch(
         repuestosStore.cargarCatalogos(),
         repuestosStore.cargarRepuestosCaptura()
       ]);
+
+      const identity = await getCurrentUserIdentity();
+      currentUserEmail.value = identity.email;
     }
   }
+);
+
+watch(
+  () => [form.tipo_codigo_proveedor, form.codigo_original] as const,
+  ([tipoCodigoProveedor, codigoOriginal]) => {
+    if (tipoCodigoProveedor?.trim().toLowerCase() !== 'generico') {
+      form.codigo_proveedor = codigoOriginal;
+    }
+  },
+  { immediate: true }
 );
 </script>
 
@@ -364,20 +389,19 @@ watch(
                   :error="errors.categoria"
                 />
 
-                <CatalogSuggestionField
+                <CatalogTextField
                   v-model="form.estado"
                   label="Estado"
-                  placeholder="Escribe o selecciona estado"
+                  disabled
                   required
-                  :suggestions="estadoOptions"
                   :error="errors.estado"
                 />
 
-                <CatalogSuggestionField
+                <CatalogSelectField
                   v-model="form.criticidad"
                   label="Criticidad"
-                  placeholder="Escribe o selecciona criticidad"
-                  :suggestions="opcionesCriticidades"
+                  placeholder="Selecciona criticidad"
+                  :options="criticidadOptions"
                   :error="errors.criticidad"
                 />
               </CatalogFormSection>
@@ -391,20 +415,22 @@ watch(
                   :error="errors.codigo_original"
                 />
 
+                <CatalogSelectField
+                  v-model="form.tipo_codigo_proveedor"
+                  label="Tipo de código proveedor"
+                  placeholder="Selecciona tipo"
+                  required
+                  :options="tipoCodigoProveedorOptions"
+                  :error="errors.tipo_codigo_proveedor"
+                />
+
                 <CatalogTextField
+                  v-if="isGenericProviderCode"
                   v-model="form.codigo_proveedor"
                   label="Código de proveedor"
                   placeholder="Ej. PROV-45678"
                   required
                   :error="errors.codigo_proveedor"
-                />
-
-                <CatalogSuggestionField
-                  v-model="form.tipo_codigo_proveedor"
-                  label="Tipo de código proveedor"
-                  placeholder="Escribe o selecciona tipo"
-                  :suggestions="opcionesTiposCodigo"
-                  :error="errors.tipo_codigo_proveedor"
                 />
               </CatalogFormSection>
 
@@ -437,14 +463,6 @@ watch(
               </CatalogFormSection>
 
               <CatalogFormSection title="Detalles">
-                <CatalogTextField
-                  v-model="form.descripcion_corta"
-                  class="md:col-span-2"
-                  label="Descripción corta"
-                  placeholder="Descripción breve del repuesto..."
-                  :error="errors.descripcion_corta"
-                />
-
                 <CatalogTextField
                   v-model="form.descripcion_detallada"
                   class="md:col-span-2"
@@ -479,13 +497,6 @@ watch(
                   :error="errors.observacion"
                 />
 
-                <CatalogTextField
-                  v-model="form.creado_por"
-                  class="md:col-span-2"
-                  label="Creado por"
-                  placeholder="Usuario responsable..."
-                  :error="errors.creado_por"
-                />
               </CatalogFormSection>
             </main>
 

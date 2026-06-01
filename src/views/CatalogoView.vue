@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import {
   Search,
@@ -33,7 +33,7 @@ const {
 
 const searchQuery = ref('');
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = 25;
 
 // Panel de creación
 const isCreatePanelOpen = ref(false);
@@ -50,10 +50,16 @@ const selectedRepuesto = ref<RepuestoCaptura | null>(null);
 // CARGA INICIAL
 // ==========================================
 onMounted(async () => {
+  window.addEventListener('open-new-record', openAddModal);
+
   await Promise.all([
     repuestosStore.cargarRepuestosCaptura(),
     repuestosStore.cargarCatalogos()
   ]);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('open-new-record', openAddModal);
 });
 
 // ==========================================
@@ -113,20 +119,40 @@ const handleSearch = () => {
   currentPage.value = 1;
 };
 
-const goToPage = (page: number) => {
+const scrollToTop = async () => {
+  await nextTick();
+
+  const mainContent = document.getElementById('app-main-content-area');
+
+  mainContent?.scrollTo({
+    top: 0,
+    behavior: 'smooth'
+  });
+};
+
+const goToPage = async (page: number) => {
   if (page < 1 || page > totalPages.value) return;
   currentPage.value = page;
+  await scrollToTop();
 };
 
-const nextPage = () => {
+const nextPage = async () => {
   if (currentPage.value >= totalPages.value) return;
   currentPage.value++;
+  await scrollToTop();
 };
 
-const previousPage = () => {
+const previousPage = async () => {
   if (currentPage.value <= 1) return;
   currentPage.value--;
+  await scrollToTop();
 };
+
+watch(totalPages, (newTotalPages) => {
+  if (currentPage.value > newTotalPages) {
+    currentPage.value = newTotalPages;
+  }
+});
 
 // ==========================================
 // HELPERS UI
@@ -244,16 +270,12 @@ const deleteRepuesto = async (id: string) => {
         <h1 class="text-2xl font-bold text-gray-800 tracking-tight">
           Catálogo de Repuestos
         </h1>
-
-        <p class="text-sm text-gray-500 mt-1">
-          Gestión y visualización del inventario maestro de repuestos.
-        </p>
       </div>
 
       <button
         type="button"
         @click="openAddModal"
-        class="flex items-center justify-center gap-2 bg-main text-white px-5 py-2.5 rounded-xl hover:bg-main-light transition-colors shadow-sm font-medium text-sm active:scale-95"
+        class="hidden lg:flex items-center justify-center gap-2 bg-main text-white px-5 py-2.5 rounded-xl hover:bg-main-light transition-colors shadow-sm font-medium text-sm active:scale-95"
       >
         <Plus class="w-4 h-4" />
         Agregar Repuesto
