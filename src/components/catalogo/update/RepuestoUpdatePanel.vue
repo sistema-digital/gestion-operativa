@@ -4,12 +4,18 @@ import { storeToRefs } from 'pinia';
 import { Loader2, Save, X } from 'lucide-vue-next';
 
 import { useRepuestosStore } from '@/stores/dbequipos/repuestos/repuestos.store';
+import {
+  getCurrentUserIdentity,
+  resolveCreatedByDisplay,
+  type CurrentUserIdentity
+} from '@/utils/createdBy';
 import type {
   CatalogTableName,
   RepuestoCaptura
 } from '@/stores/dbequipos/repuestos/repuestos.types';
 
 import UpdateFormSection from '@/components/catalogo/update/UpdateFormSection.vue';
+import UpdateSelectField from '@/components/catalogo/update/UpdateSelectField.vue';
 import UpdateTextField from '@/components/catalogo/update/UpdateTextField.vue';
 import UpdateSuggestionField from '@/components/catalogo/update/UpdateSuggestionField.vue';
 import UpdateImageUpload from '@/components/catalogo/update/UpdateImageUpload.vue';
@@ -30,7 +36,6 @@ const {
   opcionesSistemas,
   opcionesCategorias,
   opcionesCriticidades,
-  opcionesEstados,
   opcionesUnidades,
   opcionesProveedores,
   opcionesTiposCodigo
@@ -50,7 +55,6 @@ type UpdateForm = {
   tipo_codigo_proveedor: string;
   nombre_proveedor: string;
   unidad: string;
-  descripcion_corta: string;
   descripcion_detallada: string;
   imagen_1: string | null;
   imagen_2: string | null;
@@ -69,10 +73,9 @@ const createEmptyForm = (): UpdateForm => ({
   estado: 'Activo',
   codigo_original: '',
   codigo_proveedor: '',
-  tipo_codigo_proveedor: '',
+  tipo_codigo_proveedor: 'Original',
   nombre_proveedor: '',
   unidad: '',
-  descripcion_corta: '',
   descripcion_detallada: '',
   imagen_1: null,
   imagen_2: null,
@@ -85,13 +88,30 @@ const form = reactive<UpdateForm>(createEmptyForm());
 const cantidadText = ref('');
 const isSaving = ref(false);
 const errors = reactive<Record<string, string>>({});
+const createdByDisplay = ref('Sistema');
+const currentUserIdentity = ref<CurrentUserIdentity>({
+  email: '',
+  nombre: ''
+});
 
-const estadoOptions = computed(() => {
-  const base = opcionesEstados.value.length > 0
-    ? opcionesEstados.value
-    : ['Activo', 'Bajo stock', 'Sin stock', 'Inactivo'];
+const criticidadOptions = computed(() => {
+  return opcionesCriticidades.value;
+});
 
-  return base.includes('Activo') ? base : ['Activo', ...base];
+const tipoCodigoProveedorOptions = computed(() => {
+  const base = opcionesTiposCodigo.value.length > 0
+    ? opcionesTiposCodigo.value
+    : ['Original', 'Generico'];
+
+  const uniqueOptions = Array.from(new Set(base.map((item) => item.trim()).filter(Boolean)));
+
+  return uniqueOptions.includes('Original')
+    ? uniqueOptions
+    : ['Original', ...uniqueOptions];
+});
+
+const isGenericProviderCode = computed(() => {
+  return form.tipo_codigo_proveedor.trim().toLowerCase() === 'generico';
 });
 
 const clearErrors = () => {
@@ -112,6 +132,7 @@ const fillForm = (repuesto: RepuestoCaptura | null) => {
   if (!repuesto) {
     Object.assign(form, createEmptyForm());
     cantidadText.value = '';
+    createdByDisplay.value = 'Sistema';
     return;
   }
 
@@ -125,10 +146,9 @@ const fillForm = (repuesto: RepuestoCaptura | null) => {
   form.estado = repuesto.estado ?? 'Activo';
   form.codigo_original = repuesto.codigo_original ?? '';
   form.codigo_proveedor = repuesto.codigo_proveedor ?? '';
-  form.tipo_codigo_proveedor = repuesto.tipo_codigo_proveedor ?? '';
+  form.tipo_codigo_proveedor = repuesto.tipo_codigo_proveedor ?? 'Original';
   form.nombre_proveedor = repuesto.nombre_proveedor ?? '';
   form.unidad = repuesto.unidad ?? '';
-  form.descripcion_corta = repuesto.descripcion_corta ?? '';
   form.descripcion_detallada = repuesto.descripcion_detallada ?? '';
   form.imagen_1 = repuesto.imagen_1 ?? null;
   form.imagen_2 = repuesto.imagen_2 ?? null;
@@ -171,13 +191,17 @@ const validateForm = () => {
     errors.codigo_original = 'El código original es obligatorio.';
   }
 
-  if (!form.codigo_proveedor.trim()) {
+  if (!form.tipo_codigo_proveedor.trim()) {
+    errors.tipo_codigo_proveedor = 'El tipo de código proveedor es obligatorio.';
+  }
+
+  if (isGenericProviderCode.value && !form.codigo_proveedor.trim()) {
     errors.codigo_proveedor = 'El código de proveedor es obligatorio.';
   }
 
-  const cantidadValue = cantidadText.value.trim();
+  const cantidadValue = cantidadText.value;
 
-  if (cantidadValue) {
+  if (cantidadValue !== '') {
     const parsedCantidad = Number(cantidadValue);
 
     if (Number.isNaN(parsedCantidad) || parsedCantidad < 0) {
@@ -213,7 +237,7 @@ const handleImageError = (field: 'imagen_1' | 'imagen_2', message: string) => {
 const handleSubmit = async () => {
   if (!validateForm()) return;
 
-  const parsedCantidad = cantidadText.value.trim()
+  const parsedCantidad = cantidadText.value !== ''
     ? Number(cantidadText.value)
     : null;
 
@@ -221,14 +245,14 @@ const handleSubmit = async () => {
     isSaving.value = true;
     clearErrors();
 
+    const codigoOriginal = form.codigo_original.trim();
+    const codigoProveedor = isGenericProviderCode.value
+      ? form.codigo_proveedor.trim()
+      : codigoOriginal;
+
     const sistema = await repuestosStore.asegurarValorCatalogo(
       'repuesto_sistema',
       form.sistema.trim()
-    );
-
-    const estado = await repuestosStore.asegurarValorCatalogo(
-      'repuesto_estado',
-      form.estado.trim()
     );
 
     const categoria = await ensureCatalogValue(
@@ -263,19 +287,17 @@ const handleSubmit = async () => {
       nombre_repuesto: form.nombre_repuesto.trim(),
       categoria,
       criticidad,
-      estado,
-      codigo_original: form.codigo_original.trim(),
-      codigo_proveedor: form.codigo_proveedor.trim(),
+      estado: form.estado.trim() || 'Activo',
+      codigo_original: codigoOriginal,
+      codigo_proveedor: codigoProveedor,
       tipo_codigo_proveedor: tipoCodigoProveedor,
       nombre_proveedor: nombreProveedor,
       unidad,
       cantidad_requerida: parsedCantidad,
-      descripcion_corta: nullableText(form.descripcion_corta),
       descripcion_detallada: nullableText(form.descripcion_detallada),
       imagen_1: form.imagen_1 || null,
       imagen_2: form.imagen_2 || null,
-      observacion: nullableText(form.observacion),
-      creado_por: nullableText(form.creado_por)
+      observacion: nullableText(form.observacion)
     };
 
     const updated = await repuestosStore.actualizarRepuestoCaptura(
@@ -299,7 +321,22 @@ watch(
     if (!open) return;
 
     await repuestosStore.cargarCatalogos();
+    currentUserIdentity.value = await getCurrentUserIdentity();
     fillForm(repuesto);
+    createdByDisplay.value = await resolveCreatedByDisplay(
+      repuesto?.creado_por,
+      currentUserIdentity.value
+    );
+  },
+  { immediate: true }
+);
+
+watch(
+  () => [form.tipo_codigo_proveedor, form.codigo_original] as const,
+  ([tipoCodigoProveedor, codigoOriginal]) => {
+    if (tipoCodigoProveedor.trim().toLowerCase() !== 'generico') {
+      form.codigo_proveedor = codigoOriginal;
+    }
   },
   { immediate: true }
 );
@@ -392,20 +429,19 @@ watch(
                   :error="errors.categoria"
                 />
 
-                <UpdateSuggestionField
+                <UpdateTextField
                   v-model="form.estado"
                   label="Estado"
-                  placeholder="Escribe o selecciona estado"
+                  disabled
                   required
-                  :suggestions="estadoOptions"
                   :error="errors.estado"
                 />
 
-                <UpdateSuggestionField
+                <UpdateSelectField
                   v-model="form.criticidad"
                   label="Criticidad"
-                  placeholder="Escribe o selecciona criticidad"
-                  :suggestions="opcionesCriticidades"
+                  placeholder="Selecciona criticidad"
+                  :options="criticidadOptions"
                   :error="errors.criticidad"
                 />
               </UpdateFormSection>
@@ -419,20 +455,22 @@ watch(
                   :error="errors.codigo_original"
                 />
 
+                <UpdateSelectField
+                  v-model="form.tipo_codigo_proveedor"
+                  label="Tipo de código proveedor"
+                  placeholder="Selecciona tipo"
+                  required
+                  :options="tipoCodigoProveedorOptions"
+                  :error="errors.tipo_codigo_proveedor"
+                />
+
                 <UpdateTextField
+                  v-if="isGenericProviderCode"
                   v-model="form.codigo_proveedor"
                   label="Código de proveedor"
                   placeholder="Ej. PROV-45678"
                   required
                   :error="errors.codigo_proveedor"
-                />
-
-                <UpdateSuggestionField
-                  v-model="form.tipo_codigo_proveedor"
-                  label="Tipo de código proveedor"
-                  placeholder="Escribe o selecciona tipo"
-                  :suggestions="opcionesTiposCodigo"
-                  :error="errors.tipo_codigo_proveedor"
                 />
               </UpdateFormSection>
 
@@ -465,14 +503,6 @@ watch(
               </UpdateFormSection>
 
               <UpdateFormSection title="Detalles">
-                <UpdateTextField
-                  v-model="form.descripcion_corta"
-                  class="md:col-span-2"
-                  label="Descripción corta"
-                  placeholder="Descripción breve del repuesto..."
-                  :error="errors.descripcion_corta"
-                />
-
                 <UpdateTextField
                   v-model="form.descripcion_detallada"
                   class="md:col-span-2"
@@ -508,11 +538,10 @@ watch(
                 />
 
                 <UpdateTextField
-                  v-model="form.creado_por"
+                  :model-value="createdByDisplay"
                   class="md:col-span-2"
                   label="Creado por"
-                  placeholder="Usuario responsable..."
-                  :error="errors.creado_por"
+                  disabled
                 />
               </UpdateFormSection>
             </main>

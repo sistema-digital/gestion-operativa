@@ -241,7 +241,7 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
       <button 
         v-if="route.path !== '/dashboard' && userProfile?.area?.toUpperCase() !== 'ALMACEN' && (['ALL', 'EVALUADOR'].includes(userProfile?.area?.toUpperCase() || '') || route.path.startsWith('/compras'))"
         @click="triggerNew" 
-        class="md:hidden fixed bottom-20 right-6 w-14 h-14 bg-accent text-gray-900 rounded-full shadow-lg flex items-center justify-center z-40 active:scale-90 transition-transform cursor-pointer"
+        class="lg:hidden fixed bottom-20 right-6 w-14 h-14 bg-accent text-gray-900 rounded-full shadow-lg flex items-center justify-center z-40 active:scale-90 transition-transform cursor-pointer"
       >
         <Plus class="w-8 h-8" />
       </button>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch, useTemplateRef } from 'vue';
 import { storeToRefs } from 'pinia';
 import {
   Search,
@@ -9,8 +9,7 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
-  Loader2,
-  Settings
+  Loader2
 } from 'lucide-vue-next';
 
 import { useRepuestosStore } from '@/stores/dbequipos/repuestos/repuestos.store';
@@ -33,7 +32,8 @@ const {
 
 const searchQuery = ref('');
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = 25;
+const tableContainer = useTemplateRef<HTMLDivElement>('tableContainer');
 
 // Panel de creación
 const isCreatePanelOpen = ref(false);
@@ -50,10 +50,16 @@ const selectedRepuesto = ref<RepuestoCaptura | null>(null);
 // CARGA INICIAL
 // ==========================================
 onMounted(async () => {
+  window.addEventListener('open-new-record', openAddModal);
+
   await Promise.all([
     repuestosStore.cargarRepuestosCaptura(),
     repuestosStore.cargarCatalogos()
   ]);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('open-new-record', openAddModal);
 });
 
 // ==========================================
@@ -113,6 +119,15 @@ const handleSearch = () => {
   currentPage.value = 1;
 };
 
+const scrollToTop = async () => {
+  await nextTick();
+
+  tableContainer.value?.scrollTo({
+    top: 0,
+    behavior: 'smooth'
+  });
+};
+
 const goToPage = (page: number) => {
   if (page < 1 || page > totalPages.value) return;
   currentPage.value = page;
@@ -127,6 +142,16 @@ const previousPage = () => {
   if (currentPage.value <= 1) return;
   currentPage.value--;
 };
+
+watch(totalPages, (newTotalPages) => {
+  if (currentPage.value > newTotalPages) {
+    currentPage.value = newTotalPages;
+  }
+});
+
+watch(currentPage, () => {
+  void scrollToTop();
+});
 
 // ==========================================
 // HELPERS UI
@@ -238,40 +263,13 @@ const deleteRepuesto = async (id: string) => {
 
 <template>
   <div class="h-full flex flex-col p-4 md:p-8 bg-second overflow-hidden">
-    <!-- HEADER -->
-    <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 mb-6 shrink-0">
-      <div>
-        <h1 class="text-2xl font-bold text-gray-800 tracking-tight">
-          Catálogo de Repuestos
-        </h1>
-
-        <p class="text-sm text-gray-500 mt-1">
-          Gestión y visualización del inventario maestro de repuestos.
-        </p>
-      </div>
-
-      <button
-        type="button"
-        @click="openAddModal"
-        class="flex items-center justify-center gap-2 bg-main text-white px-5 py-2.5 rounded-xl hover:bg-main-light transition-colors shadow-sm font-medium text-sm active:scale-95"
-      >
-        <Plus class="w-4 h-4" />
-        Agregar Repuesto
-      </button>
-    </header>
-
     <!-- MAIN CONTENT CARD -->
     <div class="flex-1 bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col min-h-0 overflow-hidden relative">
       <!-- TOOLBAR -->
-      <div class="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0 bg-white z-10">
-        <div class="flex items-center gap-2 w-full sm:w-auto">
-          <p class="text-sm text-gray-500">
-            <span class="font-semibold text-gray-800">{{ totalItems }}</span>
-            repuestos
-          </p>
-        </div>
+      <div class="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 shrink-0 bg-white z-10">
+        
 
-        <div class="relative w-full sm:w-96">
+        <div class="relative w-full flex-1">
           <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search class="h-4 w-4 text-gray-400" />
           </div>
@@ -284,10 +282,18 @@ const deleteRepuesto = async (id: string) => {
             placeholder="Buscar por nombre, código, sistema..."
           />
         </div>
+        <button
+          type="button"
+          @click="openAddModal"
+          class="hidden lg:flex items-center justify-center gap-2 bg-main text-white px-5 py-2.5 rounded-xl hover:bg-main-light transition-colors shadow-sm font-medium text-sm active:scale-95"
+        >
+          <Plus class="w-4 h-4" />
+          Agregar Repuesto
+        </button>
       </div>
 
       <!-- TABLE CONTAINER -->
-      <div class="flex-1 overflow-auto bg-white relative">
+      <div ref="tableContainer" class="flex-1 overflow-auto bg-white relative">
         <!-- Loading State Overlay -->
         <div
           v-if="isLoading && repuestosCaptura.length === 0"
@@ -299,20 +305,12 @@ const deleteRepuesto = async (id: string) => {
           </p>
         </div>
 
-        <table class="w-full text-center border-collapse min-w-[1100px]">
+        <table class="w-full text-center border-collapse min-w-[1020px]">
           <thead class="bg-gray-50">
             <tr>
-              <!-- FIXED COLUMNS -->
               <th
                 scope="col"
-                class="sticky top-0 left-0 z-40 w-[80px] min-w-[80px] px-2 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center bg-gray-50 border-b border-gray-200"
-              >
-                Img
-              </th>
-
-              <th
-                scope="col"
-                class="sticky top-0 left-[80px] z-40 min-w-[280px] max-w-[280px] px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center bg-gray-50 border-b border-gray-200 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.05)]"
+                class="sticky top-0 left-0 z-40 min-w-[280px] max-w-[280px] px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center bg-gray-50 border-b border-gray-200 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.05)]"
               >
                 Nombre del Repuesto
               </th>
@@ -371,7 +369,7 @@ const deleteRepuesto = async (id: string) => {
 
           <tbody class="bg-white text-center">
             <tr v-if="paginatedRepuestos.length === 0 && !isLoading">
-              <td colspan="9" class="px-6 py-12 text-center text-gray-500 bg-white">
+              <td colspan="8" class="px-6 py-12 text-center text-gray-500 bg-white">
                 <div class="flex flex-col items-center justify-center">
                   <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3 border border-gray-100">
                     <Search class="w-6 h-6 text-gray-400" />
@@ -393,26 +391,9 @@ const deleteRepuesto = async (id: string) => {
               :key="item.id"
               class="group bg-white hover:bg-gray-50 transition-colors"
             >
-              <!-- 1. Imagen -->
-              <td class="sticky left-0 z-20 w-[80px] min-w-[80px] px-2 py-3 text-center bg-white group-hover:bg-gray-50 border-b border-gray-100 transition-colors">
-                <div class="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center flex-shrink-0 mx-auto">
-                  <img
-                    v-if="item.imagen_1"
-                    :src="item.imagen_1"
-                    alt="Repuesto"
-                    class="w-full h-full object-cover"
-                  />
-
-                  <Settings
-                    v-else
-                    class="w-5 h-5 text-gray-300"
-                  />
-                </div>
-              </td>
-
-              <!-- 2. Nombre y Equipo -->
+              <!-- 1. Nombre y Equipo -->
               <td
-                class="sticky left-[80px] z-20 min-w-[280px] max-w-[280px] px-6 py-3 bg-white group-hover:bg-gray-50 border-b border-gray-100 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.05)] transition-colors text-center cursor-pointer"
+                class="sticky left-0 z-20 min-w-[280px] max-w-[280px] px-6 py-3 bg-white group-hover:bg-gray-50 border-b border-gray-100 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.05)] transition-colors text-center cursor-pointer"
                 @click="viewRepuestoDetails(item)"
               >
                 <div class="flex flex-col items-center hover:opacity-80">
@@ -431,7 +412,7 @@ const deleteRepuesto = async (id: string) => {
                 </div>
               </td>
 
-              <!-- 3. Códigos -->
+              <!-- 2. Códigos -->
               <td class="px-6 py-3 border-b border-gray-100 text-center">
                 <div class="flex flex-col items-center gap-1 text-xs">
                   <div class="flex items-center gap-1.5" title="Código Original">
@@ -450,7 +431,7 @@ const deleteRepuesto = async (id: string) => {
                 </div>
               </td>
 
-              <!-- 4. Categoría y Sistema -->
+              <!-- 3. Categoría y Sistema -->
               <td class="px-6 py-3 border-b border-gray-100 text-center">
                 <div class="flex flex-col items-center">
                   <span class="text-sm text-gray-700 font-medium whitespace-nowrap">
@@ -463,7 +444,7 @@ const deleteRepuesto = async (id: string) => {
                 </div>
               </td>
 
-              <!-- 5. Estado -->
+              <!-- 4. Estado -->
               <td class="px-6 py-3 text-center border-b border-gray-100">
                 <span
                   class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide border whitespace-nowrap"
@@ -473,7 +454,7 @@ const deleteRepuesto = async (id: string) => {
                 </span>
               </td>
 
-              <!-- 6. Criticidad -->
+              <!-- 5. Criticidad -->
               <td class="px-6 py-3 text-center border-b border-gray-100">
                 <span
                   class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide border whitespace-nowrap"
@@ -483,14 +464,14 @@ const deleteRepuesto = async (id: string) => {
                 </span>
               </td>
 
-              <!-- 7. Proveedor -->
+              <!-- 6. Proveedor -->
               <td class="px-6 py-3 border-b border-gray-100 text-center">
                 <span class="text-sm text-gray-700 whitespace-nowrap">
                   {{ item.nombre_proveedor || '-' }}
                 </span>
               </td>
 
-              <!-- 8. Cantidad -->
+              <!-- 7. Cantidad -->
               <td class="px-6 py-3 text-center border-b border-gray-100">
                 <div class="flex flex-col items-center">
                   <span class="text-sm font-bold text-gray-800">

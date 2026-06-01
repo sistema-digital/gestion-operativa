@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, watch } from 'vue';
 import { 
   X, 
   Edit, 
@@ -14,6 +14,11 @@ import {
   AlertCircle
 } from 'lucide-vue-next';
 import type { RepuestoCaptura } from '@/stores/dbequipos/repuestos/repuestos.types';
+import {
+  getCurrentUserIdentity,
+  resolveCreatedByDisplay,
+  type CurrentUserIdentity
+} from '@/utils/createdBy';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -25,6 +30,12 @@ const emit = defineEmits<{
   (e: 'edit', id: string): void;
   (e: 'delete', id: string): void;
 }>();
+
+const createdByDisplay = ref('Sistema');
+const currentUserIdentity = ref<CurrentUserIdentity>({
+  email: '',
+  nombre: ''
+});
 
 // Helpers de formateo
 const formatDate = (dateString?: string | null) => {
@@ -46,6 +57,20 @@ const getCriticidadClass = (criticidad: string | null | undefined) => {
   if (val.includes('baja')) return 'bg-emerald-100 text-emerald-800';
   return 'bg-gray-100 text-gray-700';
 };
+
+watch(
+  () => [props.isOpen, props.repuesto?.creado_por] as const,
+  async ([open, createdBy]) => {
+    if (!open) return;
+
+    currentUserIdentity.value = await getCurrentUserIdentity();
+    createdByDisplay.value = await resolveCreatedByDisplay(
+      createdBy,
+      currentUserIdentity.value
+    );
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -187,7 +212,7 @@ const getCriticidadClass = (criticidad: string | null | undefined) => {
               <div class="p-4 space-y-4">
                 <div>
                   <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Creado Por</p>
-                  <p class="text-sm font-medium text-gray-900">{{ repuesto.creado_por || 'Sistema' }}</p>
+                  <p class="text-sm font-medium text-gray-900">{{ createdByDisplay }}</p>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                   <div>
@@ -211,10 +236,6 @@ const getCriticidadClass = (criticidad: string | null | undefined) => {
               <h3 class="font-semibold text-gray-800 text-sm">Descripciones</h3>
             </div>
             <div class="p-4 space-y-5">
-              <div v-if="repuesto.descripcion_corta">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Descripción Corta</p>
-                <p class="text-sm text-gray-800">{{ repuesto.descripcion_corta }}</p>
-              </div>
               <div v-if="repuesto.descripcion_detallada">
                 <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Descripción Detallada</p>
                 <div class="p-3 bg-gray-50 rounded-lg text-sm text-gray-700 whitespace-pre-wrap">
@@ -227,7 +248,7 @@ const getCriticidadClass = (criticidad: string | null | undefined) => {
                   {{ repuesto.observacion }}
                 </p>
               </div>
-              <div v-if="!repuesto.descripcion_corta && !repuesto.descripcion_detallada && !repuesto.observacion" class="text-center py-4 text-gray-400 text-sm italic">
+              <div v-if="!repuesto.descripcion_detallada && !repuesto.observacion" class="text-center py-4 text-gray-400 text-sm italic">
                 No hay descripciones registradas para este repuesto.
               </div>
             </div>
