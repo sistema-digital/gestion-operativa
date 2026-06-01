@@ -14,6 +14,10 @@ import {
 
 import { useRepuestosStore } from '@/stores/dbequipos/repuestos/repuestos.store';
 import type { RepuestoCaptura } from '@/stores/dbequipos/repuestos/repuestos.types';
+import {
+  formatArrayValue,
+  matchesMultiValueQuery
+} from '@/stores/dbequipos/repuestos/repuestos.helpers';
 
 import RepuestoDetailPanel from '@/components/catalogo/RepuestoDetailPanel.vue';
 import RepuestoCreatePanel from '@/components/catalogo/create/RepuestoCreatePanel.vue';
@@ -88,15 +92,24 @@ const filteredRepuestos = computed(() => {
     return (
       item.nombre_repuesto?.toLowerCase().includes(query) ||
       item.codigo_original?.toLowerCase().includes(query) ||
+      item.codigo_almacen?.toLowerCase().includes(query) ||
       item.codigo_proveedor?.toLowerCase().includes(query) ||
       item.categoria?.toLowerCase().includes(query) ||
       item.sistema?.toLowerCase().includes(query) ||
-      item.modelo?.toLowerCase().includes(query) ||
-      item.tipo_equipo?.toLowerCase().includes(query) ||
+      matchesMultiValueQuery(item.modelo, query) ||
+      matchesMultiValueQuery(item.tipo_equipo, query) ||
       item.nombre_proveedor?.toLowerCase().includes(query)
     );
   });
 });
+
+const formatEquipos = (repuesto: RepuestoCaptura) => {
+  return formatArrayValue(repuesto.tipo_equipo);
+};
+
+const formatModelos = (repuesto: RepuestoCaptura) => {
+  return formatArrayValue(repuesto.modelo);
+};
 
 const totalItems = computed(() => filteredRepuestos.value.length);
 
@@ -343,8 +356,8 @@ const deleteRepuesto = async (id: string) => {
             <div class="flex justify-between items-start gap-3">
               <div class="flex-1 min-w-0 cursor-pointer" @click="viewRepuestoDetails(item)">
                 <h3 class="text-sm font-bold text-main truncate">{{ item.nombre_repuesto }}</h3>
-                <p class="text-xs text-gray-500 truncate mt-0.5" :title="`${item.tipo_equipo} - ${item.modelo}`">
-                  {{ item.tipo_equipo }} <span v-if="item.modelo" class="mx-1">•</span> {{ item.modelo }}
+                <p class="text-xs text-gray-500 truncate mt-0.5" :title="`${formatEquipos(item)} - ${formatModelos(item)}`">
+                  {{ formatEquipos(item) }} <span v-if="formatModelos(item)" class="mx-1">•</span> {{ formatModelos(item) }}
                 </p>
               </div>
               <div class="flex flex-col gap-1.5 items-end shrink-0">
@@ -360,13 +373,17 @@ const deleteRepuesto = async (id: string) => {
             <!-- Detalles (Grid de datos) -->
             <div class="grid grid-cols-2 gap-x-2 gap-y-3 mt-3 pt-3 border-t border-gray-100 text-xs">
               <div>
-                <span class="block text-gray-400 font-medium mb-0.5">Cod. Original</span>
-                <span class="font-mono text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">{{ item.codigo_original || '-' }}</span>
-              </div>
-              <div>
-                <span class="block text-gray-400 font-medium mb-0.5">Cod. Proveedor</span>
-                <span class="font-mono text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">{{ item.codigo_proveedor || '-' }}</span>
-              </div>
+                  <span class="block text-gray-400 font-medium mb-0.5">Cod. Original</span>
+                  <span class="font-mono text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">{{ item.codigo_original || '-' }}</span>
+                </div>
+                <div>
+                  <span class="block text-gray-400 font-medium mb-0.5">Cod. Almacén</span>
+                  <span class="font-mono text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">{{ item.codigo_almacen || '-' }}</span>
+                </div>
+                <div class="col-span-2">
+                  <span class="block text-gray-400 font-medium mb-0.5">Cod. Proveedor</span>
+                  <span class="font-mono text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">{{ item.codigo_proveedor || '-' }}</span>
+                </div>
               <div class="col-span-2">
                 <span class="block text-gray-400 font-medium mb-0.5">Categoría / Sistema</span>
                 <span class="text-gray-700">{{ item.categoria || 'Sin categoría' }} / {{ item.sistema || 'Sin sistema' }}</span>
@@ -461,11 +478,11 @@ const deleteRepuesto = async (id: string) => {
                   </span>
                   <span
                     class="text-xs text-gray-500 mt-0.5 truncate max-w-[230px]"
-                    :title="`${item.tipo_equipo} - ${item.modelo}`"
+                    :title="`${formatEquipos(item)} - ${formatModelos(item)}`"
                   >
-                    {{ item.tipo_equipo }}
-                    <span v-if="item.modelo" class="mx-1">•</span>
-                    {{ item.modelo }}
+                    {{ formatEquipos(item) }}
+                    <span v-if="formatModelos(item)" class="mx-1">•</span>
+                    {{ formatModelos(item) }}
                   </span>
                 </div>
               </td>
@@ -477,6 +494,12 @@ const deleteRepuesto = async (id: string) => {
                     <span class="font-medium text-gray-400 w-8">Orig:</span>
                     <span class="text-gray-700 font-mono bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
                       {{ item.codigo_original || '-' }}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-1.5" title="Código Almacén">
+                    <span class="font-medium text-gray-400 w-8">Alm:</span>
+                    <span class="text-gray-700 font-mono bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
+                      {{ item.codigo_almacen || '-' }}
                     </span>
                   </div>
                   <div class="flex items-center gap-1.5" title="Código Proveedor">

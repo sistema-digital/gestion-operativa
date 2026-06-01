@@ -13,7 +13,12 @@ import type {
   CatalogTableName,
   RepuestoCaptura
 } from '@/stores/dbequipos/repuestos/repuestos.types';
+import {
+  ensureStringArray,
+  extractUniqueValues
+} from '@/stores/dbequipos/repuestos/repuestos.helpers';
 
+import CatalogMultiTagField from '@/components/catalogo/CatalogMultiTagField.vue';
 import UpdateFormSection from '@/components/catalogo/update/UpdateFormSection.vue';
 import UpdateSelectField from '@/components/catalogo/update/UpdateSelectField.vue';
 import UpdateTextField from '@/components/catalogo/update/UpdateTextField.vue';
@@ -33,6 +38,7 @@ const emit = defineEmits<{
 const repuestosStore = useRepuestosStore();
 
 const {
+  repuestosCaptura,
   opcionesSistemas,
   opcionesCategorias,
   opcionesCriticidades,
@@ -43,14 +49,15 @@ const {
 
 type UpdateForm = {
   id: string;
-  tipo_equipo: string;
-  modelo: string;
+  tipo_equipo: string[];
+  modelo: string[];
   sistema: string;
   nombre_repuesto: string;
   categoria: string;
   criticidad: string;
   estado: string;
   codigo_original: string;
+  codigo_almacen: string;
   codigo_proveedor: string;
   tipo_codigo_proveedor: string;
   nombre_proveedor: string;
@@ -64,14 +71,15 @@ type UpdateForm = {
 
 const createEmptyForm = (): UpdateForm => ({
   id: '',
-  tipo_equipo: '',
-  modelo: '',
+  tipo_equipo: [],
+  modelo: [],
   sistema: '',
   nombre_repuesto: '',
   categoria: '',
   criticidad: '',
   estado: 'Activo',
   codigo_original: '',
+  codigo_almacen: '',
   codigo_proveedor: '',
   tipo_codigo_proveedor: 'Original',
   nombre_proveedor: '',
@@ -96,6 +104,14 @@ const currentUserIdentity = ref<CurrentUserIdentity>({
 
 const criticidadOptions = computed(() => {
   return opcionesCriticidades.value;
+});
+
+const opcionesTipoEquipo = computed(() => {
+  return extractUniqueValues(repuestosCaptura.value.map((item) => item.tipo_equipo));
+});
+
+const opcionesModelo = computed(() => {
+  return extractUniqueValues(repuestosCaptura.value.map((item) => item.modelo));
 });
 
 const tipoCodigoProveedorOptions = computed(() => {
@@ -137,14 +153,15 @@ const fillForm = (repuesto: RepuestoCaptura | null) => {
   }
 
   form.id = repuesto.id ?? '';
-  form.tipo_equipo = repuesto.tipo_equipo ?? '';
-  form.modelo = repuesto.modelo ?? '';
+  form.tipo_equipo = ensureStringArray(repuesto.tipo_equipo);
+  form.modelo = ensureStringArray(repuesto.modelo);
   form.sistema = repuesto.sistema ?? '';
   form.nombre_repuesto = repuesto.nombre_repuesto ?? '';
   form.categoria = repuesto.categoria ?? '';
   form.criticidad = repuesto.criticidad ?? '';
   form.estado = repuesto.estado ?? 'Activo';
   form.codigo_original = repuesto.codigo_original ?? '';
+  form.codigo_almacen = repuesto.codigo_almacen ?? '';
   form.codigo_proveedor = repuesto.codigo_proveedor ?? '';
   form.tipo_codigo_proveedor = repuesto.tipo_codigo_proveedor ?? 'Original';
   form.nombre_proveedor = repuesto.nombre_proveedor ?? '';
@@ -167,11 +184,11 @@ const validateForm = () => {
     errors.general = 'No se encontró el ID del repuesto.';
   }
 
-  if (!form.tipo_equipo.trim()) {
+  if (form.tipo_equipo.length === 0) {
     errors.tipo_equipo = 'El tipo de equipo es obligatorio.';
   }
 
-  if (!form.modelo.trim()) {
+  if (form.modelo.length === 0) {
     errors.modelo = 'El modelo es obligatorio.';
   }
 
@@ -189,6 +206,10 @@ const validateForm = () => {
 
   if (!form.codigo_original.trim()) {
     errors.codigo_original = 'El código original es obligatorio.';
+  }
+
+  if (!form.codigo_almacen.trim()) {
+    errors.codigo_almacen = 'El código de almacén es obligatorio.';
   }
 
   if (!form.tipo_codigo_proveedor.trim()) {
@@ -281,14 +302,15 @@ const handleSubmit = async () => {
     );
 
     const payload: Partial<RepuestoCaptura> = {
-      tipo_equipo: form.tipo_equipo.trim(),
-      modelo: form.modelo.trim(),
+      tipo_equipo: [...form.tipo_equipo],
+      modelo: [...form.modelo],
       sistema,
       nombre_repuesto: form.nombre_repuesto.trim(),
       categoria,
       criticidad,
       estado: form.estado.trim() || 'Activo',
       codigo_original: codigoOriginal,
+      codigo_almacen: form.codigo_almacen.trim() || null,
       codigo_proveedor: codigoProveedor,
       tipo_codigo_proveedor: tipoCodigoProveedor,
       nombre_proveedor: nombreProveedor,
@@ -388,19 +410,21 @@ watch(
               </div>
 
               <UpdateFormSection title="Información general">
-                <UpdateTextField
+                <CatalogMultiTagField
                   v-model="form.tipo_equipo"
                   label="Tipo de equipo"
-                  placeholder="Ej. Tractor, cosechadora..."
+                  placeholder="Escribe, usa coma o selecciona tipo de equipo"
                   required
+                  :suggestions="opcionesTipoEquipo"
                   :error="errors.tipo_equipo"
                 />
 
-                <UpdateTextField
+                <CatalogMultiTagField
                   v-model="form.modelo"
                   label="Modelo"
-                  placeholder="Ej. JD 6403"
+                  placeholder="Escribe, usa coma o selecciona modelo"
                   required
+                  :suggestions="opcionesModelo"
                   :error="errors.modelo"
                 />
 
@@ -453,6 +477,14 @@ watch(
                   placeholder="Ej. CAT-1R-1808"
                   required
                   :error="errors.codigo_original"
+                />
+
+                <UpdateTextField
+                  v-model="form.codigo_almacen"
+                  label="Código de almacén"
+                  placeholder="Ej. ALM-001245"
+                  required
+                  :error="errors.codigo_almacen"
                 />
 
                 <UpdateSelectField

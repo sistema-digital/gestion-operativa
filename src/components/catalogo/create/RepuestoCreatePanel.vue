@@ -9,8 +9,10 @@ import type {
   CatalogTableName,
   RepuestoCaptura
 } from '@/stores/dbequipos/repuestos/repuestos.types';
+import { extractUniqueValues } from '@/stores/dbequipos/repuestos/repuestos.helpers';
 
 import CatalogFormSection from '@/components/catalogo/create/CatalogFormSection.vue';
+import CatalogMultiTagField from '@/components/catalogo/CatalogMultiTagField.vue';
 import CatalogSelectField from '@/components/catalogo/create/CatalogSelectField.vue';
 import CatalogTextField from '@/components/catalogo/create/CatalogTextField.vue';
 import CatalogSuggestionField from '@/components/catalogo/create/CatalogSuggestionField.vue';
@@ -40,14 +42,15 @@ const {
 type RepuestoForm = Omit<RepuestoCaptura, 'id' | 'created_at' | 'updated_at'>;
 
 const createEmptyForm = (): RepuestoForm => ({
-  tipo_equipo: '',
-  modelo: '',
+  tipo_equipo: [],
+  modelo: [],
   sistema: '',
   nombre_repuesto: '',
   categoria: null,
   criticidad: null,
   estado: 'Activo',
   codigo_original: '',
+  codigo_almacen: '',
   codigo_proveedor: '',
   tipo_codigo_proveedor: 'original',
   nombre_proveedor: null,
@@ -67,26 +70,16 @@ const isSaving = ref(false);
 const errors = reactive<Record<string, string>>({});
 const currentUserEmail = ref('');
 
-const uniqueValues = (values: Array<string | null | undefined>) => {
-  return values
-    .filter((value): value is string => Boolean(value && value.trim()))
-    .map((value) => value.trim())
-    .filter((value, index, array) => {
-      return array.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index;
-    })
-    .sort((a, b) => a.localeCompare(b));
-};
-
 const opcionesTipoEquipo = computed(() => {
-  return uniqueValues(repuestosCaptura.value.map((item) => item.tipo_equipo));
+  return extractUniqueValues(repuestosCaptura.value.map((item) => item.tipo_equipo));
 });
 
 const opcionesModelo = computed(() => {
-  return uniqueValues(repuestosCaptura.value.map((item) => item.modelo));
+  return extractUniqueValues(repuestosCaptura.value.map((item) => item.modelo));
 });
 
 const opcionesNombreRepuesto = computed(() => {
-  return uniqueValues(repuestosCaptura.value.map((item) => item.nombre_repuesto));
+  return extractUniqueValues(repuestosCaptura.value.map((item) => item.nombre_repuesto));
 });
 
 const criticidadOptions = computed(() => {
@@ -126,11 +119,11 @@ const nullableText = (value: string | null | undefined) => {
 const validateForm = () => {
   clearErrors();
 
-  if (!form.tipo_equipo.trim()) {
+  if (form.tipo_equipo.length === 0) {
     errors.tipo_equipo = 'El tipo de equipo es obligatorio.';
   }
 
-  if (!form.modelo.trim()) {
+  if (form.modelo.length === 0) {
     errors.modelo = 'El modelo es obligatorio.';
   }
 
@@ -148,6 +141,10 @@ const validateForm = () => {
 
   if (!form.codigo_original.trim()) {
     errors.codigo_original = 'El código original es obligatorio.';
+  }
+
+  if (!form.codigo_almacen?.trim()) {
+    errors.codigo_almacen = 'El código de almacén es obligatorio.';
   }
 
   if (!form.tipo_codigo_proveedor?.trim()) {
@@ -240,14 +237,15 @@ const handleSubmit = async () => {
     );
 
     const payload: Omit<RepuestoCaptura, 'id' | 'created_at' | 'updated_at'> = {
-      tipo_equipo: form.tipo_equipo.trim(),
-      modelo: form.modelo.trim(),
+      tipo_equipo: [...form.tipo_equipo],
+      modelo: [...form.modelo],
       sistema,
       nombre_repuesto: form.nombre_repuesto.trim(),
       categoria,
       criticidad,
       estado: 'Activo',
       codigo_original: codigoOriginal,
+      codigo_almacen: form.codigo_almacen?.trim() || null,
       codigo_proveedor: codigoProveedor,
       tipo_codigo_proveedor: tipoCodigoProveedor,
       nombre_proveedor: nombreProveedor,
@@ -345,19 +343,19 @@ watch(
               </div>
 
               <CatalogFormSection title="Información general">
-                <CatalogSuggestionField
+                <CatalogMultiTagField
                   v-model="form.tipo_equipo"
                   label="Tipo de equipo"
-                  placeholder="Escribe o selecciona tipo de equipo"
+                  placeholder="Escribe, usa coma o selecciona tipo de equipo"
                   required
                   :suggestions="opcionesTipoEquipo"
                   :error="errors.tipo_equipo"
                 />
 
-                <CatalogSuggestionField
+                <CatalogMultiTagField
                   v-model="form.modelo"
                   label="Modelo"
-                  placeholder="Escribe o selecciona modelo"
+                  placeholder="Escribe, usa coma o selecciona modelo"
                   required
                   :suggestions="opcionesModelo"
                   :error="errors.modelo"
@@ -413,6 +411,14 @@ watch(
                   placeholder="Ej. CAT-1R-1808"
                   required
                   :error="errors.codigo_original"
+                />
+
+                <CatalogTextField
+                  v-model="form.codigo_almacen"
+                  label="Código de almacén"
+                  placeholder="Ej. ALM-001245"
+                  required
+                  :error="errors.codigo_almacen"
                 />
 
                 <CatalogSelectField
