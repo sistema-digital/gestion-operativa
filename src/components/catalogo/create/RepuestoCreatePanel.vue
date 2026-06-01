@@ -384,7 +384,7 @@ watch(
                 <CatalogSuggestionField
                   v-model="form.categoria"
                   label="Categoría"
-                  placeholder="Escribe o selecciona categoría"
+                  placeholder="ejem. filtros"
                   :suggestions="opcionesCategorias"
                   :error="errors.categoria"
                 />
