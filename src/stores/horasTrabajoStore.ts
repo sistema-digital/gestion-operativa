@@ -5,6 +5,7 @@ import { getLocalDateInputValue } from './horasTrabajo.helpers';
 import { horasTrabajoService } from './horasTrabajo.service';
 import type {
   HoraTrabajoData,
+  HorasPerdidasPersonalRow,
   ProductividadSemanalResponse,
   WorkOrderTodayRow,
   WorkOrderUpdatePayload,
@@ -12,6 +13,7 @@ import type {
 
 export type {
   HoraTrabajoData,
+  HorasPerdidasPersonalRow,
   ProductividadSemanalResponse,
   WorkOrderTodayRow,
   WorkOrderUpdatePayload,
@@ -32,6 +34,7 @@ const readNumber = (row: DashboardRawRow, key: string): number => {
 
 export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
   const data = ref<HoraTrabajoData[]>([]);
+  const horasPerdidasPersonal = ref<HorasPerdidasPersonalRow[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
 
@@ -95,9 +98,10 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
     error.value = null;
 
     try {
-      const [retrasadasData, otrosEstadosData] = await Promise.all([
+      const [retrasadasData, otrosEstadosData, personalData] = await Promise.all([
         fetchDashboardTable('vw_ot_retrasadas_dashboard'),
         fetchDashboardTable('vw_ot_otros_estados_dashboard'),
+        horasTrabajoService.fetchHorasPerdidasPersonalSemanal(),
       ]);
 
       const retrasadas = retrasadasData.map(mapRetrasada);
@@ -106,6 +110,7 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
       ));
 
       data.value = [...retrasadas, ...otrosEstados];
+      horasPerdidasPersonal.value = personalData;
     } catch (err) {
       console.error('Error fetching horas de trabajo:', err);
       error.value = err instanceof Error
@@ -172,6 +177,7 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
 
   return {
     data,
+    horasPerdidasPersonal,
     loading,
     error,
     todayWorkOrders,
