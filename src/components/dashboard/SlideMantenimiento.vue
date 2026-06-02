@@ -2,7 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useMaintenanceStore } from '@/stores/maintenanceStore';
-import { useHorasTrabajoStore } from '@/stores/horasTrabajoStore';
+import { useHorasTrabajoStore, type HorasPerdidasPersonalRow } from '@/stores/horasTrabajoStore';
 import { storeToRefs } from 'pinia';
 import EChart from '@/components/ui/EChart.vue';
 import {
@@ -44,7 +44,7 @@ interface OrdenMantenimiento {
 const maintenanceStore = useMaintenanceStore();
 const horasTrabajoStore = useHorasTrabajoStore();
 const { allOrders, isLoading: isStoreLoading, loadingProgress, activeFilters } = storeToRefs(maintenanceStore);
-const { data: horasTrabajoData } = storeToRefs(horasTrabajoStore);
+const { data: horasTrabajoData, horasPerdidasPersonal } = storeToRefs(horasTrabajoStore);
 const { setStatusFilter, setWeekFilter } = maintenanceStore;
 
 const isRefreshing = ref(false);
@@ -79,6 +79,7 @@ const selectedEquipmentId = ref<string | null>(null);
 const showScrollButton = ref(false);
 const weeklyLossVisible = ref(false);
 const weeklyAreaCurrentWeekOnly = ref(false);
+const weeklyAreaDetailMode = ref<'general' | 'detailed'>('general');
 const lostProgressCurrentWeekOnly = ref(false);
 const showStatusCharts = ref(false);
 const showLostProgressPercent = ref(false);
@@ -102,6 +103,110 @@ const weeklyAreaSummaryAreaKeys = new Set([
   ...Object.keys(hoursPerOrderByArea),
   'MECANICA DE TRANSPORTE',
 ]);
+
+const weeklyAreaShortNames: Record<string, string> = {
+  'EQUIPO PESADO': 'Pesado',
+  'COSECHA MECANIZADA': 'Mecanizada',
+  'COSECHA AGRICOLA': 'Agrícola',
+  'MECANICA DE TRANSPORTE': 'Transporte',
+  'ENGRASE': 'Engrase',
+};
+
+interface PersonalLossBreakdown {
+  totalHours: number;
+  totalEquivalent: number;
+  vacaciones: number;
+  incapacidad: number;
+  inactivo: number;
+  plazaNoCubierta: number;
+}
+
+const getWeeklyAreaShortName = (area: string) => (
+  weeklyAreaShortNames[normalizeAreaKey(area)] || area
+);
+
+const isEquipmentSerieFilterActive = (orders: OrdenMantenimiento[]) => {
+  const serie = activeFilters.value.serie;
+
+  if (!serie) return false;
+
+  return orders.some((order) => String(order["ID_#EQUIPO"] || '') === serie);
+};
+
+const getDistinctWorkedEquipmentCount = (
+  orders: OrdenMantenimiento[],
+  areaKey: string,
+  week: string
+) => {
+  const equipmentIds = orders
+    .filter((order) => (
+      normalizeAreaKey(order.Área || '') === areaKey &&
+      String(getMaintenanceWeek(order)) === String(week)
+    ))
+    .map((order) => String(order["ID_#EQUIPO"] || '').trim())
+    .filter(Boolean);
+
+  return new Set(equipmentIds).size;
+};
+
+const getPersonalEquivalentHours = (
+  hours: number,
+  areaKey: string,
+  week: string,
+  ordersForProration: OrdenMantenimiento[],
+  shouldProrate: boolean
+) => {
+  const hoursPerOrder = hoursPerOrderByArea[areaKey] || 0;
+
+  if (hoursPerOrder <= 0 || hours <= 0) return 0;
+
+  if (!shouldProrate) {
+    return hours / hoursPerOrder;
+  }
+
+  const workedEquipments = getDistinctWorkedEquipmentCount(ordersForProration, areaKey, week);
+
+  if (workedEquipments <= 0) return 0;
+
+  return Math.round(hours / (workedEquipments * hoursPerOrder));
+};
+
+const buildPersonalLossBreakdown = (
+  personalRows: HorasPerdidasPersonalRow[],
+  areaKey: string,
+  ordersForProration: OrdenMantenimiento[],
+  shouldProrate: boolean
+): PersonalLossBreakdown => {
+  return personalRows.reduce<PersonalLossBreakdown>((acc, row) => {
+    const equivalent = getPersonalEquivalentHours(
+      Number(row.horas_perdidas_totales || 0),
+      areaKey,
+      row.semana,
+      ordersForProration,
+      shouldProrate
+    );
+
+    acc.totalHours += Number(row.horas_perdidas_totales || 0);
+    acc.totalEquivalent += equivalent;
+    acc.vacaciones += Number(row.horas_vacaciones || 0);
+    acc.incapacidad += Number(row.horas_incapacidad || 0);
+    acc.inactivo += Number(row.horas_inactivo || 0);
+    acc.plazaNoCubierta += Number(row.horas_plaza_no_cubierta || 0);
+
+    return acc;
+  }, {
+    totalHours: 0,
+    totalEquivalent: 0,
+    vacaciones: 0,
+    incapacidad: 0,
+    inactivo: 0,
+    plazaNoCubierta: 0,
+  });
+};
+
+const hasEquipmentScopedPersonalLoss = computed(() => (
+  Boolean(filters.value.idEquipo) || isEquipmentSerieFilterActive(allOrders.value)
+));
 
 const progress2025StartWeek = 15;
 
@@ -1216,9 +1321,25 @@ const buildWeeklyProgress = (limitToLastFive: boolean) => {
     globalList = globalList.filter(d => d.Etapa === filters.value.etapa);
   }
 
-  let areaFilteredList = globalList;
   if (areaFixed === 'ALL' && filters.value.area) {
-    areaFilteredList = areaFilteredList.filter(d => d.Área === filters.value.area);
+    globalList = globalList.filter(d => d.Área === filters.value.area);
+  }
+
+  let prorationOrderUniverse = globalList;
+  const equipmentSerieFilterActive = isEquipmentSerieFilterActive(prorationOrderUniverse);
+
+  if (activeFilters.value.serie && !equipmentSerieFilterActive) {
+    prorationOrderUniverse = prorationOrderUniverse.filter(d =>
+      d.Área === activeFilters.value.serie ||
+      d.Sistema === activeFilters.value.serie ||
+      d.ITEM === activeFilters.value.serie ||
+      d["ID_#EQUIPO"] === activeFilters.value.serie
+    );
+  }
+
+  let areaFilteredList = globalList;
+  if (filters.value.idEquipo) {
+    areaFilteredList = areaFilteredList.filter(d => d["ID_#EQUIPO"] === filters.value.idEquipo);
   }
 
   if (activeFilters.value.serie) {
@@ -1258,14 +1379,20 @@ const buildWeeklyProgress = (limitToLastFive: boolean) => {
     const total = semRows.length;
     const concludedBreakdown = getConcludedBreakdown(semRows);
     const concluidas = concludedBreakdown.total;
+    const relevantAreaKeys = Array.from(new Set(
+      areaFilteredList
+        .map(order => normalizeAreaKey(order.Área || ''))
+        .filter(areaKey => areaKey && weeklyAreaSummaryAreaKeys.has(areaKey))
+    ));
 
     const horasRows = horasTrabajoData.value.filter(row => {
       const status = String(row.estatus || '').trim().toLowerCase();
       const areaKey = normalizeAreaKey(row.area);
 
       if (String(row.semana_inicio) !== String(sem)) return false;
-      if (status !== 'retrasada' && status !== 'ausencia') return false;
+      if (status !== 'retrasada') return false;
       if (!hoursPerOrderByArea[areaKey]) return false;
+      if (!relevantAreaKeys.includes(areaKey)) return false;
 
       if (areaFixed !== 'ALL' && normalizeAreaKey(row.area) !== areaFixedKey) return false;
       if (areaFixed === 'ALL' && filters.value.area && areaKey !== normalizeAreaKey(filters.value.area)) return false;
@@ -1277,27 +1404,48 @@ const buildWeeklyProgress = (limitToLastFive: boolean) => {
       return true;
     });
 
-    const equivalentByStatus = horasRows.reduce((acc, row) => {
-      const status = String(row.estatus || '').trim().toLowerCase();
+    const operationalBreakdown = horasRows.reduce((acc, row) => {
       const areaKey = normalizeAreaKey(row.area);
       const hoursPerOrder = hoursPerOrderByArea[areaKey];
       const equivalentOrders = hoursPerOrder > 0 ? (Number(row.horas_calculadas || 0) / hoursPerOrder) : 0;
 
-      if (status === 'retrasada') {
-        acc.retrasada += equivalentOrders;
-        acc.horasRetrasada += Number(row.horas_calculadas || 0);
-      }
-      if (status === 'ausencia') {
-        acc.ausencia += equivalentOrders;
-        acc.horasAusencia += Number(row.horas_calculadas || 0);
-      }
+      acc.retrasada += equivalentOrders;
+      acc.horasRetrasada += Number(row.horas_calculadas || 0);
 
       return acc;
     }, {
       retrasada: 0,
-      ausencia: 0,
       horasRetrasada: 0,
-      horasAusencia: 0
+    });
+
+    const shouldProratePersonalLoss = Boolean(filters.value.idEquipo) || equipmentSerieFilterActive;
+    const personalBreakdown = relevantAreaKeys.reduce<PersonalLossBreakdown>((acc, areaKey) => {
+      const areaRows = horasPerdidasPersonal.value.filter((row) => (
+        normalizeAreaKey(row.area) === areaKey &&
+        String(row.semana) === String(sem)
+      ));
+      const areaBreakdown = buildPersonalLossBreakdown(
+        areaRows,
+        areaKey,
+        prorationOrderUniverse,
+        shouldProratePersonalLoss
+      );
+
+      acc.totalHours += areaBreakdown.totalHours;
+      acc.totalEquivalent += areaBreakdown.totalEquivalent;
+      acc.vacaciones += areaBreakdown.vacaciones;
+      acc.incapacidad += areaBreakdown.incapacidad;
+      acc.inactivo += areaBreakdown.inactivo;
+      acc.plazaNoCubierta += areaBreakdown.plazaNoCubierta;
+
+      return acc;
+    }, {
+      totalHours: 0,
+      totalEquivalent: 0,
+      vacaciones: 0,
+      incapacidad: 0,
+      inactivo: 0,
+      plazaNoCubierta: 0,
     });
 
     const toGlobalPercent = (value: number) => globalList.length > 0
@@ -1316,12 +1464,16 @@ const buildWeeklyProgress = (limitToLastFive: boolean) => {
         : 0,
       concluidaAvance: toGlobalPercent(concludedBreakdown.concluida),
       nrAvance: toGlobalPercent(concludedBreakdown.nr),
-      retrasadaEquivalente: Number(equivalentByStatus.retrasada.toFixed(2)),
-      ausenciaEquivalente: Number(equivalentByStatus.ausencia.toFixed(2)),
-      horasRetrasada: Number(equivalentByStatus.horasRetrasada.toFixed(2)),
-      horasAusencia: Number(equivalentByStatus.horasAusencia.toFixed(2)),
-      retrasadaAvance: toGlobalPercent(equivalentByStatus.retrasada),
-      ausenciaAvance: toGlobalPercent(equivalentByStatus.ausencia)
+      retrasadaEquivalente: Number(operationalBreakdown.retrasada.toFixed(2)),
+      personalEquivalente: Number(personalBreakdown.totalEquivalent.toFixed(2)),
+      horasRetrasada: Number(operationalBreakdown.horasRetrasada.toFixed(2)),
+      horasPersonal: Number(personalBreakdown.totalHours.toFixed(2)),
+      horasVacaciones: Number(personalBreakdown.vacaciones.toFixed(2)),
+      horasIncapacidad: Number(personalBreakdown.incapacidad.toFixed(2)),
+      horasInactivo: Number(personalBreakdown.inactivo.toFixed(2)),
+      horasPlazaNoCubierta: Number(personalBreakdown.plazaNoCubierta.toFixed(2)),
+      retrasadaAvance: toGlobalPercent(operationalBreakdown.retrasada),
+      personalAvance: toGlobalPercent(personalBreakdown.totalEquivalent)
     };
   });
 
@@ -1334,7 +1486,7 @@ const weeklyProgress = computed(() => buildWeeklyProgress(true));
 const hasWeeklyAreaProgress = (week: typeof allWeeklyProgress.value[number]) => (
   week.concluidas > 0 ||
   week.horasRetrasada > 0 ||
-  week.horasAusencia > 0
+  week.horasPersonal > 0
 );
 
 const weeklyAreaSelectedWeeks = computed(() => {
@@ -1361,6 +1513,13 @@ const weeklyAreaPeriodLabel = computed(() => {
   return `Semana ${weeklyAreaSelectedWeeks.value[0] || currentWeek.value}`;
 });
 
+const sumRoundedProgress = (realProgress: number, lostProgress: number) => {
+  const roundedRealProgress = Number(realProgress.toFixed(1));
+  const roundedLostProgress = Number(lostProgress.toFixed(1));
+
+  return Number((roundedRealProgress + roundedLostProgress).toFixed(1));
+};
+
 const weeklyAreaSummary = computed(() => {
   const areaFixed = userArea.value?.toUpperCase();
   const areaFixedKey = normalizeAreaKey(userArea.value || '');
@@ -1377,6 +1536,13 @@ const weeklyAreaSummary = computed(() => {
   if (areaFixed === 'ALL' && filters.value.area) {
     const selectedAreaKey = normalizeAreaKey(filters.value.area);
     orderList = orderList.filter(d => normalizeAreaKey(d.Área || '') === selectedAreaKey);
+  }
+
+  const prorationOrderUniverse = orderList;
+  const equipmentSerieFilterActive = isEquipmentSerieFilterActive(prorationOrderUniverse);
+
+  if (filters.value.idEquipo) {
+    orderList = orderList.filter(d => d["ID_#EQUIPO"] === filters.value.idEquipo);
   }
 
   if (activeFilters.value.serie) {
@@ -1404,13 +1570,13 @@ const weeklyAreaSummary = computed(() => {
       weeks.has(getMaintenanceWeek(o)) && isConcludedOrder(o)
     )).length;
 
-    const areaHoursRows = horasTrabajoData.value.filter(row => {
+    const operationalRows = horasTrabajoData.value.filter(row => {
       const rowAreaKey = normalizeAreaKey(row.area);
       const status = String(row.estatus || '').trim().toLowerCase();
 
       if (rowAreaKey !== areaKey) return false;
       if (!weeks.has(String(row.semana_inicio))) return false;
-      if (status !== 'retrasada' && status !== 'ausencia') return false;
+      if (status !== 'retrasada') return false;
 
       if (activeFilters.value.serie) {
         return rowAreaKey === normalizeAreaKey(activeFilters.value.serie) || row.equipo === activeFilters.value.serie;
@@ -1419,25 +1585,49 @@ const weeklyAreaSummary = computed(() => {
       return true;
     });
 
-    const lostEquivalent = areaHoursRows.reduce((sum, row) => {
+    const operationalEquivalent = operationalRows.reduce((sum, row) => {
       const hoursPerOrder = hoursPerOrderByArea[normalizeAreaKey(row.area)] || 0;
       return hoursPerOrder > 0 ? sum + (Number(row.horas_calculadas || 0) / hoursPerOrder) : sum;
     }, 0);
-    const lostHours = areaHoursRows.reduce((sum, row) => sum + Number(row.horas_calculadas || 0), 0);
+    const operationalHours = operationalRows.reduce((sum, row) => sum + Number(row.horas_calculadas || 0), 0);
+
+    const personalRows = horasPerdidasPersonal.value.filter((row) => (
+      normalizeAreaKey(row.area) === areaKey &&
+      weeks.has(String(row.semana))
+    ));
+    const personalBreakdown = buildPersonalLossBreakdown(
+      personalRows,
+      areaKey,
+      prorationOrderUniverse,
+      Boolean(filters.value.idEquipo) || equipmentSerieFilterActive
+    );
 
     const denominator = areaOrders.length;
     const realProgress = denominator > 0 ? Number(((concludedInVisibleWeeks / denominator) * 100).toFixed(2)) : 0;
-    const lostProgress = denominator > 0 ? Number(((lostEquivalent / denominator) * 100).toFixed(2)) : 0;
+    const operationalLostProgress = denominator > 0
+      ? Number(((operationalEquivalent / denominator) * 100).toFixed(2))
+      : 0;
+    const personalLostProgress = denominator > 0
+      ? Number(((personalBreakdown.totalEquivalent / denominator) * 100).toFixed(2))
+      : 0;
+    const lostProgress = Number((operationalLostProgress + personalLostProgress).toFixed(2));
 
     return {
       area: areaOrders[0]?.Área || areaKey,
+      areaShort: getWeeklyAreaShortName(areaOrders[0]?.Área || areaKey),
       denominator,
       concluded: concludedInVisibleWeeks,
-      lostEquivalent,
-      lostHours: Number(lostHours.toFixed(2)),
+      operationalLostEquivalent: operationalEquivalent,
+      operationalLostHours: Number(operationalHours.toFixed(2)),
+      personalLostEquivalent: Number(personalBreakdown.totalEquivalent.toFixed(2)),
+      personalLostHours: Number(personalBreakdown.totalHours.toFixed(2)),
+      lostHours: Number((operationalHours + personalBreakdown.totalHours).toFixed(2)),
+      personalBreakdown,
       realProgress,
+      operationalLostProgress,
+      personalLostProgress,
       lostProgress,
-      optimalProgress: Number((realProgress + lostProgress).toFixed(2))
+      optimalProgress: sumRoundedProgress(realProgress, lostProgress)
     };
   }).sort((a, b) => b.optimalProgress - a.optimalProgress);
 });
@@ -1445,16 +1635,32 @@ const weeklyAreaSummary = computed(() => {
 const weeklyAreaSummaryTotal = computed(() => {
   const denominator = weeklyAreaSummary.value.reduce((sum, row) => sum + row.denominator, 0);
   const concluded = weeklyAreaSummary.value.reduce((sum, row) => sum + row.concluded, 0);
-  const lostEquivalent = weeklyAreaSummary.value.reduce((sum, row) => sum + row.lostEquivalent, 0);
-  const lostHours = weeklyAreaSummary.value.reduce((sum, row) => sum + Number(row.lostHours || 0), 0);
+  const operationalLostEquivalent = weeklyAreaSummary.value
+    .reduce((sum, row) => sum + row.operationalLostEquivalent, 0);
+  const personalLostEquivalent = weeklyAreaSummary.value
+    .reduce((sum, row) => sum + row.personalLostEquivalent, 0);
+  const operationalLostHours = weeklyAreaSummary.value
+    .reduce((sum, row) => sum + Number(row.operationalLostHours || 0), 0);
+  const personalLostHours = weeklyAreaSummary.value
+    .reduce((sum, row) => sum + Number(row.personalLostHours || 0), 0);
   const realProgress = denominator > 0 ? Number(((concluded / denominator) * 100).toFixed(2)) : 0;
-  const lostProgress = denominator > 0 ? Number(((lostEquivalent / denominator) * 100).toFixed(2)) : 0;
+  const operationalLostProgress = denominator > 0
+    ? Number(((operationalLostEquivalent / denominator) * 100).toFixed(2))
+    : 0;
+  const personalLostProgress = denominator > 0
+    ? Number(((personalLostEquivalent / denominator) * 100).toFixed(2))
+    : 0;
+  const lostProgress = Number((operationalLostProgress + personalLostProgress).toFixed(2));
 
   return {
-    lostHours: Number(lostHours.toFixed(2)),
+    operationalLostHours: Number(operationalLostHours.toFixed(2)),
+    personalLostHours: Number(personalLostHours.toFixed(2)),
+    lostHours: Number((operationalLostHours + personalLostHours).toFixed(2)),
     realProgress,
+    operationalLostProgress,
+    personalLostProgress,
     lostProgress,
-    optimalProgress: Number((realProgress + lostProgress).toFixed(2))
+    optimalProgress: sumRoundedProgress(realProgress, lostProgress)
   };
 });
 
@@ -1631,6 +1837,25 @@ const formatWorkDaysFromHours = (hours: number, wrapInParentheses = true) => {
   return wrapInParentheses ? `(${formatted})` : formatted;
 };
 
+const formatEquivalentOrders = (value: number, roundValue: boolean) => (
+  roundValue ? String(Math.round(value)) : Number(value.toFixed(2)).toString()
+);
+
+const buildPersonalTooltipDetails = (weekData: typeof weeklyProgress.value[number]) => {
+  const detailRows = [
+    ['Vacaciones', weekData.horasVacaciones],
+    ['Incapacidad', weekData.horasIncapacidad],
+    ['Inactivo', weekData.horasInactivo],
+    ['Plaza no cubierta', weekData.horasPlazaNoCubierta],
+  ].filter(([, value]) => Number(value) > 0);
+
+  return detailRows
+    .map(([label, value]) => (
+      `<div style="font-size: 0.9em; color: #7f1d1d; margin-left: 12px">${label}: ${Number(value).toFixed(1)} hrs</div>`
+    ))
+    .join('');
+};
+
 const lostProgressEChartOption = computed(() => {
   const currentYearColor = '#2563eb';
   const lastYearColor = '#64748b';
@@ -1761,7 +1986,8 @@ const weeklyEChartOption = computed(() => {
   const avanceValues = data.map(d => d.avance);
   const concluidaValues = data.map(d => d.concluidaAvance);
   const nrValues = data.map(d => d.nrAvance);
-  const perdidaValues = data.map(d => Number((d.retrasadaAvance + d.ausenciaAvance).toFixed(2)));
+  const perdidaOperativaValues = data.map(d => Number(d.retrasadaAvance.toFixed(2)));
+  const perdidaPersonalValues = data.map(d => Number(d.personalAvance.toFixed(2)));
   const targetValue = 2.94;
   const targetPerc = 0.0294;
   const targetValues = labels.map(() => targetValue);
@@ -1771,7 +1997,7 @@ const weeklyEChartOption = computed(() => {
   const showLoss = isZafra && weeklyLossVisible.value;
   const avanceValues2025 = isZafra ? labels.map(sem => getProgress2025Value(sem)) : [];
 
-  const stacked2026Values = data.map(d => d.avance + (showLoss ? d.retrasadaAvance + d.ausenciaAvance : 0));
+  const stacked2026Values = data.map(d => d.avance + (showLoss ? d.retrasadaAvance + d.personalAvance : 0));
   const maxAvance = stacked2026Values.length > 0 ? Math.max(...stacked2026Values) : 0;
   const maxAvance2025 = isZafra && avanceValues2025.length > 0 ? Math.max(...avanceValues2025) : 0;
   const overallMax = Math.max(maxAvance, maxAvance2025);
@@ -1884,16 +2110,16 @@ const weeklyEChartOption = computed(() => {
 
   if (isZafra) {
     seriesTemplate.push({
-          name: 'Pérdida',
+          name: 'Pérdida Operativa',
           type: 'bar',
           stack: 'avance2026',
           color: '#C0392B',
-          data: perdidaValues,
+          data: perdidaOperativaValues,
           barMaxWidth: 18,
           barGap: '45%',
           barCategoryGap: '38%',
           itemStyle: {
-            borderRadius: [4, 4, 0, 0],
+            borderRadius: [0, 0, 0, 0],
             color: (p: any) => {
               const hasSemanaFilter = !!activeFilters.value.semana;
               const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
@@ -1909,9 +2135,55 @@ const weeklyEChartOption = computed(() => {
               const hasSemanaFilter = !!activeFilters.value.semana;
               const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
               const weekData = data.find(d => String(d.semana) === String(p.name));
-              if (!matchesSemana || !weekData) return '';
+              if (!showLoss || !matchesSemana || !weekData) return '';
 
-              const perdida = Number((weekData.retrasadaAvance + weekData.ausenciaAvance).toFixed(2));
+              const perdida = Number((weekData.retrasadaAvance + weekData.personalAvance).toFixed(2));
+              const hasOperationalLoss = weekData.retrasadaAvance > 0;
+              const hasPersonalLoss = weekData.personalAvance > 0;
+
+              if (!hasOperationalLoss || hasPersonalLoss) return '';
+              if (weekData.avance <= 0 && perdida <= 0) return '';
+
+              return `{real|${formatWeeklyValue(weekData.avance)}}{sep| | }{lost|${formatWeeklyValue(weekData.avance + perdida)}}`;
+            },
+            rich: {
+              real: { color: '#004236', fontWeight: 'bold' },
+              sep: { color: '#64748b', fontWeight: 'bold' },
+              lost: { color: '#C0392B', fontWeight: 'bold' }
+            }
+          }
+        });
+
+    seriesTemplate.push({
+          name: 'Falta de Personal',
+          type: 'bar',
+          stack: 'avance2026',
+          color: '#E74C3C',
+          data: perdidaPersonalValues,
+          barMaxWidth: 18,
+          barGap: '45%',
+          barCategoryGap: '38%',
+          itemStyle: {
+            borderRadius: [4, 4, 0, 0],
+            color: (p: any) => {
+              const hasSemanaFilter = !!activeFilters.value.semana;
+              const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
+              return matchesSemana ? '#E74C3C' : applyAlpha('#E74C3C', 0.25);
+            }
+          },
+          label: {
+            show: true,
+            position: 'top',
+            distance: 4,
+            fontWeight: 'bold',
+            formatter: (p: any) => {
+              const hasSemanaFilter = !!activeFilters.value.semana;
+              const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
+              const weekData = data.find(d => String(d.semana) === String(p.name));
+              if (!showLoss || !matchesSemana || !weekData) return '';
+
+              const perdida = Number((weekData.retrasadaAvance + weekData.personalAvance).toFixed(2));
+              if (weekData.personalAvance <= 0) return '';
               if (weekData.avance <= 0 && perdida <= 0) return '';
 
               return `{real|${formatWeeklyValue(weekData.avance)}}{sep| | }{lost|${formatWeeklyValue(weekData.avance + perdida)}}`;
@@ -1960,10 +2232,13 @@ const weeklyEChartOption = computed(() => {
           res += `<div>Avance 2026: ${formatWeeklyValue(weekData?.avance)} (<span style="font-size: 0.9em">Concluida: ${weekData?.concluidasSinNr || 0}, NR: ${weekData?.nrConcluidas || 0} / ${weekData?.total || 0}</span>)</div>`;
         }
         if (weekData && showLoss) {
-          const perdidaTotal = Number((weekData.retrasadaAvance + weekData.ausenciaAvance).toFixed(2));
+          const perdidaTotal = Number((weekData.retrasadaAvance + weekData.personalAvance).toFixed(2));
           if (perdidaTotal > 0) {
             res += `<div>Retrasada: ${formatWeeklyValue(weekData.retrasadaAvance)} <span style="font-size: 0.9em">(${Math.round(weekData.retrasadaEquivalente)} órdenes eq. / ${weekData.horasRetrasada} hrs)</span></div>`;
-            res += `<div>Ausencia: ${formatWeeklyValue(weekData.ausenciaAvance)} <span style="font-size: 0.9em">(${Math.round(weekData.ausenciaEquivalente)} órdenes eq. / ${weekData.horasAusencia} hrs)</span></div>`;
+            if (weekData.horasPersonal > 0) {
+              res += `<div>Falta de personal: ${formatWeeklyValue(weekData.personalAvance)} <span style="font-size: 0.9em">(${formatEquivalentOrders(weekData.personalEquivalente, hasEquipmentScopedPersonalLoss.value)} órdenes eq. / ${weekData.horasPersonal} hrs)</span></div>`;
+              res += buildPersonalTooltipDetails(weekData);
+            }
             res += `<div style="color:#C0392B;font-weight:bold">Pérdida total: ${formatWeeklyValue(perdidaTotal)}</div>`;
           }
         }
@@ -1972,8 +2247,15 @@ const weeklyEChartOption = computed(() => {
       }
     },
     legend: {
-      data: isZafra ? ['Objetivo', 'Avance 2025', 'Concluida 2026', 'NR 2026', 'Pérdida'] : ['Objetivo', 'Concluida 2026', 'NR 2026'],
-      selected: isZafra ? { 'Pérdida': weeklyLossVisible.value } : {},
+      data: isZafra
+        ? ['Objetivo', 'Avance 2025', 'Concluida 2026', 'NR 2026', 'Pérdida Operativa', 'Falta de Personal']
+        : ['Objetivo', 'Concluida 2026', 'NR 2026'],
+      selected: isZafra
+        ? {
+          'Pérdida Operativa': weeklyLossVisible.value,
+          'Falta de Personal': weeklyLossVisible.value
+        }
+        : {},
       top: 0,
       icon: 'circle',
       textStyle: { fontSize: 10, fontWeight: 'bold' }
@@ -2003,8 +2285,16 @@ const handleWeeklyChartClick = (params: any) => {
 };
 
 const handleWeeklyLegendSelectChanged = (params: any) => {
-  if (params?.selected && Object.prototype.hasOwnProperty.call(params.selected, 'Pérdida')) {
-    weeklyLossVisible.value = !!params.selected['Pérdida'];
+  if (!params?.selected) return;
+
+  const operationalSelected = !!params.selected['Pérdida Operativa'];
+  const personalSelected = !!params.selected['Falta de Personal'];
+
+  if (
+    Object.prototype.hasOwnProperty.call(params.selected, 'Pérdida Operativa') ||
+    Object.prototype.hasOwnProperty.call(params.selected, 'Falta de Personal')
+  ) {
+    weeklyLossVisible.value = operationalSelected || personalSelected;
   }
 };
 
@@ -2518,22 +2808,36 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
           </div>
 
           <div
-            class="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
-            <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            class="p-4 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200 self-start">
+            <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center md:items-start sm:justify-between">
               <div>
                 <h2 class="text-[14px] font-bold text-gray-400 uppercase tracking-[0.1em]">AVANCE REAL VS AVANCE APROXIMADO SIN RETRASOS</h2>
                 <p class="mt-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{{ weeklyAreaPeriodLabel }}</p>
               </div>
-              <button type="button" @click="weeklyAreaCurrentWeekOnly = !weeklyAreaCurrentWeekOnly"
-                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors self-start sm:self-auto"
-                :class="weeklyAreaCurrentWeekOnly ? 'border-main bg-main text-white' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'">
-                <span class="relative inline-flex h-4 w-7 rounded-full transition-colors"
-                  :class="weeklyAreaCurrentWeekOnly ? 'bg-white/25' : 'bg-gray-200'">
-                  <span class="absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform"
-                    :class="weeklyAreaCurrentWeekOnly ? 'translate-x-3.5' : 'translate-x-0.5'"></span>
-                </span>
-                Esta semana
-              </button>
+              <div class="flex flex-wrap  gap-1 self-start sm:self-auto">
+                <div class="inline-flex overflow-hidden rounded-full border border-gray-200 bg-gray-50 p-0.5">
+                  <button type="button" @click="weeklyAreaDetailMode = 'general'"
+                    class="px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full transition-colors"
+                    :class="weeklyAreaDetailMode === 'general' ? 'bg-main text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'">
+                    Gen.
+                  </button>
+                  <button type="button" @click="weeklyAreaDetailMode = 'detailed'"
+                    class="px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full transition-colors"
+                    :class="weeklyAreaDetailMode === 'detailed' ? 'bg-main text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'">
+                    Det.
+                  </button>
+                </div>
+                <button type="button" @click="weeklyAreaCurrentWeekOnly = !weeklyAreaCurrentWeekOnly"
+                  class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                  :class="weeklyAreaCurrentWeekOnly ? 'border-main bg-main text-white' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'">
+                  <span class="relative inline-flex h-4 w-7 rounded-full transition-colors"
+                    :class="weeklyAreaCurrentWeekOnly ? 'bg-white/25' : 'bg-gray-200'">
+                    <span class="absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform"
+                      :class="weeklyAreaCurrentWeekOnly ? 'translate-x-3.5' : 'translate-x-0.5'"></span>
+                  </span>
+                  Esta sem.
+                </button>
+              </div>
             </div>
 
             <div class="overflow-hidden border border-gray-100 rounded-xl">
@@ -2542,29 +2846,43 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
                   <tr>
                     <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">ÁREA</th>
                     <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE REAL</th>
-                    <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE PERDIDO</th>
+                    <th v-if="weeklyAreaDetailMode === 'general'" class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE PERDIDO</th>
+                    <th v-else class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">PÉRDIDA OP.</th>
+                    <th v-if="weeklyAreaDetailMode === 'detailed'" class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">PÉRDIDA PERS.</th>
                     <th class="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">AVANCE SIN RETRASOS</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
                   <tr v-for="row in weeklyAreaSummary" :key="row.area" class="hover:bg-gray-50/50 transition-colors">
-                    <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.area }}</td>
+                    <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.areaShort }}</td>
                     <td class="px-4 py-3 text-sm font-bold text-right text-[#004236]">{{ row.realProgress.toFixed(1) }}%</td>
-                    <td class="px-4 py-3 text-sm font-bold text-right text-[#C0392B]">
+                    <td v-if="weeklyAreaDetailMode === 'general'" class="px-4 py-3 text-sm font-bold text-right text-[#C0392B]">
                       {{ row.lostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(row.lostHours) }}</span>
+                    </td>
+                    <td v-else class="px-4 py-3 text-sm font-bold text-right text-[#C0392B]">
+                      {{ row.operationalLostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(row.operationalLostHours) }}</span>
+                    </td>
+                    <td v-if="weeklyAreaDetailMode === 'detailed'" class="px-4 py-3 text-sm font-bold text-right text-[#E74C3C]">
+                      {{ row.personalLostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(row.personalLostHours) }}</span>
                     </td>
                     <td class="px-4 py-3 text-sm font-bold text-right text-gray-800">{{ row.optimalProgress.toFixed(1) }}%</td>
                   </tr>
                   <tr v-if="weeklyAreaSummary.length > 0" class="bg-gray-50 border-t border-gray-200">
                     <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
                     <td class="px-4 py-3 text-sm font-black text-right text-[#004236]">{{ weeklyAreaSummaryTotal.realProgress.toFixed(1) }}%</td>
-                    <td class="px-4 py-3 text-sm font-black text-right text-[#C0392B]">
+                    <td v-if="weeklyAreaDetailMode === 'general'" class="px-4 py-3 text-sm font-black text-right text-[#C0392B]">
                       {{ weeklyAreaSummaryTotal.lostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.lostHours) }}</span>
+                    </td>
+                    <td v-else class="px-4 py-3 text-sm font-black text-right text-[#C0392B]">
+                      {{ weeklyAreaSummaryTotal.operationalLostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.operationalLostHours) }}</span>
+                    </td>
+                    <td v-if="weeklyAreaDetailMode === 'detailed'" class="px-4 py-3 text-sm font-black text-right text-[#E74C3C]">
+                      {{ weeklyAreaSummaryTotal.personalLostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.personalLostHours) }}</span>
                     </td>
                     <td class="px-4 py-3 text-sm font-black text-right text-gray-900">{{ weeklyAreaSummaryTotal.optimalProgress.toFixed(1) }}%</td>
                   </tr>
                   <tr v-if="weeklyAreaSummary.length === 0">
-                    <td colspan="4" class="px-4 py-8 text-center text-xs font-bold text-gray-300 uppercase tracking-widest">
+                    <td :colspan="weeklyAreaDetailMode === 'detailed' ? 5 : 4" class="px-4 py-8 text-center text-xs font-bold text-gray-300 uppercase tracking-widest">
                       Sin datos por área
                     </td>
                   </tr>

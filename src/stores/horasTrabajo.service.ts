@@ -8,6 +8,7 @@ import {
   toWorkOrderUpdateDbPayload,
 } from './horasTrabajo.helpers';
 import type {
+  HorasPerdidasPersonalRow,
   ProductividadSemanalPorEquipoResponse,
   ProductividadSemanalResponse,
   ProductividadSemanalServiciosGeneralesResponse,
@@ -42,7 +43,30 @@ const normalizeArea = (area: string | null | undefined): string => (
   area || ''
 ).trim().toLowerCase();
 
+const toNumber = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 export const horasTrabajoService = {
+  async fetchHorasPerdidasPersonalSemanal(): Promise<HorasPerdidasPersonalRow[]> {
+    const { data, error } = await supabase.rpc('get_horas_perdidas_personal_semanal');
+
+    if (error) {
+      throw new Error(error.message || 'No se pudieron cargar las horas perdidas por personal');
+    }
+
+    return ((data || []) as Record<string, unknown>[]).map((row) => ({
+      semana: String(row.semana || ''),
+      area: String(row.area || ''),
+      horas_perdidas_totales: toNumber(row.horas_perdidas_totales),
+      horas_vacaciones: toNumber(row.horas_vacaciones),
+      horas_incapacidad: toNumber(row.horas_incapacidad),
+      horas_inactivo: toNumber(row.horas_inactivo),
+      horas_plaza_no_cubierta: toNumber(row.horas_plaza_no_cubierta),
+    }));
+  },
+
   async fetchProductividadSemanalPorEquipo(
     semana: string,
     topLimit = 3

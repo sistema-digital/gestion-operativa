@@ -14,6 +14,7 @@ import {
   AlertCircle
 } from 'lucide-vue-next';
 import type { RepuestoCaptura } from '@/stores/dbequipos/repuestos/repuestos.types';
+import { formatArrayValue } from '@/stores/dbequipos/repuestos/repuestos.helpers';
 import {
   getCurrentUserIdentity,
   resolveCreatedByDisplay,
@@ -131,7 +132,12 @@ watch(
               <div class="p-4 space-y-4">
                 <div>
                   <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Tipo de Equipo / Modelo</p>
-                  <p class="text-sm font-medium text-gray-900">{{ repuesto.tipo_equipo }} <span v-if="repuesto.modelo" class="text-gray-400 font-normal">| {{ repuesto.modelo }}</span></p>
+                  <p class="text-sm font-medium text-gray-900">
+                    {{ formatArrayValue(repuesto.tipo_equipo) || '-' }}
+                    <span v-if="formatArrayValue(repuesto.modelo)" class="text-gray-400 font-normal">
+                      | {{ formatArrayValue(repuesto.modelo) }}
+                    </span>
+                  </p>
                 </div>
                 <div>
                   <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Categoría</p>
@@ -157,9 +163,13 @@ watch(
                     <p class="text-sm font-mono font-medium text-gray-900">{{ repuesto.codigo_original || '-' }}</p>
                   </div>
                   <div>
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Cód. Proveedor</p>
-                    <p class="text-sm font-mono font-medium text-gray-900">{{ repuesto.codigo_proveedor || '-' }}</p>
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Cód. Almacén</p>
+                    <p class="text-sm font-mono font-medium text-gray-900">{{ repuesto.codigo_almacen || '-' }}</p>
                   </div>
+                </div>
+                <div>
+                  <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Cód. Proveedor</p>
+                  <p class="text-sm font-mono font-medium text-gray-900">{{ repuesto.codigo_proveedor || '-' }}</p>
                 </div>
                 <div>
                   <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Proveedor / Marca</p>

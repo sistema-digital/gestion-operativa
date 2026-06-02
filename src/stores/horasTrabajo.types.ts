@@ -134,3 +134,13 @@ export type ProductividadSemanalPorEquipoResponse =
 
 export type ProductividadSemanalServiciosGeneralesResponse =
   ProductividadSemanalResponse;
+
+export interface HorasPerdidasPersonalRow {
+  semana: string;
+  area: string;
+  horas_perdidas_totales: number;
+  horas_vacaciones: number;
+  horas_incapacidad: number;
+  horas_inactivo: number;
+  horas_plaza_no_cubierta: number;
+}

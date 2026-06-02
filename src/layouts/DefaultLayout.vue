@@ -223,17 +223,20 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
         </router-view>
       </div>
 
-      <!-- Mobile Bottom Nav -->
-      <nav id="mobile-bottom-nav" class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-2 flex justify-around items-center z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-3xl">
+      <!-- Mobile Bottom Nav - SCROLLABLE -->
+      <nav 
+        id="mobile-bottom-nav" 
+        class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-2 flex items-center justify-around gap-2 overflow-x-auto z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-3xl hide-scrollbar"
+      >
         <router-link 
           v-for="item in menuItems" 
           :key="item.path" 
           :to="item.path"
-          class="flex flex-col items-center gap-1 p-2 transition-all"
+          class="flex flex-col items-center gap-1 p-2 transition-all flex-shrink-0 min-w-[56px]"
           :class="[isActive(item.path) ? 'text-main' : 'text-gray-300']"
         >
-          <component :is="item.icon" class="w-6 h-6" />
-          <span class="text-[10px] font-medium">{{ item.name }}</span>
+          <component :is="item.icon" class="w-6 h-6 shrink-0" />
+          <span class="text-[10px] font-medium whitespace-nowrap">{{ item.name }}</span>
         </router-link>
       </nav>
 
@@ -257,5 +260,14 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* Ocultar barra de desplazamiento manteniendo funcionalidad */
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
 }
 </style>

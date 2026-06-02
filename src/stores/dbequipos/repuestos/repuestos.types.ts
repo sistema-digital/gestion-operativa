@@ -17,14 +17,15 @@ export type CatalogTableName =
 
 export interface RepuestoCaptura {
   id?: string;
-  tipo_equipo: string;
-  modelo: string;
+  tipo_equipo: string[];
+  modelo: string[];
   sistema: string;
   nombre_repuesto: string;
   categoria?: string | null;
   criticidad?: string | null;
   estado?: string;
   codigo_original: string;
+  codigo_almacen?: string | null;
   codigo_proveedor: string;
   tipo_codigo_proveedor?: string | null;
   nombre_proveedor?: string | null;
