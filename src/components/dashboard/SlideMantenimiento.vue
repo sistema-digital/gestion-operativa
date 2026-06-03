@@ -5,6 +5,7 @@ import { useMaintenanceStore, type OrdenMantenimiento } from '@/stores/maintenan
 import { useHorasTrabajoStore, type HorasPerdidasPersonalRow } from '@/stores/horasTrabajoStore';
 import { storeToRefs } from 'pinia';
 import EChart from '@/components/ui/EChart.vue';
+import TablaHorasPerdidasMotivo from '@/components/dashboard/horasPerdidasAreaMotivo/TablaHorasPerdidasMotivo.vue';
 import {
   Search,
   RefreshCw,
@@ -93,6 +94,8 @@ const weeklyAreaShortNames: Record<string, string> = {
   'MECANICA DE TRANSPORTE': 'M. Transporte',
   'ENGRASE': 'Engrase',
 };
+
+const horasPerdidasAreaMotivoInitialDate = '2026-04-06';
 
 interface PersonalLossBreakdown {
   totalHours: number;
@@ -513,7 +516,7 @@ const getMaintenanceWeek = (order: OrdenMantenimiento): string => {
 
 const progressMetrics = computed(() => {
   // Configured period
-  const startDateRaw = '2026-04-06';
+  const startDateRaw = horasPerdidasAreaMotivoInitialDate;
   const endDateRaw = '2026-11-30';
 
   const createDate = (str: string) => {
@@ -2977,6 +2980,13 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
               </table>
             </div>
           </div>
+        </div>
+
+        <div class="mb-8">
+          <TablaHorasPerdidasMotivo
+            :weekly-area-short-names="weeklyAreaShortNames"
+            :initial-date="horasPerdidasAreaMotivoInitialDate"
+          />
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-[45fr_55fr] gap-6 mb-8 items-start">
