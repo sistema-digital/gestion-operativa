@@ -1,32 +1,21 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/lib/supabase';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { generateMockMaintenanceData } from '@/lib/mockMaintenanceData';
+import type { MaintenanceAreaTotalsMap, OrdenMantenimiento } from './maintenanceStore.types';
 
-export interface OrdenMantenimiento {
-  "ID_Orden mantenimiento": string;
-  Área: string;
-  "ID_#EQUIPO": string;
-  "ITEM": string;
-  "Sistema": string;
-  "Descripcion": string;
-  "Tipo de Proceso": string;
-  "Estatus": string;
-  "Fecha inicio": string;
-  "Fecha conclusion": string;
-  "Tiene solicitud de compra?": boolean;
-  "N° solicitud": string;
-  "N° Orden de compra": string;
-  "Fecha Entrega": string;
-  "Observaciones": string;
-  "Semana": string;
-  "Etapa": string;
-  "IS_SG": boolean;
-  semana_conclusion: number | null;
-  "total_ots"?: number | null;
-  "ots_concluidas"?: number | null;
-  "ots_pendientes"?: number | null;
-}
+export type { MaintenanceAreaTotalsMap, OrdenMantenimiento } from './maintenanceStore.types';
+
+const historicalZafraOrderTotalsByArea: MaintenanceAreaTotalsMap = {
+  'COSECHA MECANIZADA': 3799,
+  'COSECHA AGRICOLA': 3316,
+  'EQUIPO PESADO': 5569,
+  'ENGRASE': 212,
+  'MECANICA DE TRANSPORTE': 437,
+};
+
+const historicalZafraOrderTotalsGeneral = Object.values(historicalZafraOrderTotalsByArea)
+  .reduce((sum, total) => sum + total, 0);
 
 export const useMaintenanceStore = defineStore('maintenance', () => {
   const allOrders = ref<OrdenMantenimiento[]>([]);
@@ -40,6 +29,10 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
     estado: null as string | null,
     semana: null as string | null
   });
+
+  const zafraOrderTotalsByArea = computed<MaintenanceAreaTotalsMap>(() => historicalZafraOrderTotalsByArea);
+
+  const zafraOrderTotalsGeneral = computed<number>(() => historicalZafraOrderTotalsGeneral);
 
   const setStatusFilter = (serie: string | null, estado: string | null) => {
     if (activeFilters.value.serie === serie && activeFilters.value.estado === estado) {
@@ -178,6 +171,8 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
     error,
     hasLoaded,
     activeFilters,
+    zafraOrderTotalsByArea,
+    zafraOrderTotalsGeneral,
     setStatusFilter,
     setWeekFilter,
     clearInteractiveFilters,
