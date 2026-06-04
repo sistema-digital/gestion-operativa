@@ -4,13 +4,16 @@ import { storeToRefs } from 'pinia';
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-vue-next';
 import ProductividadSemanalAreaSlide from '@/components/dashboard/ProductividadSemanalAreaSlide.vue';
 import { useHorasTrabajoStore } from '@/stores/horasTrabajoStore';
+import { useMaintenanceStore } from '@/stores/maintenanceStore';
 import { getWeekNumber } from '@/utils/dateUtils';
 
 const horasTrabajoStore = useHorasTrabajoStore();
+const maintenanceStore = useMaintenanceStore();
 const {
   productividadSemanal,
   productividadSemanalLoading,
   productividadSemanalError,
+  productividadSemanalDashboardTablas,
 } = storeToRefs(horasTrabajoStore);
 
 const currentWeek = String(getWeekNumber(new Date()));
@@ -20,6 +23,7 @@ const hoverDirection = ref<'previous' | 'next' | null>(null);
 
 const productivitySlides = computed(() => productividadSemanal.value?.areas ?? []);
 const activeSlide = computed(() => productivitySlides.value[currentSlideIndex.value] ?? null);
+const dashboardTables = computed(() => productividadSemanalDashboardTablas.value);
 const canGoPrevious = computed(() => currentSlideIndex.value > 0);
 const canGoNext = computed(() => currentSlideIndex.value < productivitySlides.value.length - 1);
 
@@ -29,6 +33,13 @@ const fetchProductividad = () => {
 
 const loadProductividad = () => {
   void fetchProductividad().catch(() => undefined);
+};
+
+const loadDashboardTables = () => {
+  void Promise.all([
+    maintenanceStore.fetchAllOrders(),
+    horasTrabajoStore.fetchData(),
+  ]).catch(() => undefined);
 };
 
 const goPrevious = () => {
@@ -66,6 +77,7 @@ watch(productivitySlides, (slides) => {
 
 onMounted(() => {
   loadProductividad();
+  loadDashboardTables();
 });
 </script>
 
@@ -105,6 +117,7 @@ onMounted(() => {
         :key="activeSlide.area"
         :area="activeSlide"
         :semana="productividadSemanal?.semana || currentWeek"
+        :dashboard-tables="dashboardTables"
         aria-label="Productividad semanal"
       />
     </div>

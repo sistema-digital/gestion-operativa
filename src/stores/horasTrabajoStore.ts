@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { getLocalDateInputValue } from './horasTrabajo.helpers';
 import { horasTrabajoService } from './horasTrabajo.service';
+import { useMaintenanceStore } from './maintenanceStore';
+import { buildProductividadSemanalDashboardTables } from './productividadSemanalDashboard';
 import type {
   HoraTrabajoData,
   HorasPerdidasPersonalRow,
@@ -10,6 +12,7 @@ import type {
   WorkOrderTodayRow,
   WorkOrderUpdatePayload,
 } from './horasTrabajo.types';
+import type { ProductividadDashboardTableItem } from './productividadSemanalDashboard.types';
 
 export type {
   HoraTrabajoData,
@@ -18,6 +21,7 @@ export type {
   WorkOrderTodayRow,
   WorkOrderUpdatePayload,
 };
+export type { ProductividadDashboardTableItem } from './productividadSemanalDashboard.types';
 
 type DashboardRawRow = Record<string, unknown>;
 
@@ -33,6 +37,8 @@ const readNumber = (row: DashboardRawRow, key: string): number => {
 };
 
 export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
+  const maintenanceStore = useMaintenanceStore();
+
   const data = ref<HoraTrabajoData[]>([]);
   const horasPerdidasPersonal = ref<HorasPerdidasPersonalRow[]>([]);
   const loading = ref(false);
@@ -46,6 +52,17 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
   const productividadSemanal = ref<ProductividadSemanalResponse | null>(null);
   const productividadSemanalLoading = ref(false);
   const productividadSemanalError = ref<string | null>(null);
+  const productividadSemanalDashboardTablas = computed<ProductividadDashboardTableItem[]>(() => (
+    buildProductividadSemanalDashboardTables({
+      orders: maintenanceStore.allOrders,
+      horasTrabajo: data.value,
+      horasPerdidasPersonal: horasPerdidasPersonal.value,
+      zafraOrderTotalsByArea: maintenanceStore.zafraOrderTotalsByArea,
+      zafraOrderTotalsGeneral: maintenanceStore.zafraOrderTotalsGeneral,
+      currentDate: new Date(),
+      etapa: 'ZAFRA',
+    })
+  ));
 
   const fetchDashboardTable = async (table: string): Promise<DashboardRawRow[]> => {
     const rows: DashboardRawRow[] = [];
@@ -187,6 +204,7 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
     productividadSemanal,
     productividadSemanalLoading,
     productividadSemanalError,
+    productividadSemanalDashboardTablas,
     fetchData,
     fetchTodayWorkOrders,
     fetchProductividadSemanalPorEquipo,

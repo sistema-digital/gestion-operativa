@@ -13,10 +13,12 @@ import type {
   ProductividadSemanalArea,
   ProductividadSemanalEquipo,
 } from '@/stores/horasTrabajo.types';
+import type { ProductividadDashboardTableItem } from '@/stores/productividadSemanalDashboard.types';
 
 const props = defineProps<{
   area: ProductividadSemanalArea;
   semana: string;
+  dashboardTables?: ProductividadDashboardTableItem[];
 }>();
 
 const formatHours = (value: number | null | undefined) => {
