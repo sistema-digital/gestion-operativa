@@ -67,3 +67,19 @@ export interface HorasPerdidasAreaMotivoTableRow {
   esFilaTotal: boolean;
   sinDatos: boolean;
 }
+
+export interface HorasPerdidasAreaResumenTableRow {
+  id: string;
+  area: string;
+  areaCorta: string;
+  horasPerdidas: number;
+  personalFaltante: number;
+  personalActivo: number;
+  porcentajePerdidaAvance: number;
+  horasPerdidasLabel: string;
+  porcentajePerdidaAvanceLabel: string;
+  personalFaltanteLabel: string;
+  personalActivoLabel: string;
+  esFilaTotal: boolean;
+  sinDatos: boolean;
+}

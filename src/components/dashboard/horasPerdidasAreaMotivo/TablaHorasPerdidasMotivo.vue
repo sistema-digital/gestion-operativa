@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useHorasPerdidasTable } from './useHorasPerdidasTable';
+import type {
+  HorasPerdidasAreaMotivoTableRow,
+  HorasPerdidasAreaResumenTableRow,
+} from '@/stores/db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.types';
 
 const props = withDefaults(defineProps<{
   weeklyAreaShortNames: Record<string, string>;
@@ -57,7 +61,8 @@ const formattedBaseDate = computed(() => {
 
 const {
   cargarResumen,
-  tableRows,
+  motivoTableRows,
+  areaTableRows,
   hasRows,
   isLoading,
   error,
@@ -78,10 +83,15 @@ watch(
 
 const getLostProgressMain = (value: string) => value.split('|')[0] || '-';
 const getLostProgressTime = (value: string) => value.split('|')[1] || '';
-const getRowDividerClass = (index: number) => (
+const getMotivoRowDividerClass = (rows: HorasPerdidasAreaMotivoTableRow[], index: number) => (
   index === 0
-    || tableRows.value[index].esFilaTotal
-    || tableRows.value[index].mostrarArea
+    || rows[index].esFilaTotal
+    || rows[index].mostrarArea
+    ? 'border-t-2 border-t-[#d8cfbf]'
+    : 'border-t border-t-[#efe8db]'
+);
+const getAreaRowDividerClass = (row: HorasPerdidasAreaResumenTableRow, index: number) => (
+  index === 0 || row.esFilaTotal
     ? 'border-t-2 border-t-[#d8cfbf]'
     : 'border-t border-t-[#efe8db]'
 );
@@ -132,92 +142,160 @@ const getRowDividerClass = (index: number) => (
         </p>
       </div>
 
-      <div class="overflow-x-auto rounded-[22px] border border-[#e3dccf] bg-[#fdfbf7] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-        <table class="w-full min-w-[720px] table-fixed text-left">
-          <thead class="bg-[#f2eee7] text-[#969083]">
-            <tr>
-              <th class="w-[22%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em]">Area</th>
-              <th class="w-[28%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em]">Motivo</th>
-              <th class="w-[20%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em] text-right">% Perdida Avance</th>
-              <th class="w-[15%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em] text-right">Personal Faltante</th>
-              <th class="w-[15%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em] text-right">Personal Activo</th>
-            </tr>
-          </thead>
+      <div class="grid gap-5 xl:grid-cols-2">
+        <div class="flex min-w-0 flex-col gap-3">
+          <div class="flex items-center justify-between gap-3 px-1">
+            <h3 class="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#8b857b]">
+              Por motivo
+            </h3>
+          </div>
 
-          <tbody>
-            <tr
-              v-for="(row, index) in tableRows"
-              :key="row.id"
-              :class="row.esFilaTotal
-                ? 'bg-[#f2eee7]'
-                : 'bg-white transition-colors hover:bg-[#f6f1e7]'"
-            >
-              <td
-                v-if="row.mostrarArea"
-                :rowspan="row.rowspan"
-                :class="[
-                  getRowDividerClass(index),
-                  row.esFilaTotal
-                    ? 'px-[12px] py-[8px] align-top text-[14px] font-extrabold uppercase tracking-[0.08em] text-[#403d37]'
-                    : 'px-[12px] py-[8px] align-top text-[14px] font-bold text-[#403d37]',
-                ]"
-              >
-                {{ row.areaCorta }}
-              </td>
-              <td :class="[
-                getRowDividerClass(index),
-                row.esFilaTotal
-                  ? 'px-[12px] py-[8px] text-[13px] font-extrabold uppercase tracking-[0.08em] text-[#4b463f]'
-                  : 'px-[12px] py-[8px] text-[13px] font-semibold text-[#5f5a52]',
-              ]"
-              >
-                {{ row.motivoLabel }}
-              </td>
-              <td :class="[
-                getRowDividerClass(index),
-                row.esFilaTotal
-                  ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#c84c37]'
-                  : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#d45742]',
-              ]"
-              >
-                <span>{{ getLostProgressMain(row.porcentajePerdidaAvanceLabel) }}</span>
-                <span
-                  v-if="getLostProgressTime(row.porcentajePerdidaAvanceLabel)"
-                  class="ml-1 opacity-60"
+          <div class="overflow-x-auto rounded-[22px] border border-[#e3dccf] bg-[#fdfbf7] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+            <table class=" min-w-[420px] table-fixed text-left">
+              <thead class="bg-[#f2eee7] text-[#969083]">
+                <tr>
+                  <th class="w-[22%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em]">Area</th>
+                  <th class="w-[28%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em]">Motivo</th>
+                  <th class="w-[20%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em] text-right">% Perdida Avance</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <tr
+                  v-for="(row, index) in motivoTableRows"
+                  :key="row.id"
+                  :class="row.esFilaTotal
+                    ? 'bg-[#f2eee7]'
+                    : 'bg-white transition-colors hover:bg-[#f6f1e7]'"
                 >
-                  {{ getLostProgressTime(row.porcentajePerdidaAvanceLabel) }}
-                </span>
-              </td>
-              <td :class="[
-                getRowDividerClass(index),
-                row.esFilaTotal
-                  ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#c84c37]'
-                  : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#d45742]',
-              ]"
-              >
-                {{ row.personalFaltanteLabel }}
-              </td>
-              <td
-                v-if="row.mostrarArea"
-                :rowspan="row.rowspan"
-                :class="[
-                  getRowDividerClass(index),
-                  row.esFilaTotal
-                    ? 'px-[12px] py-[8px] align-center text-[13px] font-extrabold text-right text-[#3455E3]'
-                    : 'px-[12px] py-[8px] align-center text-[13px] font-bold text-right text-[#3455E3]',
-                ]"
-              >
-                {{ row.personalActivoLabel }}
-              </td>
-            </tr>
+                  <td
+                    v-if="row.mostrarArea"
+                    :rowspan="row.rowspan"
+                    :class="[
+                      getMotivoRowDividerClass(motivoTableRows, index),
+                      row.esFilaTotal
+                        ? 'px-[12px] py-[8px] align-top text-[14px] font-extrabold uppercase tracking-[0.08em] text-[#403d37]'
+                        : 'px-[12px] py-[8px] align-top text-[14px] font-bold text-[#403d37]',
+                    ]"
+                  >
+                    {{ row.areaCorta }}
+                  </td>
+                  <td :class="[
+                    getMotivoRowDividerClass(motivoTableRows, index),
+                    row.esFilaTotal
+                      ? 'px-[12px] py-[8px] text-[13px] font-extrabold uppercase tracking-[0.08em] text-[#4b463f]'
+                      : 'px-[12px] py-[8px] text-[13px] font-semibold text-[#5f5a52]',
+                  ]"
+                  >
+                    {{ row.motivoLabel }}
+                  </td>
+                  <td :class="[
+                    getMotivoRowDividerClass(motivoTableRows, index),
+                    row.esFilaTotal
+                      ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#c84c37]'
+                      : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#d45742]',
+                  ]"
+                  >
+                    <span>{{ getLostProgressMain(row.porcentajePerdidaAvanceLabel) }}</span>
+                    <span
+                      v-if="getLostProgressTime(row.porcentajePerdidaAvanceLabel)"
+                      class="ml-1 opacity-60"
+                    >
+                      {{ getLostProgressTime(row.porcentajePerdidaAvanceLabel) }}
+                    </span>
+                  </td>
+                  
+                </tr>
 
-            <tr v-if="!isLoading && !hasRows">
-              <td colspan="5" class="px-[12px] py-10 text-center text-[13px] font-semibold text-[#9d968b]">
-                No hay horas perdidas registradas en el periodo seleccionado.
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <tr v-if="!isLoading && motivoTableRows.length === 0">
+                  <td colspan="5" class="px-[12px] py-10 text-center text-[13px] font-semibold text-[#9d968b]">
+                    No hay horas perdidas registradas en el periodo seleccionado.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="flex min-w-0 flex-col gap-3">
+          <div class="flex items-center justify-between gap-3 px-1">
+            <h3 class="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#8b857b]">
+              Por area
+            </h3>
+          </div>
+
+          <div class="overflow-x-auto rounded-[22px] border border-[#e3dccf] bg-[#fdfbf7] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+            <table class="min-w-[420px] table-fixed text-left">
+              <thead class="bg-[#f2eee7] text-[#969083]">
+                <tr>
+                  <th class="w-[28%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em]">Area</th>
+                  <th class="w-[27%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em] text-right">% Perdida Avance</th>
+                  <th class="w-[22%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em] text-right">Personal Faltante</th>
+                  <th class="w-[23%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em] text-right">Personal Activo</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <tr
+                  v-for="(row, index) in areaTableRows"
+                  :key="row.id"
+                  :class="row.esFilaTotal
+                    ? 'bg-[#f2eee7]'
+                    : 'bg-white transition-colors hover:bg-[#f6f1e7]'"
+                >
+                  <td :class="[
+                    getAreaRowDividerClass(row, index),
+                    row.esFilaTotal
+                      ? 'px-[12px] py-[8px] text-[14px] font-extrabold uppercase tracking-[0.08em] text-[#403d37]'
+                      : 'px-[12px] py-[8px] text-[14px] font-bold text-[#403d37]',
+                  ]"
+                  >
+                    {{ row.areaCorta }}
+                  </td>
+                  <td :class="[
+                    getAreaRowDividerClass(row, index),
+                    row.esFilaTotal
+                      ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#c84c37]'
+                      : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#d45742]',
+                  ]"
+                  >
+                    <span>{{ getLostProgressMain(row.porcentajePerdidaAvanceLabel) }}</span>
+                    <span
+                      v-if="getLostProgressTime(row.porcentajePerdidaAvanceLabel)"
+                      class="ml-1 opacity-60"
+                    >
+                      {{ getLostProgressTime(row.porcentajePerdidaAvanceLabel) }}
+                    </span>
+                  </td>
+                  <td :class="[
+                    getAreaRowDividerClass(row, index),
+                    row.esFilaTotal
+                      ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#c84c37]'
+                      : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#d45742]',
+                  ]"
+                  >
+                    {{ row.personalFaltanteLabel }}
+                  </td>
+                  <td :class="[
+                    getAreaRowDividerClass(row, index),
+                    row.esFilaTotal
+                      ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#3455E3]'
+                      : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#3455E3]',
+                  ]"
+                  >
+                    {{ row.personalActivoLabel }}
+                  </td>
+                </tr>
+
+                <tr v-if="!isLoading && areaTableRows.length === 0">
+                  <td colspan="4" class="px-[12px] py-10 text-center text-[13px] font-semibold text-[#9d968b]">
+                    No hay horas perdidas registradas en el periodo seleccionado.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <div
@@ -226,7 +304,7 @@ const getRowDividerClass = (index: number) => (
       >
         <div class="flex items-center gap-3 rounded-full border border-[#ddd5c7] bg-white px-4 py-[7px] text-[11px] font-bold uppercase tracking-[0.16em] text-[#8f8a80] shadow-sm">
           <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-[#0f5750]"></span>
-          Actualizando tabla
+          Actualizando tablas
         </div>
       </div>
 

@@ -3,8 +3,10 @@ import { storeToRefs } from 'pinia';
 import { useHorasPerdidasAreaMotivoStore } from '@/stores/db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.store';
 import { formatWorkDaysFromHours } from '@/utils/dashboardFormatters';
 import type {
+  HorasPerdidasAreaResumenTableRow,
   HorasPerdidasAreaMotivoTableRow,
   HorasPerdidasMotivoPorAreaItem,
+  HorasPerdidasPorAreaItem,
   HorasPerdidasPersonalResumenItem,
 } from '@/stores/db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.types';
 
@@ -70,7 +72,7 @@ const groupRowsByArea = (
   return orderedKeys.map((key) => groups.get(key) || []);
 };
 
-const buildTableRows = (
+const buildMotivoTableRows = (
   resumen: HorasPerdidasPersonalResumenItem | null,
   areaShortNames: Record<string, string>,
   hoursPerOrderByArea: Record<string, number>,
@@ -226,6 +228,103 @@ const buildTableRows = (
   return [...detailRows, totalRow];
 };
 
+const buildAreaTableRows = (
+  resumen: HorasPerdidasPersonalResumenItem | null,
+  areaShortNames: Record<string, string>,
+  hoursPerOrderByArea: Record<string, number>,
+  currentOrderTotalsByArea: Record<string, number>,
+  currentOrderTotalsGeneral: number
+): HorasPerdidasAreaResumenTableRow[] => {
+  const sourceRows = resumen?.por_area || [];
+  const scopedAreaKeys = [
+    ...Object.keys(currentOrderTotalsByArea),
+    ...sourceRows.map((row) => normalizeAreaKey(row.area)),
+  ];
+  const fallbackAreaKeys = [
+    ...Object.keys(areaShortNames),
+    ...Object.keys(hoursPerOrderByArea),
+  ];
+  const areaKeys = Array.from(new Set(
+    (scopedAreaKeys.length > 0 ? scopedAreaKeys : fallbackAreaKeys).filter(Boolean)
+  ));
+
+  if (!areaKeys.length) {
+    return [];
+  }
+
+  const rowsByAreaKey = new Map<string, HorasPerdidasPorAreaItem>(
+    sourceRows.map((row) => [normalizeAreaKey(row.area), row])
+  );
+
+  const detailRows = areaKeys.map((areaKey) => {
+    const row = rowsByAreaKey.get(areaKey);
+    const horasPerdidas = roundToTwoDecimals(Number(row?.horas_perdidas || 0));
+    const personalFaltante = roundToTwoDecimals(Number(row?.mecanicos_necesarios_redondeado || 0));
+    const personalActivo = roundToTwoDecimals(Number(row?.personal_activo_actual || 0));
+    const hoursPerOrder = hoursPerOrderByArea[areaKey] || 0;
+    const orderTotal = currentOrderTotalsByArea[areaKey] || 0;
+    const porcentajePerdidaAvance = hoursPerOrder > 0 && orderTotal > 0
+      ? roundToOneDecimal(((horasPerdidas / hoursPerOrder) / orderTotal) * 100)
+      : 0;
+
+    return {
+      id: `${areaKey}-resumen`,
+      area: row?.area || areaKey,
+      areaCorta: formatAreaName(row?.area || areaKey, areaShortNames),
+      horasPerdidas,
+      personalFaltante,
+      personalActivo,
+      porcentajePerdidaAvance,
+      horasPerdidasLabel: formatWorkDaysFromHours(horasPerdidas),
+      porcentajePerdidaAvanceLabel: row
+        ? buildLostProgressLabel(porcentajePerdidaAvance, horasPerdidas)
+        : '-',
+      personalFaltanteLabel: row ? formatNumberLabel(personalFaltante) : '-',
+      personalActivoLabel: row ? formatNumberLabel(personalActivo) : '-',
+      esFilaTotal: false,
+      sinDatos: !row,
+    };
+  }).sort((a, b) => {
+    const difference = b.porcentajePerdidaAvance - a.porcentajePerdidaAvance;
+
+    if (difference !== 0) return difference;
+
+    return a.areaCorta.localeCompare(b.areaCorta, 'es');
+  });
+
+  const totalHorasPerdidas = detailRows.reduce((sum, row) => sum + row.horasPerdidas, 0);
+  const totalPersonalFaltante = detailRows.reduce((sum, row) => sum + row.personalFaltante, 0);
+  const totalPersonalActivo = Number(resumen?.personal_activo_actual_total || 0);
+  const totalEquivalent = detailRows.reduce((sum, row) => {
+    const hoursPerOrder = hoursPerOrderByArea[normalizeAreaKey(row.area)] || 0;
+    return hoursPerOrder > 0 ? sum + (row.horasPerdidas / hoursPerOrder) : sum;
+  }, 0);
+  const totalPorcentajePerdidaAvance = currentOrderTotalsGeneral > 0
+    ? roundToOneDecimal((totalEquivalent / currentOrderTotalsGeneral) * 100)
+    : 0;
+
+  const totalRow: HorasPerdidasAreaResumenTableRow = {
+    id: 'total-general-area',
+    area: 'TOTAL',
+    areaCorta: 'TOTAL',
+    horasPerdidas: roundToTwoDecimals(totalHorasPerdidas),
+    personalFaltante: roundToTwoDecimals(totalPersonalFaltante),
+    personalActivo: totalPersonalActivo,
+    porcentajePerdidaAvance: totalPorcentajePerdidaAvance,
+    horasPerdidasLabel: formatWorkDaysFromHours(totalHorasPerdidas),
+    porcentajePerdidaAvanceLabel: buildLostProgressLabel(
+      totalPorcentajePerdidaAvance,
+      totalHorasPerdidas
+    ),
+    personalFaltanteLabel: formatNumberLabel(roundToTwoDecimals(totalPersonalFaltante)),
+    personalActivoLabel: formatNumberLabel(totalPersonalActivo),
+    esFilaTotal: true,
+    sinDatos: false,
+  };
+
+  return [...detailRows, totalRow];
+};
+
 export const useHorasPerdidasTable = (
   options: UseHorasPerdidasTableOptions
 ) => {
@@ -242,8 +341,8 @@ export const useHorasPerdidasTable = (
     resumen.value
   ));
 
-  const tableRows = computed<HorasPerdidasAreaMotivoTableRow[]>(() => (
-    buildTableRows(
+  const motivoTableRows = computed<HorasPerdidasAreaMotivoTableRow[]>(() => (
+    buildMotivoTableRows(
       resumenActual.value,
       areaShortNames,
       hoursPerOrderByArea,
@@ -252,12 +351,25 @@ export const useHorasPerdidasTable = (
     )
   ));
 
-  const hasRows = computed<boolean>(() => tableRows.value.length > 0);
+  const areaTableRows = computed<HorasPerdidasAreaResumenTableRow[]>(() => (
+    buildAreaTableRows(
+      resumenActual.value,
+      areaShortNames,
+      hoursPerOrderByArea,
+      currentOrderTotalsByArea,
+      currentOrderTotalsGeneral
+    )
+  ));
+
+  const hasRows = computed<boolean>(() => (
+    motivoTableRows.value.length > 0 || areaTableRows.value.length > 0
+  ));
 
   return {
     cargarResumen: store.cargarResumen,
     resumenActual,
-    tableRows,
+    motivoTableRows,
+    areaTableRows,
     hasRows,
     fechaConsultada,
     isLoading,
