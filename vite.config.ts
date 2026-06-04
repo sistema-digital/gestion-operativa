@@ -62,7 +62,9 @@ export default defineConfig(({ mode }) => {
     },
 
     server: {
-      hmr: process.env.DISABLE_HMR !== 'true',
+      hmr: {
+        clientPort: 443 // <--- Agrega esta línea para Codespaces
+      },
       port: 3000,
       host: '0.0.0.0',
     },

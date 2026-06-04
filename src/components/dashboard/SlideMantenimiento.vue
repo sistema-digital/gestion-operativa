@@ -5,6 +5,8 @@ import { useMaintenanceStore, type OrdenMantenimiento } from '@/stores/maintenan
 import { useHorasTrabajoStore, type HorasPerdidasPersonalRow } from '@/stores/horasTrabajoStore';
 import { storeToRefs } from 'pinia';
 import EChart from '@/components/ui/EChart.vue';
+import TablaHorasPerdidasMotivo from '@/components/dashboard/horasPerdidasAreaMotivo/TablaHorasPerdidasMotivo.vue';
+import { formatWorkDaysFromHours } from '@/utils/dashboardFormatters';
 import {
   Search,
   RefreshCw,
@@ -13,7 +15,9 @@ import {
   ChevronRight,
   ChevronDown,
   Check,
-  ClipboardList
+  ClipboardList,
+  Eye,
+  EyeOff,
 } from 'lucide-vue-next';
 
 const maintenanceStore = useMaintenanceStore();
@@ -62,6 +66,7 @@ const showScrollButton = ref(false);
 const weeklyLossVisible = ref(false);
 const weeklyAreaCurrentWeekOnly = ref(false);
 const weeklyAreaDetailMode = ref<'general' | 'detailed'>('general');
+const showWeeklyAreaLostTime = ref(false);
 const lostProgressCurrentWeekOnly = ref(false);
 const showStatusCharts = ref(false);
 const showLostProgressPercent = ref(false);
@@ -93,6 +98,8 @@ const weeklyAreaShortNames: Record<string, string> = {
   'MECANICA DE TRANSPORTE': 'M. Transporte',
   'ENGRASE': 'Engrase',
 };
+
+const horasPerdidasAreaMotivoInitialDate = '2026-04-06';
 
 interface PersonalLossBreakdown {
   totalHours: number;
@@ -513,7 +520,7 @@ const getMaintenanceWeek = (order: OrdenMantenimiento): string => {
 
 const progressMetrics = computed(() => {
   // Configured period
-  const startDateRaw = '2026-04-06';
+  const startDateRaw = horasPerdidasAreaMotivoInitialDate;
   const endDateRaw = '2026-11-30';
 
   const createDate = (str: string) => {
@@ -1429,7 +1436,7 @@ const buildWeeklyProgress = (limitToLastFive: boolean) => {
       const areaKey = normalizeAreaKey(row.area);
 
       if (String(row.semana_inicio) !== String(sem)) return false;
-      if (status !== 'retrasada') return false;
+      if (status !== 'retrasada' && status !== 'ausencia') return false;
       if (!hoursPerOrderByArea[areaKey]) return false;
       if (!relevantAreaKeys.includes(areaKey)) return false;
 
@@ -1615,7 +1622,7 @@ const weeklyAreaSummary = computed(() => {
 
       if (rowAreaKey !== areaKey) return false;
       if (!weeks.has(String(row.semana_inicio))) return false;
-      if (status !== 'retrasada') return false;
+      if (status !== 'retrasada' && status !== 'ausencia') return false;
 
       if (activeFilters.value.serie) {
         return rowAreaKey === normalizeAreaKey(activeFilters.value.serie) || row.equipo === activeFilters.value.serie;
@@ -1668,7 +1675,10 @@ const weeklyAreaSummary = computed(() => {
       lostProgress,
       optimalProgress: sumRoundedProgress(realProgress, lostProgress)
     };
-  }).sort((a, b) => b.optimalProgress - a.optimalProgress);
+  }).sort((a, b) => (
+    (b.operationalLostProgress + b.personalLostProgress) -
+    (a.operationalLostProgress + a.personalLostProgress)
+  ));
 });
 
 const weeklyAreaSummaryTotal = computed(() => {
@@ -1702,6 +1712,17 @@ const weeklyAreaSummaryTotal = computed(() => {
     optimalProgress: sumRoundedProgress(realProgress, lostProgress)
   };
 });
+
+const currentOrderTotalsByAreaForHorasPerdidas = computed<Record<string, number>>(() => (
+  weeklyAreaSummary.value.reduce<Record<string, number>>((acc, row) => {
+    acc[normalizeAreaKey(row.area)] = row.denominator;
+    return acc;
+  }, {})
+));
+
+const currentOrderTotalsGeneralForHorasPerdidas = computed<number>(() => (
+  weeklyAreaSummary.value.reduce((sum, row) => sum + row.denominator, 0)
+));
 
 const getLostProgressOrderList = () => {
   const areaFixed = userArea.value?.toUpperCase();
@@ -1857,24 +1878,6 @@ const lostProgressAreaTotal = computed(() => {
     differenceHours: Number((hours2025 - hours2026).toFixed(2))
   };
 });
-
-const formatWorkDaysFromHours = (hours: number, wrapInParentheses = true) => {
-  const totalHours = Math.max(0, Number(hours) || 0);
-  let days = Math.floor(totalHours / 8);
-  let remainingHours = Math.round(totalHours - (days * 8));
-
-  if (remainingHours >= 8) {
-    days += 1;
-    remainingHours = 0;
-  }
-
-  const formatted = [
-    days > 0 ? `${days}d` : "",
-    remainingHours > 0 ? `${remainingHours}h` : ""
-  ].filter(Boolean).join(" ") || "0h";
-
-  return wrapInParentheses ? `(${formatted})` : formatted;
-};
 
 const formatEquivalentOrders = (value: number, roundValue: boolean) => (
   roundValue ? String(Math.round(value)) : Number(value.toFixed(2)).toString()
@@ -2924,6 +2927,16 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
                   </span>
                   Esta sem.
                 </button>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 transition-colors hover:bg-gray-100"
+                  :aria-pressed="showWeeklyAreaLostTime"
+                  :title="showWeeklyAreaLostTime ? 'Ocultar tiempo perdido' : 'Mostrar tiempo perdido'"
+                  @click="showWeeklyAreaLostTime = !showWeeklyAreaLostTime"
+                >
+                  <component :is="showWeeklyAreaLostTime ? EyeOff : Eye" class="h-3.5 w-3.5" />
+                  <span>{{ showWeeklyAreaLostTime ? 'Ocultar hrs' : 'Ver hrs' }}</span>
+                </button>
               </div>
             </div>
 
@@ -2944,13 +2957,13 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
                     <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ row.areaShort }}</td>
                     <td class="px-4 py-3 text-sm font-bold text-right text-[#004236]">{{ row.realProgress.toFixed(1) }}%</td>
                     <td v-if="weeklyAreaDetailMode === 'general'" class="px-4 py-3 text-sm font-bold text-right text-[#C0392B]">
-                      {{ row.lostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(row.lostHours) }}</span>
+                      {{ row.lostProgress.toFixed(1) }}% <span v-if="showWeeklyAreaLostTime" class="opacity-80">{{ formatWorkDaysFromHours(row.lostHours) }}</span>
                     </td>
                     <td v-else class="px-4 py-3 text-sm font-bold text-right text-[#C0392B]">
-                      {{ row.operationalLostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(row.operationalLostHours) }}</span>
+                      {{ row.operationalLostProgress.toFixed(1) }}% <span v-if="showWeeklyAreaLostTime" class="opacity-80">{{ formatWorkDaysFromHours(row.operationalLostHours) }}</span>
                     </td>
                     <td v-if="weeklyAreaDetailMode === 'detailed'" class="px-4 py-3 text-sm font-bold text-right text-[#E74C3C]">
-                      {{ row.personalLostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(row.personalLostHours) }}</span>
+                      {{ row.personalLostProgress.toFixed(1) }}% <span v-if="showWeeklyAreaLostTime" class="opacity-80">{{ formatWorkDaysFromHours(row.personalLostHours) }}</span>
                     </td>
                     <td class="px-4 py-3 text-sm font-bold text-right text-gray-800">{{ row.optimalProgress.toFixed(1) }}%</td>
                   </tr>
@@ -2958,13 +2971,13 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
                     <td class="px-4 py-3 text-xs font-black text-gray-700 uppercase tracking-widest">Total</td>
                     <td class="px-4 py-3 text-sm font-black text-right text-[#004236]">{{ weeklyAreaSummaryTotal.realProgress.toFixed(1) }}%</td>
                     <td v-if="weeklyAreaDetailMode === 'general'" class="px-4 py-3 text-sm font-black text-right text-[#C0392B]">
-                      {{ weeklyAreaSummaryTotal.lostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.lostHours) }}</span>
+                      {{ weeklyAreaSummaryTotal.lostProgress.toFixed(1) }}% <span v-if="showWeeklyAreaLostTime" class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.lostHours) }}</span>
                     </td>
                     <td v-else class="px-4 py-3 text-sm font-black text-right text-[#C0392B]">
-                      {{ weeklyAreaSummaryTotal.operationalLostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.operationalLostHours) }}</span>
+                      {{ weeklyAreaSummaryTotal.operationalLostProgress.toFixed(1) }}% <span v-if="showWeeklyAreaLostTime" class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.operationalLostHours) }}</span>
                     </td>
                     <td v-if="weeklyAreaDetailMode === 'detailed'" class="px-4 py-3 text-sm font-black text-right text-[#E74C3C]">
-                      {{ weeklyAreaSummaryTotal.personalLostProgress.toFixed(1) }}% <span class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.personalLostHours) }}</span>
+                      {{ weeklyAreaSummaryTotal.personalLostProgress.toFixed(1) }}% <span v-if="showWeeklyAreaLostTime" class="opacity-80">{{ formatWorkDaysFromHours(weeklyAreaSummaryTotal.personalLostHours) }}</span>
                     </td>
                     <td class="px-4 py-3 text-sm font-black text-right text-gray-900">{{ weeklyAreaSummaryTotal.optimalProgress.toFixed(1) }}%</td>
                   </tr>
@@ -2977,6 +2990,16 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
               </table>
             </div>
           </div>
+        </div>
+
+        <div class="mb-8">
+            <TablaHorasPerdidasMotivo
+              :weekly-area-short-names="weeklyAreaShortNames"
+              :hours-per-order-by-area="hoursPerOrderByArea"
+              :current-order-totals-by-area="currentOrderTotalsByAreaForHorasPerdidas"
+              :current-order-totals-general="currentOrderTotalsGeneralForHorasPerdidas"
+              :initial-date="horasPerdidasAreaMotivoInitialDate"
+            />
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-[45fr_55fr] gap-6 mb-8 items-start">
