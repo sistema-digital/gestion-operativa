@@ -29,6 +29,10 @@ const formatAreaName = (
 );
 
 const roundToTwoDecimals = (value: number): number => (
+  Number(value.toFixed(2))
+);
+
+const roundToOneDecimal = (value: number): number => (
   Number(value.toFixed(1))
 );
 
@@ -43,7 +47,7 @@ const buildLostProgressLabel = (
 ): string => {
   if (hideValue) return '-';
 
-  return `${formatNumberLabel(percentage)}%|${formatWorkDaysFromHours(hours)}`;
+  return `${percentage.toFixed(1)}%|${formatWorkDaysFromHours(hours)}`;
 };
 
 const groupRowsByArea = (
@@ -113,7 +117,7 @@ const buildTableRows = (
       return sum + (((Number(row.horas_perdidas || 0) / hoursPerOrder) / orderTotal) * 100);
     }, 0);
 
-    areaLossTotals.set(areaKey, roundToTwoDecimals(totalLoss));
+    areaLossTotals.set(areaKey, roundToOneDecimal(totalLoss));
   });
 
   const sortedAreaKeys = [...areaKeys].sort((a, b) => {
@@ -155,9 +159,9 @@ const buildTableRows = (
       const normalizedAreaKey = normalizeAreaKey(row.area);
       const hoursPerOrder = hoursPerOrderByArea[normalizedAreaKey] || 0;
       const orderTotal = currentOrderTotalsByArea[normalizedAreaKey] || 0;
-      const horasPerdidas = roundToTwoDecimals(Number(row.horas_perdidas || 0));
+      const horasPerdidasRaw = Number(row.horas_perdidas || 0);
       const porcentajePerdidaAvance = hoursPerOrder > 0 && orderTotal > 0
-        ? roundToTwoDecimals(((horasPerdidas / hoursPerOrder) / orderTotal) * 100)
+        ? roundToOneDecimal(((horasPerdidasRaw / hoursPerOrder) / orderTotal) * 100)
         : 0;
 
       return {
@@ -165,14 +169,14 @@ const buildTableRows = (
         area: row.area,
         areaCorta: formatAreaName(row.area, areaShortNames),
         motivo: row.motivo,
-        horasPerdidas,
-        tiempoPerdido: formatWorkDaysFromHours(horasPerdidas, false),
+        horasPerdidas: roundToTwoDecimals(horasPerdidasRaw),
+        tiempoPerdido: formatWorkDaysFromHours(horasPerdidasRaw, false),
         cantidadPersonal: roundToTwoDecimals(Number(row.mecanicos_necesarios_redondeado || 0)),
         personalActivo: roundToTwoDecimals(Number(row.personal_activo_actual || personalActivo || 0)),
         porcentajeArea: roundToTwoDecimals(Number(row.porcentaje_area || 0)),
         porcentajePerdidaAvance,
         motivoLabel: row.motivo,
-        porcentajePerdidaAvanceLabel: buildLostProgressLabel(porcentajePerdidaAvance, horasPerdidas),
+        porcentajePerdidaAvanceLabel: buildLostProgressLabel(porcentajePerdidaAvance, horasPerdidasRaw),
         personalFaltanteLabel: formatNumberLabel(roundToTwoDecimals(Number(row.mecanicos_necesarios_redondeado || 0))),
         personalActivoLabel: formatNumberLabel(roundToTwoDecimals(Number(row.personal_activo_actual || personalActivo || 0))),
         rowspan: index === 0 ? group.length : 0,
@@ -191,6 +195,9 @@ const buildTableRows = (
     const hoursPerOrder = hoursPerOrderByArea[areaKey] || 0;
     return hoursPerOrder > 0 ? sum + (row.horasPerdidas / hoursPerOrder) : sum;
   }, 0);
+  const totalPorcentajePerdidaAvance = currentOrderTotalsGeneral > 0
+    ? roundToOneDecimal((totalEquivalent / currentOrderTotalsGeneral) * 100)
+    : 0;
 
   const totalRow: HorasPerdidasAreaMotivoTableRow = {
     id: 'total-general',
@@ -202,14 +209,10 @@ const buildTableRows = (
     cantidadPersonal: roundToTwoDecimals(totalCantidadPersonal),
     personalActivo: totalPersonalActivo,
     porcentajeArea: 100,
-    porcentajePerdidaAvance: currentOrderTotalsGeneral > 0
-      ? roundToTwoDecimals((totalEquivalent / currentOrderTotalsGeneral) * 100)
-      : 0,
+    porcentajePerdidaAvance: totalPorcentajePerdidaAvance,
     motivoLabel: 'Total general',
     porcentajePerdidaAvanceLabel: buildLostProgressLabel(
-      currentOrderTotalsGeneral > 0
-        ? roundToTwoDecimals((totalEquivalent / currentOrderTotalsGeneral) * 100)
-        : 0,
+      totalPorcentajePerdidaAvance,
       totalHorasPerdidas
     ),
     personalFaltanteLabel: formatNumberLabel(roundToTwoDecimals(totalCantidadPersonal)),

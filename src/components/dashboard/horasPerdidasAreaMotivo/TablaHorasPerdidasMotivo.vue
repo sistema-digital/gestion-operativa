@@ -78,6 +78,13 @@ watch(
 
 const getLostProgressMain = (value: string) => value.split('|')[0] || '-';
 const getLostProgressTime = (value: string) => value.split('|')[1] || '';
+const getRowDividerClass = (index: number) => (
+  index === 0
+    || tableRows.value[index].esFilaTotal
+    || tableRows.value[index].mostrarArea
+    ? 'border-t-2 border-t-[#d8cfbf]'
+    : 'border-t border-t-[#efe8db]'
+);
 </script>
 
 <template>
@@ -137,9 +144,9 @@ const getLostProgressTime = (value: string) => value.split('|')[1] || '';
             </tr>
           </thead>
 
-          <tbody class="divide-y divide-[#efe8db]">
+          <tbody>
             <tr
-              v-for="row in tableRows"
+              v-for="(row, index) in tableRows"
               :key="row.id"
               :class="row.esFilaTotal
                 ? 'bg-[#f2eee7]'
@@ -148,21 +155,30 @@ const getLostProgressTime = (value: string) => value.split('|')[1] || '';
               <td
                 v-if="row.mostrarArea"
                 :rowspan="row.rowspan"
-                :class="row.esFilaTotal
-                  ? 'px-[12px] py-[8px] align-top text-[14px] font-extrabold uppercase tracking-[0.08em] text-[#403d37]'
-                  : 'px-[12px] py-[8px] align-top text-[14px] font-bold text-[#403d37]'"
+                :class="[
+                  getRowDividerClass(index),
+                  row.esFilaTotal
+                    ? 'px-[12px] py-[8px] align-top text-[14px] font-extrabold uppercase tracking-[0.08em] text-[#403d37]'
+                    : 'px-[12px] py-[8px] align-top text-[14px] font-bold text-[#403d37]',
+                ]"
               >
                 {{ row.areaCorta }}
               </td>
-              <td :class="row.esFilaTotal
-                ? 'px-[12px] py-[8px] text-[13px] font-extrabold uppercase tracking-[0.08em] text-[#4b463f]'
-                : 'px-[12px] py-[8px] text-[13px] font-semibold text-[#5f5a52]'"
+              <td :class="[
+                getRowDividerClass(index),
+                row.esFilaTotal
+                  ? 'px-[12px] py-[8px] text-[13px] font-extrabold uppercase tracking-[0.08em] text-[#4b463f]'
+                  : 'px-[12px] py-[8px] text-[13px] font-semibold text-[#5f5a52]',
+              ]"
               >
                 {{ row.motivoLabel }}
               </td>
-              <td :class="row.esFilaTotal
-                ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#0f5750]'
-                : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#0f5750]'"
+              <td :class="[
+                getRowDividerClass(index),
+                row.esFilaTotal
+                  ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#c84c37]'
+                  : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#d45742]',
+              ]"
               >
                 <span>{{ getLostProgressMain(row.porcentajePerdidaAvanceLabel) }}</span>
                 <span
@@ -172,15 +188,24 @@ const getLostProgressTime = (value: string) => value.split('|')[1] || '';
                   {{ getLostProgressTime(row.porcentajePerdidaAvanceLabel) }}
                 </span>
               </td>
-              <td :class="row.esFilaTotal
-                ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#3a3e46]'
-                : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#3a3e46]'"
+              <td :class="[
+                getRowDividerClass(index),
+                row.esFilaTotal
+                  ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#c84c37]'
+                  : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#d45742]',
+              ]"
               >
                 {{ row.personalFaltanteLabel }}
               </td>
-              <td :class="row.esFilaTotal
-                ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#3a3e46]'
-                : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#3a3e46]'"
+              <td
+                v-if="row.mostrarArea"
+                :rowspan="row.rowspan"
+                :class="[
+                  getRowDividerClass(index),
+                  row.esFilaTotal
+                    ? 'px-[12px] py-[8px] align-center text-[13px] font-extrabold text-right text-[#3455E3]'
+                    : 'px-[12px] py-[8px] align-center text-[13px] font-bold text-right text-[#3455E3]',
+                ]"
               >
                 {{ row.personalActivoLabel }}
               </td>
