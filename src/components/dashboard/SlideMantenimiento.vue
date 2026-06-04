@@ -71,6 +71,11 @@ const lostProgressCurrentWeekOnly = ref(false);
 const showStatusCharts = ref(false);
 const showLostProgressPercent = ref(false);
 const showLostProgressTime = ref(true);
+const weeklyLegendSelected = ref<Record<string, boolean>>({
+  'NR 2026': true,
+  'Pérdida Operativa': false,
+  'Falta de Personal': false,
+});
 let scrollButtonTimer: ReturnType<typeof setTimeout> | null = null;
 
 const normalizeAreaKey = (area: string) => String(area || '')
@@ -2025,7 +2030,6 @@ const lostProgressEChartOption = computed(() => {
 const weeklyEChartOption = computed(() => {
   const data = weeklyProgress.value;
   const labels = data.map(d => d.semana);
-  const avanceValues = data.map(d => d.avance);
   const concluidaValues = data.map(d => d.concluidaAvance);
   const nrValues = data.map(d => d.nrAvance);
   const perdidaOperativaValues = data.map(d => Number(d.retrasadaAvance.toFixed(2)));
@@ -2034,12 +2038,17 @@ const weeklyEChartOption = computed(() => {
   const targetPerc = 0.0294;
   const targetValues = labels.map(() => targetValue);
   const formatWeeklyValue = (value: number | string | null | undefined) => `${Number(value || 0).toFixed(1)}%`;
+  const isNrVisible = weeklyLegendSelected.value['NR 2026'] !== false;
+  const getDisplayedAdvance = (weekData: typeof data[number] | undefined) => {
+    if (!weekData) return 0;
+    return isNrVisible ? weekData.avance : weekData.concluidaAvance;
+  };
 
   const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
   const showLoss = isZafra && weeklyLossVisible.value;
   const avanceValues2025 = isZafra ? labels.map(sem => getProgress2025NormalizedValue(sem)) : [];
 
-  const stacked2026Values = data.map(d => d.avance + (showLoss ? d.retrasadaAvance + d.personalAvance : 0));
+  const stacked2026Values = data.map(d => getDisplayedAdvance(d) + (showLoss ? d.retrasadaAvance + d.personalAvance : 0));
   const maxAvance = stacked2026Values.length > 0 ? Math.max(...stacked2026Values) : 0;
   const maxAvance2025 = isZafra && avanceValues2025.length > 0 ? Math.max(...avanceValues2025) : 0;
   const overallMax = Math.max(maxAvance, maxAvance2025);
@@ -2109,8 +2118,9 @@ const weeklyEChartOption = computed(() => {
           formatter: (p: any) => {
             if ((isZafra && showLoss) || p.value <= 0) return '';
             const weekData = data.find(d => String(d.semana) === String(p.name));
-            if (!weekData || weekData.nrAvance > 0) return '';
-            return formatWeeklyValue(weekData.avance);
+            if (!weekData) return '';
+            if (isNrVisible && weekData.nrAvance > 0) return '';
+            return formatWeeklyValue(getDisplayedAdvance(weekData));
           }
         }
       });
@@ -2119,7 +2129,7 @@ const weeklyEChartOption = computed(() => {
         name: 'NR 2026',
         type: 'bar',
         stack: 'avance2026',
-        color: '#0f766e',
+        color: '#b45309',
         data: nrValues,
         barMaxWidth: 18,
         barGap: '45%',
@@ -2129,7 +2139,7 @@ const weeklyEChartOption = computed(() => {
           color: (p: any) => {
             const hasSemanaFilter = !!activeFilters.value.semana;
             const matchesSemana = !hasSemanaFilter || String(activeFilters.value.semana) === String(p.name);
-            return matchesSemana ? '#0f766e' : applyAlpha('#0f766e', 0.25);
+            return matchesSemana ? '#b45309' : applyAlpha('#0f766e', 0.25);
           }
         },
         label: {
@@ -2145,7 +2155,8 @@ const weeklyEChartOption = computed(() => {
           formatter: (p: any) => {
             if ((isZafra && showLoss) || p.value <= 0) return '';
             const weekData = data.find(d => String(d.semana) === String(p.name));
-            return weekData && weekData.avance > 0 ? formatWeeklyValue(weekData.avance) : '';
+            if (!isNrVisible || !weekData) return '';
+            return weekData.avance > 0 ? formatWeeklyValue(weekData.avance) : '';
           }
         }
       });
@@ -2182,11 +2193,12 @@ const weeklyEChartOption = computed(() => {
               const perdida = Number((weekData.retrasadaAvance + weekData.personalAvance).toFixed(2));
               const hasOperationalLoss = weekData.retrasadaAvance > 0;
               const hasPersonalLoss = weekData.personalAvance > 0;
+              const displayedAdvance = getDisplayedAdvance(weekData);
 
               if (!hasOperationalLoss || hasPersonalLoss) return '';
-              if (weekData.avance <= 0 && perdida <= 0) return '';
+              if (displayedAdvance <= 0 && perdida <= 0) return '';
 
-              return `{real|${formatWeeklyValue(weekData.avance)}}{sep| | }{lost|${formatWeeklyValue(weekData.avance + perdida)}}`;
+              return `{real|${formatWeeklyValue(displayedAdvance)}}{sep| | }{lost|${formatWeeklyValue(displayedAdvance + perdida)}}`;
             },
             rich: {
               real: { color: '#004236', fontWeight: 'bold' },
@@ -2225,10 +2237,11 @@ const weeklyEChartOption = computed(() => {
               if (!showLoss || !matchesSemana || !weekData) return '';
 
               const perdida = Number((weekData.retrasadaAvance + weekData.personalAvance).toFixed(2));
+              const displayedAdvance = getDisplayedAdvance(weekData);
               if (weekData.personalAvance <= 0) return '';
-              if (weekData.avance <= 0 && perdida <= 0) return '';
+              if (displayedAdvance <= 0 && perdida <= 0) return '';
 
-              return `{real|${formatWeeklyValue(weekData.avance)}}{sep| | }{lost|${formatWeeklyValue(weekData.avance + perdida)}}`;
+              return `{real|${formatWeeklyValue(displayedAdvance)}}{sep| | }{lost|${formatWeeklyValue(displayedAdvance + perdida)}}`;
             },
             rich: {
               real: { color: '#004236', fontWeight: 'bold' },
@@ -2271,7 +2284,7 @@ const weeklyEChartOption = computed(() => {
           res += `<div>Avance 2025: ${formatWeeklyValue(barP2025.value)}</div>`;
         }
         if (barConcluida || barNr) {
-          res += `<div>Avance 2026: ${formatWeeklyValue(weekData?.avance)} (<span style="font-size: 0.9em">Concluida: ${weekData?.concluidasSinNr || 0}, NR: ${weekData?.nrConcluidas || 0} / ${weekData?.total || 0}</span>)</div>`;
+          res += `<div>Avance 2026: ${formatWeeklyValue(getDisplayedAdvance(weekData))} (<span style="font-size: 0.9em">Concluida: ${weekData?.concluidasSinNr || 0}, NR: ${weekData?.nrConcluidas || 0} / ${weekData?.total || 0}</span>)</div>`;
         }
         if (weekData && showLoss) {
           const perdidaTotal = Number((weekData.retrasadaAvance + weekData.personalAvance).toFixed(2));
@@ -2294,10 +2307,13 @@ const weeklyEChartOption = computed(() => {
         : ['Objetivo', 'Concluida 2026', 'NR 2026'],
       selected: isZafra
         ? {
+          'NR 2026': weeklyLegendSelected.value['NR 2026'] !== false,
           'Pérdida Operativa': weeklyLossVisible.value,
           'Falta de Personal': weeklyLossVisible.value
         }
-        : {},
+        : {
+          'NR 2026': weeklyLegendSelected.value['NR 2026'] !== false,
+        },
       top: 0,
       icon: 'circle',
       textStyle: { fontSize: 10, fontWeight: 'bold' }
@@ -2328,6 +2344,11 @@ const handleWeeklyChartClick = (params: any) => {
 
 const handleWeeklyLegendSelectChanged = (params: any) => {
   if (!params?.selected) return;
+
+  weeklyLegendSelected.value = {
+    ...weeklyLegendSelected.value,
+    ...params.selected,
+  };
 
   const operationalSelected = !!params.selected['Pérdida Operativa'];
   const personalSelected = !!params.selected['Falta de Personal'];
