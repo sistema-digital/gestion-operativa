@@ -6,6 +6,7 @@ import { useHorasTrabajoStore, type HorasPerdidasPersonalRow } from '@/stores/ho
 import { storeToRefs } from 'pinia';
 import EChart from '@/components/ui/EChart.vue';
 import TablaHorasPerdidasMotivo from '@/components/dashboard/horasPerdidasAreaMotivo/TablaHorasPerdidasMotivo.vue';
+import { formatWorkDaysFromHours } from '@/utils/dashboardFormatters';
 import {
   Search,
   RefreshCw,
@@ -1671,7 +1672,10 @@ const weeklyAreaSummary = computed(() => {
       lostProgress,
       optimalProgress: sumRoundedProgress(realProgress, lostProgress)
     };
-  }).sort((a, b) => b.optimalProgress - a.optimalProgress);
+  }).sort((a, b) => (
+    (b.operationalLostProgress + b.personalLostProgress) -
+    (a.operationalLostProgress + a.personalLostProgress)
+  ));
 });
 
 const weeklyAreaSummaryTotal = computed(() => {
@@ -1705,6 +1709,17 @@ const weeklyAreaSummaryTotal = computed(() => {
     optimalProgress: sumRoundedProgress(realProgress, lostProgress)
   };
 });
+
+const currentOrderTotalsByAreaForHorasPerdidas = computed<Record<string, number>>(() => (
+  weeklyAreaSummary.value.reduce<Record<string, number>>((acc, row) => {
+    acc[normalizeAreaKey(row.area)] = row.denominator;
+    return acc;
+  }, {})
+));
+
+const currentOrderTotalsGeneralForHorasPerdidas = computed<number>(() => (
+  weeklyAreaSummary.value.reduce((sum, row) => sum + row.denominator, 0)
+));
 
 const getLostProgressOrderList = () => {
   const areaFixed = userArea.value?.toUpperCase();
@@ -1860,24 +1875,6 @@ const lostProgressAreaTotal = computed(() => {
     differenceHours: Number((hours2025 - hours2026).toFixed(2))
   };
 });
-
-const formatWorkDaysFromHours = (hours: number, wrapInParentheses = true) => {
-  const totalHours = Math.max(0, Number(hours) || 0);
-  let days = Math.floor(totalHours / 8);
-  let remainingHours = Math.round(totalHours - (days * 8));
-
-  if (remainingHours >= 8) {
-    days += 1;
-    remainingHours = 0;
-  }
-
-  const formatted = [
-    days > 0 ? `${days}d` : "",
-    remainingHours > 0 ? `${remainingHours}h` : ""
-  ].filter(Boolean).join(" ") || "0h";
-
-  return wrapInParentheses ? `(${formatted})` : formatted;
-};
 
 const formatEquivalentOrders = (value: number, roundValue: boolean) => (
   roundValue ? String(Math.round(value)) : Number(value.toFixed(2)).toString()
@@ -2983,10 +2980,13 @@ const toggleLostProgressDisplay = (type: 'percent' | 'time') => {
         </div>
 
         <div class="mb-8">
-          <TablaHorasPerdidasMotivo
-            :weekly-area-short-names="weeklyAreaShortNames"
-            :initial-date="horasPerdidasAreaMotivoInitialDate"
-          />
+            <TablaHorasPerdidasMotivo
+              :weekly-area-short-names="weeklyAreaShortNames"
+              :hours-per-order-by-area="hoursPerOrderByArea"
+              :current-order-totals-by-area="currentOrderTotalsByAreaForHorasPerdidas"
+              :current-order-totals-general="currentOrderTotalsGeneralForHorasPerdidas"
+              :initial-date="horasPerdidasAreaMotivoInitialDate"
+            />
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-[45fr_55fr] gap-6 mb-8 items-start">

@@ -1,6 +1,7 @@
 export interface HorasPerdidasResumenMetricas {
   dias_evaluados: number;
   horas_perdidas: number;
+  personal_activo_actual: number;
   jornadas_mecanico_perdidas: number;
   promedio_mecanicos_necesarios: number;
   mecanicos_necesarios_redondeado: number;
@@ -28,6 +29,7 @@ export interface HorasPerdidasPersonalResumenItem {
   fecha_desde: string;
   motivos_por_area: HorasPerdidasMotivoPorAreaItem[];
   horas_por_jornada: number;
+  personal_activo_actual_total: number;
 }
 
 export type ObtenerHorasPerdidasPersonalResumenResponse =
@@ -51,8 +53,17 @@ export interface HorasPerdidasAreaMotivoTableRow {
   areaCorta: string;
   motivo: string;
   horasPerdidas: number;
+  tiempoPerdido: string;
   cantidadPersonal: number;
+  personalActivo: number;
   porcentajeArea: number;
+  porcentajePerdidaAvance: number;
+  motivoLabel: string;
+  porcentajePerdidaAvanceLabel: string;
+  personalFaltanteLabel: string;
+  personalActivoLabel: string;
   rowspan: number;
   mostrarArea: boolean;
+  esFilaTotal: boolean;
+  sinDatos: boolean;
 }
