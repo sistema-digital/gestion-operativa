@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { Eye, EyeOff } from 'lucide-vue-next';
 import { useHorasPerdidasTable } from './useHorasPerdidasTable';
 import type {
   HorasPerdidasAreaMotivoTableRow,
@@ -18,6 +19,7 @@ const props = withDefaults(defineProps<{
 
 const selectedDate = ref(props.initialDate);
 const useCurrentWeek = ref(false);
+const showLostTime = ref(false);
 
 const getLatestMonday = () => {
   const today = new Date();
@@ -83,6 +85,16 @@ watch(
 
 const getLostProgressMain = (value: string) => value.split('|')[0] || '-';
 const getLostProgressTime = (value: string) => value.split('|')[1] || '';
+const getLostProgressLabel = (value: string) => {
+  const mainValue = getLostProgressMain(value);
+  const timeValue = getLostProgressTime(value);
+
+  if (!showLostTime.value || !timeValue) {
+    return mainValue;
+  }
+
+  return `${mainValue} ${timeValue}`;
+};
 const getMotivoRowDividerClass = (rows: HorasPerdidasAreaMotivoTableRow[], index: number) => (
   index === 0
     || rows[index].esFilaTotal
@@ -128,6 +140,17 @@ const getAreaRowDividerClass = (row: HorasPerdidasAreaResumenTableRow, index: nu
             class="rounded-[14px] border border-[#ddd5c7] bg-[#f7f2e8] px-3 py-[7px] text-[11px] font-semibold text-[#4d4a43] shadow-sm outline-none transition-colors focus:border-[#0f5750] focus:bg-white"
           >
         </label>
+
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-full border border-[#ddd5c7] bg-[#f7f2e8] px-3 py-[7px] text-[9px] font-bold uppercase tracking-[0.22em] text-[#8f8a80] transition-colors hover:bg-white"
+          :aria-pressed="showLostTime"
+          :title="showLostTime ? 'Ocultar tiempo perdido' : 'Mostrar tiempo perdido'"
+          @click="showLostTime = !showLostTime"
+        >
+          <component :is="showLostTime ? EyeOff : Eye" class="h-3.5 w-3.5" />
+          <span>{{ showLostTime ? 'Ocultar hrs' : 'Ver hrs' }}</span>
+        </button>
       </div>
     </div>
 
@@ -152,7 +175,7 @@ const getAreaRowDividerClass = (row: HorasPerdidasAreaResumenTableRow, index: nu
 
           <div class="overflow-x-auto rounded-[22px] border border-[#e3dccf] bg-[#fdfbf7] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
             <table class=" min-w-[420px] table-fixed text-left">
-              <thead class="bg-[#f2eee7] text-[#969083]">
+              <thead class="bg-gray-50 text-[#969083]">
                 <tr>
                   <th class="w-[22%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em]">Area</th>
                   <th class="w-[28%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em]">Motivo</th>
@@ -165,7 +188,7 @@ const getAreaRowDividerClass = (row: HorasPerdidasAreaResumenTableRow, index: nu
                   v-for="(row, index) in motivoTableRows"
                   :key="row.id"
                   :class="row.esFilaTotal
-                    ? 'bg-[#f2eee7]'
+                    ? 'bg-gray-50'
                     : 'bg-white transition-colors hover:bg-[#f6f1e7]'"
                 >
                   <td
@@ -196,13 +219,7 @@ const getAreaRowDividerClass = (row: HorasPerdidasAreaResumenTableRow, index: nu
                       : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#d45742]',
                   ]"
                   >
-                    <span>{{ getLostProgressMain(row.porcentajePerdidaAvanceLabel) }}</span>
-                    <span
-                      v-if="getLostProgressTime(row.porcentajePerdidaAvanceLabel)"
-                      class="ml-1 opacity-60"
-                    >
-                      {{ getLostProgressTime(row.porcentajePerdidaAvanceLabel) }}
-                    </span>
+                    {{ getLostProgressLabel(row.porcentajePerdidaAvanceLabel) }}
                   </td>
                   
                 </tr>
@@ -226,25 +243,25 @@ const getAreaRowDividerClass = (row: HorasPerdidasAreaResumenTableRow, index: nu
 
           <div class="overflow-x-auto rounded-[22px] border border-[#e3dccf] bg-[#fdfbf7] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
             <table class="min-w-[420px] table-fixed text-left">
-              <thead class="bg-[#f2eee7] text-[#969083]">
+              <thead class="bg-gray-50 text-[#969083] ">
                 <tr>
-                  <th class="w-[28%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em]">Area</th>
+                  <th class="w-[24%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em]">Area</th>
                   <th class="w-[27%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em] text-right">% Perdida Avance</th>
-                  <th class="w-[22%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em] text-right">Personal Faltante</th>
+                  <th class="w-[26%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em] text-right">Personal Faltante</th>
                   <th class="w-[23%] px-[12px] py-[8px] text-[9px] font-extrabold uppercase tracking-[0.2em] text-right">Personal Activo</th>
                 </tr>
               </thead>
 
-              <tbody>
+              <tbody class="divide-y divide-gray-50">
                 <tr
                   v-for="(row, index) in areaTableRows"
                   :key="row.id"
                   :class="row.esFilaTotal
-                    ? 'bg-[#f2eee7]'
+                    ? 'bg-gray-50'
                     : 'bg-white transition-colors hover:bg-[#f6f1e7]'"
                 >
                   <td :class="[
-                    getAreaRowDividerClass(row, index),
+                   
                     row.esFilaTotal
                       ? 'px-[12px] py-[8px] text-[14px] font-extrabold uppercase tracking-[0.08em] text-[#403d37]'
                       : 'px-[12px] py-[8px] text-[14px] font-bold text-[#403d37]',
@@ -253,22 +270,14 @@ const getAreaRowDividerClass = (row: HorasPerdidasAreaResumenTableRow, index: nu
                     {{ row.areaCorta }}
                   </td>
                   <td :class="[
-                    getAreaRowDividerClass(row, index),
                     row.esFilaTotal
                       ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#c84c37]'
                       : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#d45742]',
                   ]"
                   >
-                    <span>{{ getLostProgressMain(row.porcentajePerdidaAvanceLabel) }}</span>
-                    <span
-                      v-if="getLostProgressTime(row.porcentajePerdidaAvanceLabel)"
-                      class="ml-1 opacity-60"
-                    >
-                      {{ getLostProgressTime(row.porcentajePerdidaAvanceLabel) }}
-                    </span>
+                    {{ getLostProgressLabel(row.porcentajePerdidaAvanceLabel) }}
                   </td>
                   <td :class="[
-                    getAreaRowDividerClass(row, index),
                     row.esFilaTotal
                       ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#c84c37]'
                       : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#d45742]',
@@ -277,7 +286,6 @@ const getAreaRowDividerClass = (row: HorasPerdidasAreaResumenTableRow, index: nu
                     {{ row.personalFaltanteLabel }}
                   </td>
                   <td :class="[
-                    getAreaRowDividerClass(row, index),
                     row.esFilaTotal
                       ? 'px-[12px] py-[8px] text-[13px] font-extrabold text-right text-[#3455E3]'
                       : 'px-[12px] py-[8px] text-[13px] font-bold text-right text-[#3455E3]',

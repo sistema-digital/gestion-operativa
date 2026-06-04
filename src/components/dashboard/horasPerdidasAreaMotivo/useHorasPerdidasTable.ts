@@ -205,7 +205,7 @@ const buildMotivoTableRows = (
     id: 'total-general',
     area: 'TOTAL',
     areaCorta: 'TOTAL',
-    motivo: 'Total general',
+    motivo: '',
     horasPerdidas: roundToTwoDecimals(totalHorasPerdidas),
     tiempoPerdido: formatWorkDaysFromHours(totalHorasPerdidas, false),
     cantidadPersonal: roundToTwoDecimals(totalCantidadPersonal),
