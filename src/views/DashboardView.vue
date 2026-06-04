@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, onMounted, computed, watch, nextTick, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeft, Loader2 } from 'lucide-vue-next';
 import { supabase } from '@/lib/supabase';
@@ -10,9 +10,11 @@ import SlideHorasTrabajo from '@/components/dashboard/SlideHorasTrabajo.vue';
 import SlideServiciosGenerales from '@/components/dashboard/SlideServiciosGenerales.vue';
 import SlideCalificaciones from '@/components/dashboard/SlideCalificaciones.vue';
 import SlideProductividadSemanal from '@/components/dashboard/SlideProductividadSemanal.vue';
+import { useDashboardHeaderNav } from '@/composables/useDashboardHeaderNav';
 
 const route = useRoute();
 const router = useRouter();
+const { syncDashboardHeaderNav, clearDashboardHeaderNav } = useDashboardHeaderNav();
 
 const allSlides = [
   { id: 'general', label: 'General', component: SlideGeneral },
@@ -116,6 +118,18 @@ watch(() => route.query.slide, (newSlide) => {
     }
   }
 });
+
+watch([slides, currentSlideIndex], ([currentSlides, activeIndex]) => {
+  syncDashboardHeaderNav({
+    currentSlideIndex: activeIndex,
+    onSelectSlide: scrollToSlideIndex,
+    slides: currentSlides.map(({ id, label }) => ({ id, label })),
+  });
+}, { immediate: true });
+
+onUnmounted(() => {
+  clearDashboardHeaderNav();
+});
 </script>
 
 <template>
@@ -125,7 +139,11 @@ watch(() => route.query.slide, (newSlide) => {
     </div>
 
     <!-- Header with conditional back button -->
-    <div v-if="!isLoading" id="dashboard-header-container" class="sticky top-0 bg-white/90 backdrop-blur-md z-20 border-b border-gray-100">
+    <div
+      v-if="!isLoading && (isBackable || slides.length <= 1)"
+      id="dashboard-header-container"
+      class="sticky top-0 bg-white/90 backdrop-blur-md z-20 border-b border-gray-100"
+    >
       <div class="px-4 py-3 md:px-6 md:py-4 flex items-center justify-center relative">
         <!-- Back button & Title (Conditional) - Positioned absolute to not break centering -->
         <div v-if="isBackable" id="dashboard-back-header" class="flex items-center gap-2 md:gap-4 absolute left-4 md:left-6">
@@ -133,18 +151,6 @@ watch(() => route.query.slide, (newSlide) => {
             <ArrowLeft class="w-5 h-5 md:w-5 md:h-5" />
           </button>
           <h2 class="text-xs md:text-sm font-bold text-gray-800 hidden sm:block">Métricas</h2>
-        </div>
-        <!-- Unified Pill Navigation -->
-        <div class="grid grid-cols-3 gap-1 sm:flex sm:flex-wrap md:flex-nowrap justify-center bg-gray-100 p-1 rounded-xl shadow-inner border border-gray-200/20 w-full sm:w-auto" v-if="slides.length > 1">
-          <button 
-            v-for="(slide, index) in slides" 
-            :key="slide.id"
-            @click="scrollToSlideIndex(index)"
-            class="px-1 py-1.5 md:px-5 md:py-1.5 text-[9px] min-w-0 md:text-[11px] font-bold rounded-lg transition-all flex items-center justify-center text-center"
-            :class="index === currentSlideIndex ? 'bg-white text-main shadow-md' : 'text-gray-400 hover:text-gray-600'"
-          >
-            <span class="truncate w-full">{{ slide.label }}</span>
-          </button>
         </div>
         
         <!-- Mobile Title if no nav -->

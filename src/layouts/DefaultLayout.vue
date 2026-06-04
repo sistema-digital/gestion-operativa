@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia';
 import { useRouter, useRoute } from 'vue-router';
 import { supabase, supabaseRatings, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
 import { useFeatureAccessStore } from '@/stores/db_mantenimiento/app_feature_access/featureAccess.store';
+import { useDashboardHeaderNav } from '@/composables/useDashboardHeaderNav';
 import { 
   BarChart3, 
   Wrench, 
@@ -22,6 +23,7 @@ const route = useRoute();
 const featureAccessStore = useFeatureAccessStore();
 const { isLoaded: isFeatureAccessLoaded } = storeToRefs(featureAccessStore);
 const isSidebarOpen = ref(true);
+const { dashboardHeaderNavState, selectDashboardHeaderSlide } = useDashboardHeaderNav();
 
 const userProfile = ref<{ nombre?: string; role?: string; area?: string } | null>(null);
 const userEmail = ref('');
@@ -69,6 +71,10 @@ const viewTitle = computed(() => {
   if (route.path.startsWith('/catalogo')) return 'CATÁLOGO';
   return menuItems.value.find(i => isActive(i.path))?.name || 'Dashboard';
 });
+
+const isDashboardRoute = computed(() => route.path.startsWith('/dashboard'));
+const showDashboardHeaderNav = computed(() => isDashboardRoute.value && dashboardHeaderNavState.isVisible);
+const mobileTopBarSpacerClass = computed(() => showDashboardHeaderNav.value ? 'h-[124px]' : 'h-[68px]');
 
 onMounted(async () => {
   featureAccessStore.cargarFuncionalidadesPermitidas().catch((error) => {
@@ -165,8 +171,8 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
     <!-- Main Content -->
     <main class="flex-1 flex flex-col min-w-0 bg-second overflow-hidden relative">
       <!-- Top Header (Desktop) -->
-      <header class="hidden md:flex items-center justify-between px-8 h-16 bg-white border-b border-gray-200 shadow-md relative z-10">
-        <div class="flex items-center gap-4">
+      <header class="hidden md:flex items-center gap-6 px-8 h-16 bg-white border-b border-gray-200 shadow-md relative z-10">
+        <div class="flex items-center gap-4 min-w-0">
           <button @click="isSidebarOpen = !isSidebarOpen" class="p-2 hover:bg-gray-50 rounded-lg text-gray-400">
             <Menu class="w-5 h-5" />
           </button>
@@ -177,11 +183,24 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
             </h2>
           </div>
         </div>
+
+        <div v-if="showDashboardHeaderNav" class="flex-1 min-w-0 flex justify-center">
+          <div class="flex items-center gap-1 bg-gray-100 p-1 rounded-xl shadow-inner border border-gray-200/20 overflow-x-auto hide-scrollbar max-w-full">
+            <button
+              v-for="(slide, index) in dashboardHeaderNavState.slides"
+              :key="slide.id"
+              @click="selectDashboardHeaderSlide(index)"
+              class="px-4 py-1.5 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center text-center whitespace-nowrap"
+              :class="index === dashboardHeaderNavState.currentSlideIndex ? 'bg-white text-main shadow-md' : 'text-gray-400 hover:text-gray-600'"
+            >
+              {{ slide.label }}
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="flex-1"></div>
         
         <div class="flex items-center gap-6">
-          <div class="flex gap-3">
-             <!-- Buttons removed as per user request -->
-          </div>
           <div class="h-8 w-px bg-gray-100 italic"></div>
           <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors border border-transparent hover:border-gray-100" @click="router.push('/perfil')">
             <div class="text-right">
@@ -196,23 +215,39 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
       </header>
 
       <!-- Mobile Top Bar -->
-      <div class="md:hidden flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100 absolute top-0 left-0 w-full z-[30] shadow-sm">
-        <div class="flex items-center gap-2">
-          <h1 class="font-display text-xl text-main tracking-widest leading-none">CADASA</h1>
-          <span v-if="route.path !== '/dashboard'" class="text-[14px] font-bold text-gray-700 leading-none pl-2 border-l border-gray-300 uppercase">{{ viewTitle }}</span>
+      <div class="md:hidden bg-white border-b border-gray-100 absolute top-0 left-0 w-full z-[30] shadow-sm">
+        <div class="flex items-center justify-between px-6 py-4">
+          <div class="flex items-center gap-2 min-w-0">
+            <h1 class="font-display text-xl text-main tracking-widest leading-none">CADASA</h1>
+            <span v-if="route.path !== '/dashboard'" class="text-[14px] font-bold text-gray-700 leading-none pl-2 border-l border-gray-300 uppercase truncate">{{ viewTitle }}</span>
+          </div>
+          <div class="flex items-center gap-4">
+            <button @click="logout" class="text-gray-400 hover:text-danger transition-colors p-2">
+              <LogOut class="w-5 h-5" />
+            </button>
+            <div class="w-8 h-8 rounded-full bg-accent-light flex items-center justify-center font-display text-xs text-main cursor-pointer" @click="router.push('/perfil')">
+              {{ (userProfile?.nombre || userEmail).substring(0,2).toUpperCase() }}
+            </div>
+          </div>
         </div>
-        <div class="flex items-center gap-4">
-          <button @click="logout" class="text-gray-400 hover:text-danger transition-colors p-2">
-            <LogOut class="w-5 h-5" />
-          </button>
-          <div class="w-8 h-8 rounded-full bg-accent-light flex items-center justify-center font-display text-xs text-main cursor-pointer" @click="router.push('/perfil')">
-            {{ (userProfile?.nombre || userEmail).substring(0,2).toUpperCase() }}
+
+        <div v-if="showDashboardHeaderNav" class="px-4 pb-3">
+          <div class="flex items-center gap-1 bg-gray-100 p-1 rounded-xl shadow-inner border border-gray-200/20 overflow-x-auto hide-scrollbar">
+            <button
+              v-for="(slide, index) in dashboardHeaderNavState.slides"
+              :key="slide.id"
+              @click="selectDashboardHeaderSlide(index)"
+              class="px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center text-center whitespace-nowrap flex-shrink-0"
+              :class="index === dashboardHeaderNavState.currentSlideIndex ? 'bg-white text-main shadow-md' : 'text-gray-400 hover:text-gray-600'"
+            >
+              {{ slide.label }}
+            </button>
           </div>
         </div>
       </div>
 
       <!-- Mobile Spacer for Top Bar -->
-      <div class="md:hidden flex-shrink-0 h-[68px] w-full"></div>
+      <div :class="mobileTopBarSpacerClass" class="md:hidden flex-shrink-0 w-full"></div>
 
       <!-- Content Area -->
       <div id="app-main-content-area" class="flex-1 overflow-y-auto w-full">
