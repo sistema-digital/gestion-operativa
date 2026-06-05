@@ -95,7 +95,7 @@ export const useProductividadSlidePngExport = ({
     }
   };
 
-  const exportSlidesAsPng = async () => {
+  const exportActiveSlideAsPng = async () => {
     const slideItems = toValue(slides);
     const slideRoot = getCaptureTarget(slideElement.value);
 
@@ -107,37 +107,31 @@ export const useProductividadSlidePngExport = ({
     isExporting.value = true;
     exportError.value = null;
 
-    const initialIndex = currentSlideIndex.value;
-
     try {
-      for (let index = 0; index < slideItems.length; index += 1) {
-        currentSlideIndex.value = index;
-        await waitForRender();
+      await waitForRender();
 
-        const currentRoot = getCaptureTarget(slideElement.value);
-        if (!currentRoot) {
-          throw new Error('No se pudo preparar el slide para exportar.');
-        }
-
-        const dataUrl = await toPng(currentRoot, {
-          backgroundColor: '#ffffff',
-          cacheBust: true,
-          pixelRatio: 3,
-          canvasWidth: currentRoot.scrollWidth * 3,
-          canvasHeight: currentRoot.scrollHeight * 3,
-        });
-
-        const areaSlug = sanitizeFileName(slideItems[index].area || `area-${index + 1}`);
-        const weekSlug = sanitizeFileName(String(toValue(weekLabel) || 'semana'));
-        downloadDataUrl(dataUrl, `productividad-semanal-${weekSlug}-${areaSlug}.png`);
+      const currentRoot = getCaptureTarget(slideElement.value);
+      if (!currentRoot) {
+        throw new Error('No se pudo preparar el slide para exportar.');
       }
+
+      const dataUrl = await toPng(currentRoot, {
+        backgroundColor: '#ffffff',
+        cacheBust: true,
+        pixelRatio: 3,
+        canvasWidth: currentRoot.scrollWidth * 3,
+        canvasHeight: currentRoot.scrollHeight * 3,
+      });
+
+      const activeSlide = slideItems[currentSlideIndex.value];
+      const areaSlug = sanitizeFileName(activeSlide?.area || `area-${currentSlideIndex.value + 1}`);
+      const weekSlug = sanitizeFileName(String(toValue(weekLabel) || 'semana'));
+      downloadDataUrl(dataUrl, `productividad-semanal-${weekSlug}-${areaSlug}.png`);
     } catch (error) {
       exportError.value = error instanceof Error
         ? error.message
         : 'No se pudieron exportar los slides en PNG.';
     } finally {
-      currentSlideIndex.value = initialIndex;
-      await waitForRender();
       isExporting.value = false;
     }
   };
@@ -145,7 +139,7 @@ export const useProductividadSlidePngExport = ({
   return {
     copyActiveSlideToClipboard,
     exportError: readonly(exportError),
-    exportSlidesAsPng,
+    exportActiveSlideAsPng,
     isCopying: readonly(isCopying),
     isExporting: readonly(isExporting),
   };

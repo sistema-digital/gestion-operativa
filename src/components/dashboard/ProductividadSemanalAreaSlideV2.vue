@@ -183,18 +183,18 @@ const weeklyToneClass = (index: number) => {
           <h2 class="text-center text-[0.95rem] font-semibold text-[#1d1d1d]">Avance sin retraso</h2>
           <div class="mt-2 grid grid-cols-2 items-center gap-3">
             <div class="flex flex-col items-center">
-              <div class="flex h-[98px] w-[98px] items-center justify-center rounded-full border-[3px] border-[#102018] text-main">
-                <span class="text-[1rem] font-bold">{{ formatPercent(delayFreeMetric?.primaryValue ?? 0) }}</span>
-              </div>
-              <p class="mt-1 text-[0.95rem] font-medium text-[#242424]">{{ delayFreeMetric?.primaryLabel }}</p>
-            </div>
-
-            <div class="flex flex-col items-center">
               <div class="flex h-[98px] w-[98px] flex-col items-center justify-center rounded-full border-[3px] border-[#ff2d20] px-2 text-[#ff2d20]">
                 <span class="text-[1rem] font-bold">{{ formatPercent(delayFreeMetric?.secondaryValue ?? 0) }}</span>
                 <span class="mt-1 text-center text-[0.78rem] leading-3 text-[#202020]">Pérdida de avance</span>
               </div>
               <p class="mt-1 text-[0.82rem] font-medium text-[#242424]">{{ delayFreeMetric?.helper?.replace('Operativo ', 'op. ').replace('Personal ', 'per. ') }}</p>
+            </div>
+
+            <div class="flex flex-col items-center">
+              <div class="flex h-[98px] w-[98px] items-center justify-center rounded-full border-[3px] border-[#102018] text-main">
+                <span class="text-[1rem] font-bold">{{ formatPercent(delayFreeMetric?.primaryValue ?? 0) }}</span>
+              </div>
+              <p class="mt-1 text-[0.95rem] font-medium text-[#242424]">{{ delayFreeMetric?.primaryLabel }}</p>
             </div>
           </div>
         </article>
@@ -302,7 +302,7 @@ const weeklyToneClass = (index: number) => {
               </div>
 
               <div class="text-center">
-                <p class="text-[0.84rem] text-[#202020]">Horas</p>
+                <p class="text-[0.84rem] text-[#202020]">Tiempo</p>
                 <p class="mt-1 text-[1rem] font-bold text-[#ff2d20]">{{ formatDelayDuration(viewModel.personalDelay.hours) }}</p>
               </div>
 
@@ -356,7 +356,7 @@ const weeklyToneClass = (index: number) => {
               </div>
 
               <div class="text-center">
-                <p class="text-[0.84rem] text-[#202020]">Horas</p>
+                <p class="text-[0.84rem] text-[#202020]">Tiempo</p>
                 <p class="mt-1 text-[1rem] font-bold text-[#ff6b00]">{{ formatDelayDuration(viewModel.operationalDelay.hours) }}</p>
               </div>
 

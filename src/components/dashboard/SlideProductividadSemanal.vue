@@ -22,11 +22,34 @@ const {
 
 const currentWeek = String(getWeekNumber(new Date()));
 const horasPerdidasFechaDesde = '2026-04-06';
+const areaSortOrder = [
+  'cosecha mecanizada',
+  'cosecha agricola',
+  'equipo pesado',
+  'engrase',
+  'servicios generales',
+];
 
 const currentSlideIndex = ref(0);
 const slideCaptureRef = useTemplateRef<HTMLElement>('slideCaptureRef');
 
-const productivitySlides = computed(() => productividadSemanal.value?.areas ?? []);
+const productivitySlides = computed(() => {
+  const areas = [...(productividadSemanal.value?.areas ?? [])];
+
+  return areas.sort((left, right) => {
+    const leftIndex = areaSortOrder.indexOf(left.area.trim().toLowerCase());
+    const rightIndex = areaSortOrder.indexOf(right.area.trim().toLowerCase());
+
+    const normalizedLeftIndex = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex;
+    const normalizedRightIndex = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex;
+
+    if (normalizedLeftIndex !== normalizedRightIndex) {
+      return normalizedLeftIndex - normalizedRightIndex;
+    }
+
+    return left.area.localeCompare(right.area);
+  });
+});
 const activeSlide = computed(() => productivitySlides.value[currentSlideIndex.value] ?? null);
 const dashboardTables = computed(() => productividadSemanalDashboardTablas.value);
 const activeSlideComponent = computed(() => {
@@ -42,7 +65,7 @@ const weekLabel = computed(() => productividadSemanal.value?.semana || currentWe
 const {
   copyActiveSlideToClipboard,
   exportError,
-  exportSlidesAsPng,
+  exportActiveSlideAsPng,
   isCopying,
   isExporting,
 } = useProductividadSlidePngExport({
@@ -189,7 +212,7 @@ onUnmounted(() => {
     >
       <button
         type="button"
-        class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-4 py-2 text-sm font-bold text-main shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+        class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-4 py-2 text-sm font-bold text-main shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
         :disabled="isCopying || isExporting"
         @click.stop="copyActiveSlideToClipboard"
       >
@@ -200,9 +223,9 @@ onUnmounted(() => {
 
       <button
         type="button"
-        class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-4 py-2 text-sm font-bold text-main shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+        class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-4 py-2 text-sm font-bold text-main shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
         :disabled="isExporting || isCopying"
-        @click.stop="exportSlidesAsPng"
+        @click.stop="exportActiveSlideAsPng"
       >
         <Loader2 v-if="isExporting" class="h-4 w-4 animate-spin" />
         <Download v-else class="h-4 w-4" />
