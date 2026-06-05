@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-vue-next';
-import ProductividadSemanalAreaSlide from '@/components/dashboard/ProductividadSemanalAreaSlide.vue';
+import ProductividadSemanalAreaSlide from '@/components/dashboard/ProductividadSemanalAreaSlideV2.vue';
 import { useHorasTrabajoStore } from '@/stores/horasTrabajoStore';
 import { useMaintenanceStore } from '@/stores/maintenanceStore';
 import { useHorasPerdidasAreaMotivoStore } from '@/stores/db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.store';
@@ -170,6 +170,7 @@ onMounted(() => {
   height: 100%;
   margin: 0 auto;
   overflow: hidden;
-  width: 90%;
+  padding: 1rem 0;
+  width: min(100%, 1320px);
 }
 </style>
