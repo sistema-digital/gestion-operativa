@@ -62,8 +62,25 @@ const formatPercent = (value: number, withSign = false) => {
 
 const formatHours = (value: number) => `${(Number.isFinite(value) ? value : 0).toFixed(0)} h`;
 
+const formatDelayDuration = (value: number) => {
+  const safeValue = Math.max(0, Number.isFinite(value) ? value : 0);
+  const totalHours = Math.round(safeValue);
+  const days = Math.floor(totalHours / 8);
+  const hours = totalHours % 8;
+
+  if (days <= 0) {
+    return `${hours} h`;
+  }
+
+  if (hours === 0) {
+    return `${days} d`;
+  }
+
+  return `${days} d ${hours} h`;
+};
+
 const totalDelayLabel = computed(() => (
-  formatHours(viewModel.value.totalDelayHours).replace(' h', '')
+  formatDelayDuration(viewModel.value.totalDelayHours)
 ));
 
 const operationalPairs = computed(() => {
@@ -79,16 +96,13 @@ const operationalPairs = computed(() => {
   return filled;
 });
 
-const personalSlots = computed(() => {
-  const filled = personalCauses.value.slice(0, 4);
-  while (filled.length < 4) {
-    filled.push({
-      label: '-----',
-      hours: 0,
-    });
-  }
+const personalCauseRows = computed(() => {
+  const causes = personalCauses.value.slice(0, 4);
 
-  return filled;
+  if (causes.length <= 1) return [causes];
+  if (causes.length === 2) return [[causes[0]], [causes[1]]];
+  if (causes.length === 3) return [[causes[0]], [causes[1], causes[2]]];
+  return [causes.slice(0, 2), causes.slice(2, 4)];
 });
 
 const summaryItemClass = (index: number) => {
@@ -216,15 +230,17 @@ const weeklyToneClass = (index: number) => {
               <div class="flex h-14 w-14 items-center justify-center rounded-full" :class="summaryHaloClass(index)">
                 <component :is="summaryIcons[index]" class="h-6 w-6" />
               </div>
-              <p class="mt-3 text-[1rem] font-bold" :class="summaryItemClass(index)">{{ item.value }}</p>
+              <p class="mt-3 text-[1rem] font-bold" :class="summaryItemClass(index)">
+                {{ item.label === 'Retrasos' ? formatDelayDuration(viewModel.totalDelayHours) : item.value }}
+              </p>
               <p class="mt-1 text-[0.9rem] leading-5 text-[#252525]">{{ item.label }}</p>
             </div>
           </div>
         </article>
 
         <article class="rounded-[18px] border border-[#ece9e1] bg-white px-4 py-3 shadow-[0_10px_28px_rgba(20,20,20,0.04)]">
-          <h2 class="text-[1rem] font-semibold text-[#1d1d1d]">Top 3 equipos por horas trabajadas</h2>
-          <div class="mt-2 divide-y divide-[#efebe2]">
+          <h2 class="text-[1rem] font-semibold text-[#1d1d1d]">Equipos con mas horas trabajadas</h2>
+          <div v-if="topTeams.length > 0" class="mt-2 divide-y divide-[#efebe2]">
             <div
               v-for="(team, index) in topTeams"
               :key="`${team.team}-${team.rank}`"
@@ -239,6 +255,14 @@ const weeklyToneClass = (index: number) => {
               </div>
               <p class="text-right text-[1rem] font-bold text-[#101010]">{{ formatHours(team.hours) }}</p>
             </div>
+          </div>
+          <div
+            v-else
+            class="mt-3 flex min-h-[118px] items-center justify-center rounded-[14px] border border-dashed border-[#d8d5cd] bg-[#faf8f3] px-4 text-center"
+          >
+            <p class="text-[0.92rem] font-medium text-gray-500">
+              No se trabajó ningún equipo.
+            </p>
           </div>
         </article>
       </section>
@@ -266,10 +290,10 @@ const weeklyToneClass = (index: number) => {
         <article class="rounded-[18px] border border-[#ece9e1] bg-white px-4 py-2 shadow-[0_10px_28px_rgba(20,20,20,0.04)]">
           <h2 class="text-[1rem] font-semibold text-[#1d1d1d]">Retrasos</h2>
 
-          <div class="mt-1 divide-y divide-[#ece8df]">
-            <div class="grid grid-cols-[12rem_6rem_8rem_8rem_1fr] items-center gap-3 py-2.5">
+          <div class=" divide-y divide-[#ece8df]">
+            <div class="grid grid-cols-[12rem_6rem_8rem_8rem_1fr] items-center gap-3 ">
               <div class="flex items-center gap-3 border-r border-[#ece8df] pr-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-[#fff0ef] text-[#ff2d20]">
+                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#fff2f1_0%,#fde9e7_100%)] text-[#ff453d]">
                   <UsersRound class="h-6 w-6" />
                 </div>
                 <div>
@@ -279,7 +303,7 @@ const weeklyToneClass = (index: number) => {
 
               <div class="text-center">
                 <p class="text-[0.84rem] text-[#202020]">Horas</p>
-                <p class="mt-1 text-[1rem] font-bold text-[#ff2d20]">{{ formatHours(viewModel.personalDelay.hours) }}</p>
+                <p class="mt-1 text-[1rem] font-bold text-[#ff2d20]">{{ formatDelayDuration(viewModel.personalDelay.hours) }}</p>
               </div>
 
               <div class="text-center">
@@ -294,22 +318,36 @@ const weeklyToneClass = (index: number) => {
 
               <div>
                 <p class="mb-1 text-center text-[0.84rem] text-[#202020]">Causas principales</p>
-                <div class="grid grid-cols-2 gap-2">
+                <div
+                  v-if="personalCauseRows.some((row) => row.length > 0)"
+                  class="flex flex-col items-center gap-2"
+                >
                   <div
-                    v-for="cause in personalSlots"
-                    :key="cause.label"
-                    class="rounded-[10px] border px-2 py-1.5 text-center text-[0.8rem]"
-                    :class="cause.hours > 0 ? 'border-[#ffb3ad] text-[#ff2d20]' : 'border-[#e8e3da] text-gray-400'"
+                    v-for="(row, rowIndex) in personalCauseRows"
+                    :key="`personal-row-${rowIndex}`"
+                    class="flex w-full items-center justify-center gap-2"
                   >
-                    {{ cause.hours > 0 ? cause.label : '-----' }}
+                    <div
+                      v-for="cause in row"
+                      :key="cause.label"
+                      class="min-w-[150px] rounded-[10px] border border-[#ffb3ad] bg-[#fffafb] px-2 py-1.5 text-center text-[0.8rem] font-medium text-[#2d2d2d]"
+                    >
+                      {{ cause.label }}
+                    </div>
                   </div>
+                </div>
+                <div
+                  v-else
+                  class="flex items-center justify-center rounded-[10px] border border-dashed border-[#d8d5cd] bg-white px-2 py-1.5 text-center text-[0.8rem] text-gray-400"
+                >
+                  -----
                 </div>
               </div>
             </div>
 
             <div class="grid grid-cols-[12rem_6rem_1fr] items-center gap-3 py-2.5">
               <div class="flex items-center gap-3 border-r border-[#ece8df] pr-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-[#fff3ea] text-[#ff6b00]">
+                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#fff4ec_0%,#feecdf_100%)] text-[#ff6b00]">
                   <Settings2 class="h-6 w-6" />
                 </div>
                 <div>
@@ -319,7 +357,7 @@ const weeklyToneClass = (index: number) => {
 
               <div class="text-center">
                 <p class="text-[0.84rem] text-[#202020]">Horas</p>
-                <p class="mt-1 text-[1rem] font-bold text-[#ff6b00]">{{ formatHours(viewModel.operationalDelay.hours) }}</p>
+                <p class="mt-1 text-[1rem] font-bold text-[#ff6b00]">{{ formatDelayDuration(viewModel.operationalDelay.hours) }}</p>
               </div>
 
               <div>
@@ -328,13 +366,31 @@ const weeklyToneClass = (index: number) => {
                   <div
                     v-for="cause in operationalPairs"
                     :key="cause.cause"
-                    class="space-y-1.5"
+                    class="space-y-1.5 rounded-[12px] border border-[#ffc7a2] bg-[#fffaf5] px-2 py-2"
                   >
-                    <div class="rounded-[10px] border border-[#ffbf95] px-2 py-1.5 text-center text-[0.8rem] text-[#ff6b00]">
+                    <div class="rounded-[10px] px-2 py-1 text-center text-[0.82rem] font-semibold text-[#ff6b00]">
                       {{ cause.cause }}
                     </div>
-                    <div class="rounded-[10px] border border-[#ffbf95] px-2 py-1.5 text-center text-[0.8rem] text-[#ff6b00]">
-                      {{ cause.equipments[0] || '-----' }}
+                    <div class="flex flex-wrap items-center justify-center gap-1.5">
+                      <span
+                        v-for="equipment in cause.equipments.slice(0, 3)"
+                        :key="`${cause.cause}-${equipment}`"
+                        class="rounded-[8px] bg-[#f7e7dc] px-2 py-1 text-[0.78rem] font-medium text-[#3a3a3a]"
+                      >
+                        {{ equipment }}
+                      </span>
+                      <span
+                        v-if="cause.equipments.length === 0 || cause.equipments[0] === '-----'"
+                        class="rounded-[8px] border border-dashed border-[#d8d5cd] px-2 py-1 text-[0.78rem] text-gray-400"
+                      >
+                        -----
+                      </span>
+                      <span
+                        v-if="cause.equipments.length > 3"
+                        class="rounded-[8px] bg-[#f7e7dc] px-2 py-1 text-[0.78rem] font-medium text-[#3a3a3a]"
+                      >
+                        +{{ cause.equipments.length - 3 }}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -343,10 +399,10 @@ const weeklyToneClass = (index: number) => {
           </div>
         </article>
 
-        <aside class="flex flex-col items-center justify-center rounded-[16px] border border-[#ffd8d4] bg-[linear-gradient(180deg,#fff3f2_0%,#ffe5e1_100%)] px-3 py-4 text-center text-[#ff2d20] shadow-[0_10px_28px_rgba(255,45,32,0.08)]">
+        <aside class="flex flex-col items-center justify-center rounded-[16px] border border-[#ffd8d4] bg-[linear-gradient(180deg,#fff4f3_0%,#ffe9e6_100%)] px-3 py-4 text-center text-[#ff2d20] shadow-[0_10px_28px_rgba(255,45,32,0.08)]">
           <Hourglass class="h-9 w-9" />
           <p class="mt-4 text-[2.8rem] font-bold leading-none">{{ totalDelayLabel }}</p>
-          <p class="mt-1 text-[0.84rem] leading-5">h<br>retrasadas</p>
+          <p class="mt-1 text-[0.84rem] leading-5">tiempo<br>retrasado</p>
         </aside>
       </section>
     </div>

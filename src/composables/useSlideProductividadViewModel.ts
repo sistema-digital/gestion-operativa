@@ -105,14 +105,17 @@ const buildHeroMetrics = ({
   },
 ];
 
-const buildSummaryItems = (area: ProductividadSemanalArea): ProductividadSlideSummaryItem[] => [
+const buildSummaryItems = (
+  area: ProductividadSemanalArea,
+  totalDelayHours: number
+): ProductividadSlideSummaryItem[] => [
   {
     label: 'Horas trabajadas',
     value: `${toNumber(area.totales.horas_trabajadas).toFixed(0)} h`,
   },
   {
     label: 'Retrasos',
-    value: `${toNumber(area.totales.retraso).toFixed(0)} h`,
+    value: `${toNumber(totalDelayHours).toFixed(0)} h`,
   },
   {
     label: 'Equipos con actividad',
@@ -125,12 +128,14 @@ const buildSummaryItems = (area: ProductividadSemanalArea): ProductividadSlideSu
 ];
 
 const buildTopTeams = (area: ProductividadSemanalArea): ProductividadSlideTopTeam[] => (
-  area.top_equipos.map((team, index) => ({
-    rank: team.posicion || index + 1,
-    team: team.equipo,
-    hours: toNumber(team.horas_trabajadas),
-    description: equipmentDescription(team.descripcion),
-  }))
+  area.top_equipos
+    .map((team, index) => ({
+      rank: team.posicion || index + 1,
+      team: team.equipo,
+      hours: toNumber(team.horas_trabajadas),
+      description: equipmentDescription(team.descripcion),
+    }))
+    .filter((team) => team.hours > 0)
 );
 
 const buildPersonalCauses = (
@@ -153,9 +158,7 @@ const buildOperationalCauses = (
     cause: cause.causa,
     hours: toNumber(cause.horas_retraso),
     equipments: cause.equipos.map((equipment) => (
-      equipment.equipo && equipment.descripcion
-        ? `${equipment.equipo} - ${equipment.descripcion}`
-        : equipment.equipo || equipment.descripcion || 'Equipo sin detalle'
+      equipment.equipo || 'Equipo sin detalle'
     )),
   }))
 );
@@ -188,10 +191,20 @@ export const useSlideProductividadViewModel = ({
     'avance_real_vs_avance_aproximado_sin_retrasos',
     'general'
   );
+  const currentWeekProgressTable = findTable<AvanceRealVsAproximadoRow>(
+    tablesValue,
+    'avance_real_vs_avance_aproximado_sin_retrasos',
+    'semana_actual'
+  );
   const personalTable = findTable<AvancePerdidoPersonalRow>(
     tablesValue,
     'avance_perdido_por_falta_de_personal',
     'general'
+  );
+  const currentWeekPersonalTable = findTable<AvancePerdidoPersonalRow>(
+    tablesValue,
+    'avance_perdido_por_falta_de_personal',
+    'semana_actual'
   );
 
   const idealRow = findRowByArea(idealTable, areaValue.area);
@@ -199,12 +212,20 @@ export const useSlideProductividadViewModel = ({
   const equivalentRow = findRowByArea(equivalentTable, areaValue.area);
   const progressRow = findRowByArea(progressTable, areaValue.area);
   const personalRow = findRowByArea(personalTable, areaValue.area);
+  const currentWeekProgressRow = findRowByArea(currentWeekProgressTable, areaValue.area);
+  const currentWeekPersonalRow = findRowByArea(currentWeekPersonalTable, areaValue.area);
 
-  const operationalDelayHours = areaValue.causas_retraso.reduce((sum, item) => (
-    sum + toNumber(item.horas_retraso)
-  ), 0);
-  const personalDelayHours = toNumber(personalRow?.horas_perdidas_personal);
-  const totalDelayHours = personalDelayHours + operationalDelayHours;
+  const operationalDelayHours = currentWeekProgressRow
+    ? toNumber(currentWeekProgressRow.horas_perdidas_operativas)
+    : areaValue.causas_retraso.reduce((sum, item) => (
+      sum + toNumber(item.horas_retraso)
+    ), 0);
+  const personalDelayHours = currentWeekProgressRow
+    ? toNumber(currentWeekProgressRow.horas_perdidas_personal)
+    : toNumber(personalRow?.horas_perdidas_personal);
+  const totalDelayHours = currentWeekProgressRow
+    ? toNumber(currentWeekProgressRow.horas_perdidas_totales)
+    : personalDelayHours + operationalDelayHours;
 
   return {
     areaName: areaValue.area,
@@ -216,7 +237,7 @@ export const useSlideProductividadViewModel = ({
       progressRow,
       weeklyRow,
     }),
-    summaryItems: buildSummaryItems(areaValue),
+    summaryItems: buildSummaryItems(areaValue, totalDelayHours),
     topTeams: buildTopTeams(areaValue),
     weeklyProgress: {
       currentWeek: toNumber(weeklyRow?.avance_semana_actual),
@@ -225,9 +246,9 @@ export const useSlideProductividadViewModel = ({
     },
     personalDelay: {
       hours: personalDelayHours,
-      activePeople: personalRow?.personal_activo,
-      missingPeople: personalRow?.personal_faltante,
-      causes: buildPersonalCauses(personalRow),
+      activePeople: currentWeekPersonalRow?.personal_activo ?? personalRow?.personal_activo,
+      missingPeople: currentWeekPersonalRow?.personal_faltante ?? personalRow?.personal_faltante,
+      causes: buildPersonalCauses(currentWeekPersonalRow ?? personalRow),
     },
     operationalDelay: {
       hours: operationalDelayHours,

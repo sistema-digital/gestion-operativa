@@ -490,16 +490,16 @@ export const buildProductividadSemanalDashboardTables = (
 
   const weeklyConcluded = (() => {
     const previousWeek = currentWeekNumber - 1;
-    const denominator = filteredOrders.length;
     const areaKeys = Array.from(new Set(
       filteredOrders.map((order) => normalizeAreaKey(order.Área || '')).filter(Boolean)
     ));
 
-    const toPercent = (count: number) => (
+    const toPercent = (count: number, denominator: number) => (
       denominator > 0 ? Number(((count / denominator) * 100).toFixed(2)) : 0
     );
 
     const buildRow = (areaOrders: OrdenMantenimiento[], area: string): AvanceConcluidoSemanalRow => {
+      const denominator = areaOrders.length;
       const concludedOrders = areaOrders.filter(isConcludedOrder);
       const previousConcluded = concludedOrders.filter((order) => {
         const week = Number(getMaintenanceWeek(order));
@@ -511,9 +511,9 @@ export const buildProductividadSemanalDashboardTables = (
       return {
         area,
         area_corta: getWeeklyAreaShortName(area),
-        avance_semana_anterior: toPercent(previousConcluded),
-        avance_semana_actual: toPercent(thisWeekConcluded),
-        avance_acumulado: toPercent(currentConcluded),
+        avance_semana_anterior: toPercent(previousConcluded, denominator),
+        avance_semana_actual: toPercent(thisWeekConcluded, denominator),
+        avance_acumulado: toPercent(currentConcluded, denominator),
         concluidas_semana_anterior: previousConcluded,
         concluidas_semana_actual: thisWeekConcluded,
         concluidas_acumuladas: currentConcluded,
@@ -589,6 +589,13 @@ export const buildProductividadSemanalDashboardTables = (
     input.horasPerdidasPersonal,
     input.horasPerdidasResumen,
     allWeeksSet
+  );
+  const weeklySummaryCurrentWeekRows = buildWeeklyAreaSummaryRows(
+    filteredOrders,
+    input.horasTrabajo,
+    input.horasPerdidasPersonal,
+    input.horasPerdidasResumen,
+    new Set([currentWeek])
   );
   const referenceWeek = (() => {
     const currentWeekRows = buildWeeklyAreaSummaryRows(
@@ -710,6 +717,7 @@ export const buildProductividadSemanalDashboardTables = (
   });
 
   const weeklyGeneralTotal = buildWeeklySummaryTotal(weeklySummaryGeneralRows);
+  const weeklyCurrentWeekTotal = buildWeeklySummaryTotal(weeklySummaryCurrentWeekRows);
   const weeklyReferenceTotal = buildWeeklySummaryTotal(weeklySummaryReferenceRows);
 
   return [
@@ -757,6 +765,23 @@ export const buildProductividadSemanalDashboardTables = (
     },
     {
       tabla: 'avance_real_vs_avance_aproximado_sin_retrasos',
+      scope: 'semana_actual',
+      columnas: [
+        { key: 'area', label: 'Area' },
+        { key: 'personal_activo', label: 'Personal activo' },
+        { key: 'personal_faltante', label: 'Personal faltante' },
+        { key: 'avance_real', label: 'Avance real' },
+        { key: 'avance_perdido', label: 'Avance perdido' },
+        { key: 'avance_perdido_operativo', label: 'Pérdida operativa' },
+        { key: 'avance_perdido_personal', label: 'Falta de personal' },
+        { key: 'avance_sin_retrasos', label: 'Avance sin retrasos' },
+      ],
+      filas: weeklySummaryCurrentWeekRows.map(summaryToRealVsAproximadoRow),
+      total: weeklyCurrentWeekTotal ? summaryToRealVsAproximadoRow(weeklyCurrentWeekTotal) : null,
+      meta: metaGeneral,
+    },
+    {
+      tabla: 'avance_real_vs_avance_aproximado_sin_retrasos',
       scope: 'general',
       columnas: [
         { key: 'area', label: 'Area' },
@@ -787,6 +812,24 @@ export const buildProductividadSemanalDashboardTables = (
       ],
       filas: weeklySummaryReferenceRows.map(summaryToRealVsAproximadoRow),
       total: weeklyReferenceTotal ? summaryToRealVsAproximadoRow(weeklyReferenceTotal) : null,
+      meta: metaGeneral,
+    },
+    {
+      tabla: 'avance_perdido_por_falta_de_personal',
+      scope: 'semana_actual',
+      columnas: [
+        { key: 'area', label: 'Area' },
+        { key: 'personal_activo', label: 'Personal activo' },
+        { key: 'personal_faltante', label: 'Personal faltante' },
+        { key: 'avance_perdido_personal', label: 'Avance perdido personal' },
+        { key: 'horas_perdidas_personal', label: 'Horas perdidas personal' },
+        { key: 'horas_vacaciones', label: 'Vacaciones' },
+        { key: 'horas_incapacidad', label: 'Incapacidad' },
+        { key: 'horas_inactivo', label: 'Inactivo' },
+        { key: 'horas_plaza_no_cubierta', label: 'Plaza no cubierta' },
+      ],
+      filas: weeklySummaryCurrentWeekRows.map(summaryToPersonalRow),
+      total: weeklyCurrentWeekTotal ? summaryToPersonalRow(weeklyCurrentWeekTotal) : null,
       meta: metaGeneral,
     },
     {
