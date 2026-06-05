@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-vue-next';
-import ProductividadSemanalAreaSlide from '@/components/dashboard/ProductividadSemanalAreaSlideV2.vue';
+import { ChevronLeft, ChevronRight, Download, Loader2, RefreshCw } from 'lucide-vue-next';
+import ProductividadSemanalAreaSlideLegacy from '@/components/dashboard/ProductividadSemanalAreaSlide.vue';
+import ProductividadSemanalAreaSlideV2 from '@/components/dashboard/ProductividadSemanalAreaSlideV2.vue';
+import { useProductividadSlidePngExport } from '@/composables/useProductividadSlidePngExport';
 import { useHorasTrabajoStore } from '@/stores/horasTrabajoStore';
 import { useMaintenanceStore } from '@/stores/maintenanceStore';
 import { useHorasPerdidasAreaMotivoStore } from '@/stores/db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.store';
@@ -23,12 +25,31 @@ const horasPerdidasFechaDesde = '2026-04-06';
 
 const currentSlideIndex = ref(0);
 const hoverDirection = ref<'previous' | 'next' | null>(null);
+const slideCaptureRef = useTemplateRef<HTMLElement>('slideCaptureRef');
 
 const productivitySlides = computed(() => productividadSemanal.value?.areas ?? []);
 const activeSlide = computed(() => productivitySlides.value[currentSlideIndex.value] ?? null);
 const dashboardTables = computed(() => productividadSemanalDashboardTablas.value);
+const activeSlideComponent = computed(() => {
+  const areaName = activeSlide.value?.area?.trim().toLowerCase() || '';
+  return areaName === 'servicios generales'
+    ? ProductividadSemanalAreaSlideLegacy
+    : ProductividadSemanalAreaSlideV2;
+});
 const canGoPrevious = computed(() => currentSlideIndex.value > 0);
 const canGoNext = computed(() => currentSlideIndex.value < productivitySlides.value.length - 1);
+const weekLabel = computed(() => productividadSemanal.value?.semana || currentWeek);
+
+const {
+  exportError,
+  exportSlidesAsPng,
+  isExporting,
+} = useProductividadSlidePngExport({
+  currentSlideIndex,
+  slideElement: slideCaptureRef,
+  slides: productivitySlides,
+  weekLabel,
+});
 
 const fetchProductividad = () => {
   return horasTrabajoStore.fetchProductividadSemanalPorEquipo(currentWeek, 3);
@@ -116,8 +137,9 @@ onMounted(() => {
       </button>
     </div>
 
-    <div v-else-if="activeSlide" class="weekly-productivity-frame">
-      <ProductividadSemanalAreaSlide
+    <div v-else-if="activeSlide" ref="slideCaptureRef" class="weekly-productivity-frame">
+      <component
+        :is="activeSlideComponent"
         :key="activeSlide.area"
         :area="activeSlide"
         :semana="productividadSemanal?.semana || currentWeek"
@@ -132,6 +154,29 @@ onMounted(() => {
     >
       <p class="max-w-md text-sm font-semibold text-gray-500">
         No hay datos de productividad semanal para la semana {{ currentWeek }}.
+      </p>
+    </div>
+
+    <div
+      v-if="activeSlide"
+      class="absolute right-4 top-4 z-20 flex flex-col items-end gap-2"
+    >
+      <button
+        type="button"
+        class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-4 py-2 text-sm font-bold text-main shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+        :disabled="isExporting"
+        @click.stop="exportSlidesAsPng"
+      >
+        <Loader2 v-if="isExporting" class="h-4 w-4 animate-spin" />
+        <Download v-else class="h-4 w-4" />
+        {{ isExporting ? 'Generando PNG...' : 'Descargar PNGs' }}
+      </button>
+
+      <p
+        v-if="exportError"
+        class="max-w-xs rounded-lg bg-white/95 px-3 py-2 text-right text-xs font-semibold text-danger shadow-sm"
+      >
+        {{ exportError }}
       </p>
     </div>
 
@@ -169,8 +214,9 @@ onMounted(() => {
 .weekly-productivity-frame {
   height: 100%;
   margin: 0 auto;
-  overflow: hidden;
-  padding: 1rem 0;
-  width: min(100%, 1320px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.35rem 0;
+  width: 100%;
 }
 </style>
