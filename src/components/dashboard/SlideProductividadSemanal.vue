@@ -1,27 +1,79 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-vue-next';
-import ProductividadSemanalAreaSlide from '@/components/dashboard/ProductividadSemanalAreaSlide.vue';
+import { Copy, Download, Loader2, RefreshCw } from 'lucide-vue-next';
+import ProductividadSemanalAreaSlideLegacy from '@/components/dashboard/ProductividadSemanalAreaSlide.vue';
+import ProductividadSemanalAreaSlideV2 from '@/components/dashboard/ProductividadSemanalAreaSlideV2.vue';
+import { useProductividadSlidePngExport } from '@/composables/useProductividadSlidePngExport';
 import { useHorasTrabajoStore } from '@/stores/horasTrabajoStore';
+import { useMaintenanceStore } from '@/stores/maintenanceStore';
+import { useHorasPerdidasAreaMotivoStore } from '@/stores/db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.store';
 import { getWeekNumber } from '@/utils/dateUtils';
 
 const horasTrabajoStore = useHorasTrabajoStore();
+const maintenanceStore = useMaintenanceStore();
+const horasPerdidasAreaMotivoStore = useHorasPerdidasAreaMotivoStore();
 const {
   productividadSemanal,
   productividadSemanalLoading,
   productividadSemanalError,
+  productividadSemanalDashboardTablas,
 } = storeToRefs(horasTrabajoStore);
 
 const currentWeek = String(getWeekNumber(new Date()));
+const horasPerdidasFechaDesde = '2026-04-06';
+const areaSortOrder = [
+  'cosecha mecanizada',
+  'cosecha agricola',
+  'equipo pesado',
+  'engrase',
+  'servicios generales',
+];
 
 const currentSlideIndex = ref(0);
-const hoverDirection = ref<'previous' | 'next' | null>(null);
+const slideCaptureRef = useTemplateRef<HTMLElement>('slideCaptureRef');
 
-const productivitySlides = computed(() => productividadSemanal.value?.areas ?? []);
+const productivitySlides = computed(() => {
+  const areas = [...(productividadSemanal.value?.areas ?? [])];
+
+  return areas.sort((left, right) => {
+    const leftIndex = areaSortOrder.indexOf(left.area.trim().toLowerCase());
+    const rightIndex = areaSortOrder.indexOf(right.area.trim().toLowerCase());
+
+    const normalizedLeftIndex = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex;
+    const normalizedRightIndex = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex;
+
+    if (normalizedLeftIndex !== normalizedRightIndex) {
+      return normalizedLeftIndex - normalizedRightIndex;
+    }
+
+    return left.area.localeCompare(right.area);
+  });
+});
 const activeSlide = computed(() => productivitySlides.value[currentSlideIndex.value] ?? null);
+const dashboardTables = computed(() => productividadSemanalDashboardTablas.value);
+const activeSlideComponent = computed(() => {
+  const areaName = activeSlide.value?.area?.trim().toLowerCase() || '';
+  return areaName === 'servicios generales'
+    ? ProductividadSemanalAreaSlideLegacy
+    : ProductividadSemanalAreaSlideV2;
+});
 const canGoPrevious = computed(() => currentSlideIndex.value > 0);
 const canGoNext = computed(() => currentSlideIndex.value < productivitySlides.value.length - 1);
+const weekLabel = computed(() => productividadSemanal.value?.semana || currentWeek);
+
+const {
+  copyActiveSlideToClipboard,
+  exportError,
+  exportActiveSlideAsPng,
+  isCopying,
+  isExporting,
+} = useProductividadSlidePngExport({
+  currentSlideIndex,
+  slideElement: slideCaptureRef,
+  slides: productivitySlides,
+  weekLabel,
+});
 
 const fetchProductividad = () => {
   return horasTrabajoStore.fetchProductividadSemanalPorEquipo(currentWeek, 3);
@@ -31,31 +83,62 @@ const loadProductividad = () => {
   void fetchProductividad().catch(() => undefined);
 };
 
+const loadDashboardTables = () => {
+  void Promise.all([
+    maintenanceStore.fetchAllOrders(),
+    horasTrabajoStore.fetchData(),
+    horasPerdidasAreaMotivoStore.cargarResumen(horasPerdidasFechaDesde),
+  ]).catch(() => undefined);
+};
+
 const goPrevious = () => {
   if (!canGoPrevious.value) return;
   currentSlideIndex.value -= 1;
 };
 
 const goNext = () => {
-  if (!canGoNext.value) return;
-  currentSlideIndex.value += 1;
-};
+  if (productivitySlides.value.length === 0) return;
 
-const updateHoverDirection = (event: MouseEvent) => {
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-  const pointerX = event.clientX - rect.left;
-  hoverDirection.value = pointerX < rect.width / 2 ? 'previous' : 'next';
-};
-
-const handleNavigation = () => {
-  if (productivitySlides.value.length <= 1) return;
-
-  if (hoverDirection.value === 'previous') {
-    goPrevious();
+  if (!canGoNext.value) {
+    currentSlideIndex.value = 0;
     return;
   }
 
-  goNext();
+  currentSlideIndex.value += 1;
+};
+
+const isEditableTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+
+  const tagName = target.tagName.toLowerCase();
+  return target.isContentEditable
+    || tagName === 'input'
+    || tagName === 'textarea'
+    || tagName === 'select';
+};
+
+const handleKeyNavigation = (event: KeyboardEvent) => {
+  if (isEditableTarget(event.target)) return;
+  if (productivitySlides.value.length <= 1) return;
+
+  const pressedKey = event.key.toLowerCase();
+
+  if (pressedKey === 's') {
+    event.preventDefault();
+    goNext();
+    return;
+  }
+
+  if (pressedKey === 'a') {
+    event.preventDefault();
+
+    if (!canGoPrevious.value) {
+      currentSlideIndex.value = Math.max(productivitySlides.value.length - 1, 0);
+      return;
+    }
+
+    goPrevious();
+  }
 };
 
 watch(productivitySlides, (slides) => {
@@ -66,15 +149,18 @@ watch(productivitySlides, (slides) => {
 
 onMounted(() => {
   loadProductividad();
+  loadDashboardTables();
+  window.addEventListener('keydown', handleKeyNavigation);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyNavigation);
 });
 </script>
 
 <template>
   <section
     class="weekly-productivity-section relative overflow-hidden bg-white"
-    @mousemove="updateHoverDirection"
-    @mouseleave="hoverDirection = null"
-    @click="handleNavigation"
   >
     <div
       v-if="productividadSemanalLoading"
@@ -100,11 +186,13 @@ onMounted(() => {
       </button>
     </div>
 
-    <div v-else-if="activeSlide" class="weekly-productivity-frame">
-      <ProductividadSemanalAreaSlide
+    <div v-else-if="activeSlide" ref="slideCaptureRef" class="weekly-productivity-frame">
+      <component
+        :is="activeSlideComponent"
         :key="activeSlide.area"
         :area="activeSlide"
         :semana="productividadSemanal?.semana || currentWeek"
+        :dashboard-tables="dashboardTables"
         aria-label="Productividad semanal"
       />
     </div>
@@ -118,29 +206,39 @@ onMounted(() => {
       </p>
     </div>
 
-    <button
-      v-if="hoverDirection === 'previous'"
-      type="button"
-      class="absolute left-4 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-400 shadow-sm transition"
-      :class="canGoPrevious ? 'hover:text-main' : 'cursor-not-allowed opacity-40'"
-      :disabled="!canGoPrevious"
-      aria-label="Diapositiva anterior"
-      @click.stop="goPrevious"
+    <div
+      v-if="activeSlide"
+      class="absolute right-4 top-4 z-20 flex flex-col items-end gap-2"
     >
-      <ChevronLeft class="h-6 w-6" />
-    </button>
+      <button
+        type="button"
+        class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-4 py-2 text-sm font-bold text-main shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+        :disabled="isCopying || isExporting"
+        @click.stop="copyActiveSlideToClipboard"
+      >
+        <Loader2 v-if="isCopying" class="h-4 w-4 animate-spin" />
+        <Copy v-else class="h-4 w-4" />
+        {{ isCopying ? 'Copiando PNG...' : '' }}
+      </button>
 
-    <button
-      v-if="hoverDirection === 'next'"
-      type="button"
-      class="absolute right-4 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-400 shadow-sm transition"
-      :class="canGoNext ? 'hover:text-main' : 'cursor-not-allowed opacity-40'"
-      :disabled="!canGoNext"
-      aria-label="Diapositiva siguiente"
-      @click.stop="goNext"
-    >
-      <ChevronRight class="h-6 w-6" />
-    </button>
+      <button
+        type="button"
+        class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-4 py-2 text-sm font-bold text-main shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+        :disabled="isExporting || isCopying"
+        @click.stop="exportActiveSlideAsPng"
+      >
+        <Loader2 v-if="isExporting" class="h-4 w-4 animate-spin" />
+        <Download v-else class="h-4 w-4" />
+        {{ isExporting ? 'Generando PNG...' : '' }}
+      </button>
+
+      <p
+        v-if="exportError"
+        class="max-w-xs rounded-lg bg-white/95 px-3 py-2 text-right text-xs font-semibold text-danger shadow-sm"
+      >
+        {{ exportError }}
+      </p>
+    </div>
   </section>
 </template>
 
@@ -152,7 +250,9 @@ onMounted(() => {
 .weekly-productivity-frame {
   height: 100%;
   margin: 0 auto;
-  overflow: hidden;
-  width: 90%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.35rem 0;
+  width: 100%;
 }
 </style>
