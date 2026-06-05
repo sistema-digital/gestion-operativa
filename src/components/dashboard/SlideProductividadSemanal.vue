@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { ChevronLeft, ChevronRight, Download, Loader2, RefreshCw } from 'lucide-vue-next';
+import { Copy, Download, Loader2, RefreshCw } from 'lucide-vue-next';
 import ProductividadSemanalAreaSlideLegacy from '@/components/dashboard/ProductividadSemanalAreaSlide.vue';
 import ProductividadSemanalAreaSlideV2 from '@/components/dashboard/ProductividadSemanalAreaSlideV2.vue';
 import { useProductividadSlidePngExport } from '@/composables/useProductividadSlidePngExport';
@@ -24,7 +24,6 @@ const currentWeek = String(getWeekNumber(new Date()));
 const horasPerdidasFechaDesde = '2026-04-06';
 
 const currentSlideIndex = ref(0);
-const hoverDirection = ref<'previous' | 'next' | null>(null);
 const slideCaptureRef = useTemplateRef<HTMLElement>('slideCaptureRef');
 
 const productivitySlides = computed(() => productividadSemanal.value?.areas ?? []);
@@ -41,8 +40,10 @@ const canGoNext = computed(() => currentSlideIndex.value < productivitySlides.va
 const weekLabel = computed(() => productividadSemanal.value?.semana || currentWeek);
 
 const {
+  copyActiveSlideToClipboard,
   exportError,
   exportSlidesAsPng,
+  isCopying,
   isExporting,
 } = useProductividadSlidePngExport({
   currentSlideIndex,
@@ -73,25 +74,48 @@ const goPrevious = () => {
 };
 
 const goNext = () => {
-  if (!canGoNext.value) return;
-  currentSlideIndex.value += 1;
-};
+  if (productivitySlides.value.length === 0) return;
 
-const updateHoverDirection = (event: MouseEvent) => {
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-  const pointerX = event.clientX - rect.left;
-  hoverDirection.value = pointerX < rect.width / 2 ? 'previous' : 'next';
-};
-
-const handleNavigation = () => {
-  if (productivitySlides.value.length <= 1) return;
-
-  if (hoverDirection.value === 'previous') {
-    goPrevious();
+  if (!canGoNext.value) {
+    currentSlideIndex.value = 0;
     return;
   }
 
-  goNext();
+  currentSlideIndex.value += 1;
+};
+
+const isEditableTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+
+  const tagName = target.tagName.toLowerCase();
+  return target.isContentEditable
+    || tagName === 'input'
+    || tagName === 'textarea'
+    || tagName === 'select';
+};
+
+const handleKeyNavigation = (event: KeyboardEvent) => {
+  if (isEditableTarget(event.target)) return;
+  if (productivitySlides.value.length <= 1) return;
+
+  const pressedKey = event.key.toLowerCase();
+
+  if (pressedKey === 's') {
+    event.preventDefault();
+    goNext();
+    return;
+  }
+
+  if (pressedKey === 'a') {
+    event.preventDefault();
+
+    if (!canGoPrevious.value) {
+      currentSlideIndex.value = Math.max(productivitySlides.value.length - 1, 0);
+      return;
+    }
+
+    goPrevious();
+  }
 };
 
 watch(productivitySlides, (slides) => {
@@ -103,15 +127,17 @@ watch(productivitySlides, (slides) => {
 onMounted(() => {
   loadProductividad();
   loadDashboardTables();
+  window.addEventListener('keydown', handleKeyNavigation);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyNavigation);
 });
 </script>
 
 <template>
   <section
     class="weekly-productivity-section relative overflow-hidden bg-white"
-    @mousemove="updateHoverDirection"
-    @mouseleave="hoverDirection = null"
-    @click="handleNavigation"
   >
     <div
       v-if="productividadSemanalLoading"
@@ -164,12 +190,23 @@ onMounted(() => {
       <button
         type="button"
         class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-4 py-2 text-sm font-bold text-main shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-        :disabled="isExporting"
+        :disabled="isCopying || isExporting"
+        @click.stop="copyActiveSlideToClipboard"
+      >
+        <Loader2 v-if="isCopying" class="h-4 w-4 animate-spin" />
+        <Copy v-else class="h-4 w-4" />
+        {{ isCopying ? 'Copiando PNG...' : '' }}
+      </button>
+
+      <button
+        type="button"
+        class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-4 py-2 text-sm font-bold text-main shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+        :disabled="isExporting || isCopying"
         @click.stop="exportSlidesAsPng"
       >
         <Loader2 v-if="isExporting" class="h-4 w-4 animate-spin" />
         <Download v-else class="h-4 w-4" />
-        {{ isExporting ? 'Generando PNG...' : 'Descargar PNGs' }}
+        {{ isExporting ? 'Generando PNG...' : '' }}
       </button>
 
       <p
@@ -179,30 +216,6 @@ onMounted(() => {
         {{ exportError }}
       </p>
     </div>
-
-    <button
-      v-if="hoverDirection === 'previous'"
-      type="button"
-      class="absolute left-4 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-400 shadow-sm transition"
-      :class="canGoPrevious ? 'hover:text-main' : 'cursor-not-allowed opacity-40'"
-      :disabled="!canGoPrevious"
-      aria-label="Diapositiva anterior"
-      @click.stop="goPrevious"
-    >
-      <ChevronLeft class="h-6 w-6" />
-    </button>
-
-    <button
-      v-if="hoverDirection === 'next'"
-      type="button"
-      class="absolute right-4 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-400 shadow-sm transition"
-      :class="canGoNext ? 'hover:text-main' : 'cursor-not-allowed opacity-40'"
-      :disabled="!canGoNext"
-      aria-label="Diapositiva siguiente"
-      @click.stop="goNext"
-    >
-      <ChevronRight class="h-6 w-6" />
-    </button>
   </section>
 </template>
 

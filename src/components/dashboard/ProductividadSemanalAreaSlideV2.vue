@@ -100,7 +100,7 @@ const personalCauseRows = computed(() => {
   const causes = personalCauses.value.slice(0, 4);
 
   if (causes.length <= 1) return [causes];
-  if (causes.length === 2) return [[causes[0]], [causes[1]]];
+  if (causes.length === 2) return [causes];
   if (causes.length === 3) return [[causes[0]], [causes[1], causes[2]]];
   return [causes.slice(0, 2), causes.slice(2, 4)];
 });
@@ -291,7 +291,7 @@ const weeklyToneClass = (index: number) => {
           <h2 class="text-[1rem] font-semibold text-[#1d1d1d]">Retrasos</h2>
 
           <div class=" divide-y divide-[#ece8df]">
-            <div class="grid grid-cols-[12rem_6rem_8rem_8rem_1fr] items-center gap-3 ">
+            <div class=" pb-1 grid grid-cols-[12rem_6rem_8rem_8rem_1fr] items-center gap-3 ">
               <div class="flex items-center gap-3 border-r border-[#ece8df] pr-3">
                 <div class="flex h-12 w-12 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#fff2f1_0%,#fde9e7_100%)] text-[#ff453d]">
                   <UsersRound class="h-6 w-6" />
@@ -316,11 +316,11 @@ const weeklyToneClass = (index: number) => {
                 <p class="mt-1 text-[1rem] font-bold text-main">{{ viewModel.personalDelay.activePeople ?? 0 }}</p>
               </div>
 
-              <div>
-                <p class="mb-1 text-center text-[0.84rem] text-[#202020]">Causas principales</p>
+              <div class="text-center">
+                <p class="mb-1 text-[0.84rem] text-[#202020]">Causas principales</p>
                 <div
                   v-if="personalCauseRows.some((row) => row.length > 0)"
-                  class="flex flex-col items-center gap-2"
+                  class="flex flex-col gap-2"
                 >
                   <div
                     v-for="(row, rowIndex) in personalCauseRows"
