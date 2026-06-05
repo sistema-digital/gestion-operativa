@@ -1,5 +1,6 @@
 import type { MaintenanceAreaTotalsMap, OrdenMantenimiento } from './maintenanceStore';
 import type { HoraTrabajoData, HorasPerdidasPersonalRow } from './horasTrabajo.types';
+import type { HorasPerdidasPersonalResumenItem } from './db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.types';
 
 export type ProductividadDashboardTabla =
   | 'avance_ideal_vs_real'
@@ -17,6 +18,7 @@ export interface ProductividadDashboardInput {
   orders: OrdenMantenimiento[];
   horasTrabajo: HoraTrabajoData[];
   horasPerdidasPersonal: HorasPerdidasPersonalRow[];
+  horasPerdidasResumen: HorasPerdidasPersonalResumenItem | null;
   zafraOrderTotalsByArea: MaintenanceAreaTotalsMap;
   zafraOrderTotalsGeneral: number;
   currentDate: Date;
@@ -65,6 +67,8 @@ export interface AvanceRealVsAproximadoRow {
   area_corta: string;
   denominador: number;
   concluidas: number;
+  personal_activo: number;
+  personal_faltante: number;
   avance_real: number;
   avance_perdido: number;
   avance_perdido_operativo: number;
@@ -79,6 +83,8 @@ export interface AvancePerdidoPersonalRow {
   area: string;
   area_corta: string;
   denominador: number;
+  personal_activo: number;
+  personal_faltante: number;
   avance_perdido_personal: number;
   horas_perdidas_personal: number;
   horas_vacaciones: number;

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { getLocalDateInputValue } from './horasTrabajo.helpers';
 import { horasTrabajoService } from './horasTrabajo.service';
 import { useMaintenanceStore } from './maintenanceStore';
+import { useHorasPerdidasAreaMotivoStore } from './db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.store';
 import { buildProductividadSemanalDashboardTables } from './productividadSemanalDashboard';
 import type {
   HoraTrabajoData,
@@ -38,6 +39,7 @@ const readNumber = (row: DashboardRawRow, key: string): number => {
 
 export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
   const maintenanceStore = useMaintenanceStore();
+  const horasPerdidasAreaMotivoStore = useHorasPerdidasAreaMotivoStore();
 
   const data = ref<HoraTrabajoData[]>([]);
   const horasPerdidasPersonal = ref<HorasPerdidasPersonalRow[]>([]);
@@ -57,6 +59,7 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
       orders: maintenanceStore.allOrders,
       horasTrabajo: data.value,
       horasPerdidasPersonal: horasPerdidasPersonal.value,
+      horasPerdidasResumen: horasPerdidasAreaMotivoStore.resumen,
       zafraOrderTotalsByArea: maintenanceStore.zafraOrderTotalsByArea,
       zafraOrderTotalsGeneral: maintenanceStore.zafraOrderTotalsGeneral,
       currentDate: new Date(),

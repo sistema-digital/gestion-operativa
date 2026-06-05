@@ -83,7 +83,7 @@ export interface WorkOrderTodayDbRow {
 
 export interface ProductividadSemanalSupervisor {
   area: string;
-  email: string;
+  email: string | null;
   nombre: string;
   area_autenticada?: string;
 }
@@ -97,16 +97,34 @@ export interface ProductividadSemanalTotales {
 }
 
 export interface ProductividadSemanalEquipo {
+  posicion: number;
+  equipo: string;
+  horas_asignadas: number;
+  horas_trabajadas: number;
+  retraso: number;
+  descripcion: string;
+}
+
+export interface ProductividadSemanalEquipoCausaRetraso {
+  equipo: string;
+  horas_retraso: number;
+  descripcion: string;
+}
+
+export interface ProductividadSemanalCausaRetraso {
+  causa: string;
+  horas_retraso: number;
+  equipos: ProductividadSemanalEquipoCausaRetraso[];
+}
+
+export interface ProductividadSemanalEquipoResto {
   equipo: string;
   descripcion: string;
   horas_trabajadas: number;
-  horas_asignadas: number;
-  retraso: number;
-  posicion?: number;
 }
 
 export interface ProductividadSemanalResto {
-  equipos: ProductividadSemanalEquipo[];
+  equipos: ProductividadSemanalEquipoResto[];
   parrafo: string;
   retraso: number;
   horas_asignadas: number;
@@ -118,6 +136,7 @@ export interface ProductividadSemanalArea {
   area: string;
   supervisor: ProductividadSemanalSupervisor;
   totales: ProductividadSemanalTotales;
+  causas_retraso: ProductividadSemanalCausaRetraso[];
   top_equipos: ProductividadSemanalEquipo[];
   resto: ProductividadSemanalResto | null;
 }

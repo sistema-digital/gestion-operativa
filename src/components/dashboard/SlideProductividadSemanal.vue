@@ -5,10 +5,12 @@ import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-vue-next';
 import ProductividadSemanalAreaSlide from '@/components/dashboard/ProductividadSemanalAreaSlide.vue';
 import { useHorasTrabajoStore } from '@/stores/horasTrabajoStore';
 import { useMaintenanceStore } from '@/stores/maintenanceStore';
+import { useHorasPerdidasAreaMotivoStore } from '@/stores/db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.store';
 import { getWeekNumber } from '@/utils/dateUtils';
 
 const horasTrabajoStore = useHorasTrabajoStore();
 const maintenanceStore = useMaintenanceStore();
+const horasPerdidasAreaMotivoStore = useHorasPerdidasAreaMotivoStore();
 const {
   productividadSemanal,
   productividadSemanalLoading,
@@ -17,6 +19,7 @@ const {
 } = storeToRefs(horasTrabajoStore);
 
 const currentWeek = String(getWeekNumber(new Date()));
+const horasPerdidasFechaDesde = '2026-04-06';
 
 const currentSlideIndex = ref(0);
 const hoverDirection = ref<'previous' | 'next' | null>(null);
@@ -39,6 +42,7 @@ const loadDashboardTables = () => {
   void Promise.all([
     maintenanceStore.fetchAllOrders(),
     horasTrabajoStore.fetchData(),
+    horasPerdidasAreaMotivoStore.cargarResumen(horasPerdidasFechaDesde),
   ]).catch(() => undefined);
 };
 

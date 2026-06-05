@@ -11,6 +11,7 @@ import type {
 } from './productividadSemanalDashboard.types';
 import type { OrdenMantenimiento } from './maintenanceStore';
 import type { HorasPerdidasPersonalRow } from './horasTrabajo.types';
+import type { HorasPerdidasPorAreaItem } from './db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.types';
 
 const DEFAULT_ETAPA = 'ZAFRA';
 const PROGRESS_2025_START_WEEK = 15;
@@ -97,6 +98,8 @@ interface WeeklyAreaSummaryInternalRow {
   area_corta: string;
   denominador: number;
   concluidas: number;
+  personal_activo: number;
+  personal_faltante: number;
   avance_real: number;
   avance_perdido: number;
   avance_perdido_operativo: number;
@@ -329,8 +332,13 @@ const buildWeeklyAreaSummaryRows = (
   orderList: OrdenMantenimiento[],
   horasTrabajo: ProductividadDashboardInput['horasTrabajo'],
   horasPerdidasPersonal: ProductividadDashboardInput['horasPerdidasPersonal'],
+  horasPerdidasResumen: ProductividadDashboardInput['horasPerdidasResumen'],
   weeks: Set<string>
 ): WeeklyAreaSummaryInternalRow[] => {
+  const resumenPorArea = new Map<string, HorasPerdidasPorAreaItem>(
+    (horasPerdidasResumen?.por_area || []).map((row) => [normalizeAreaKey(row.area), row])
+  );
+
   const areaKeys = Array.from(new Set(
     orderList
       .map((order) => normalizeAreaKey(order.Área || ''))
@@ -374,6 +382,7 @@ const buildWeeklyAreaSummaryRows = (
     );
 
     const denominator = areaOrders.length;
+    const resumenArea = resumenPorArea.get(areaKey);
     const realProgress = denominator > 0 ? Number(((concluded / denominator) * 100).toFixed(2)) : 0;
     const operationalLostProgress = denominator > 0
       ? Number(((operationalLostEquivalent / denominator) * 100).toFixed(2))
@@ -389,6 +398,8 @@ const buildWeeklyAreaSummaryRows = (
       area_corta: getWeeklyAreaShortName(areaName),
       denominador: denominator,
       concluidas: concluded,
+      personal_activo: Number(Number(resumenArea?.personal_activo_actual || 0).toFixed(2)),
+      personal_faltante: Number(Number(resumenArea?.mecanicos_necesarios_redondeado || 0).toFixed(2)),
       avance_real: realProgress,
       avance_perdido: lostProgress,
       avance_perdido_operativo: operationalLostProgress,
@@ -576,15 +587,17 @@ export const buildProductividadSemanalDashboardTables = (
     filteredOrders,
     input.horasTrabajo,
     input.horasPerdidasPersonal,
+    input.horasPerdidasResumen,
     allWeeksSet
   );
   const referenceWeek = (() => {
     const currentWeekRows = buildWeeklyAreaSummaryRows(
       filteredOrders,
-      input.horasTrabajo,
-      input.horasPerdidasPersonal,
-      new Set([currentWeek])
-    );
+        input.horasTrabajo,
+        input.horasPerdidasPersonal,
+        input.horasPerdidasResumen,
+        new Set([currentWeek])
+      );
 
     if (currentWeekRows.some(hasWeeklyAreaProgress)) {
       return currentWeek;
@@ -596,6 +609,7 @@ export const buildProductividadSemanalDashboardTables = (
         filteredOrders,
         input.horasTrabajo,
         input.horasPerdidasPersonal,
+        input.horasPerdidasResumen,
         new Set([week])
       ).some(hasWeeklyAreaProgress)
     ));
@@ -607,6 +621,7 @@ export const buildProductividadSemanalDashboardTables = (
     filteredOrders,
     input.horasTrabajo,
     input.horasPerdidasPersonal,
+    input.horasPerdidasResumen,
     new Set([referenceWeek])
   );
 
@@ -620,6 +635,8 @@ export const buildProductividadSemanalDashboardTables = (
 
     const denominador = rows.reduce((sum, row) => sum + row.denominador, 0);
     const concluidas = rows.reduce((sum, row) => sum + row.concluidas, 0);
+    const personalActivo = rows.reduce((sum, row) => sum + row.personal_activo, 0);
+    const personalFaltante = rows.reduce((sum, row) => sum + row.personal_faltante, 0);
     const horasOperativas = rows.reduce((sum, row) => sum + row.horas_perdidas_operativas, 0);
     const horasPersonal = rows.reduce((sum, row) => sum + row.horas_perdidas_personal, 0);
     const equivalentOperativas = rows.reduce((sum, row) => {
@@ -640,6 +657,8 @@ export const buildProductividadSemanalDashboardTables = (
       area_corta: 'TOTAL',
       denominador,
       concluidas,
+      personal_activo: Number(personalActivo.toFixed(2)),
+      personal_faltante: Number(personalFaltante.toFixed(2)),
       avance_real: avanceReal,
       avance_perdido: avancePerdido,
       avance_perdido_operativo: avanceOperativo,
@@ -662,6 +681,8 @@ export const buildProductividadSemanalDashboardTables = (
     area_corta: row.area_corta,
     denominador: row.denominador,
     concluidas: row.concluidas,
+    personal_activo: row.personal_activo,
+    personal_faltante: row.personal_faltante,
     avance_real: row.avance_real,
     avance_perdido: row.avance_perdido,
     avance_perdido_operativo: row.avance_perdido_operativo,
@@ -678,6 +699,8 @@ export const buildProductividadSemanalDashboardTables = (
     area: row.area,
     area_corta: row.area_corta,
     denominador: row.denominador,
+    personal_activo: row.personal_activo,
+    personal_faltante: row.personal_faltante,
     avance_perdido_personal: row.avance_perdido_personal,
     horas_perdidas_personal: row.horas_perdidas_personal,
     horas_vacaciones: row.horas_vacaciones,
@@ -737,6 +760,8 @@ export const buildProductividadSemanalDashboardTables = (
       scope: 'general',
       columnas: [
         { key: 'area', label: 'Area' },
+        { key: 'personal_activo', label: 'Personal activo' },
+        { key: 'personal_faltante', label: 'Personal faltante' },
         { key: 'avance_real', label: 'Avance real' },
         { key: 'avance_perdido', label: 'Avance perdido' },
         { key: 'avance_perdido_operativo', label: 'Pérdida operativa' },
@@ -752,6 +777,8 @@ export const buildProductividadSemanalDashboardTables = (
       scope: 'semana_referencia',
       columnas: [
         { key: 'area', label: 'Area' },
+        { key: 'personal_activo', label: 'Personal activo' },
+        { key: 'personal_faltante', label: 'Personal faltante' },
         { key: 'avance_real', label: 'Avance real' },
         { key: 'avance_perdido', label: 'Avance perdido' },
         { key: 'avance_perdido_operativo', label: 'Pérdida operativa' },
@@ -767,6 +794,8 @@ export const buildProductividadSemanalDashboardTables = (
       scope: 'general',
       columnas: [
         { key: 'area', label: 'Area' },
+        { key: 'personal_activo', label: 'Personal activo' },
+        { key: 'personal_faltante', label: 'Personal faltante' },
         { key: 'avance_perdido_personal', label: 'Avance perdido personal' },
         { key: 'horas_perdidas_personal', label: 'Horas perdidas personal' },
         { key: 'horas_vacaciones', label: 'Vacaciones' },
@@ -783,6 +812,8 @@ export const buildProductividadSemanalDashboardTables = (
       scope: 'semana_referencia',
       columnas: [
         { key: 'area', label: 'Area' },
+        { key: 'personal_activo', label: 'Personal activo' },
+        { key: 'personal_faltante', label: 'Personal faltante' },
         { key: 'avance_perdido_personal', label: 'Avance perdido personal' },
         { key: 'horas_perdidas_personal', label: 'Horas perdidas personal' },
         { key: 'horas_vacaciones', label: 'Vacaciones' },
