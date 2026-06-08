@@ -8,6 +8,7 @@ import { useProductividadSlidePngExport } from '@/composables/useProductividadSl
 import { useHorasTrabajoStore } from '@/stores/horasTrabajoStore';
 import { useMaintenanceStore } from '@/stores/maintenanceStore';
 import { useHorasPerdidasAreaMotivoStore } from '@/stores/db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.store';
+import type { ProductividadSemanalArea } from '@/stores/horasTrabajo.types';
 import { getWeekNumber } from '@/utils/dateUtils';
 
 const horasTrabajoStore = useHorasTrabajoStore();
@@ -30,30 +31,54 @@ const areaSortOrder = [
   'servicios generales',
 ];
 
+const normalizeAreaKey = (areaName: string) => String(areaName || '')
+  .trim()
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '');
+
+const buildEmptyAreaSlide = (areaName: string): ProductividadSemanalArea => ({
+  area: areaName,
+  supervisor: {
+    area: areaName,
+    email: null,
+    nombre: 'Sin supervisor',
+  },
+  totales: {
+    retraso: 0,
+    horas_asignadas: 0,
+    horas_trabajadas: 0,
+    equipos_atendidos: 0,
+    equipo_con_mas_horas: null,
+  },
+  causas_retraso: [],
+  top_equipos: [],
+  resto: null,
+});
+
 const currentSlideIndex = ref(0);
 const slideCaptureRef = useTemplateRef<HTMLElement>('slideCaptureRef');
 
 const productivitySlides = computed(() => {
   const areas = [...(productividadSemanal.value?.areas ?? [])];
+  const areaMap = new Map(
+    areas.map((area) => [normalizeAreaKey(area.area), area] as const)
+  );
+  const orderedSlides = areaSortOrder.map((areaName) => (
+    areaMap.get(normalizeAreaKey(areaName)) ?? buildEmptyAreaSlide(areaName)
+  ));
+  const additionalSlides = areas.filter((area) => (
+    !areaSortOrder.some((sortedArea) => (
+      normalizeAreaKey(sortedArea) === normalizeAreaKey(area.area)
+    ))
+  ));
 
-  return areas.sort((left, right) => {
-    const leftIndex = areaSortOrder.indexOf(left.area.trim().toLowerCase());
-    const rightIndex = areaSortOrder.indexOf(right.area.trim().toLowerCase());
-
-    const normalizedLeftIndex = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex;
-    const normalizedRightIndex = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex;
-
-    if (normalizedLeftIndex !== normalizedRightIndex) {
-      return normalizedLeftIndex - normalizedRightIndex;
-    }
-
-    return left.area.localeCompare(right.area);
-  });
+  return [...orderedSlides, ...additionalSlides];
 });
 const activeSlide = computed(() => productivitySlides.value[currentSlideIndex.value] ?? null);
 const dashboardTables = computed(() => productividadSemanalDashboardTablas.value);
 const activeSlideComponent = computed(() => {
-  const areaName = activeSlide.value?.area?.trim().toLowerCase() || '';
+  const areaName = normalizeAreaKey(activeSlide.value?.area || '');
   return areaName === 'servicios generales'
     ? ProductividadSemanalAreaSlideLegacy
     : ProductividadSemanalAreaSlideV2;
@@ -195,15 +220,6 @@ onUnmounted(() => {
         :dashboard-tables="dashboardTables"
         aria-label="Productividad semanal"
       />
-    </div>
-
-    <div
-      v-else
-      class="flex h-full items-center justify-center px-6 text-center"
-    >
-      <p class="max-w-md text-sm font-semibold text-gray-500">
-        No hay datos de productividad semanal para la semana {{ currentWeek }}.
-      </p>
     </div>
 
     <div

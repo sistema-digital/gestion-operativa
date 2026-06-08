@@ -119,6 +119,16 @@ const weeklyToneClass = (index: number) => {
   if (index === 1) return 'border-[#3654ff] text-[#3654ff]';
   return 'border-[#2c8e36] text-main';
 };
+
+const formatAreaName = (value: string) => String(value || '')
+  .trim()
+  .toLowerCase()
+  .split(/\s+/)
+  .filter(Boolean)
+  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+  .join(' ');
+
+const displayAreaName = computed(() => formatAreaName(viewModel.value.areaName));
 </script>
 
 <template>
@@ -152,7 +162,7 @@ const weeklyToneClass = (index: number) => {
             <MapPin class="h-4 w-4 text-main" />
             <div class="min-w-0">
               <p class="text-xs font-semibold text-gray-500">Area:</p>
-              <p class="line-clamp-1 text-base font-semibold text-gray-900">{{ viewModel.areaName }}</p>
+              <p class="line-clamp-1 text-base font-semibold text-gray-900">{{ displayAreaName }}</p>
             </div>
           </div>
         </div>
