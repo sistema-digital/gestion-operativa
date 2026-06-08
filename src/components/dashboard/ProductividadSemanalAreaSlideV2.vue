@@ -220,7 +220,7 @@ onUnmounted(() => {
           <div class="flex min-w-[195px] items-center gap-2 rounded-[16px] border border-[#ece9e1] bg-white px-3 py-2 shadow-[0_8px_24px_rgba(20,20,20,0.05)]">
             <UserRound class="h-4 w-4 text-main" />
             <div class="min-w-0">
-              <p class="text-xs font-semibold text-gray-500">Supervisor:</p>
+              <p class="text-xs font-semibold text-gray-500">Supervisor</p>
               <p class="line-clamp-1 text-base font-semibold text-gray-900">{{ viewModel.supervisorName }}</p>
             </div>
           </div>
@@ -240,7 +240,7 @@ onUnmounted(() => {
             >
               <MapPin class="h-4 w-4 text-main" />
               <div class="min-w-0 flex-1">
-                <p class="text-xs font-semibold text-gray-500">Area:</p>
+                <p class="text-xs font-semibold text-gray-500">Area</p>
                 <p class="line-clamp-1 text-base font-semibold text-gray-900">{{ displayAreaName }}</p>
               </div>
               <ChevronDown
@@ -252,7 +252,7 @@ onUnmounted(() => {
 
             <div
               v-if="isAreaMenuOpen"
-              class="absolute right-0 top-[calc(100%+0.45rem)] z-30 w-full min-w-[220px] overflow-hidden rounded-[16px] border border-[#ece9e1] bg-white p-1 shadow-[0_14px_30px_rgba(20,20,20,0.12)]"
+              class="absolute right-0 top-[calc(100%+0.45rem)] z-[120] w-full min-w-[220px] overflow-hidden rounded-[16px] border border-[#ece9e1] bg-white p-1 shadow-[0_14px_30px_rgba(20,20,20,0.12)]"
               role="listbox"
               aria-label="Areas disponibles"
             >
