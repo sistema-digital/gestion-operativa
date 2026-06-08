@@ -77,6 +77,7 @@ const productivitySlides = computed(() => {
 });
 const activeSlide = computed(() => productivitySlides.value[currentSlideIndex.value] ?? null);
 const dashboardTables = computed(() => productividadSemanalDashboardTablas.value);
+const availableAreas = computed(() => productivitySlides.value);
 const activeSlideComponent = computed(() => {
   const areaName = normalizeAreaKey(activeSlide.value?.area || '');
   return areaName === 'servicios generales'
@@ -130,6 +131,15 @@ const goNext = () => {
   }
 
   currentSlideIndex.value += 1;
+};
+
+const selectAreaSlide = (selectedArea: ProductividadSemanalArea) => {
+  const targetIndex = productivitySlides.value.findIndex((slide) => (
+    normalizeAreaKey(slide.area) === normalizeAreaKey(selectedArea.area)
+  ));
+
+  if (targetIndex < 0) return;
+  currentSlideIndex.value = targetIndex;
 };
 
 const isEditableTarget = (target: EventTarget | null) => {
@@ -212,8 +222,19 @@ onUnmounted(() => {
     </div>
 
     <div v-else-if="activeSlide" ref="slideCaptureRef" class="weekly-productivity-frame">
-      <component
-        :is="activeSlideComponent"
+      <ProductividadSemanalAreaSlideV2
+        v-if="activeSlideComponent === ProductividadSemanalAreaSlideV2"
+        :key="activeSlide.area"
+        :area="activeSlide"
+        :semana="productividadSemanal?.semana || currentWeek"
+        :dashboard-tables="dashboardTables"
+        :available-areas="availableAreas"
+        aria-label="Productividad semanal"
+        @select-area="selectAreaSlide"
+      />
+
+      <ProductividadSemanalAreaSlideLegacy
+        v-else
         :key="activeSlide.area"
         :area="activeSlide"
         :semana="productividadSemanal?.semana || currentWeek"

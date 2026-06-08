@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, toRef } from 'vue';
+import { computed, onMounted, onUnmounted, ref, toRef, useTemplateRef } from 'vue';
 import {
   CalendarDays,
+  Check,
+  ChevronDown,
   CircleGauge,
   Clock3,
   FileText,
@@ -24,6 +26,10 @@ const props = defineProps<{
   area: ProductividadSemanalArea;
   semana: string;
   dashboardTables?: ProductividadDashboardTableItem[];
+  availableAreas?: ProductividadSemanalArea[];
+}>();
+const emit = defineEmits<{
+  selectArea: [area: ProductividadSemanalArea];
 }>();
 
 const viewModel = useSlideProductividadViewModel({
@@ -136,6 +142,12 @@ const metricToneClass = (tone?: ProductividadSlideHeroMetric['primaryTone']) => 
   return 'border-gray-400 text-gray-500';
 };
 
+const normalizeAreaKey = (value: string) => String(value || '')
+  .trim()
+  .toUpperCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '');
+
 const formatAreaName = (value: string) => String(value || '')
   .trim()
   .toLowerCase()
@@ -145,6 +157,45 @@ const formatAreaName = (value: string) => String(value || '')
   .join(' ');
 
 const displayAreaName = computed(() => formatAreaName(viewModel.value.areaName));
+const isAreaMenuOpen = ref(false);
+const areaSelectorRef = useTemplateRef<HTMLElement>('areaSelectorRef');
+const availableAreaOptions = computed(() => (
+  props.availableAreas?.length ? props.availableAreas : [props.area]
+));
+const canChooseArea = computed(() => availableAreaOptions.value.length > 1);
+
+const isCurrentArea = (candidateArea: ProductividadSemanalArea) => (
+  normalizeAreaKey(candidateArea.area) === normalizeAreaKey(props.area.area)
+);
+
+const toggleAreaMenu = () => {
+  if (!canChooseArea.value) return;
+  isAreaMenuOpen.value = !isAreaMenuOpen.value;
+};
+
+const closeAreaMenu = () => {
+  isAreaMenuOpen.value = false;
+};
+
+const handleAreaSelect = (selectedArea: ProductividadSemanalArea) => {
+  emit('selectArea', selectedArea);
+  closeAreaMenu();
+};
+
+const handlePointerDownOutside = (event: MouseEvent) => {
+  if (!isAreaMenuOpen.value) return;
+  if (!(event.target instanceof Node)) return;
+  if (areaSelectorRef.value?.contains(event.target)) return;
+  closeAreaMenu();
+};
+
+onMounted(() => {
+  document.addEventListener('mousedown', handlePointerDownOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('mousedown', handlePointerDownOutside);
+});
 </script>
 
 <template>
@@ -174,11 +225,59 @@ const displayAreaName = computed(() => formatAreaName(viewModel.value.areaName))
             </div>
           </div>
 
-          <div class="flex min-w-[180px] items-center gap-2 rounded-[16px] border border-[#ece9e1] bg-white px-3 py-2 shadow-[0_8px_24px_rgba(20,20,20,0.05)]">
-            <MapPin class="h-4 w-4 text-main" />
-            <div class="min-w-0">
-              <p class="text-xs font-semibold text-gray-500">Area:</p>
-              <p class="line-clamp-1 text-base font-semibold text-gray-900">{{ displayAreaName }}</p>
+          <div ref="areaSelectorRef" class="relative min-w-[180px]">
+            <div
+              class="flex items-center gap-2 rounded-[16px] border border-[#ece9e1] bg-white px-3 py-2 shadow-[0_8px_24px_rgba(20,20,20,0.05)]"
+              :class="canChooseArea ? 'cursor-pointer transition hover:border-main/30 hover:bg-[#f8faf5]' : ''"
+              role="button"
+              :tabindex="canChooseArea ? 0 : -1"
+              :aria-expanded="isAreaMenuOpen"
+              aria-haspopup="listbox"
+              @click="toggleAreaMenu"
+              @keydown.enter.prevent="toggleAreaMenu"
+              @keydown.space.prevent="toggleAreaMenu"
+              @keydown.esc.prevent="closeAreaMenu"
+            >
+              <MapPin class="h-4 w-4 text-main" />
+              <div class="min-w-0 flex-1">
+                <p class="text-xs font-semibold text-gray-500">Area:</p>
+                <p class="line-clamp-1 text-base font-semibold text-gray-900">{{ displayAreaName }}</p>
+              </div>
+              <ChevronDown
+                v-if="canChooseArea"
+                class="h-4 w-4 shrink-0 text-gray-400 transition"
+                :class="isAreaMenuOpen ? 'rotate-180' : ''"
+              />
+            </div>
+
+            <div
+              v-if="isAreaMenuOpen"
+              class="absolute right-0 top-[calc(100%+0.45rem)] z-30 w-full min-w-[220px] overflow-hidden rounded-[16px] border border-[#ece9e1] bg-white p-1 shadow-[0_14px_30px_rgba(20,20,20,0.12)]"
+              role="listbox"
+              aria-label="Areas disponibles"
+            >
+              <div
+                v-for="availableArea in availableAreaOptions"
+                :key="availableArea.area"
+                class="flex cursor-pointer items-center justify-between gap-3 rounded-[12px] px-3 py-2 transition"
+                :class="isCurrentArea(availableArea) ? 'bg-[#edf6e8] text-main' : 'text-gray-700 hover:bg-[#f6f5f1]'"
+                role="option"
+                :aria-selected="isCurrentArea(availableArea)"
+                @click.stop="handleAreaSelect(availableArea)"
+              >
+                <div class="min-w-0">
+                  <p class="line-clamp-1 text-sm font-semibold">
+                    {{ formatAreaName(availableArea.area) }}
+                  </p>
+                  <p class="line-clamp-1 text-xs text-gray-500">
+                    {{ availableArea.supervisor.nombre || 'Sin supervisor' }}
+                  </p>
+                </div>
+                <Check
+                  v-if="isCurrentArea(availableArea)"
+                  class="h-4 w-4 shrink-0 text-main"
+                />
+              </div>
             </div>
           </div>
         </div>
