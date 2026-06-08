@@ -9,6 +9,7 @@ import {
 } from './horasTrabajo.helpers';
 import type {
   HorasPerdidasPersonalRow,
+  PersonalDisponibilidadSemanalRow,
   ProductividadSemanalPorEquipoResponse,
   ProductividadSemanalResponse,
   ProductividadSemanalServiciosGeneralesResponse,
@@ -64,6 +65,21 @@ export const horasTrabajoService = {
       horas_incapacidad: toNumber(row.horas_incapacidad),
       horas_inactivo: toNumber(row.horas_inactivo),
       horas_plaza_no_cubierta: toNumber(row.horas_plaza_no_cubierta),
+    }));
+  },
+
+  async fetchPersonalDisponibilidadSemanal(): Promise<PersonalDisponibilidadSemanalRow[]> {
+    const { data, error } = await supabase.rpc('get_personal_disponibilidad_semanal');
+
+    if (error) {
+      throw new Error(error.message || 'No se pudo cargar la disponibilidad semanal del personal');
+    }
+
+    return ((data || []) as Record<string, unknown>[]).map((row) => ({
+      semana: String(row.semana || ''),
+      area: String(row.area || ''),
+      personal_activo: toNumber(row.personal_activo),
+      personal_faltante: toNumber(row.personal_faltante),
     }));
   },
 

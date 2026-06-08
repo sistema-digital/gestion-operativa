@@ -1,6 +1,9 @@
 import type { MaintenanceAreaTotalsMap, OrdenMantenimiento } from './maintenanceStore';
-import type { HoraTrabajoData, HorasPerdidasPersonalRow } from './horasTrabajo.types';
-import type { HorasPerdidasPersonalResumenItem } from './db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.types';
+import type {
+  HoraTrabajoData,
+  HorasPerdidasPersonalRow,
+  PersonalDisponibilidadSemanalRow,
+} from './horasTrabajo.types';
 
 export type ProductividadDashboardTabla =
   | 'avance_ideal_vs_real'
@@ -18,7 +21,7 @@ export interface ProductividadDashboardInput {
   orders: OrdenMantenimiento[];
   horasTrabajo: HoraTrabajoData[];
   horasPerdidasPersonal: HorasPerdidasPersonalRow[];
-  horasPerdidasResumen: HorasPerdidasPersonalResumenItem | null;
+  personalDisponibilidadSemanal: PersonalDisponibilidadSemanalRow[];
   zafraOrderTotalsByArea: MaintenanceAreaTotalsMap;
   zafraOrderTotalsGeneral: number;
   currentDate: Date;
