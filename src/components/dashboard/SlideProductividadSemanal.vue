@@ -239,7 +239,9 @@ onUnmounted(() => {
         :area="activeSlide"
         :semana="productividadSemanal?.semana || currentWeek"
         :dashboard-tables="dashboardTables"
+        :available-areas="availableAreas"
         aria-label="Productividad semanal"
+        @select-area="selectAreaSlide"
       />
     </div>
 

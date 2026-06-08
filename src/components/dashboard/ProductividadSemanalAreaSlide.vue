@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 import {
   CalendarDays,
+  Check,
+  ChevronDown,
   Clock3,
   FileText,
   Forklift,
@@ -19,7 +21,25 @@ const props = defineProps<{
   area: ProductividadSemanalArea;
   semana: string;
   dashboardTables?: ProductividadDashboardTableItem[];
+  availableAreas?: ProductividadSemanalArea[];
 }>();
+const emit = defineEmits<{
+  selectArea: [area: ProductividadSemanalArea];
+}>();
+
+const normalizeAreaKey = (value: string) => String(value || '')
+  .trim()
+  .toUpperCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '');
+
+const formatAreaName = (value: string) => String(value || '')
+  .trim()
+  .toLowerCase()
+  .split(/\s+/)
+  .filter(Boolean)
+  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+  .join(' ');
 
 const formatHours = (value: number | null | undefined) => {
   const hours = Number(value || 0);
@@ -46,6 +66,46 @@ const rankClass = (index: number) => {
   if (index === 1) return 'bg-[#939077] text-white';
   return 'bg-accent text-white';
 };
+
+const isAreaMenuOpen = ref(false);
+const areaSelectorRef = useTemplateRef<HTMLElement>('areaSelectorRef');
+const availableAreaOptions = computed(() => (
+  props.availableAreas?.length ? props.availableAreas : [props.area]
+));
+const canChooseArea = computed(() => availableAreaOptions.value.length > 1);
+
+const isCurrentArea = (candidateArea: ProductividadSemanalArea) => (
+  normalizeAreaKey(candidateArea.area) === normalizeAreaKey(props.area.area)
+);
+
+const toggleAreaMenu = () => {
+  if (!canChooseArea.value) return;
+  isAreaMenuOpen.value = !isAreaMenuOpen.value;
+};
+
+const closeAreaMenu = () => {
+  isAreaMenuOpen.value = false;
+};
+
+const handleAreaSelect = (selectedArea: ProductividadSemanalArea) => {
+  emit('selectArea', selectedArea);
+  closeAreaMenu();
+};
+
+const handlePointerDownOutside = (event: MouseEvent) => {
+  if (!isAreaMenuOpen.value) return;
+  if (!(event.target instanceof Node)) return;
+  if (areaSelectorRef.value?.contains(event.target)) return;
+  closeAreaMenu();
+};
+
+onMounted(() => {
+  document.addEventListener('mousedown', handlePointerDownOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('mousedown', handlePointerDownOutside);
+});
 </script>
 
 <template>
@@ -56,7 +116,53 @@ const rankClass = (index: number) => {
         <div class="hero-meta">
           <span><CalendarDays class="meta-icon" /> Semana {{ props.semana }}</span>
           <span><UserRound class="meta-icon" /> Supervisor: {{ props.area.supervisor.nombre }}</span>
-          <span><MapPin class="meta-icon" /> Área: {{ props.area.area }}</span>
+          <div ref="areaSelectorRef" class="area-selector">
+            <div
+              class="area-selector-trigger"
+              :class="canChooseArea ? 'is-clickable' : ''"
+              role="button"
+              :tabindex="canChooseArea ? 0 : -1"
+              :aria-expanded="isAreaMenuOpen"
+              aria-haspopup="listbox"
+              @click="toggleAreaMenu"
+              @keydown.enter.prevent="toggleAreaMenu"
+              @keydown.space.prevent="toggleAreaMenu"
+              @keydown.esc.prevent="closeAreaMenu"
+            >
+              <span><MapPin class="meta-icon" /> Área: {{ formatAreaName(props.area.area) }}</span>
+              <ChevronDown
+                v-if="canChooseArea"
+                class="meta-icon area-selector-chevron"
+                :class="isAreaMenuOpen ? 'is-open' : ''"
+              />
+            </div>
+
+            <div
+              v-if="isAreaMenuOpen"
+              class="area-selector-menu"
+              role="listbox"
+              aria-label="Areas disponibles"
+            >
+              <div
+                v-for="availableArea in availableAreaOptions"
+                :key="availableArea.area"
+                class="area-selector-option"
+                :class="isCurrentArea(availableArea) ? 'is-active' : ''"
+                role="option"
+                :aria-selected="isCurrentArea(availableArea)"
+                @click.stop="handleAreaSelect(availableArea)"
+              >
+                <div class="area-selector-copy">
+                  <strong>{{ formatAreaName(availableArea.area) }}</strong>
+                  <p>{{ availableArea.supervisor.nombre || 'Sin supervisor' }}</p>
+                </div>
+                <Check
+                  v-if="isCurrentArea(availableArea)"
+                  class="meta-icon area-selector-check"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -146,7 +252,7 @@ const rankClass = (index: number) => {
 .hero-panel {
   position: relative;
   min-height: 165px;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 0;
   background: linear-gradient(110deg, #fffdf7 0%, #fbfaf5 54%, #f0ede5 100%);
   box-shadow: inset 0 -1px 0 rgba(216, 212, 202, 0.7);
@@ -192,6 +298,96 @@ h1 {
   display: inline-flex;
   align-items: center;
   gap: 0.65rem;
+}
+
+.area-selector {
+  position: relative;
+}
+
+.area-selector-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  outline: none;
+}
+
+.area-selector-trigger.is-clickable {
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.area-selector-trigger.is-clickable:hover,
+.area-selector-trigger.is-clickable:focus-visible {
+  background: rgba(76, 98, 45, 0.08);
+  color: var(--color-main);
+}
+
+.area-selector-chevron {
+  transition: transform 0.2s ease;
+}
+
+.area-selector-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.area-selector-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 120;
+  min-width: 220px;
+  overflow: hidden;
+  border: 1px solid rgba(216, 212, 202, 0.95);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 14px 28px rgba(26, 25, 23, 0.16);
+  padding: 0.35rem;
+}
+
+.area-selector-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  border-radius: 10px;
+  cursor: pointer;
+  padding: 0.65rem 0.8rem;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.area-selector-option:hover {
+  background: #f5f6f1;
+}
+
+.area-selector-option.is-active {
+  background: #e9f0ea;
+  color: var(--color-main);
+}
+
+.area-selector-copy {
+  min-width: 0;
+}
+
+.area-selector-copy strong,
+.area-selector-copy p {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.area-selector-copy strong {
+  font-size: 0.92rem;
+}
+
+.area-selector-copy p {
+  margin-top: 0.12rem;
+  font-size: 0.76rem;
+}
+
+.area-selector-check {
+  flex: 0 0 auto;
 }
 
 .meta-icon {
