@@ -10,8 +10,10 @@ import type {
   AvancePerdidoPersonalRow,
 } from './productividadSemanalDashboard.types';
 import type { OrdenMantenimiento } from './maintenanceStore';
-import type { HorasPerdidasPersonalRow } from './horasTrabajo.types';
-import type { HorasPerdidasPorAreaItem } from './db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.types';
+import type {
+  HorasPerdidasPersonalRow,
+  PersonalDisponibilidadSemanalRow,
+} from './horasTrabajo.types';
 
 const DEFAULT_ETAPA = 'ZAFRA';
 const PROGRESS_2025_START_WEEK = 15;
@@ -328,16 +330,20 @@ const hasWeeklyAreaProgress = (row: WeeklyAreaSummaryInternalRow) => (
   row.horas_perdidas_personal > 0
 );
 
+const buildPersonalDisponibilidadMap = (
+  rows: PersonalDisponibilidadSemanalRow[]
+) => new Map(
+  rows.map((row) => [normalizeAreaKey(row.area), row] as const)
+);
+
 const buildWeeklyAreaSummaryRows = (
   orderList: OrdenMantenimiento[],
   horasTrabajo: ProductividadDashboardInput['horasTrabajo'],
   horasPerdidasPersonal: ProductividadDashboardInput['horasPerdidasPersonal'],
-  horasPerdidasResumen: ProductividadDashboardInput['horasPerdidasResumen'],
+  personalDisponibilidadSemanal: ProductividadDashboardInput['personalDisponibilidadSemanal'],
   weeks: Set<string>
 ): WeeklyAreaSummaryInternalRow[] => {
-  const resumenPorArea = new Map<string, HorasPerdidasPorAreaItem>(
-    (horasPerdidasResumen?.por_area || []).map((row) => [normalizeAreaKey(row.area), row])
-  );
+  const disponibilidadPorArea = buildPersonalDisponibilidadMap(personalDisponibilidadSemanal);
 
   const areaKeys = Array.from(new Set(
     orderList
@@ -382,7 +388,7 @@ const buildWeeklyAreaSummaryRows = (
     );
 
     const denominator = areaOrders.length;
-    const resumenArea = resumenPorArea.get(areaKey);
+    const disponibilidadArea = disponibilidadPorArea.get(areaKey);
     const realProgress = denominator > 0 ? Number(((concluded / denominator) * 100).toFixed(2)) : 0;
     const operationalLostProgress = denominator > 0
       ? Number(((operationalLostEquivalent / denominator) * 100).toFixed(2))
@@ -398,8 +404,8 @@ const buildWeeklyAreaSummaryRows = (
       area_corta: getWeeklyAreaShortName(areaName),
       denominador: denominator,
       concluidas: concluded,
-      personal_activo: Number(Number(resumenArea?.personal_activo_actual || 0).toFixed(2)),
-      personal_faltante: Number(Number(resumenArea?.mecanicos_necesarios_redondeado || 0).toFixed(2)),
+      personal_activo: Number(Number(disponibilidadArea?.personal_activo || 0).toFixed(2)),
+      personal_faltante: Number(Number(disponibilidadArea?.personal_faltante || 0).toFixed(2)),
       avance_real: realProgress,
       avance_perdido: lostProgress,
       avance_perdido_operativo: operationalLostProgress,
@@ -587,14 +593,14 @@ export const buildProductividadSemanalDashboardTables = (
     filteredOrders,
     input.horasTrabajo,
     input.horasPerdidasPersonal,
-    input.horasPerdidasResumen,
+    input.personalDisponibilidadSemanal,
     allWeeksSet
   );
   const weeklySummaryCurrentWeekRows = buildWeeklyAreaSummaryRows(
     filteredOrders,
     input.horasTrabajo,
     input.horasPerdidasPersonal,
-    input.horasPerdidasResumen,
+    input.personalDisponibilidadSemanal,
     new Set([currentWeek])
   );
   const referenceWeek = (() => {
@@ -602,7 +608,7 @@ export const buildProductividadSemanalDashboardTables = (
       filteredOrders,
         input.horasTrabajo,
         input.horasPerdidasPersonal,
-        input.horasPerdidasResumen,
+        input.personalDisponibilidadSemanal,
         new Set([currentWeek])
       );
 
@@ -616,7 +622,7 @@ export const buildProductividadSemanalDashboardTables = (
         filteredOrders,
         input.horasTrabajo,
         input.horasPerdidasPersonal,
-        input.horasPerdidasResumen,
+        input.personalDisponibilidadSemanal,
         new Set([week])
       ).some(hasWeeklyAreaProgress)
     ));
@@ -628,7 +634,7 @@ export const buildProductividadSemanalDashboardTables = (
     filteredOrders,
     input.horasTrabajo,
     input.horasPerdidasPersonal,
-    input.horasPerdidasResumen,
+    input.personalDisponibilidadSemanal,
     new Set([referenceWeek])
   );
 

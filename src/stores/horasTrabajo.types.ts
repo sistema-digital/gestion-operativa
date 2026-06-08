@@ -163,3 +163,10 @@ export interface HorasPerdidasPersonalRow {
   horas_inactivo: number;
   horas_plaza_no_cubierta: number;
 }
+
+export interface PersonalDisponibilidadSemanalRow {
+  semana: string;
+  area: string;
+  personal_activo: number;
+  personal_faltante: number;
+}

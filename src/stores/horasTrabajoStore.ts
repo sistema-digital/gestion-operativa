@@ -4,11 +4,11 @@ import { supabase } from '@/lib/supabase';
 import { getLocalDateInputValue } from './horasTrabajo.helpers';
 import { horasTrabajoService } from './horasTrabajo.service';
 import { useMaintenanceStore } from './maintenanceStore';
-import { useHorasPerdidasAreaMotivoStore } from './db_mantenimiento/horas_perdidas_area_motivo/horasPerdidasAreaMotivo.store';
 import { buildProductividadSemanalDashboardTables } from './productividadSemanalDashboard';
 import type {
   HoraTrabajoData,
   HorasPerdidasPersonalRow,
+  PersonalDisponibilidadSemanalRow,
   ProductividadSemanalResponse,
   WorkOrderTodayRow,
   WorkOrderUpdatePayload,
@@ -18,6 +18,7 @@ import type { ProductividadDashboardTableItem } from './productividadSemanalDash
 export type {
   HoraTrabajoData,
   HorasPerdidasPersonalRow,
+  PersonalDisponibilidadSemanalRow,
   ProductividadSemanalResponse,
   WorkOrderTodayRow,
   WorkOrderUpdatePayload,
@@ -39,10 +40,10 @@ const readNumber = (row: DashboardRawRow, key: string): number => {
 
 export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
   const maintenanceStore = useMaintenanceStore();
-  const horasPerdidasAreaMotivoStore = useHorasPerdidasAreaMotivoStore();
 
   const data = ref<HoraTrabajoData[]>([]);
   const horasPerdidasPersonal = ref<HorasPerdidasPersonalRow[]>([]);
+  const personalDisponibilidadSemanal = ref<PersonalDisponibilidadSemanalRow[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
 
@@ -59,7 +60,7 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
       orders: maintenanceStore.allOrders,
       horasTrabajo: data.value,
       horasPerdidasPersonal: horasPerdidasPersonal.value,
-      horasPerdidasResumen: horasPerdidasAreaMotivoStore.resumen,
+      personalDisponibilidadSemanal: personalDisponibilidadSemanal.value,
       zafraOrderTotalsByArea: maintenanceStore.zafraOrderTotalsByArea,
       zafraOrderTotalsGeneral: maintenanceStore.zafraOrderTotalsGeneral,
       currentDate: new Date(),
@@ -118,10 +119,16 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
     error.value = null;
 
     try {
-      const [retrasadasData, otrosEstadosData, personalData] = await Promise.all([
+      const [
+        retrasadasData,
+        otrosEstadosData,
+        personalData,
+        personalDisponibilidadData,
+      ] = await Promise.all([
         fetchDashboardTable('vw_ot_retrasadas_dashboard'),
         fetchDashboardTable('vw_ot_otros_estados_dashboard'),
         horasTrabajoService.fetchHorasPerdidasPersonalSemanal(),
+        horasTrabajoService.fetchPersonalDisponibilidadSemanal(),
       ]);
 
       const retrasadas = retrasadasData.map(mapRetrasada);
@@ -131,6 +138,7 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
 
       data.value = [...retrasadas, ...otrosEstados];
       horasPerdidasPersonal.value = personalData;
+      personalDisponibilidadSemanal.value = personalDisponibilidadData;
     } catch (err) {
       console.error('Error fetching horas de trabajo:', err);
       error.value = err instanceof Error
@@ -198,6 +206,7 @@ export const useHorasTrabajoStore = defineStore('horasTrabajo', () => {
   return {
     data,
     horasPerdidasPersonal,
+    personalDisponibilidadSemanal,
     loading,
     error,
     todayWorkOrders,
