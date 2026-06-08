@@ -69,41 +69,58 @@ const buildHeroMetrics = ({
   equivalentRow?: AvanceEquivalenteRow;
   progressRow?: AvanceRealVsAproximadoRow;
   weeklyRow?: AvanceConcluidoSemanalRow;
-}): ProductividadSlideHeroMetric[] => [
-  {
-    title: 'Avance ideal vs real',
-    primaryLabel: 'Ideal',
-    primaryValue: toNumber(idealRow?.avance_ideal),
-    secondaryLabel: 'Real',
-    secondaryValue: toNumber(idealRow?.avance_real),
-    helper: `Dif.: ${toNumber(idealRow?.diferencia).toFixed(1)}%`,
-    tone: 'success',
-  },
-  {
-    title: 'Avance sin retraso',
-    primaryLabel: 'Sin retrasos',
-    primaryValue: toNumber(progressRow?.avance_sin_retrasos),
-    secondaryLabel: 'Perdida',
-    secondaryValue: toNumber(progressRow?.avance_perdido),
-    helper: `Operativo ${toNumber(progressRow?.avance_perdido_operativo).toFixed(1)}% • Personal ${toNumber(progressRow?.avance_perdido_personal).toFixed(1)}%`,
-    tone: 'danger',
-  },
-  {
-    title: 'Avance equivalente',
-    primaryLabel: 'Equivalente',
-    primaryValue: toNumber(equivalentRow?.diferencia),
-    secondaryLabel: '2026',
-    secondaryValue: toNumber(equivalentRow?.avance_2026),
-    helper: `2026: ${toNumber(equivalentRow?.avance_2026).toFixed(1)}% • 2025: ${toNumber(equivalentRow?.avance_2025).toFixed(1)}%`,
-    tone: 'info',
-  },
-  {
-    title: 'Avance semanal',
-    primaryLabel: 'Actual',
-    primaryValue: toNumber(weeklyRow?.avance_acumulado),
-    tone: 'warning',
-  },
-];
+}): ProductividadSlideHeroMetric[] => {
+  const idealDifference = toNumber(idealRow?.diferencia);
+  const idealHelperTone = idealDifference > 0
+    ? 'success'
+    : idealDifference < 0
+      ? 'danger'
+      : 'neutral';
+  const equivalentDifference = toNumber(equivalentRow?.diferencia);
+  const equivalentPrimaryTone = equivalentDifference > 0
+    ? 'success'
+    : equivalentDifference < 0
+      ? 'danger'
+      : 'neutral';
+
+  return [
+    {
+      title: 'Avance ideal vs real',
+      primaryLabel: 'Ideal',
+      primaryValue: toNumber(idealRow?.avance_ideal),
+      secondaryLabel: 'Real',
+      secondaryValue: toNumber(idealRow?.avance_real),
+      helper: `Dif.: ${idealDifference.toFixed(1)}%`,
+      helperTone: idealHelperTone,
+      tone: 'success',
+    },
+    {
+      title: 'Avance sin retraso',
+      primaryLabel: 'Sin retrasos',
+      primaryValue: toNumber(progressRow?.avance_sin_retrasos),
+      secondaryLabel: 'Perdida',
+      secondaryValue: toNumber(progressRow?.avance_perdido),
+      helper: `Operativo ${toNumber(progressRow?.avance_perdido_operativo).toFixed(1)}% • Personal ${toNumber(progressRow?.avance_perdido_personal).toFixed(1)}%`,
+      tone: 'danger',
+    },
+    {
+      title: 'Avance equivalente',
+      primaryLabel: 'Equivalente',
+      primaryValue: equivalentDifference,
+      primaryTone: equivalentPrimaryTone,
+      secondaryLabel: '2026',
+      secondaryValue: toNumber(equivalentRow?.avance_2026),
+      helper: `2026: ${toNumber(equivalentRow?.avance_2026).toFixed(1)}% • 2025: ${toNumber(equivalentRow?.avance_2025).toFixed(1)}%`,
+      tone: 'info',
+    },
+    {
+      title: 'Avance semanal',
+      primaryLabel: 'Actual',
+      primaryValue: toNumber(weeklyRow?.avance_acumulado),
+      tone: 'warning',
+    },
+  ];
+};
 
 const buildSummaryItems = (
   area: ProductividadSemanalArea,

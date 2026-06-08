@@ -14,9 +14,11 @@ export interface ProductividadSlideHeroMetric {
   title: string;
   primaryLabel: string;
   primaryValue: number;
+  primaryTone?: ProductividadSlideTone;
   secondaryLabel?: string;
   secondaryValue?: number;
   helper?: string;
+  helperTone?: ProductividadSlideTone;
   tone: ProductividadSlideTone;
 }
 

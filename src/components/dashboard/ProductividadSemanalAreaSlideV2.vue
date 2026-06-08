@@ -120,6 +120,22 @@ const weeklyToneClass = (index: number) => {
   return 'border-[#2c8e36] text-main';
 };
 
+const helperToneClass = (tone?: ProductividadSlideHeroMetric['helperTone']) => {
+  if (tone === 'success') return 'text-green-600';
+  if (tone === 'danger') return 'text-red-600';
+  if (tone === 'info') return 'text-blue-600';
+  if (tone === 'warning') return 'text-amber-600';
+  return 'text-gray-500';
+};
+
+const metricToneClass = (tone?: ProductividadSlideHeroMetric['primaryTone']) => {
+  if (tone === 'success') return 'border-green-600 text-green-600';
+  if (tone === 'danger') return 'border-red-600 text-red-600';
+  if (tone === 'info') return 'border-blue-600 text-blue-600';
+  if (tone === 'warning') return 'border-amber-600 text-amber-600';
+  return 'border-gray-400 text-gray-500';
+};
+
 const formatAreaName = (value: string) => String(value || '')
   .trim()
   .toLowerCase()
@@ -186,7 +202,12 @@ const displayAreaName = computed(() => formatAreaName(viewModel.value.areaName))
               <p class="mt-1 text-[0.95rem] font-medium text-[#242424]">{{ idealMetric?.secondaryLabel }}</p>
             </div>
           </div>
-          <p class="mt-1 text-center text-[1rem] font-semibold text-[#ff2d20]">{{ idealMetric?.helper }}</p>
+          <p
+            class="mt-1 text-center text-[1rem] font-semibold"
+            :class="helperToneClass(idealMetric?.helperTone)"
+          >
+            {{ idealMetric?.helper }}
+          </p>
         </article>
 
         <article class="rounded-[18px] border border-[#ece9e1] bg-white px-4 py-3 shadow-[0_10px_28px_rgba(20,20,20,0.04)]">
@@ -212,7 +233,10 @@ const displayAreaName = computed(() => formatAreaName(viewModel.value.areaName))
         <article class="rounded-[18px] border border-[#ece9e1] bg-white px-4 py-3 shadow-[0_10px_28px_rgba(20,20,20,0.04)]">
           <h2 class="text-center text-[0.95rem] font-semibold text-[#1d1d1d]">Avance equivalente</h2>
           <div class="mt-2 flex flex-col items-center">
-            <div class="flex h-[104px] w-[104px] flex-col items-center justify-center rounded-full border-[3px] border-[#198a27] text-[#198a27]">
+            <div
+              class="flex h-[104px] w-[104px] flex-col items-center justify-center rounded-full border-[3px]"
+              :class="metricToneClass(equivalentMetric?.primaryTone)"
+            >
               <span class="text-[1rem] font-bold">{{ formatPercent(equivalentMetric?.primaryValue ?? 0, true) }}</span>
               <span class="text-[0.9rem] font-medium text-[#202020]">Equivalente</span>
             </div>
