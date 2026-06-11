@@ -254,6 +254,13 @@ const sumRoundedProgress = (realProgress: number, lostProgress: number) => {
   return Number((roundedRealProgress + roundedLostProgress).toFixed(1));
 };
 
+const sumDisplayedLossProgress = (operationalLostProgress: number, personalLostProgress: number) => (
+  Number((
+    Number(operationalLostProgress.toFixed(1)) +
+    Number(personalLostProgress.toFixed(1))
+  ).toFixed(1))
+);
+
 const filterOrdersByEtapa = (orders: OrdenMantenimiento[], etapa: string) => {
   const etapaKey = normalizeAreaKey(etapa || DEFAULT_ETAPA);
   return orders.filter((order) => normalizeAreaKey(String(order.Etapa || '')) === etapaKey);
@@ -396,7 +403,7 @@ const buildWeeklyAreaSummaryRows = (
     const personalLostProgress = denominator > 0
       ? Number(((personalBreakdown.totalEquivalent / denominator) * 100).toFixed(2))
       : 0;
-    const lostProgress = Number((operationalLostProgress + personalLostProgress).toFixed(2));
+    const lostProgress = sumDisplayedLossProgress(operationalLostProgress, personalLostProgress);
     const areaName = areaOrders[0]?.Área || areaKey;
 
     return {
@@ -663,7 +670,7 @@ export const buildProductividadSemanalDashboardTables = (
     const avanceReal = denominador > 0 ? Number(((concluidas / denominador) * 100).toFixed(2)) : 0;
     const avanceOperativo = denominador > 0 ? Number(((equivalentOperativas / denominador) * 100).toFixed(2)) : 0;
     const avancePersonal = denominador > 0 ? Number(((equivalentPersonal / denominador) * 100).toFixed(2)) : 0;
-    const avancePerdido = Number((avanceOperativo + avancePersonal).toFixed(2));
+    const avancePerdido = sumDisplayedLossProgress(avanceOperativo, avancePersonal);
 
     return {
       area: 'TOTAL',
