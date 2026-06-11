@@ -36,6 +36,14 @@ const getCaptureTarget = (root: HTMLElement | null) => (
     : root
 );
 
+const copySlideBlobToClipboard = async (blob: Blob) => {
+  await navigator.clipboard.write([
+    new ClipboardItem({
+      'image/png': blob,
+    }),
+  ]);
+};
+
 export const useProductividadSlidePngExport = ({
   currentSlideIndex,
   slideElement,
@@ -72,20 +80,16 @@ export const useProductividadSlidePngExport = ({
       const blob = await toBlob(currentRoot, {
         backgroundColor: '#ffffff',
         cacheBust: true,
-        pixelRatio: 3,
-        canvasWidth: currentRoot.scrollWidth * 3,
-        canvasHeight: currentRoot.scrollHeight * 3,
+        pixelRatio: 1.5,
+        canvasWidth: currentRoot.scrollWidth,
+        canvasHeight: currentRoot.scrollHeight,
       });
 
       if (!blob) {
         throw new Error('No se pudo convertir el slide a imagen.');
       }
 
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          'image/png': blob,
-        }),
-      ]);
+      await copySlideBlobToClipboard(blob);
     } catch (error) {
       exportError.value = error instanceof Error
         ? error.message

@@ -235,7 +235,7 @@ onUnmounted(() => {
 
       <ProductividadSemanalAreaSlideLegacy
         v-else
-        :key="activeSlide.area"
+        :key="activeSlide!.area"
         :area="activeSlide"
         :semana="productividadSemanal?.semana || currentWeek"
         :dashboard-tables="dashboardTables"
@@ -257,7 +257,7 @@ onUnmounted(() => {
       >
         <Loader2 v-if="isCopying" class="h-4 w-4 animate-spin" />
         <Copy v-else class="h-4 w-4" />
-        {{ isCopying ? 'Copiando PNG...' : '' }}
+        {{ isCopying ? 'Copiando...' : '' }}
       </button>
 
       <button
