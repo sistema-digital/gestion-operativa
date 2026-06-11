@@ -19,7 +19,16 @@ const {
   productividadSemanalLoading,
   productividadSemanalError,
   productividadSemanalDashboardTablas,
+  error: horasTrabajoError,
 } = storeToRefs(horasTrabajoStore);
+const {
+  error: maintenanceError,
+  hasLoaded: maintenanceHasLoaded,
+} = storeToRefs(maintenanceStore);
+const {
+  error: horasPerdidasAreaMotivoError,
+  isLoaded: horasPerdidasAreaMotivoLoaded,
+} = storeToRefs(horasPerdidasAreaMotivoStore);
 
 const currentWeek = String(getWeekNumber(new Date()));
 const horasPerdidasFechaDesde = '2026-04-06';
@@ -58,6 +67,9 @@ const buildEmptyAreaSlide = (areaName: string): ProductividadSemanalArea => ({
 
 const currentSlideIndex = ref(0);
 const slideCaptureRef = useTemplateRef<HTMLElement>('slideCaptureRef');
+const dashboardTablesLoading = ref(false);
+const dashboardTablesLoaded = ref(false);
+const dashboardTablesError = ref<string | null>(null);
 
 const productivitySlides = computed(() => {
   const areas = [...(productividadSemanal.value?.areas ?? [])];
@@ -87,6 +99,16 @@ const activeSlideComponent = computed(() => {
 const canGoPrevious = computed(() => currentSlideIndex.value > 0);
 const canGoNext = computed(() => currentSlideIndex.value < productivitySlides.value.length - 1);
 const weekLabel = computed(() => productividadSemanal.value?.semana || currentWeek);
+const loadingError = computed(() => productividadSemanalError.value || dashboardTablesError.value);
+const isSlideDataLoading = computed(() => (
+  !loadingError.value &&
+  (
+    productividadSemanalLoading.value ||
+    dashboardTablesLoading.value ||
+    !productividadSemanal.value ||
+    !dashboardTablesLoaded.value
+  )
+));
 
 const {
   copyActiveSlideToClipboard,
@@ -105,16 +127,49 @@ const fetchProductividad = () => {
   return horasTrabajoStore.fetchProductividadSemanalPorEquipo(currentWeek, 3);
 };
 
-const loadProductividad = () => {
-  void fetchProductividad().catch(() => undefined);
+const loadProductividad = async () => {
+  await fetchProductividad();
 };
 
-const loadDashboardTables = () => {
-  void Promise.all([
-    maintenanceStore.fetchAllOrders(),
-    horasTrabajoStore.fetchData(),
-    horasPerdidasAreaMotivoStore.cargarResumen(horasPerdidasFechaDesde),
-  ]).catch(() => undefined);
+const loadDashboardTables = async () => {
+  dashboardTablesLoading.value = true;
+  dashboardTablesLoaded.value = false;
+  dashboardTablesError.value = null;
+
+  try {
+    await Promise.all([
+      maintenanceStore.fetchAllOrders(),
+      horasTrabajoStore.fetchData(),
+      horasPerdidasAreaMotivoStore.cargarResumen(horasPerdidasFechaDesde),
+    ]);
+
+    const silentError = maintenanceError.value
+      || horasTrabajoError.value
+      || horasPerdidasAreaMotivoError.value;
+
+    if (silentError) {
+      throw new Error(silentError);
+    }
+
+    if (!maintenanceHasLoaded.value || !horasPerdidasAreaMotivoLoaded.value) {
+      throw new Error('No llegaron todos los datos de productividad semanal');
+    }
+
+    dashboardTablesLoaded.value = true;
+  } catch (error) {
+    dashboardTablesError.value = error instanceof Error
+      ? error.message
+      : 'No se pudieron cargar todos los datos de productividad semanal';
+  } finally {
+    dashboardTablesLoading.value = false;
+  }
+};
+
+const loadAllProductivityData = () => {
+  void Promise.allSettled([
+    loadProductividad(),
+    loadDashboardTables(),
+  ]);
 };
 
 const goPrevious = () => {
@@ -183,8 +238,7 @@ watch(productivitySlides, (slides) => {
 });
 
 onMounted(() => {
-  loadProductividad();
-  loadDashboardTables();
+  loadAllProductivityData();
   window.addEventListener('keydown', handleKeyNavigation);
 });
 
@@ -198,23 +252,23 @@ onUnmounted(() => {
     class="weekly-productivity-section relative overflow-hidden bg-white"
   >
     <div
-      v-if="productividadSemanalLoading"
+      v-if="isSlideDataLoading"
       class="flex h-full items-center justify-center"
     >
       <Loader2 class="h-8 w-8 animate-spin text-main" />
     </div>
 
     <div
-      v-else-if="productividadSemanalError"
+      v-else-if="loadingError"
       class="flex h-full flex-col items-center justify-center gap-4 px-6 text-center"
     >
       <p class="max-w-md text-sm font-semibold text-gray-500">
-        {{ productividadSemanalError }}
+        {{ loadingError }}
       </p>
       <button
         type="button"
         class="inline-flex items-center gap-2 rounded-lg bg-main px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-main-light"
-        @click.stop="loadProductividad"
+        @click.stop="loadAllProductivityData"
       >
         <RefreshCw class="h-4 w-4" />
         Reintentar
@@ -235,7 +289,7 @@ onUnmounted(() => {
 
       <ProductividadSemanalAreaSlideLegacy
         v-else
-        :key="activeSlide.area"
+        :key="activeSlide!.area"
         :area="activeSlide"
         :semana="productividadSemanal?.semana || currentWeek"
         :dashboard-tables="dashboardTables"
@@ -246,7 +300,7 @@ onUnmounted(() => {
     </div>
 
     <div
-      v-if="activeSlide"
+      v-if="activeSlide && !isSlideDataLoading && !loadingError"
       class="absolute right-4 top-4 z-20 flex flex-col items-end gap-2"
     >
       <button
@@ -257,7 +311,7 @@ onUnmounted(() => {
       >
         <Loader2 v-if="isCopying" class="h-4 w-4 animate-spin" />
         <Copy v-else class="h-4 w-4" />
-        {{ isCopying ? 'Copiando PNG...' : '' }}
+        {{ isCopying ? 'Copiando...' : '' }}
       </button>
 
       <button

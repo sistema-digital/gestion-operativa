@@ -201,14 +201,14 @@ onUnmounted(() => {
 <template>
   <article class="flex min-h-full w-full rounded-[18px] bg-[#fbfaf7] px-2 py-2 text-[#101010]">
     <div class="grid w-full grid-cols-12 grid-rows-[auto_auto_auto_1fr] gap-2">
-      <header class="col-span-12 flex items-start justify-between gap-4 px-1 pt-1">
+      <header class="col-span-12 flex flex-col items-stretch gap-3 px-1 pt-1 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
         <div class="min-w-0">
           <h1 class="font-display text-[2.7rem] leading-[0.95] tracking-[-0.03em] text-main">
             Productividad semanal por equipo
           </h1>
         </div>
 
-        <div class="grid shrink-0 grid-cols-3 gap-2">
+        <div class="grid shrink-0 grid-cols-1 gap-2 lg:grid-cols-3">
           <div class="flex min-w-[170px] items-center gap-2 rounded-[16px] border border-[#ece9e1] bg-white px-3 py-2 shadow-[0_8px_24px_rgba(20,20,20,0.05)]">
             <CalendarDays class="h-4 w-4 text-main" />
             <div>
@@ -283,7 +283,7 @@ onUnmounted(() => {
         </div>
       </header>
 
-      <section class="col-span-12 grid grid-cols-[1.15fr_1fr_1fr] gap-2">
+      <section class="col-span-12 grid grid-cols-1 gap-2 lg:grid-cols-[1.15fr_1fr_1fr]">
         <article class="rounded-[18px] border border-[#ece9e1] bg-white px-4 py-3 shadow-[0_10px_28px_rgba(20,20,20,0.04)]">
           <h2 class="text-center text-[0.95rem] font-semibold text-[#1d1d1d]">Avance ideal vs real</h2>
           <div class="mt-2 grid grid-cols-2 items-center gap-3">
@@ -350,15 +350,15 @@ onUnmounted(() => {
         </article>
       </section>
 
-      <section class="col-span-12 grid grid-cols-[1fr_0.98fr] gap-2">
+      <section class="col-span-12 grid grid-cols-1 gap-2 lg:grid-cols-[1fr_0.98fr]">
         <article class="rounded-[18px] border border-[#ece9e1] bg-white px-4 py-3 shadow-[0_10px_28px_rgba(20,20,20,0.04)]">
           <h2 class="text-[1rem] font-semibold text-[#1d1d1d]">Productividad semanal</h2>
-          <div class="mt-2 grid grid-cols-4 gap-2">
+          <div class="mt-2 grid grid-cols-1 gap-2 lg:grid-cols-4">
             <div
               v-for="(item, index) in viewModel.summaryItems"
               :key="item.label"
               class="flex min-h-[118px] flex-col items-center justify-start px-2 text-center"
-              :class="index < viewModel.summaryItems.length - 1 ? 'border-r border-[#ece8df]' : ''"
+              :class="index < viewModel.summaryItems.length - 1 ? 'border-b border-[#ece8df] pb-2 lg:border-b-0 lg:border-r lg:pb-0' : ''"
             >
               <div class="flex h-14 w-14 items-center justify-center rounded-full" :class="summaryHaloClass(index)">
                 <component :is="summaryIcons[index]" class="h-6 w-6" />
@@ -402,12 +402,12 @@ onUnmounted(() => {
 
       <section class="col-span-12 rounded-[18px] border border-[#ece9e1] bg-white px-4 py-2 shadow-[0_10px_28px_rgba(20,20,20,0.04)]">
         <h2 class="text-center text-[0.95rem] font-semibold text-[#1d1d1d]">Resumen semanal</h2>
-        <div class="mt-1 grid grid-cols-3 items-center">
+        <div class="mt-1 grid grid-cols-1 items-center lg:grid-cols-3">
           <div
             v-for="(value, index) in [viewModel.weeklyProgress.currentWeek, viewModel.weeklyProgress.previousWeek, viewModel.weeklyProgress.currentTotal]"
             :key="index"
             class="flex flex-col items-center py-1.5"
-            :class="index < 2 ? 'border-r border-[#ece8df]' : ''"
+            :class="index < 2 ? 'border-b border-[#ece8df] lg:border-b-0 lg:border-r' : ''"
           >
             <div class="flex h-[58px] w-[58px] items-center justify-center rounded-full border-[3px] text-[0.9rem] font-semibold" :class="weeklyToneClass(index)">
               {{ formatPercent(value) }}
@@ -419,13 +419,13 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <section class="col-span-12 grid grid-cols-[1fr_11rem] gap-2">
+      <section class="col-span-12 grid grid-cols-1 gap-2 lg:grid-cols-[1fr_11rem]">
         <article class="rounded-[18px] border border-[#ece9e1] bg-white px-4 py-2 shadow-[0_10px_28px_rgba(20,20,20,0.04)]">
           <h2 class="text-[1rem] font-semibold text-[#1d1d1d]">Retrasos</h2>
 
           <div class=" divide-y divide-[#ece8df]">
-            <div class=" pb-1 grid grid-cols-[12rem_6rem_8rem_8rem_1fr] items-center gap-3 ">
-              <div class="flex items-center gap-3 border-r border-[#ece8df] pr-3">
+            <div class="grid grid-cols-1 items-center gap-3 pb-3 lg:grid-cols-[12rem_6rem_8rem_8rem_1fr] lg:pb-1">
+              <div class="flex items-center gap-3 border-b border-[#ece8df] pb-3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
                 <div class="flex h-12 w-12 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#fff2f1_0%,#fde9e7_100%)] text-[#ff453d]">
                   <UsersRound class="h-6 w-6" />
                 </div>
@@ -478,8 +478,8 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div class="grid grid-cols-[12rem_6rem_1fr] items-center gap-3 py-2.5">
-              <div class="flex items-center gap-3 border-r border-[#ece8df] pr-3">
+            <div class="grid grid-cols-1 items-center gap-3 py-2.5 lg:grid-cols-[12rem_6rem_1fr]">
+              <div class="flex items-center gap-3 border-b border-[#ece8df] pb-3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
                 <div class="flex h-12 w-12 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#fff4ec_0%,#feecdf_100%)] text-[#ff6b00]">
                   <Settings2 class="h-6 w-6" />
                 </div>
@@ -495,7 +495,7 @@ onUnmounted(() => {
 
               <div>
                 <p class="mb-1 text-[0.84rem] text-[#202020]">Causas y equipos asociados</p>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-1 gap-2 lg:grid-cols-2">
                   <div
                     v-for="cause in operationalPairs"
                     :key="cause.cause"
@@ -537,6 +537,35 @@ onUnmounted(() => {
           <p class="mt-4 text-[2.8rem] font-bold leading-none">{{ totalDelayLabel }}</p>
           <p class="mt-1 text-[0.84rem] leading-5">tiempo<br>retrasado</p>
         </aside>
+      </section>
+
+      <section class="col-span-12 rounded-[18px] border border-[#ece9e1] bg-white px-4 py-2 shadow-[0_10px_28px_rgba(20,20,20,0.04)]">
+        <h2 class="text-center text-[0.95rem] font-semibold text-[#1d1d1d]">Avance sin retraso semanal</h2>
+        <div class="mt-1 grid grid-cols-1 items-center lg:grid-cols-3">
+          <div class="flex flex-col items-center border-b border-[#ece8df] py-1.5 lg:border-b-0 lg:border-r">
+            <div class="flex h-[58px] w-[58px] items-center justify-center rounded-full border-[3px] border-[#ff2d20] text-[0.9rem] font-semibold text-[#ff2d20]">
+              {{ formatPercent(viewModel.weeklyDelayProgress.lost) }}
+            </div>
+            <p class="mt-1 text-[0.84rem] text-[#202020]">Retraso semanal</p>
+            <p class="mt-0.5 text-[0.76rem] font-medium text-[#5b5b5b]">
+              Op. {{ formatPercent(viewModel.weeklyDelayProgress.operational) }} · Per. {{ formatPercent(viewModel.weeklyDelayProgress.personal) }}
+            </p>
+          </div>
+
+          <div class="flex flex-col items-center border-b border-[#ece8df] py-1.5 lg:border-b-0 lg:border-r">
+            <div class="flex h-[58px] w-[58px] items-center justify-center rounded-full border-[3px] border-[#2c8e36] text-[0.9rem] font-semibold text-main">
+              {{ formatPercent(viewModel.weeklyDelayProgress.real) }}
+            </div>
+            <p class="mt-1 text-[0.84rem] text-[#202020]">Avance real</p>
+          </div>
+
+          <div class="flex flex-col items-center py-1.5">
+            <div class="flex h-[58px] w-[58px] items-center justify-center rounded-full border-[3px] border-[#3654ff] text-[0.9rem] font-semibold text-[#3654ff]">
+              {{ formatPercent(viewModel.weeklyDelayProgress.approximated) }}
+            </div>
+            <p class="mt-1 text-[0.84rem] text-[#202020]">Avance aproximado</p>
+          </div>
+        </div>
       </section>
     </div>
   </article>

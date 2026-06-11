@@ -35,6 +35,14 @@ export interface ProductividadSlideWeeklyProgress {
   currentTotal: number;
 }
 
+export interface ProductividadSlideWeeklyDelayProgress {
+  lost: number;
+  operational: number;
+  personal: number;
+  real: number;
+  approximated: number;
+}
+
 export interface ProductividadSlidePersonalCause {
   label: string;
   hours: number;
@@ -61,6 +69,7 @@ export interface ProductividadSlideViewModel {
   summaryItems: ProductividadSlideSummaryItem[];
   topTeams: ProductividadSlideTopTeam[];
   weeklyProgress: ProductividadSlideWeeklyProgress;
+  weeklyDelayProgress: ProductividadSlideWeeklyDelayProgress;
   personalDelay: ProductividadSlideDelayBlock;
   operationalDelay: ProductividadSlideDelayBlock;
   totalDelayHours: number;

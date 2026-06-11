@@ -1571,6 +1571,13 @@ const sumRoundedProgress = (realProgress: number, lostProgress: number) => {
   return Number((roundedRealProgress + roundedLostProgress).toFixed(1));
 };
 
+const sumDisplayedLossProgress = (operationalLostProgress: number, personalLostProgress: number) => (
+  Number((
+    Number(operationalLostProgress.toFixed(1)) +
+    Number(personalLostProgress.toFixed(1))
+  ).toFixed(1))
+);
+
 const weeklyAreaSummary = computed(() => {
   const areaFixed = userArea.value?.toUpperCase();
   const areaFixedKey = normalizeAreaKey(userArea.value || '');
@@ -1661,7 +1668,7 @@ const weeklyAreaSummary = computed(() => {
     const personalLostProgress = denominator > 0
       ? Number(((personalBreakdown.totalEquivalent / denominator) * 100).toFixed(2))
       : 0;
-    const lostProgress = Number((operationalLostProgress + personalLostProgress).toFixed(2));
+    const lostProgress = sumDisplayedLossProgress(operationalLostProgress, personalLostProgress);
 
     return {
       area: areaOrders[0]?.Área || areaKey,
@@ -1704,7 +1711,7 @@ const weeklyAreaSummaryTotal = computed(() => {
   const personalLostProgress = denominator > 0
     ? Number(((personalLostEquivalent / denominator) * 100).toFixed(2))
     : 0;
-  const lostProgress = Number((operationalLostProgress + personalLostProgress).toFixed(2));
+  const lostProgress = sumDisplayedLossProgress(operationalLostProgress, personalLostProgress);
 
   return {
     operationalLostHours: Number(operationalLostHours.toFixed(2)),

@@ -243,6 +243,8 @@ export const useSlideProductividadViewModel = ({
   const totalDelayHours = currentWeekProgressRow
     ? toNumber(currentWeekProgressRow.horas_perdidas_totales)
     : personalDelayHours + operationalDelayHours;
+  const weeklyLostProgress = toNumber(currentWeekProgressRow?.avance_perdido);
+  const globalRealProgress = toNumber(progressRow?.avance_real);
 
   return {
     areaName: areaValue.area,
@@ -260,6 +262,13 @@ export const useSlideProductividadViewModel = ({
       currentWeek: toNumber(weeklyRow?.avance_semana_actual),
       previousWeek: toNumber(weeklyRow?.avance_semana_anterior),
       currentTotal: toNumber(weeklyRow?.avance_acumulado),
+    },
+    weeklyDelayProgress: {
+      lost: weeklyLostProgress,
+      operational: toNumber(currentWeekProgressRow?.avance_perdido_operativo),
+      personal: toNumber(currentWeekProgressRow?.avance_perdido_personal),
+      real: globalRealProgress,
+      approximated: Number((globalRealProgress + weeklyLostProgress).toFixed(2)),
     },
     personalDelay: {
       hours: personalDelayHours,
