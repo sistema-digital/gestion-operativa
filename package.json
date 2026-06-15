@@ -10,7 +10,8 @@
     "build:github": "vite build --mode github",
     "preview": "vite preview",
     "clean": "rm -rf dist docs",
-    "lint": "vue-tsc --noEmit"
+    "lint": "vue-tsc --noEmit",
+    "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "1.29.0",
