@@ -1,6 +1,8 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { supabase } from '@/lib/supabase';
 
+const EmptyRouteComponent = { template: '<div></div>' };
+
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
@@ -42,22 +44,22 @@ const router = createRouter({
         {
           path: 'compras',
           name: 'Compras',
-          component: () => import('@/views/ComprasView.vue'),
+          component: EmptyRouteComponent,
           children: [
             {
               path: 'nueva',
               name: 'NuevaSolicitudCompra',
-              component: () => import('@/views/compras/NuevaSolicitudCompra.vue'),
+              component: EmptyRouteComponent,
             },
             {
               path: ':id/editar',
               name: 'EditarSolicitudCompra',
-              component: () => import('@/views/compras/EditarSolicitudCompra.vue'),
+              component: EmptyRouteComponent,
             },
             {
               path: ':id',
               name: 'ComprasDetail',
-              component: () => import('@/views/ComprasDetailView.vue'),
+              component: EmptyRouteComponent,
             },
           ]
         },
