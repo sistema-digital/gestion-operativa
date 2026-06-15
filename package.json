@@ -10,6 +10,8 @@
     "build:github": "vite build --mode github",
     "preview": "vite preview",
     "clean": "rm -rf dist docs",
+    "test": "vitest",
+    "test:run": "vitest run",
     "lint": "vue-tsc --noEmit",
     "typecheck": "vue-tsc --noEmit"
   },
@@ -38,10 +40,13 @@
   },
   "devDependencies": {
     "@types/node": "22.14.0",
+    "@vue/test-utils": "^2.4.11",
     "autoprefixer": "10.4.21",
+    "jsdom": "^29.1.1",
     "tailwindcss": "4.1.14",
     "tsx": "4.21.0",
     "typescript": "5.8.2",
+    "vitest": "^4.1.8",
     "vue-tsc": "2.2.12"
   }
 }
