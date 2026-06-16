@@ -2,10 +2,17 @@
 import { storeToRefs } from 'pinia';
 import { computed, onMounted } from 'vue';
 
+import SolicitudesDesktopTable from '@/components/compras/list/desktop/SolicitudesDesktopTable.vue';
+import SolicitudesListEmptyState from '@/components/compras/list/SolicitudesListEmptyState.vue';
+import SolicitudesListErrorState from '@/components/compras/list/SolicitudesListErrorState.vue';
+import SolicitudesListLoadMoreTrigger from '@/components/compras/list/SolicitudesListLoadMoreTrigger.vue';
+import SolicitudesListSkeleton from '@/components/compras/list/SolicitudesListSkeleton.vue';
+import SolicitudesMobileList from '@/components/compras/list/mobile/SolicitudesMobileList.vue';
 import { useSolicitudesCompraStore } from '@/stores/db_compras/solicitudes_compra/solicitudesCompra.store';
 import type {
   SolicitudCompraGrupoListado,
   SolicitudCompraListItem,
+  SolicitudCompraRoleCodigo,
 } from '@/stores/db_compras/solicitudes_compra/solicitudesCompra.types';
 
 const GRUPO_LABELS: Record<SolicitudCompraGrupoListado, string> = {
@@ -32,9 +39,16 @@ const useSolicitudesCompraList = () => {
   const activeGrupo = computed(() => filters.value.grupoListado);
   const hasMore = computed(() => pagination.value.hasMore);
   const isSearchMode = computed(() => filters.value.busqueda.trim().length > 0);
+  const runStoreAction = async (action: () => Promise<void>): Promise<void> => {
+    try {
+      await action();
+    } catch {
+      // El store ya expone el error para el estado visual del listado.
+    }
+  };
 
   const loadInitial = async (): Promise<void> => {
-    await store.cargarInicial();
+    await runStoreAction(() => store.cargarInicial());
   };
 
   const loadMore = async (): Promise<void> => {
@@ -42,11 +56,11 @@ const useSolicitudesCompraList = () => {
       return;
     }
 
-    await store.cargarMas();
+    await runStoreAction(() => store.cargarMas());
   };
 
   const onGrupoChange = async (grupo: SolicitudCompraGrupoListado): Promise<void> => {
-    await store.cambiarGrupoListado(grupo);
+    await runStoreAction(() => store.cambiarGrupoListado(grupo));
   };
 
   const onRetry = async (): Promise<void> => {
@@ -108,6 +122,18 @@ const {
 
 const totalVisible = computed(() => items.value.length);
 const activeGrupoLabel = computed(() => GRUPO_LABELS[activeGrupo.value]);
+const roleCodigo = computed<SolicitudCompraRoleCodigo>(
+  () => items.value[0]?.viewerRoleCodigo ?? 'operativo'
+);
+const searchActive = computed(() =>
+  filters.value.busqueda.trim().length > 0
+  || Boolean(filters.value.estadoCodigo)
+  || Boolean(filters.value.prioridadCodigo)
+  || Boolean(filters.value.fechaDesde)
+  || Boolean(filters.value.fechaHasta)
+  || filters.value.soloBloqueadas
+  || filters.value.soloDiferenciaOc
+);
 
 onMounted(() => {
   void loadInitial();
@@ -199,140 +225,63 @@ onMounted(() => {
 
       <div
         v-if="loading && !initialized"
-        class="rounded-2xl border border-stone-300 bg-white/85 px-5 py-10 text-center shadow-sm"
+        class="space-y-3"
       >
-        <p class="text-sm font-medium text-stone-700">
-          Cargando solicitudes de compra...
-        </p>
+        <div class="hidden md:block">
+          <SolicitudesListSkeleton variant="desktop" :rows="5" />
+        </div>
+
+        <div class="md:hidden">
+          <SolicitudesListSkeleton variant="mobile" :rows="4" />
+        </div>
       </div>
 
-      <div
+      <SolicitudesListErrorState
         v-else-if="error"
-        class="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-6 shadow-sm"
-      >
-        <p class="text-sm font-semibold text-rose-700">
-          No se pudo cargar el listado.
-        </p>
-        <p class="mt-1 text-sm text-rose-600">
-          {{ error }}
-        </p>
-        <button
-          type="button"
-          class="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
-          @click="onRetry"
-        >
-          Reintentar
-        </button>
-      </div>
+        :message="error"
+        @retry="onRetry"
+      />
 
-      <div
+      <SolicitudesListEmptyState
         v-else-if="items.length === 0"
-        class="rounded-2xl border border-dashed border-stone-300 bg-white/70 px-5 py-10 text-center shadow-sm"
-      >
-        <p class="text-sm font-medium text-stone-700">
-          No hay solicitudes para mostrar.
-        </p>
-        <p class="mt-1 text-sm text-stone-500">
-          Este estado temporal será reemplazado por el empty state del listado.
-        </p>
-      </div>
+        :search-active="searchActive"
+      />
 
       <template v-else>
         <div class="hidden md:block">
-          <!-- TODO SPEC-10: reemplazar este bloque por SolicitudesDesktopTable -->
-          <div class="overflow-hidden rounded-2xl border border-stone-300 bg-white shadow-sm">
-            <div class="grid grid-cols-[1.1fr_2fr_1fr_1fr_1.2fr] gap-4 border-b border-stone-200 bg-stone-100 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-500">
-              <span>Folio</span>
-              <span>Observación</span>
-              <span>Estado</span>
-              <span>Prioridad</span>
-              <span>Área</span>
-            </div>
-
-            <button
-              v-for="item in items"
-              :key="item.id"
-              type="button"
-              class="grid w-full grid-cols-[1.1fr_2fr_1fr_1fr_1.2fr] gap-4 border-b border-stone-100 px-5 py-4 text-left transition last:border-b-0 hover:bg-stone-50"
-              @click="onRowClick(item)"
-            >
-              <span class="text-sm font-semibold text-stone-900">
-                {{ item.folio.folioSolLabel || 'Sin folio' }}
-              </span>
-              <span class="truncate text-sm text-stone-700">
-                {{ item.observacion || 'Sin observación' }}
-              </span>
-              <span class="text-sm text-stone-700">
-                {{ item.estado.badgeLabel }}
-              </span>
-              <span class="text-sm text-stone-700">
-                {{ item.prioridad.nombre }}
-              </span>
-              <span class="text-sm text-stone-600">
-                {{ item.area.nombre || 'Sin área' }}
-              </span>
-            </button>
-          </div>
+          <SolicitudesDesktopTable
+            :items="items"
+            :role-codigo="roleCodigo"
+            :loading="loading"
+            :loading-more="loadingMore"
+            @row-click="onRowClick"
+          />
         </div>
 
-        <div class="space-y-3 md:hidden">
-          <!-- TODO SPEC-12: reemplazar este bloque por SolicitudesMobileList -->
-          <button
-            v-for="item in items"
-            :key="item.id"
-            type="button"
-            class="w-full rounded-2xl border border-stone-300 bg-white px-4 py-4 text-left shadow-sm transition hover:bg-stone-50"
-            @click="onCardClick(item)"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-sm font-semibold text-stone-900">
-                  {{ item.folio.folioSolLabel || 'Sin folio' }}
-                </p>
-                <p class="mt-1 text-sm text-stone-600">
-                  {{ item.estado.badgeLabel }}
-                </p>
-              </div>
-              <span class="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-700">
-                {{ item.prioridad.nombre }}
-              </span>
-            </div>
+        <SolicitudesMobileList
+          class="md:hidden"
+          :items="items"
+          :role-codigo="roleCodigo"
+          :loading="loading"
+          :loading-more="loadingMore"
+          @card-click="onCardClick"
+        />
 
-            <p class="mt-3 text-sm text-stone-700">
-              {{ item.observacion || 'Sin observación' }}
-            </p>
-
-            <div class="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-stone-500">
-              <span>{{ item.area.nombre || 'Sin área' }}</span>
-              <span>{{ item.solicitante.nombre || 'Sin solicitante' }}</span>
-            </div>
-          </button>
-        </div>
-
-        <div class="rounded-2xl border border-stone-300 bg-white/85 p-4 shadow-sm">
-          <!-- TODO SPEC-14: reemplazar este bloque por LoadMoreTrigger -->
-          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div class="space-y-3">
+          <div class="rounded-2xl border border-stone-300 bg-white/80 px-4 py-3 shadow-sm">
             <p class="text-sm text-stone-600">
               {{ totalVisible }} resultados visibles
               <span v-if="isSearchMode" class="text-stone-500">
                 · modo búsqueda local
               </span>
             </p>
-
-            <button
-              v-if="hasMore"
-              type="button"
-              class="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="loadingMore || loading"
-              @click="loadMore"
-            >
-              {{ loadingMore ? 'Cargando más...' : 'Cargar más' }}
-            </button>
-
-            <p v-else class="text-sm text-stone-500">
-              No hay más resultados por ahora.
-            </p>
           </div>
+
+          <SolicitudesListLoadMoreTrigger
+            :loading-more="loadingMore"
+            :has-more="hasMore"
+            @load-more="loadMore"
+          />
         </div>
       </template>
     </div>
