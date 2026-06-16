@@ -25,11 +25,14 @@ export const solicitudesCompraService = {
     params: SolicitudCompraListRpcParams
   ): Promise<SolicitudCompraListRpcRow[]> {
     const normalizedBusqueda = params.p_busqueda?.trim() || null;
+    const pageSize = typeof params.p_limit === 'number' && params.p_limit > 0
+      ? params.p_limit
+      : DEFAULT_PAGE_SIZE;
 
     return ejecutarListadoRpc({
       ...params,
       p_busqueda: normalizedBusqueda && normalizedBusqueda.length > 0 ? normalizedBusqueda : null,
-      p_limit: DEFAULT_PAGE_SIZE,
+      p_limit: pageSize,
       p_offset: params.p_offset ?? 0,
     });
   },

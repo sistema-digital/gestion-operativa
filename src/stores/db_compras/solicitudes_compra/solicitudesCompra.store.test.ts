@@ -2,9 +2,10 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  SolicitudCompraGrupoListado,
   SolicitudCompraListItem,
   SolicitudCompraListRpcRow,
 } from './solicitudesCompra.types';
@@ -36,7 +37,9 @@ const mockedMapper = vi.mocked(mapSolicitudCompraListRowsToItems);
 const createRows = (
   count: number,
   startId: number,
-  totalCount: number
+  totalCount: number,
+  grupoListado: SolicitudCompraGrupoListado,
+  overrides?: Partial<SolicitudCompraListRpcRow>
 ): SolicitudCompraListRpcRow[] =>
   Array.from({ length: count }, (_, index) => ({
     id: startId + index,
@@ -47,10 +50,26 @@ const createRows = (
     folio_oc_principal: null,
     folios_oc: [],
     observacion: `Observacion ${startId + index}`,
-    estado_codigo: 'borrador',
-    estado_nombre: 'Borrador',
-    badge_codigo: 'borrador',
-    badge_label: 'Borrador',
+    estado_codigo: grupoListado === 'completadas'
+      ? 'aprobado_gerencia'
+      : grupoListado === 'descartadas'
+        ? 'rechazado'
+        : 'borrador',
+    estado_nombre: grupoListado === 'completadas'
+      ? 'Aprobado gerencia'
+      : grupoListado === 'descartadas'
+        ? 'Rechazado'
+        : 'Borrador',
+    badge_codigo: grupoListado === 'completadas'
+      ? 'aprobado_gerencia'
+      : grupoListado === 'descartadas'
+        ? 'rechazado'
+        : 'borrador',
+    badge_label: grupoListado === 'completadas'
+      ? 'Aprobado gerencia'
+      : grupoListado === 'descartadas'
+        ? 'Rechazado'
+        : 'Borrador',
     prioridad_codigo: 'alta',
     prioridad_nombre: 'Alta',
     area_solicitante_codigo: 'cosecha_agricola',
@@ -58,7 +77,7 @@ const createRows = (
     solicitante_nombre: 'Usuario Test',
     fecha_entrega_mostrada: '2026-06-15',
     fecha_entrega_origen: 'solicitud',
-    grupo_listado: 'en_proceso',
+    grupo_listado: grupoListado,
     disponible_desde: null,
     bloqueada: false,
     locked_by_email: null,
@@ -77,6 +96,7 @@ const createRows = (
     productos_activos: 1,
     servicios_total: 0,
     total_count: totalCount,
+    ...overrides,
   }));
 
 const createItemsFromRows = (
@@ -90,7 +110,7 @@ const createItemsFromRows = (
       folioSol: row.folio_sol,
       folioSolLabel: row.folio_sol,
       folioOcPrincipal: row.folio_oc_principal,
-      foliosOc: [],
+      foliosOc: row.folios_oc ?? [],
     },
     observacion: row.observacion,
     estado: {
@@ -124,20 +144,20 @@ const createItemsFromRows = (
     },
     indicadores: {
       bloqueado: {
-        visible: false,
-        lockedByEmail: null,
-        lockedAt: null,
+        visible: row.bloqueada,
+        lockedByEmail: row.locked_by_email,
+        lockedAt: row.locked_at,
       },
       adjuntos: {
-        visible: false,
-        cantidad: 0,
+        visible: row.tiene_adjuntos,
+        cantidad: row.cantidad_adjuntos,
       },
       diferenciaOc: {
-        visible: false,
-        cantidad: 0,
+        visible: row.tiene_diferencia_oc,
+        cantidad: row.cantidad_diferencias,
       },
     },
-    grupoListado: 'en_proceso',
+    grupoListado: (row.grupo_listado ?? 'en_proceso') as SolicitudCompraGrupoListado,
     disponibleDesde: row.disponible_desde,
     conteos: {
       productosTotal: row.productos_total,
@@ -156,47 +176,21 @@ const createItemsFromRows = (
 
 describe('solicitudesCompra.store', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-16T12:00:00Z'));
     setActivePinia(createPinia());
     vi.clearAllMocks();
 
     mockedMapper.mockImplementation((rows) => createItemsFromRows(rows));
   });
 
-  it('cargarInicial limpia estado y trae 25 items usando service y mapper', async () => {
-    const rows = createRows(25, 1, 60);
-    mockedService.obtenerSolicitudesListaPagina.mockResolvedValue(rows);
-
-    const store = useSolicitudesCompraStore();
-    store.error = 'error previo';
-    store.allSearchItems = createItemsFromRows(createRows(2, 900, 2));
-
-    await store.cargarInicial();
-
-    expect(mockedService.obtenerSolicitudesListaPagina).toHaveBeenCalledTimes(1);
-    expect(mockedService.obtenerSolicitudesListaPagina).toHaveBeenCalledWith(
-      expect.objectContaining({
-        p_busqueda: null,
-        p_offset: 0,
-        p_limit: 25,
-        p_grupo_listado: 'en_proceso',
-      })
-    );
-    expect(mockedMapper).toHaveBeenCalledTimes(1);
-    expect(mockedMapper).toHaveBeenCalledWith(rows);
-    expect(store.error).toBeNull();
-    expect(store.items).toHaveLength(25);
-    expect(store.rawRows).toEqual(rows);
-    expect(store.allSearchItems).toEqual([]);
-    expect(store.pagination.remoteOffset).toBe(0);
-    expect(store.pagination.totalCount).toBe(60);
-    expect(store.pagination.hasMore).toBe(true);
-    expect(store.loading).toBe(false);
-    expect(store.initialized).toBe(true);
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it('cargarMas trae otros 25 y aumenta el offset correctamente', async () => {
-    const firstPage = createRows(25, 1, 60);
-    const secondPage = createRows(25, 26, 60);
+  it('cargarInicial trae todo el rango de 6 meses enviando solo fechas y pagina remota acumulada', async () => {
+    const firstPage = createRows(200, 1, 210, 'en_proceso');
+    const secondPage = createRows(10, 201, 210, 'completadas');
     mockedService.obtenerSolicitudesListaPagina
       .mockResolvedValueOnce(firstPage)
       .mockResolvedValueOnce(secondPage);
@@ -204,72 +198,132 @@ describe('solicitudesCompra.store', () => {
     const store = useSolicitudesCompraStore();
 
     await store.cargarInicial();
-    await store.cargarMas();
 
+    expect(mockedService.obtenerSolicitudesListaPagina).toHaveBeenCalledTimes(2);
+    expect(mockedService.obtenerSolicitudesListaPagina).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        p_busqueda: null,
+        p_grupo_listado: null,
+        p_estado_codigo: null,
+        p_prioridad_codigo: null,
+        p_solo_bloqueadas: false,
+        p_solo_diferencia_oc: false,
+        p_fecha_desde: '2025-12-16',
+        p_fecha_hasta: '2026-06-16',
+        p_limit: 200,
+        p_offset: 0,
+      })
+    );
     expect(mockedService.obtenerSolicitudesListaPagina).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        p_offset: 25,
-        p_limit: 25,
+        p_offset: 200,
+        p_limit: 200,
       })
     );
-    expect(mockedMapper).toHaveBeenNthCalledWith(2, secondPage);
-    expect(store.items).toHaveLength(50);
-    expect(store.rawRows).toHaveLength(50);
-    expect(store.pagination.remoteOffset).toBe(25);
-    expect(store.pagination.totalCount).toBe(60);
+    expect(mockedMapper).toHaveBeenCalledTimes(1);
+    expect(mockedMapper).toHaveBeenCalledWith([...firstPage, ...secondPage]);
+    expect(store.baseItems).toHaveLength(210);
+    expect(store.items).toHaveLength(25);
+    expect(store.pagination.totalCount).toBe(200);
     expect(store.pagination.hasMore).toBe(true);
-    expect(store.loadingMore).toBe(false);
+    expect(store.baseEmpty).toBe(false);
+    expect(store.loading).toBe(false);
+    expect(store.initialized).toBe(true);
   });
 
-  it('calcula hasMore usando total_count del RPC', async () => {
-    const rows = createRows(25, 1, 25);
+  it('aplica filtros locales de busqueda y grupo sin refetch remoto', async () => {
+    const rows = [
+      ...createRows(2, 1, 4, 'en_proceso', { observacion: 'Motor principal' }),
+      ...createRows(2, 3, 4, 'completadas', { observacion: 'Motor principal' }),
+    ];
     mockedService.obtenerSolicitudesListaPagina.mockResolvedValue(rows);
 
     const store = useSolicitudesCompraStore();
-
     await store.cargarInicial();
 
-    expect(store.pagination.totalCount).toBe(25);
+    await store.actualizarFiltro({ busqueda: 'motor' });
+
+    expect(mockedService.obtenerSolicitudesListaPagina).toHaveBeenCalledTimes(1);
+    expect(store.items).toHaveLength(2);
+    expect(store.items.every((item) => item.grupoListado === 'en_proceso')).toBe(true);
+
+    await store.cambiarGrupoListado('completadas');
+
+    expect(mockedService.obtenerSolicitudesListaPagina).toHaveBeenCalledTimes(1);
+    expect(store.items).toHaveLength(2);
+    expect(store.items.every((item) => item.grupoListado === 'completadas')).toBe(true);
+  });
+
+  it('cargarMas expande solo resultados locales visibles', async () => {
+    const rows = createRows(40, 1, 40, 'en_proceso');
+    mockedService.obtenerSolicitudesListaPagina.mockResolvedValue(rows);
+
+    const store = useSolicitudesCompraStore();
+    await store.cargarInicial();
+
+    expect(store.items).toHaveLength(25);
+
+    await store.cargarMas();
+
+    expect(mockedService.obtenerSolicitudesListaPagina).toHaveBeenCalledTimes(1);
+    expect(store.items).toHaveLength(40);
+    expect(store.pagination.localVisibleCount).toBe(50);
     expect(store.pagination.hasMore).toBe(false);
   });
 
-  it('buscar usa el service de busqueda y muestra bloques locales de 25 sin cargar remoto adicional', async () => {
-    const searchRows = createRows(60, 1, 60);
-    mockedService.buscarSolicitudesLista.mockResolvedValue(searchRows);
+  it('recarga la base solo cuando cambian las fechas', async () => {
+    const initialRows = createRows(3, 1, 3, 'en_proceso');
+    const nextRows = createRows(2, 50, 2, 'completadas');
+    mockedService.obtenerSolicitudesListaPagina
+      .mockResolvedValueOnce(initialRows)
+      .mockResolvedValueOnce(nextRows);
 
     const store = useSolicitudesCompraStore();
-    store.filters.busqueda = '  motor   hidraulico  ';
+    await store.cargarInicial();
+    await store.actualizarFiltro({ fechaDesde: '2026-01-01' });
 
-    await store.buscar();
-
-    expect(mockedService.buscarSolicitudesLista).toHaveBeenCalledTimes(1);
-    expect(mockedService.buscarSolicitudesLista).toHaveBeenCalledWith(
+    expect(mockedService.obtenerSolicitudesListaPagina).toHaveBeenCalledTimes(2);
+    expect(mockedService.obtenerSolicitudesListaPagina).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        p_busqueda: 'motor hidraulico',
-        p_offset: 0,
-        p_limit: 25,
+        p_fecha_desde: '2026-01-01',
+        p_fecha_hasta: '2026-06-16',
+        p_grupo_listado: null,
       })
     );
-    expect(mockedService.obtenerSolicitudesListaPagina).not.toHaveBeenCalled();
-    expect(mockedMapper).toHaveBeenCalledWith(searchRows);
-    expect(store.allSearchItems).toHaveLength(60);
-    expect(store.items).toHaveLength(25);
-    expect(store.pagination.localVisibleCount).toBe(25);
-    expect(store.pagination.hasMore).toBe(true);
+    expect(store.baseItems).toHaveLength(2);
+    expect(store.items.every((item) => item.grupoListado === 'completadas')).toBe(true);
+  });
 
-    await store.cargarMas();
+  it('limpia estado invalido al cambiar de grupo', async () => {
+    const rows = [
+      ...createRows(1, 1, 2, 'en_proceso'),
+      ...createRows(1, 2, 2, 'completadas'),
+    ];
+    mockedService.obtenerSolicitudesListaPagina.mockResolvedValue(rows);
 
-    expect(mockedService.buscarSolicitudesLista).toHaveBeenCalledTimes(1);
-    expect(mockedService.obtenerSolicitudesListaPagina).not.toHaveBeenCalled();
-    expect(store.items).toHaveLength(50);
-    expect(store.pagination.localVisibleCount).toBe(50);
-    expect(store.pagination.hasMore).toBe(true);
+    const store = useSolicitudesCompraStore();
+    await store.cargarInicial();
+    await store.actualizarFiltro({ estadoCodigo: 'borrador' });
 
-    await store.cargarMas();
+    expect(store.filters.estadoCodigo).toBe('borrador');
 
-    expect(store.items).toHaveLength(60);
-    expect(store.pagination.localVisibleCount).toBe(75);
+    await store.cambiarGrupoListado('completadas');
+
+    expect(store.filters.estadoCodigo).toBeNull();
+  });
+
+  it('marca baseEmpty cuando no llegan solicitudes en el rango', async () => {
+    mockedService.obtenerSolicitudesListaPagina.mockResolvedValue([]);
+
+    const store = useSolicitudesCompraStore();
+    await store.cargarInicial();
+
+    expect(store.baseEmpty).toBe(true);
+    expect(store.baseItems).toEqual([]);
+    expect(store.items).toEqual([]);
+    expect(store.pagination.totalCount).toBe(0);
     expect(store.pagination.hasMore).toBe(false);
   });
 

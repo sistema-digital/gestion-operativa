@@ -14,12 +14,14 @@ export const useSolicitudesCompraList = () => {
   const store = useSolicitudesCompraStore();
   const {
     items,
+    baseItems,
     loading,
     loadingMore,
     searching,
     error,
     filters,
     pagination,
+    baseEmpty,
     initialized,
   } = storeToRefs(store);
 
@@ -27,8 +29,6 @@ export const useSolicitudesCompraList = () => {
 
   const activeGrupo = computed(() => filters.value.grupoListado);
   const hasMore = computed(() => pagination.value.hasMore);
-  const isSearchMode = computed(() => filters.value.busqueda.trim().length > 0);
-
   const clearSearchDebounce = (): void => {
     if (searchDebounceTimer !== null) {
       clearTimeout(searchDebounceTimer);
@@ -112,6 +112,7 @@ export const useSolicitudesCompraList = () => {
 
   return {
     items,
+    baseItems,
     loading,
     loadingMore,
     searching,
@@ -119,7 +120,7 @@ export const useSolicitudesCompraList = () => {
     filters,
     activeGrupo,
     hasMore,
-    isSearchMode,
+    baseEmpty,
     initialized,
     loadInitial,
     loadMore,

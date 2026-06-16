@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+import { solicitudCompraGrupoOptions } from '@/components/compras/list/solicitudesListOptions';
 import type { SolicitudCompraGrupoListado } from '@/stores/db_compras/solicitudes_compra/solicitudesCompra.types';
 
 interface TabOption {
@@ -16,11 +17,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: SolicitudCompraGrupoListado): void;
 }>();
 
-const tabOptions = computed<TabOption[]>(() => [
-  { value: 'en_proceso', label: 'En Proceso' },
-  { value: 'completadas', label: 'Completadas' },
-  { value: 'descartadas', label: 'Descartadas' },
-]);
+const tabOptions = computed<TabOption[]>(() => solicitudCompraGrupoOptions);
 
 const isActiveTab = (value: SolicitudCompraGrupoListado): boolean =>
   props.modelValue === value;

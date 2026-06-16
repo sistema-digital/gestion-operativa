@@ -1,45 +1,105 @@
 import { defineStore } from 'pinia';
+
+import {
+  isEstadoAllowedForGrupo,
+} from '@/components/compras/list/solicitudesListOptions';
+
 import { solicitudesCompraService } from './solicitudesCompra.service';
 import {
-  canLoadMoreRemote,
   canShowMoreLocal,
+  getDefaultDateRange,
   getInitialPagination,
-  getNextRemoteOffset,
-  isSearchMode,
+  matchesSolicitudBusqueda,
   normalizarBusqueda,
 } from './solicitudesCompra.helpers';
 import { mapSolicitudCompraListRowsToItems } from './solicitudesCompra.mappers';
 import type {
   SolicitudCompraGrupoListado,
   SolicitudCompraListFilters,
+  SolicitudCompraListItem,
   SolicitudCompraListRpcParams,
   SolicitudCompraListRpcRow,
   SolicitudCompraListState,
 } from './solicitudesCompra.types';
+
+const REMOTE_PAGE_SIZE = 200;
 
 const createInitialFilters = (): SolicitudCompraListFilters => ({
   busqueda: '',
   grupoListado: 'en_proceso',
   estadoCodigo: null,
   prioridadCodigo: null,
-  fechaDesde: null,
-  fechaHasta: null,
+  ...getDefaultDateRange(),
   soloBloqueadas: false,
   soloDiferenciaOc: false,
 });
 
 const createInitialState = (): SolicitudCompraListState => ({
+  baseRows: [],
+  baseItems: [],
   items: [],
-  allSearchItems: [],
-  rawRows: [],
   loading: false,
   loadingMore: false,
   searching: false,
   error: null,
   filters: createInitialFilters(),
   pagination: getInitialPagination(),
+  baseEmpty: false,
   lastRequestKey: null,
   initialized: false,
+});
+
+const createBaseRpcParams = (
+  filters: SolicitudCompraListFilters,
+  offset: number
+): SolicitudCompraListRpcParams => ({
+  p_busqueda: null,
+  p_grupo_listado: null,
+  p_estado_codigo: null,
+  p_prioridad_codigo: null,
+  p_fecha_desde: filters.fechaDesde,
+  p_fecha_hasta: filters.fechaHasta,
+  p_solo_bloqueadas: false,
+  p_solo_diferencia_oc: false,
+  p_limit: REMOTE_PAGE_SIZE,
+  p_offset: offset,
+});
+
+const createRequestKey = (
+  scope: string,
+  filters: SolicitudCompraListFilters
+): string =>
+  JSON.stringify({
+    scope,
+    fechaDesde: filters.fechaDesde,
+    fechaHasta: filters.fechaHasta,
+  });
+
+const filterVisibleItems = (
+  items: SolicitudCompraListItem[],
+  filters: SolicitudCompraListFilters
+): SolicitudCompraListItem[] => items.filter((item) => {
+  if (item.grupoListado !== filters.grupoListado) {
+    return false;
+  }
+
+  if (filters.estadoCodigo && item.estado.codigo !== filters.estadoCodigo) {
+    return false;
+  }
+
+  if (filters.prioridadCodigo && item.prioridad.codigo !== filters.prioridadCodigo) {
+    return false;
+  }
+
+  if (filters.soloBloqueadas && !item.indicadores.bloqueado.visible) {
+    return false;
+  }
+
+  if (filters.soloDiferenciaOc && !item.indicadores.diferenciaOc.visible) {
+    return false;
+  }
+
+  return matchesSolicitudBusqueda(item, filters.busqueda);
 });
 
 const getSafeTotalCount = (
@@ -52,80 +112,71 @@ const getSafeTotalCount = (
     : fallback;
 };
 
-const createRpcParams = (
-  filters: SolicitudCompraListFilters,
-  offset: number,
-  limit: number
-): SolicitudCompraListRpcParams => ({
-  p_busqueda: normalizarBusqueda(filters.busqueda) || null,
-  p_grupo_listado: filters.grupoListado,
-  p_estado_codigo: filters.estadoCodigo,
-  p_prioridad_codigo: filters.prioridadCodigo,
-  p_fecha_desde: filters.fechaDesde,
-  p_fecha_hasta: filters.fechaHasta,
-  p_solo_bloqueadas: filters.soloBloqueadas,
-  p_solo_diferencia_oc: filters.soloDiferenciaOc,
-  p_limit: limit,
-  p_offset: offset,
-});
-
-const createRequestKey = (
-  scope: string,
-  filters: SolicitudCompraListFilters,
-  offset: number
-): string =>
-  JSON.stringify({
-    scope,
-    offset,
-    filters: {
-      ...filters,
-      busqueda: normalizarBusqueda(filters.busqueda),
-    },
-  });
-
 export const useSolicitudesCompraStore = defineStore('solicitudesCompraList', {
   state: (): SolicitudCompraListState => createInitialState(),
 
   actions: {
+    applyVisibleItems(): void {
+      const filteredItems = filterVisibleItems(this.baseItems, this.filters);
+      const nextVisibleCount = Math.max(
+        this.pagination.pageSize,
+        Math.min(this.pagination.localVisibleCount, filteredItems.length || this.pagination.pageSize)
+      );
+
+      this.items = filteredItems.slice(0, nextVisibleCount);
+      this.pagination = {
+        ...this.pagination,
+        localVisibleCount: nextVisibleCount,
+        totalCount: filteredItems.length,
+        hasMore: canShowMoreLocal(filteredItems.length, nextVisibleCount),
+      };
+    },
+
+    resetVisibleItems(): void {
+      this.pagination = getInitialPagination();
+      this.applyVisibleItems();
+    },
+
     async cargarInicial(): Promise<void> {
-      const requestKey = createRequestKey('cargarInicial', this.filters, 0);
+      const requestKey = createRequestKey('cargarInicial', this.filters);
 
       this.loading = true;
       this.loadingMore = false;
       this.searching = false;
       this.error = null;
-      this.pagination = getInitialPagination();
       this.lastRequestKey = requestKey;
 
       try {
-        if (isSearchMode(this.filters.busqueda)) {
-          await this.buscar(requestKey);
-          return;
+        let allRows: SolicitudCompraListRpcRow[] = [];
+        let offset = 0;
+        let totalCount = 0;
+
+        while (true) {
+          const rows = await solicitudesCompraService.obtenerSolicitudesListaPagina(
+            createBaseRpcParams(this.filters, offset)
+          );
+
+          if (this.lastRequestKey !== requestKey) {
+            return;
+          }
+
+          totalCount = getSafeTotalCount(rows, totalCount);
+          allRows = [...allRows, ...rows];
+
+          if (rows.length < REMOTE_PAGE_SIZE || allRows.length >= totalCount) {
+            break;
+          }
+
+          offset += REMOTE_PAGE_SIZE;
         }
 
-        const params = createRpcParams(
-          this.filters,
-          0,
-          this.pagination.pageSize
-        );
-        const rows = await solicitudesCompraService.obtenerSolicitudesListaPagina(params);
+        const baseItems = mapSolicitudCompraListRowsToItems(allRows);
 
-        if (this.lastRequestKey !== requestKey) {
-          return;
-        }
-
-        const totalCount = getSafeTotalCount(rows, 0);
-
-        this.rawRows = rows;
-        this.allSearchItems = [];
-        this.items = mapSolicitudCompraListRowsToItems(rows);
-        this.pagination = {
-          ...getInitialPagination(totalCount),
-          hasMore: canLoadMoreRemote({
-            ...getInitialPagination(totalCount),
-            totalCount,
-          }),
-        };
+        this.baseRows = allRows;
+        this.baseItems = baseItems;
+        this.baseEmpty = baseItems.length === 0;
+        this.pagination = getInitialPagination();
+        this.resetVisibleItems();
       } catch (error) {
         if (this.lastRequestKey !== requestKey) {
           return;
@@ -150,153 +201,61 @@ export const useSolicitudesCompraStore = defineStore('solicitudesCompraList', {
         return;
       }
 
-      if (isSearchMode(this.filters.busqueda)) {
+      this.loadingMore = true;
+
+      try {
         const nextVisibleCount =
           this.pagination.localVisibleCount + this.pagination.pageSize;
+        const filteredItems = filterVisibleItems(this.baseItems, this.filters);
 
+        this.items = filteredItems.slice(0, nextVisibleCount);
         this.pagination = {
           ...this.pagination,
           localVisibleCount: nextVisibleCount,
-          totalCount: this.allSearchItems.length,
-          hasMore: canShowMoreLocal(this.allSearchItems.length, nextVisibleCount),
+          totalCount: filteredItems.length,
+          hasMore: canShowMoreLocal(filteredItems.length, nextVisibleCount),
         };
-        this.items = this.allSearchItems.slice(0, nextVisibleCount);
-        return;
-      }
-
-      const nextOffset = getNextRemoteOffset(this.pagination);
-      const requestKey = createRequestKey('cargarMas', this.filters, nextOffset);
-
-      this.loadingMore = true;
-      this.error = null;
-      this.lastRequestKey = requestKey;
-
-      try {
-        const params = createRpcParams(
-          this.filters,
-          nextOffset,
-          this.pagination.pageSize
-        );
-        const rows = await solicitudesCompraService.obtenerSolicitudesListaPagina(params);
-
-        if (this.lastRequestKey !== requestKey) {
-          return;
-        }
-
-        const appendedItems = mapSolicitudCompraListRowsToItems(rows);
-        const totalCount = getSafeTotalCount(rows, this.pagination.totalCount);
-        const nextPagination = {
-          ...this.pagination,
-          remoteOffset: nextOffset,
-          totalCount,
-        };
-
-        this.rawRows = [...this.rawRows, ...rows];
-        this.items = [...this.items, ...appendedItems];
-        this.pagination = {
-          ...nextPagination,
-          hasMore: canLoadMoreRemote(nextPagination),
-        };
-      } catch (error) {
-        if (this.lastRequestKey !== requestKey) {
-          return;
-        }
-
-        const message = error instanceof Error
-          ? error.message
-          : 'No se pudieron cargar más solicitudes';
-
-        this.error = message;
-        throw error;
       } finally {
-        if (this.lastRequestKey === requestKey) {
-          this.loadingMore = false;
-        }
-      }
-    },
-
-    async buscar(requestKey?: string): Promise<void> {
-      if (!isSearchMode(this.filters.busqueda)) {
-        await this.cargarInicial();
-        return;
-      }
-
-      const activeRequestKey =
-        requestKey ??
-        createRequestKey('buscar', this.filters, 0);
-      const localPagination = getInitialPagination();
-
-      this.searching = true;
-      this.error = null;
-      this.pagination = localPagination;
-      this.lastRequestKey = activeRequestKey;
-
-      try {
-        const params = createRpcParams(
-          this.filters,
-          0,
-          this.pagination.pageSize
-        );
-        const rows = await solicitudesCompraService.buscarSolicitudesLista(params);
-
-        if (this.lastRequestKey !== activeRequestKey) {
-          return;
-        }
-
-        const allSearchItems = mapSolicitudCompraListRowsToItems(rows);
-
-        this.rawRows = rows;
-        this.allSearchItems = allSearchItems;
-        this.items = allSearchItems.slice(0, localPagination.localVisibleCount);
-        this.pagination = {
-          ...localPagination,
-          totalCount: allSearchItems.length,
-          hasMore: canShowMoreLocal(
-            allSearchItems.length,
-            localPagination.localVisibleCount
-          ),
-        };
-      } catch (error) {
-        if (this.lastRequestKey !== activeRequestKey) {
-          return;
-        }
-
-        const message = error instanceof Error
-          ? error.message
-          : 'No se pudieron buscar las solicitudes';
-
-        this.error = message;
-        throw error;
-      } finally {
-        if (this.lastRequestKey === activeRequestKey) {
-          this.searching = false;
-        }
+        this.loadingMore = false;
       }
     },
 
     async actualizarFiltro(
       partialFilters: Partial<SolicitudCompraListFilters>
     ): Promise<void> {
-      this.filters = {
+      const normalizedBusqueda = partialFilters.busqueda !== undefined
+        ? normalizarBusqueda(partialFilters.busqueda)
+        : this.filters.busqueda;
+      const nextFilters = {
         ...this.filters,
         ...partialFilters,
-        busqueda: partialFilters.busqueda !== undefined
-          ? normalizarBusqueda(partialFilters.busqueda)
-          : this.filters.busqueda,
+        busqueda: normalizedBusqueda,
       };
-      this.pagination = getInitialPagination();
+      const shouldReloadBase =
+        partialFilters.fechaDesde !== undefined
+        || partialFilters.fechaHasta !== undefined;
 
-      await this.cargarInicial();
+      if (!isEstadoAllowedForGrupo(nextFilters.grupoListado, nextFilters.estadoCodigo)) {
+        nextFilters.estadoCodigo = null;
+      }
+
+      this.filters = nextFilters;
+
+      if (shouldReloadBase) {
+        await this.cargarInicial();
+        return;
+      }
+
+      this.resetVisibleItems();
     },
 
     async limpiarFiltros(): Promise<void> {
       this.filters = {
         ...createInitialFilters(),
-        grupoListado: this.filters.grupoListado,
+        fechaDesde: this.filters.fechaDesde,
+        fechaHasta: this.filters.fechaHasta,
       };
-      this.pagination = getInitialPagination();
-
-      await this.cargarInicial();
+      this.resetVisibleItems();
     },
 
     async cambiarGrupoListado(
@@ -305,14 +264,14 @@ export const useSolicitudesCompraStore = defineStore('solicitudesCompraList', {
       this.filters = {
         ...this.filters,
         grupoListado: grupo,
+        estadoCodigo: isEstadoAllowedForGrupo(grupo, this.filters.estadoCodigo)
+          ? this.filters.estadoCodigo
+          : null,
       };
-      this.pagination = getInitialPagination();
-
-      await this.cargarInicial();
+      this.resetVisibleItems();
     },
 
     async refrescar(): Promise<void> {
-      this.pagination = getInitialPagination();
       await this.cargarInicial();
     },
 

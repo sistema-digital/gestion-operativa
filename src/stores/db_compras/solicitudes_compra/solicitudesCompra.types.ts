@@ -95,6 +95,16 @@ export interface SolicitudCompraEstadoUi {
   badgeLabel: string;
 }
 
+export interface SolicitudCompraEstadoFilterOption {
+  value: string | null;
+  label: string;
+}
+
+export interface SolicitudCompraGrupoOption {
+  value: SolicitudCompraGrupoListado;
+  label: string;
+}
+
 export interface SolicitudCompraPrioridadUi {
   codigo: string;
   nombre: string;
@@ -186,22 +196,22 @@ export interface SolicitudCompraListFilters {
 
 export interface SolicitudCompraPagination {
   pageSize: number;
-  remoteOffset: number;
   localVisibleCount: number;
   totalCount: number;
   hasMore: boolean;
 }
 
 export interface SolicitudCompraListState {
+  baseRows: SolicitudCompraListRpcRow[];
+  baseItems: SolicitudCompraListItem[];
   items: SolicitudCompraListItem[];
-  allSearchItems: SolicitudCompraListItem[];
-  rawRows: SolicitudCompraListRpcRow[];
   loading: boolean;
   loadingMore: boolean;
   searching: boolean;
   error: string | null;
   filters: SolicitudCompraListFilters;
   pagination: SolicitudCompraPagination;
+  baseEmpty: boolean;
   lastRequestKey: string | null;
   initialized: boolean;
 }

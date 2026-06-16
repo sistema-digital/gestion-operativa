@@ -1,4 +1,6 @@
 import type {
+  SolicitudCompraListFilters,
+  SolicitudCompraListItem,
   SolicitudCompraEquipoPreview,
   SolicitudCompraPagination,
 } from './solicitudesCompra.types';
@@ -59,6 +61,28 @@ export const crearEquiposMock = (): SolicitudCompraEquipoPreview => {
 export const isSearchMode = (value: string): boolean =>
   normalizarBusqueda(value).length > 0;
 
+const formatDatePart = (value: number): string => value.toString().padStart(2, '0');
+
+export const toDateInputValue = (date: Date): string => [
+  date.getFullYear(),
+  formatDatePart(date.getMonth() + 1),
+  formatDatePart(date.getDate()),
+].join('-');
+
+export const getDefaultDateRange = (): Pick<
+  SolicitudCompraListFilters,
+  'fechaDesde' | 'fechaHasta'
+> => {
+  const today = new Date();
+  const sixMonthsAgo = new Date(today);
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  return {
+    fechaDesde: toDateInputValue(sixMonthsAgo),
+    fechaHasta: toDateInputValue(today),
+  };
+};
+
 export const formatFolioSol = (folioSol: string | null): string | null => {
   const normalizedFolio = normalizarTextoVacio(folioSol);
 
@@ -73,21 +97,43 @@ export const getInitialPagination = (
   totalCount = 0
 ): SolicitudCompraPagination => ({
   pageSize: DEFAULT_PAGE_SIZE,
-  remoteOffset: 0,
   localVisibleCount: DEFAULT_PAGE_SIZE,
   totalCount,
   hasMore: totalCount > DEFAULT_PAGE_SIZE,
 });
 
-export const getNextRemoteOffset = (
-  pagination: SolicitudCompraPagination
-): number => pagination.remoteOffset + pagination.pageSize;
-
-export const canLoadMoreRemote = (
-  pagination: SolicitudCompraPagination
-): boolean => getNextRemoteOffset(pagination) < pagination.totalCount;
-
 export const canShowMoreLocal = (
   totalItems: number,
   visibleCount: number
 ): boolean => totalItems > visibleCount;
+
+const includesNeedle = (value: string | null | undefined, needle: string): boolean =>
+  typeof value === 'string' && value.toLocaleLowerCase().includes(needle);
+
+export const matchesSolicitudBusqueda = (
+  item: SolicitudCompraListItem,
+  searchTerm: string
+): boolean => {
+  const normalizedSearch = normalizarBusqueda(searchTerm).toLocaleLowerCase();
+
+  if (!normalizedSearch) {
+    return true;
+  }
+
+  return [
+    item.folio.folioSol,
+    item.folio.folioSolLabel,
+    item.folio.folioOcPrincipal,
+    ...item.folio.foliosOc,
+    item.observacion,
+    item.estado.codigo,
+    item.estado.nombre,
+    item.prioridad.codigo,
+    item.prioridad.nombre,
+    item.area.codigo,
+    item.area.nombre,
+    item.solicitante.nombre,
+    item.ocResumen.ordenesCompraResumen,
+    item.ocResumen.proveedorPrincipal,
+  ].some((value) => includesNeedle(value, normalizedSearch));
+};

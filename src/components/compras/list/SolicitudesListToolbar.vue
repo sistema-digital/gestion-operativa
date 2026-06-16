@@ -1,32 +1,31 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import {
-  ListFilter,
   Plus,
   Search,
 } from 'lucide-vue-next';
 
-import type { SolicitudCompraListFilters } from '@/stores/db_compras/solicitudes_compra/solicitudesCompra.types';
-
-interface EstadoOption {
-  value: string | null;
-  label: string;
-}
-
-interface PrioridadOption {
-  value: string | null;
-  label: string;
-}
+import SolicitudesGrupoTabs from '@/components/compras/list/SolicitudesGrupoTabs.vue';
+import {
+  getEstadoOptionsForGrupo,
+  prioridadOptions,
+} from '@/components/compras/list/solicitudesListOptions';
+import type {
+  SolicitudCompraGrupoListado,
+  SolicitudCompraListFilters,
+} from '@/stores/db_compras/solicitudes_compra/solicitudesCompra.types';
 
 const props = defineProps<{
   filters: SolicitudCompraListFilters;
   loading: boolean;
   searching: boolean;
+  activeGrupo: SolicitudCompraGrupoListado;
   isMobile: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'update:search', value: string): void;
+  (e: 'update:grupo', value: SolicitudCompraGrupoListado): void;
   (e: 'update:estado', value: string | null): void;
   (e: 'update:prioridad', value: string | null): void;
   (e: 'update:fechaDesde', value: string | null): void;
@@ -37,34 +36,16 @@ const emit = defineEmits<{
   (e: 'openMobileFilters'): void;
 }>();
 
-const estadoOptions: EstadoOption[] = [
-  { value: null, label: 'Todos estados' },
-  { value: 'borrador', label: 'Borrador' },
-  { value: 'para_revision_almacen', label: 'Para revisión almacén' },
-  { value: 'en_revision_almacen', label: 'En revisión almacén' },
-  { value: 'para_revision_supervisor', label: 'Para revisión supervisor' },
-  { value: 'en_revision_supervisor', label: 'En revisión supervisor' },
-  { value: 'para_revision_gerencia', label: 'Para revisión gerencia' },
-  { value: 'en_revision_gerencia', label: 'En revisión gerencia' },
-  { value: 'aprobado_gerencia', label: 'Aprobado gerencia' },
-  { value: 'rechazado', label: 'Rechazado' },
-  { value: 'subido_sistema_compra', label: 'Subido a sistema' },
-  { value: 'orden_compra', label: 'Orden de compra' },
-];
-
-const prioridadOptions: PrioridadOption[] = [
-  { value: null, label: 'Todas prioridades' },
-  { value: 'normal', label: 'Normal' },
-  { value: 'alta', label: 'Alta' },
-  { value: 'urgente', label: 'Urgente' },
-  { value: 'baja', label: 'Baja' },
-];
-
 const desktopSearchPlaceholder = 'Buscar por folio, observación, equipo u orden de compra';
 const mobileSearchPlaceholder = 'Buscar folio, observación o equipo';
 
 const normalizedEstadoValue = computed(() => props.filters.estadoCodigo ?? '');
 const normalizedPrioridadValue = computed(() => props.filters.prioridadCodigo ?? '');
+const estadoOptions = computed(() => getEstadoOptionsForGrupo(props.activeGrupo));
+const searchPlaceholder = computed(() =>
+  props.isMobile ? mobileSearchPlaceholder : desktopSearchPlaceholder
+);
+
 const onSearchInput = (event: Event): void => {
   emit('update:search', (event.target as HTMLInputElement).value);
 };
@@ -100,48 +81,39 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
 
 <template>
   <section
-    class="overflow-hidden rounded-2xl border border-stone-300 bg-white/90 shadow-sm backdrop-blur"
+    class="overflow-hidden rounded-[1.75rem] border border-stone-300 bg-white/90 shadow-sm backdrop-blur"
     :class="isMobile ? 'p-3' : ''"
   >
-    <div v-if="isMobile" class="flex items-center gap-3">
-      <label
-        class="flex min-h-12 flex-1 items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 transition focus-within:border-stone-400 focus-within:bg-white"
-      >
-        <Search class="h-4 w-4 shrink-0 text-stone-400" />
-        <input
-          :value="filters.busqueda"
-          type="search"
-          :placeholder="mobileSearchPlaceholder"
-          class="w-full bg-transparent text-sm text-stone-900 outline-none placeholder:text-stone-400"
-          @input="onSearchInput"
-        >
-      </label>
-
-      <button
-        type="button"
-        class="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:bg-stone-100"
-        @click="emit('openMobileFilters')"
-      >
-        <ListFilter class="h-4 w-4" />
-        <span>Filtros</span>
-      </button>
-    </div>
-
-    <div v-else class="divide-y divide-stone-200/90">
-      <div class="grid gap-3 p-2 lg:grid-cols-[minmax(0,1.7fr)_minmax(16rem,1fr)_minmax(14rem,0.95fr)_auto] xl:grid-cols-[minmax(0,1.85fr)_minmax(18rem,1fr)_minmax(15rem,0.95fr)_auto]">
-        <label class="flex h-8 items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+    <div class="divide-y divide-stone-200/90">
+      <div class="grid gap-3 p-3 lg:grid-cols-[minmax(0,1.55fr)_auto_auto] lg:items-center">
+        <label class="flex min-h-11 items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
           <Search class="h-4 w-4 shrink-0 text-stone-400" />
           <input
             :value="filters.busqueda"
             type="search"
-            :placeholder="desktopSearchPlaceholder"
+            :placeholder="searchPlaceholder"
             class="w-full bg-transparent text-sm text-stone-900 outline-none placeholder:text-stone-400"
             @input="onSearchInput"
           >
         </label>
 
-        <label class="relative flex h-8 rounded-2xl border border-stone-200 bg-stone-50 px-4  text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
-          
+        <SolicitudesGrupoTabs
+          :model-value="activeGrupo"
+          @update:model-value="emit('update:grupo', $event)"
+        />
+
+        <button
+          type="button"
+          class="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-main bg-main px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light"
+          @click="emit('create')"
+        >
+          <Plus class="h-4 w-4" />
+          <span>Crear</span>
+        </button>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3 px-3 py-3">
+        <label class="relative flex min-h-11 min-w-[15rem] flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white sm:flex-none">
           <select
             :value="normalizedEstadoValue"
             class="w-full cursor-pointer bg-transparent pr-4 text-sm text-stone-900 outline-none"
@@ -157,8 +129,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
           </select>
         </label>
 
-        <label class="relative flex h-8  rounded-2xl border border-stone-200 bg-stone-50 px-4 text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
-          
+        <label class="relative flex min-h-11 min-w-[13rem] flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white sm:flex-none">
           <select
             :value="normalizedPrioridadValue"
             class="w-full cursor-pointer bg-transparent pr-6 text-sm text-stone-900 outline-none"
@@ -174,21 +145,10 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
           </select>
         </label>
 
-        <button
-          type="button"
-          class="inline-flex h-8 min-w-[9rem] items-center justify-center gap-2 rounded-xl border border-main bg-main px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light"
-          @click="emit('create')"
-        >
-          <Plus class="h-4 w-4" />
-          <span>Crear</span>
-        </button>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-2">
         <span class="text-sm font-semibold text-stone-700">Fechas:</span>
 
-        <div class="flex items-center gap-2">
-          <label class="flex h-8 min-w-[11rem] items-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="flex min-h-11 min-w-[10.5rem] items-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
             <input
               :value="filters.fechaDesde ?? ''"
               type="date"
@@ -199,7 +159,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
 
           <span class="text-sm text-stone-500">-</span>
 
-          <label class="flex h-8 min-w-[11rem] items-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+          <label class="flex min-h-11 min-w-[10.5rem] items-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
             <input
               :value="filters.fechaHasta ?? ''"
               type="date"
@@ -209,7 +169,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
           </label>
         </div>
 
-        <label class="inline-flex items-center gap-2 text-sm text-stone-700">
+        <label class="inline-flex min-h-11 items-center gap-2 text-sm text-stone-700">
           <input
             :checked="filters.soloBloqueadas"
             type="checkbox"
@@ -219,7 +179,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
           <span>Bloqueadas</span>
         </label>
 
-        <label class="inline-flex items-center gap-2 text-sm text-stone-700">
+        <label class="inline-flex min-h-11 items-center gap-2 text-sm text-stone-700">
           <input
             :checked="filters.soloDiferenciaOc"
             type="checkbox"

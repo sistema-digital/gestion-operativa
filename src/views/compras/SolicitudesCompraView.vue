@@ -2,7 +2,6 @@
 import { computed, onMounted } from 'vue';
 
 import SolicitudesDesktopTable from '@/components/compras/list/desktop/SolicitudesDesktopTable.vue';
-import SolicitudesGrupoTabs from '@/components/compras/list/SolicitudesGrupoTabs.vue';
 import SolicitudesListEmptyState from '@/components/compras/list/SolicitudesListEmptyState.vue';
 import SolicitudesListErrorState from '@/components/compras/list/SolicitudesListErrorState.vue';
 import SolicitudesListLoadMoreTrigger from '@/components/compras/list/SolicitudesListLoadMoreTrigger.vue';
@@ -17,12 +16,14 @@ import type {
 
 const {
   items,
+  baseItems,
   loading,
   loadingMore,
   searching,
   error,
   filters,
   activeGrupo,
+  baseEmpty,
   hasMore,
   initialized,
   loadInitial,
@@ -37,15 +38,13 @@ const {
 } = useSolicitudesCompraList();
 
 const roleCodigo = computed<SolicitudCompraRoleCodigo>(
-  () => items.value[0]?.viewerRoleCodigo ?? 'operativo'
+  () => items.value[0]?.viewerRoleCodigo ?? baseItems.value[0]?.viewerRoleCodigo ?? 'operativo'
 );
 
 const searchActive = computed(() =>
   filters.value.busqueda.trim().length > 0
   || Boolean(filters.value.estadoCodigo)
   || Boolean(filters.value.prioridadCodigo)
-  || Boolean(filters.value.fechaDesde)
-  || Boolean(filters.value.fechaHasta)
   || filters.value.soloBloqueadas
   || filters.value.soloDiferenciaOc
 );
@@ -83,8 +82,10 @@ onMounted(() => {
           :filters="filters"
           :loading="loading"
           :searching="searching"
+          :active-grupo="activeGrupo"
           :is-mobile="false"
           @update:search="onSearchChange"
+          @update:grupo="handleGrupoChange"
           @update:estado="onFilterChange({ estadoCodigo: $event })"
           @update:prioridad="onFilterChange({ prioridadCodigo: $event })"
           @update:fecha-desde="onFilterChange({ fechaDesde: $event })"
@@ -100,8 +101,10 @@ onMounted(() => {
           :filters="filters"
           :loading="loading"
           :searching="searching"
+          :active-grupo="activeGrupo"
           :is-mobile="true"
           @update:search="onSearchChange"
+          @update:grupo="handleGrupoChange"
           @update:estado="onFilterChange({ estadoCodigo: $event })"
           @update:prioridad="onFilterChange({ prioridadCodigo: $event })"
           @update:fecha-desde="onFilterChange({ fechaDesde: $event })"
@@ -110,13 +113,6 @@ onMounted(() => {
           @update:solo-diferencia-oc="onFilterChange({ soloDiferenciaOc: $event })"
           @create="onCreateClick"
           @open-mobile-filters="handleMobileFiltersOpen"
-        />
-      </div>
-
-      <div class="flex">
-        <SolicitudesGrupoTabs
-          :model-value="activeGrupo"
-          @update:model-value="handleGrupoChange"
         />
       </div>
 
@@ -142,6 +138,7 @@ onMounted(() => {
       <SolicitudesListEmptyState
         v-else-if="items.length === 0"
         :search-active="searchActive"
+        :suggest-date-range="baseEmpty"
       />
 
       <template v-else>
