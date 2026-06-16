@@ -100,8 +100,8 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
 
 <template>
   <section
-    class="rounded-2xl border border-stone-300 bg-white/90 shadow-sm backdrop-blur"
-    :class="isMobile ? 'p-3' : 'p-4'"
+    class="overflow-hidden rounded-2xl border border-stone-300 bg-white/90 shadow-sm backdrop-blur"
+    :class="isMobile ? 'p-3' : ''"
   >
     <div v-if="isMobile" class="flex items-center gap-3">
       <label
@@ -127,23 +127,24 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
       </button>
     </div>
 
-    <div v-else class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-      <div class="grid flex-1 gap-3 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.15fr)] xl:grid-cols-[minmax(0,1.8fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,1.2fr)]">
-        <label class="flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 text-xs text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
-          <Search class="h-3.5 w-3.5 shrink-0 text-stone-400" />
+    <div v-else class="divide-y divide-stone-200/90">
+      <div class="grid gap-3 p-2 lg:grid-cols-[minmax(0,1.7fr)_minmax(16rem,1fr)_minmax(14rem,0.95fr)_auto] xl:grid-cols-[minmax(0,1.85fr)_minmax(18rem,1fr)_minmax(15rem,0.95fr)_auto]">
+        <label class="flex h-8 items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+          <Search class="h-4 w-4 shrink-0 text-stone-400" />
           <input
             :value="filters.busqueda"
             type="search"
             :placeholder="desktopSearchPlaceholder"
-            class="w-full bg-transparent text-xs text-stone-900 outline-none placeholder:text-stone-400"
+            class="w-full bg-transparent text-sm text-stone-900 outline-none placeholder:text-stone-400"
             @input="onSearchInput"
           >
         </label>
 
-        <label class="flex h-9 items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-xs text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+        <label class="relative flex h-8 rounded-2xl border border-stone-200 bg-stone-50 px-4  text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+          
           <select
             :value="normalizedEstadoValue"
-            class="w-full cursor-pointer bg-transparent text-xs text-stone-900 outline-none"
+            class="w-full cursor-pointer bg-transparent pr-4 text-sm text-stone-900 outline-none"
             @change="onEstadoChange"
           >
             <option
@@ -156,10 +157,11 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
           </select>
         </label>
 
-        <label class="flex h-9 items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-xs text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+        <label class="relative flex h-8  rounded-2xl border border-stone-200 bg-stone-50 px-4 text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+          
           <select
             :value="normalizedPrioridadValue"
-            class="w-full cursor-pointer bg-transparent text-xs text-stone-900 outline-none"
+            class="w-full cursor-pointer bg-transparent pr-6 text-sm text-stone-900 outline-none"
             @change="onPrioridadChange"
           >
             <option
@@ -172,58 +174,60 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
           </select>
         </label>
 
-        <div class="grid grid-cols-2 gap-2">
-          <label class="flex h-9 items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-xs text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+        <button
+          type="button"
+          class="inline-flex h-8 min-w-[9rem] items-center justify-center gap-2 rounded-xl border border-main bg-main px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light"
+          @click="emit('create')"
+        >
+          <Plus class="h-4 w-4" />
+          <span>Crear</span>
+        </button>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-2">
+        <span class="text-sm font-semibold text-stone-700">Fechas:</span>
+
+        <div class="flex items-center gap-2">
+          <label class="flex h-8 min-w-[11rem] items-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
             <input
               :value="filters.fechaDesde ?? ''"
               type="date"
-              class="w-full bg-transparent text-xs text-stone-900 outline-none"
+              class="w-full bg-transparent text-sm text-stone-900 outline-none"
               @input="onFechaDesdeChange"
             >
           </label>
 
-          <label class="flex h-9 items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-xs text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+          <span class="text-sm text-stone-500">-</span>
+
+          <label class="flex h-8 min-w-[11rem] items-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
             <input
               :value="filters.fechaHasta ?? ''"
               type="date"
-              class="w-full bg-transparent text-xs text-stone-900 outline-none"
+              class="w-full bg-transparent text-sm text-stone-900 outline-none"
               @input="onFechaHastaChange"
             >
           </label>
         </div>
-      </div>
 
-      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between xl:shrink-0">
-        <div class="flex flex-col gap-2 xl:max-w-[17rem]">
-          <label class="inline-flex items-center gap-2 text-xs text-stone-700">
-            <input
-              :checked="filters.soloBloqueadas"
-              type="checkbox"
-              class="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-400"
-              @change="onSoloBloqueadasChange"
-            >
-            <span>Bloqueadas</span>
-          </label>
+        <label class="inline-flex items-center gap-2 text-sm text-stone-700">
+          <input
+            :checked="filters.soloBloqueadas"
+            type="checkbox"
+            class="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-400"
+            @change="onSoloBloqueadasChange"
+          >
+          <span>Bloqueadas</span>
+        </label>
 
-          <label class="inline-flex items-center gap-2 text-xs text-stone-700">
-            <input
-              :checked="filters.soloDiferenciaOc"
-              type="checkbox"
-              class="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-400"
-              @change="onSoloDiferenciaOcChange"
-            >
-            <span>Diferencia OC</span>
-          </label>
-        </div>
-
-        <button
-          type="button"
-          class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-main bg-main px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-main-light"
-          @click="emit('create')"
-        >
-          <Plus class="h-3.5 w-3.5" />
-          <span>Crear</span>
-        </button>
+        <label class="inline-flex items-center gap-2 text-sm text-stone-700">
+          <input
+            :checked="filters.soloDiferenciaOc"
+            type="checkbox"
+            class="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-400"
+            @change="onSoloDiferenciaOcChange"
+          >
+          <span>Diferencia OC</span>
+        </label>
       </div>
     </div>
   </section>
