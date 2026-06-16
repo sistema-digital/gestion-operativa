@@ -1,17 +1,15 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
 import { computed, onMounted } from 'vue';
 
+import { useSolicitudesCompraList } from '@/components/compras/list/useSolicitudesCompraList';
 import SolicitudesDesktopTable from '@/components/compras/list/desktop/SolicitudesDesktopTable.vue';
 import SolicitudesListEmptyState from '@/components/compras/list/SolicitudesListEmptyState.vue';
 import SolicitudesListErrorState from '@/components/compras/list/SolicitudesListErrorState.vue';
 import SolicitudesListLoadMoreTrigger from '@/components/compras/list/SolicitudesListLoadMoreTrigger.vue';
 import SolicitudesListSkeleton from '@/components/compras/list/SolicitudesListSkeleton.vue';
 import SolicitudesMobileList from '@/components/compras/list/mobile/SolicitudesMobileList.vue';
-import { useSolicitudesCompraStore } from '@/stores/db_compras/solicitudes_compra/solicitudesCompra.store';
 import type {
   SolicitudCompraGrupoListado,
-  SolicitudCompraListItem,
   SolicitudCompraRoleCodigo,
 } from '@/stores/db_compras/solicitudes_compra/solicitudesCompra.types';
 
@@ -19,85 +17,6 @@ const GRUPO_LABELS: Record<SolicitudCompraGrupoListado, string> = {
   en_proceso: 'En proceso',
   completadas: 'Completadas',
   descartadas: 'Descartadas',
-};
-
-// TODO SPEC-06: reemplazar este adaptador local por el composable real
-// `src/components/compras/list/useSolicitudesCompraList.ts` cuando exista en el repo.
-const useSolicitudesCompraList = () => {
-  const store = useSolicitudesCompraStore();
-  const {
-    items,
-    loading,
-    loadingMore,
-    searching,
-    error,
-    filters,
-    pagination,
-    initialized,
-  } = storeToRefs(store);
-
-  const activeGrupo = computed(() => filters.value.grupoListado);
-  const hasMore = computed(() => pagination.value.hasMore);
-  const isSearchMode = computed(() => filters.value.busqueda.trim().length > 0);
-  const runStoreAction = async (action: () => Promise<void>): Promise<void> => {
-    try {
-      await action();
-    } catch {
-      // El store ya expone el error para el estado visual del listado.
-    }
-  };
-
-  const loadInitial = async (): Promise<void> => {
-    await runStoreAction(() => store.cargarInicial());
-  };
-
-  const loadMore = async (): Promise<void> => {
-    if (loading.value || loadingMore.value || !hasMore.value) {
-      return;
-    }
-
-    await runStoreAction(() => store.cargarMas());
-  };
-
-  const onGrupoChange = async (grupo: SolicitudCompraGrupoListado): Promise<void> => {
-    await runStoreAction(() => store.cambiarGrupoListado(grupo));
-  };
-
-  const onRetry = async (): Promise<void> => {
-    await loadInitial();
-  };
-
-  const onRowClick = (item: SolicitudCompraListItem): void => {
-    store.prepararAbrirDetalle(item.id);
-  };
-
-  const onCardClick = (item: SolicitudCompraListItem): void => {
-    store.prepararAbrirDetalle(item.id);
-  };
-
-  const onCreateClick = (): void => {
-    store.prepararCrearSolicitud();
-  };
-
-  return {
-    items,
-    loading,
-    loadingMore,
-    searching,
-    error,
-    filters,
-    activeGrupo,
-    hasMore,
-    isSearchMode,
-    initialized,
-    loadInitial,
-    loadMore,
-    onGrupoChange,
-    onRetry,
-    onRowClick,
-    onCardClick,
-    onCreateClick,
-  };
 };
 
 const {
