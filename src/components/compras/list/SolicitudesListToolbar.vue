@@ -86,7 +86,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
   >
     <div class="divide-y divide-stone-200/90">
       <div class="grid gap-3 p-3 lg:grid-cols-[minmax(0,1.55fr)_auto_auto] lg:items-center">
-        <label class="flex min-h-11 items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+        <label class="flex min-h-8 items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
           <Search class="h-4 w-4 shrink-0 text-stone-400" />
           <input
             :value="filters.busqueda"
@@ -104,7 +104,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
 
         <button
           type="button"
-          class="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-main bg-main px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light"
+          class="inline-flex min-h-8 items-center justify-center gap-2 rounded-2xl border border-main bg-main px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light"
           @click="emit('create')"
         >
           <Plus class="h-4 w-4" />
@@ -113,7 +113,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
       </div>
 
       <div class="flex flex-wrap items-center gap-3 px-3 py-3">
-        <label class="relative flex min-h-11 min-w-[15rem] flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white sm:flex-none">
+        <label class="relative flex min-h-8 min-w-[15rem] flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white sm:flex-none">
           <select
             :value="normalizedEstadoValue"
             class="w-full cursor-pointer bg-transparent pr-4 text-sm text-stone-900 outline-none"
@@ -129,7 +129,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
           </select>
         </label>
 
-        <label class="relative flex min-h-11 min-w-[13rem] flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white sm:flex-none">
+        <label class="relative flex min-h-8 min-w-[15rem] flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white sm:flex-none">
           <select
             :value="normalizedPrioridadValue"
             class="w-full cursor-pointer bg-transparent pr-6 text-sm text-stone-900 outline-none"
@@ -148,7 +148,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
         <span class="text-sm font-semibold text-stone-700">Fechas:</span>
 
         <div class="flex flex-wrap items-center gap-2">
-          <label class="flex min-h-11 min-w-[10.5rem] items-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+          <label class="flex min-h-8 min-w-[8rem] items-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
             <input
               :value="filters.fechaDesde ?? ''"
               type="date"
@@ -159,7 +159,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
 
           <span class="text-sm text-stone-500">-</span>
 
-          <label class="flex min-h-11 min-w-[10.5rem] items-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+          <label class="flex min-h-8 min-w-[8rem] items-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
             <input
               :value="filters.fechaHasta ?? ''"
               type="date"
@@ -169,7 +169,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
           </label>
         </div>
 
-        <label class="inline-flex min-h-11 items-center gap-2 text-sm text-stone-700">
+        <label class="inline-flex min-h-8 items-center gap-2 text-sm text-stone-700">
           <input
             :checked="filters.soloBloqueadas"
             type="checkbox"
@@ -179,7 +179,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
           <span>Bloqueadas</span>
         </label>
 
-        <label class="inline-flex min-h-11 items-center gap-2 text-sm text-stone-700">
+        <label class="inline-flex min-h-8 items-center gap-2 text-sm text-stone-700">
           <input
             :checked="filters.soloDiferenciaOc"
             type="checkbox"
