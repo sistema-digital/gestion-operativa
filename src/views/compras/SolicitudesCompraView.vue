@@ -1,23 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 
-import { useSolicitudesCompraList } from '@/components/compras/list/useSolicitudesCompraList';
 import SolicitudesDesktopTable from '@/components/compras/list/desktop/SolicitudesDesktopTable.vue';
+import SolicitudesGrupoTabs from '@/components/compras/list/SolicitudesGrupoTabs.vue';
 import SolicitudesListEmptyState from '@/components/compras/list/SolicitudesListEmptyState.vue';
 import SolicitudesListErrorState from '@/components/compras/list/SolicitudesListErrorState.vue';
 import SolicitudesListLoadMoreTrigger from '@/components/compras/list/SolicitudesListLoadMoreTrigger.vue';
 import SolicitudesListSkeleton from '@/components/compras/list/SolicitudesListSkeleton.vue';
+import SolicitudesListToolbar from '@/components/compras/list/SolicitudesListToolbar.vue';
 import SolicitudesMobileList from '@/components/compras/list/mobile/SolicitudesMobileList.vue';
+import { useSolicitudesCompraList } from '@/components/compras/list/useSolicitudesCompraList';
 import type {
   SolicitudCompraGrupoListado,
   SolicitudCompraRoleCodigo,
 } from '@/stores/db_compras/solicitudes_compra/solicitudesCompra.types';
-
-const GRUPO_LABELS: Record<SolicitudCompraGrupoListado, string> = {
-  en_proceso: 'En proceso',
-  completadas: 'Completadas',
-  descartadas: 'Descartadas',
-};
 
 const {
   items,
@@ -28,22 +24,22 @@ const {
   filters,
   activeGrupo,
   hasMore,
-  isSearchMode,
   initialized,
   loadInitial,
   loadMore,
+  onSearchChange,
   onGrupoChange,
+  onFilterChange,
   onRetry,
   onRowClick,
   onCardClick,
   onCreateClick,
 } = useSolicitudesCompraList();
 
-const totalVisible = computed(() => items.value.length);
-const activeGrupoLabel = computed(() => GRUPO_LABELS[activeGrupo.value]);
 const roleCodigo = computed<SolicitudCompraRoleCodigo>(
   () => items.value[0]?.viewerRoleCodigo ?? 'operativo'
 );
+
 const searchActive = computed(() =>
   filters.value.busqueda.trim().length > 0
   || Boolean(filters.value.estadoCodigo)
@@ -54,6 +50,16 @@ const searchActive = computed(() =>
   || filters.value.soloDiferenciaOc
 );
 
+const handleGrupoChange = async (
+  grupo: SolicitudCompraGrupoListado
+): Promise<void> => {
+  await onGrupoChange(grupo);
+};
+
+const handleMobileFiltersOpen = (): void => {
+  // El toolbar mobile ya expone el evento; la apertura real se conecta cuando exista ese flujo.
+};
+
 onMounted(() => {
   void loadInitial();
 });
@@ -62,84 +68,46 @@ onMounted(() => {
 <template>
   <section class="min-h-screen bg-[#EEECE4]">
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 md:px-6 md:py-6">
-      <div class="rounded-2xl border border-stone-300 bg-white/85 p-4 shadow-sm backdrop-blur">
-        <!-- TODO SPEC-08: reemplazar este bloque por SolicitudesListToolbar -->
-        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div class="grid gap-3 md:flex-1 md:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
-            <div class="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-              <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
-                Búsqueda temporal
-              </p>
-              <p class="mt-1 text-sm text-stone-800">
-                {{ filters.busqueda || 'Sin búsqueda activa' }}
-              </p>
-            </div>
-
-            <div class="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-              <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
-                Grupo activo
-              </p>
-              <p class="mt-1 text-sm text-stone-800">
-                {{ activeGrupoLabel }}
-              </p>
-            </div>
-
-            <div class="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-              <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
-                Estado temporal
-              </p>
-              <p class="mt-1 text-sm text-stone-800">
-                {{ totalVisible }} visibles
-                <span v-if="searching" class="text-stone-500">· buscando</span>
-                <span v-else-if="loading && initialized" class="text-stone-500">· actualizando</span>
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            class="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-900 bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-800"
-            @click="onCreateClick"
-          >
-            Crear
-          </button>
-        </div>
+      <div class="hidden md:block">
+        <SolicitudesListToolbar
+          :filters="filters"
+          :loading="loading"
+          :searching="searching"
+          :is-mobile="false"
+          @update:search="onSearchChange"
+          @update:estado="onFilterChange({ estadoCodigo: $event })"
+          @update:prioridad="onFilterChange({ prioridadCodigo: $event })"
+          @update:fecha-desde="onFilterChange({ fechaDesde: $event })"
+          @update:fecha-hasta="onFilterChange({ fechaHasta: $event })"
+          @update:solo-bloqueadas="onFilterChange({ soloBloqueadas: $event })"
+          @update:solo-diferencia-oc="onFilterChange({ soloDiferenciaOc: $event })"
+          @create="onCreateClick"
+        />
       </div>
 
-      <div class="rounded-2xl border border-stone-300 bg-white/85 p-3 shadow-sm backdrop-blur">
-        <!-- TODO SPEC-09: reemplazar este bloque por SolicitudesGrupoTabs -->
-        <div class="flex flex-wrap gap-2">
-          <button
-            type="button"
-            class="rounded-full border px-4 py-2 text-sm font-medium transition"
-            :class="activeGrupo === 'en_proceso'
-              ? 'border-stone-900 bg-stone-900 text-white'
-              : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-100'"
-            @click="onGrupoChange('en_proceso')"
-          >
-            En proceso
-          </button>
-          <button
-            type="button"
-            class="rounded-full border px-4 py-2 text-sm font-medium transition"
-            :class="activeGrupo === 'completadas'
-              ? 'border-stone-900 bg-stone-900 text-white'
-              : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-100'"
-            @click="onGrupoChange('completadas')"
-          >
-            Completadas
-          </button>
-          <button
-            type="button"
-            class="rounded-full border px-4 py-2 text-sm font-medium transition"
-            :class="activeGrupo === 'descartadas'
-              ? 'border-stone-900 bg-stone-900 text-white'
-              : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-100'"
-            @click="onGrupoChange('descartadas')"
-          >
-            Descartadas
-          </button>
-        </div>
+      <div class="md:hidden">
+        <SolicitudesListToolbar
+          :filters="filters"
+          :loading="loading"
+          :searching="searching"
+          :is-mobile="true"
+          @update:search="onSearchChange"
+          @update:estado="onFilterChange({ estadoCodigo: $event })"
+          @update:prioridad="onFilterChange({ prioridadCodigo: $event })"
+          @update:fecha-desde="onFilterChange({ fechaDesde: $event })"
+          @update:fecha-hasta="onFilterChange({ fechaHasta: $event })"
+          @update:solo-bloqueadas="onFilterChange({ soloBloqueadas: $event })"
+          @update:solo-diferencia-oc="onFilterChange({ soloDiferenciaOc: $event })"
+          @create="onCreateClick"
+          @open-mobile-filters="handleMobileFiltersOpen"
+        />
+      </div>
+
+      <div class="flex">
+        <SolicitudesGrupoTabs
+          :model-value="activeGrupo"
+          @update:model-value="handleGrupoChange"
+        />
       </div>
 
       <div
@@ -186,22 +154,11 @@ onMounted(() => {
           @card-click="onCardClick"
         />
 
-        <div class="space-y-3">
-          <div class="rounded-2xl border border-stone-300 bg-white/80 px-4 py-3 shadow-sm">
-            <p class="text-sm text-stone-600">
-              {{ totalVisible }} resultados visibles
-              <span v-if="isSearchMode" class="text-stone-500">
-                · modo búsqueda local
-              </span>
-            </p>
-          </div>
-
-          <SolicitudesListLoadMoreTrigger
-            :loading-more="loadingMore"
-            :has-more="hasMore"
-            @load-more="loadMore"
-          />
-        </div>
+        <SolicitudesListLoadMoreTrigger
+          :loading-more="loadingMore"
+          :has-more="hasMore"
+          @load-more="loadMore"
+        />
       </template>
     </div>
   </section>
