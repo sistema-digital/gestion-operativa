@@ -65,8 +65,6 @@ const mobileSearchPlaceholder = 'Buscar folio, observación o equipo';
 
 const normalizedEstadoValue = computed(() => props.filters.estadoCodigo ?? '');
 const normalizedPrioridadValue = computed(() => props.filters.prioridadCodigo ?? '');
-const isBusy = computed(() => props.loading || props.searching);
-
 const onSearchInput = (event: Event): void => {
   emit('update:search', (event.target as HTMLInputElement).value);
 };
@@ -227,15 +225,6 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
           <span>Crear</span>
         </button>
       </div>
-    </div>
-
-    <div
-      v-if="isBusy"
-      class="mt-3 flex items-center justify-end"
-    >
-      <span class="rounded-full bg-stone-100 px-3 py-1 text-[11px] font-medium text-stone-600">
-        {{ searching ? 'Buscando...' : 'Actualizando...' }}
-      </span>
     </div>
   </section>
 </template>

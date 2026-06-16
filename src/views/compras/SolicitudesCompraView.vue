@@ -50,6 +50,16 @@ const searchActive = computed(() =>
   || filters.value.soloDiferenciaOc
 );
 
+const isListRefreshing = computed(() =>
+  initialized.value
+  && items.value.length > 0
+  && (loading.value || searching.value)
+);
+
+const listRefreshingLabel = computed(() =>
+  searching.value ? 'Buscando...' : 'Actualizando...'
+);
+
 const handleGrupoChange = async (
   grupo: SolicitudCompraGrupoListado
 ): Promise<void> => {
@@ -135,6 +145,15 @@ onMounted(() => {
       />
 
       <template v-else>
+        <div
+          v-if="isListRefreshing"
+          class="flex items-center justify-end"
+        >
+          <span class="rounded-full bg-stone-100 px-3 py-1 text-[11px] font-medium text-stone-600">
+            {{ listRefreshingLabel }}
+          </span>
+        </div>
+
         <div class="hidden md:block">
           <SolicitudesDesktopTable
             :items="items"
