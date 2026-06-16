@@ -66,7 +66,7 @@ const menuItems = computed(() => {
 });
 
 const viewTitle = computed(() => {
-  if (route.path.startsWith('/compras')) return 'SOLICITUD COMPRA';
+  if (route.path.startsWith('/compras')) return 'COMPRAS';
   if (route.path.startsWith('/panel-admin')) return 'PANEL ADMINISTRADOR';
   if (route.path.startsWith('/catalogo')) return 'CATÁLOGO';
   return menuItems.value.find(i => isActive(i.path))?.name || 'Dashboard';
