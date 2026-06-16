@@ -51,6 +51,41 @@ describe('useSolicitudesCompraList', () => {
     });
   });
 
+  it('aplica debounce al cambio combinado cuando incluye busqueda', async () => {
+    const store = useSolicitudesCompraStore();
+    const actualizarFiltroSpy = vi
+      .spyOn(store, 'actualizarFiltro')
+      .mockResolvedValue();
+
+    let composable!: ReturnType<typeof useSolicitudesCompraList>;
+
+    mount(defineComponent({
+      setup() {
+        composable = useSolicitudesCompraList();
+        return () => null;
+      },
+    }));
+
+    void composable.onFilterChange({
+      busqueda: 'urgente',
+      soloBloqueadas: true,
+    });
+
+    vi.advanceTimersByTime(349);
+    await flushTimers();
+
+    expect(actualizarFiltroSpy).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    await flushTimers();
+
+    expect(actualizarFiltroSpy).toHaveBeenCalledTimes(1);
+    expect(actualizarFiltroSpy).toHaveBeenCalledWith({
+      busqueda: 'urgente',
+      soloBloqueadas: true,
+    });
+  });
+
   it('delegates loadMore solo cuando el listado permite cargar mas', async () => {
     const store = useSolicitudesCompraStore();
     const cargarMasSpy = vi.spyOn(store, 'cargarMas').mockResolvedValue();

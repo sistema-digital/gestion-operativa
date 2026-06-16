@@ -57,13 +57,19 @@ export const useSolicitudesCompraList = () => {
     await runStoreAction(() => store.cargarMas());
   };
 
-  const onSearchChange = (value: string): void => {
+  const scheduleFilterUpdate = (
+    partialFilters: Partial<SolicitudCompraListFilters>
+  ): void => {
     clearSearchDebounce();
 
     searchDebounceTimer = setTimeout(() => {
       searchDebounceTimer = null;
-      void runStoreAction(() => store.actualizarFiltro({ busqueda: value }));
+      void runStoreAction(() => store.actualizarFiltro(partialFilters));
     }, SEARCH_DEBOUNCE_MS);
+  };
+
+  const onSearchChange = (value: string): void => {
+    scheduleFilterUpdate({ busqueda: value });
   };
 
   const onGrupoChange = async (grupo: SolicitudCompraGrupoListado): Promise<void> => {
@@ -74,11 +80,8 @@ export const useSolicitudesCompraList = () => {
   const onFilterChange = async (
     partialFilters: Partial<SolicitudCompraListFilters>
   ): Promise<void> => {
-    const { busqueda, ...remainingFilters } = partialFilters;
-    const hasNonSearchFilters = Object.keys(remainingFilters).length > 0;
-
-    if (busqueda !== undefined && !hasNonSearchFilters) {
-      onSearchChange(busqueda);
+    if (partialFilters.busqueda !== undefined) {
+      scheduleFilterUpdate(partialFilters);
       return;
     }
 
