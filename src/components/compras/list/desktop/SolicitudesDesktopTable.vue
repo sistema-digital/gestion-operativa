@@ -1,12 +1,29 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { getSolicitudDesktopColumnsByRole } from '@/components/compras/list/solicitudListRoleConfig';
+import {
+  canShowSolicitudListField,
+  getSolicitudDesktopColumnsByRole,
+} from '@/components/compras/list/solicitudListRoleConfig';
 import type {
+  SolicitudCompraAreaUi,
   SolicitudCompraColumnKey,
+  SolicitudCompraFolioUi,
+  SolicitudCompraIndicadores,
   SolicitudCompraListItem,
   SolicitudCompraRoleCodigo,
+  SolicitudCompraSolicitanteUi,
 } from '@/stores/db_compras/solicitudes_compra/solicitudesCompra.types';
+import SolicitudAreaCell from '@/components/compras/list/cells/SolicitudAreaCell.vue';
+import SolicitudBloqueadoCell from '@/components/compras/list/cells/SolicitudBloqueadoCell.vue';
+import SolicitudEquiposCell from '@/components/compras/list/cells/SolicitudEquiposCell.vue';
+import SolicitudEstadoBadge from '@/components/compras/list/cells/SolicitudEstadoBadge.vue';
+import SolicitudFechaEntregaCell from '@/components/compras/list/cells/SolicitudFechaEntregaCell.vue';
+import SolicitudFolioCell from '@/components/compras/list/cells/SolicitudFolioCell.vue';
+import SolicitudIndicadoresCell from '@/components/compras/list/cells/SolicitudIndicadoresCell.vue';
+import SolicitudObservacionCell from '@/components/compras/list/cells/SolicitudObservacionCell.vue';
+import SolicitudPrioridadBadge from '@/components/compras/list/cells/SolicitudPrioridadBadge.vue';
+import SolicitudSolicitanteCell from '@/components/compras/list/cells/SolicitudSolicitanteCell.vue';
 
 const props = defineProps<{
   items: SolicitudCompraListItem[];
@@ -33,6 +50,15 @@ const columnLabels: Record<SolicitudCompraColumnKey, string> = {
 };
 
 const columns = computed(() => getSolicitudDesktopColumnsByRole(props.roleCodigo));
+const roleVisibility = computed(() => ({
+  canSeeFolio: canShowSolicitudListField(props.roleCodigo, 'canSeeFolio'),
+  canSeeFolioOc: canShowSolicitudListField(props.roleCodigo, 'canSeeFolioOc'),
+  canSeeArea: canShowSolicitudListField(props.roleCodigo, 'canSeeArea'),
+  canSeeSolicitante: canShowSolicitudListField(props.roleCodigo, 'canSeeSolicitante'),
+  canSeeAdjuntos: canShowSolicitudListField(props.roleCodigo, 'canSeeAdjuntos'),
+  canSeeDiferenciaOc: canShowSolicitudListField(props.roleCodigo, 'canSeeDiferenciaOc'),
+  canSeeBloqueado: canShowSolicitudListField(props.roleCodigo, 'canSeeBloqueado'),
+}));
 
 const tableGridClass = computed(() => {
   const widthMap: Record<SolicitudCompraColumnKey, string> = {
@@ -61,71 +87,76 @@ const getColumnCellClass = (column: SolicitudCompraColumnKey): string => {
   return 'min-w-0';
 };
 
-const getPrioridadClass = (codigo: string): string => {
-  switch (codigo) {
-    case 'urgente':
-      return 'border-rose-200 bg-rose-50 text-rose-700';
-    case 'alta':
-      return 'border-amber-200 bg-amber-50 text-amber-700';
-    case 'baja':
-      return 'border-slate-200 bg-slate-50 text-slate-600';
-    default:
-      return 'border-stone-200 bg-stone-100 text-stone-700';
-  }
+const getSanitizedFolio = (item: SolicitudCompraListItem): SolicitudCompraFolioUi => {
+  const folioValue = roleVisibility.value.canSeeFolio
+    ? item.folio.folioSol?.trim() || item.folio.folioSolLabel?.trim() || null
+    : '—';
+
+  return {
+    ...item.folio,
+    folioSol: folioValue,
+    folioSolLabel: folioValue,
+    folioOcPrincipal: roleVisibility.value.canSeeFolioOc ? item.folio.folioOcPrincipal : null,
+  };
 };
 
-const getEstadoClass = (codigo: string): string => {
-  switch (codigo) {
-    case 'aprobado_gerencia':
-    case 'orden_compra':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-    case 'rechazado':
-    case 'descartado_por_supervisor':
-      return 'border-rose-200 bg-rose-50 text-rose-700';
-    case 'en_revision_almacen':
-    case 'en_revision_supervisor':
-    case 'en_revision_gerencia':
-      return 'border-sky-200 bg-sky-50 text-sky-700';
-    default:
-      return 'border-stone-200 bg-stone-100 text-stone-700';
-  }
+const getSanitizedObservacion = (item: SolicitudCompraListItem): string => {
+  const normalizedValue = item.observacion?.trim();
+
+  return normalizedValue && normalizedValue.length > 0 ? normalizedValue : '—';
 };
 
-const getFechaOrigenLabel = (origen: SolicitudCompraListItem['fechaEntrega']['origen']): string => {
-  switch (origen) {
-    case 'proveedor':
-      return 'Proveedor';
-    case 'sistema':
-      return 'Sistema';
-    case 'solicitud':
-      return 'Solicitud';
-    default:
-      return 'Sin fecha';
+const getSanitizedArea = (item: SolicitudCompraListItem): SolicitudCompraAreaUi => {
+  if (!roleVisibility.value.canSeeArea) {
+    return { codigo: null, nombre: '—' };
   }
+
+  const normalizedName = item.area.nombre?.trim();
+
+  return {
+    codigo: null,
+    nombre: normalizedName && normalizedName.length > 0 ? normalizedName : '—',
+  };
 };
 
-const getIndicadores = (item: SolicitudCompraListItem): string[] => {
-  const indicadores: string[] = [];
-
-  if (item.indicadores.bloqueado.visible) {
-    indicadores.push('Bloqueada');
+const getSanitizedSolicitante = (item: SolicitudCompraListItem): SolicitudCompraSolicitanteUi => {
+  if (!roleVisibility.value.canSeeSolicitante) {
+    return { nombre: '—' };
   }
 
-  if (item.indicadores.adjuntos.visible) {
-    indicadores.push(`Adj. ${item.indicadores.adjuntos.cantidad}`);
-  }
+  const normalizedName = item.solicitante.nombre?.trim();
 
-  if (item.indicadores.diferenciaOc.visible) {
-    indicadores.push(`Dif. OC ${item.indicadores.diferenciaOc.cantidad}`);
-  }
-
-  return indicadores;
+  return {
+    nombre: normalizedName && normalizedName.length > 0 ? normalizedName : '—',
+  };
 };
 
-const getVisibleEquipos = (item: SolicitudCompraListItem): string[] => item.equipos.visibles.slice(0, 3);
+const getVisibleIndicadores = (item: SolicitudCompraListItem): SolicitudCompraIndicadores => ({
+  bloqueado: {
+    ...item.indicadores.bloqueado,
+    visible: roleVisibility.value.canSeeBloqueado && item.indicadores.bloqueado.visible,
+  },
+  adjuntos: {
+    ...item.indicadores.adjuntos,
+    visible: roleVisibility.value.canSeeAdjuntos
+      && item.indicadores.adjuntos.visible
+      && item.indicadores.adjuntos.cantidad > 0,
+  },
+  diferenciaOc: {
+    ...item.indicadores.diferenciaOc,
+    visible: roleVisibility.value.canSeeDiferenciaOc
+      && item.indicadores.diferenciaOc.visible
+      && item.indicadores.diferenciaOc.cantidad > 0,
+  },
+});
 
-const getEquiposOverflow = (item: SolicitudCompraListItem): number =>
-  Math.max(item.equipos.codigos.length - getVisibleEquipos(item).length, 0);
+const hasVisibleIndicadores = (item: SolicitudCompraListItem): boolean => {
+  const indicadores = getVisibleIndicadores(item);
+
+  return indicadores.bloqueado.visible
+    || indicadores.adjuntos.visible
+    || indicadores.diferenciaOc.visible;
+};
 
 const onRowClick = (item: SolicitudCompraListItem): void => {
   emit('row-click', item);
@@ -133,9 +164,9 @@ const onRowClick = (item: SolicitudCompraListItem): void => {
 </script>
 
 <template>
-  <section class="overflow-hidden rounded-2xl border border-stone-300 bg-white shadow-sm">
+  <section class="overflow-hidden rounded-xl border border-stone-300 bg-white shadow-sm">
     <div
-      class="grid gap-3 border-b border-stone-200 bg-stone-100 px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500"
+      class="grid gap-2 border-b border-stone-200 bg-stone-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500"
       :style="tableGridClass"
     >
       <div
@@ -160,7 +191,7 @@ const onRowClick = (item: SolicitudCompraListItem): void => {
         v-for="item in items"
         :key="item.id"
         type="button"
-        class="grid min-h-[78px] w-full gap-3 border-b border-stone-100 px-3 py-3 text-left transition hover:bg-stone-50 last:border-b-0"
+        class="grid min-h-[76px] w-full gap-2 border-b border-stone-100 px-3 py-2 text-left transition hover:bg-stone-50 last:border-b-0"
         :style="tableGridClass"
         @click="onRowClick(item)"
       >
@@ -170,134 +201,70 @@ const onRowClick = (item: SolicitudCompraListItem): void => {
           :class="getColumnCellClass(column)"
         >
           <template v-if="column === 'folio'">
-            <div class="flex min-h-full flex-col justify-center">
-              <span class="text-[13px] font-semibold text-stone-900">
-                {{ item.folio.folioSolLabel || 'Sin folio' }}
-              </span>
-              <span
-                v-if="item.folio.folioOcPrincipal"
-                class="mt-1 text-[11px] text-stone-500"
-              >
-                OC {{ item.folio.folioOcPrincipal }}
-              </span>
-            </div>
+            <SolicitudFolioCell
+              :folio="getSanitizedFolio(item)"
+              :can-see-oc="roleVisibility.canSeeFolioOc"
+              compact
+            />
           </template>
 
           <template v-else-if="column === 'observacion'">
-            <div class="flex min-h-full flex-col justify-center">
-              <p class="line-clamp-3 text-[13px] leading-5 text-stone-800">
-                {{ item.observacion || 'Sin observación registrada.' }}
-              </p>
-            </div>
+            <SolicitudObservacionCell :observacion="getSanitizedObservacion(item)" compact />
           </template>
 
           <template v-else-if="column === 'estado'">
             <div class="flex min-h-full items-center">
-              <span
-                class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold"
-                :class="getEstadoClass(item.estado.codigo)"
-              >
-                {{ item.estado.badgeLabel }}
-              </span>
+              <SolicitudEstadoBadge :estado="item.estado" compact />
             </div>
           </template>
 
           <template v-else-if="column === 'prioridad'">
             <div class="flex min-h-full items-center">
-              <span
-                class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold"
-                :class="getPrioridadClass(item.prioridad.codigo)"
-              >
-                {{ item.prioridad.nombre }}
-              </span>
+              <SolicitudPrioridadBadge :prioridad="item.prioridad" compact />
             </div>
           </template>
 
           <template v-else-if="column === 'equipos'">
-            <div class="flex min-h-full flex-col justify-center">
-              <div v-if="item.equipos.loading" class="text-[11px] text-stone-500">
-                Cargando equipos...
-              </div>
-              <div v-else class="flex flex-wrap gap-1.5">
-                <span
-                  v-for="codigo in getVisibleEquipos(item)"
-                  :key="codigo"
-                  class="inline-flex rounded-full border border-stone-200 bg-stone-100 px-2 py-1 text-[11px] font-medium text-stone-700"
-                >
-                  {{ codigo }}
-                </span>
-                <span
-                  v-if="getEquiposOverflow(item) > 0"
-                  class="inline-flex rounded-full border border-stone-200 bg-white px-2 py-1 text-[11px] font-medium text-stone-500"
-                >
-                  +{{ getEquiposOverflow(item) }}
-                </span>
-              </div>
-            </div>
+            <SolicitudEquiposCell :equipos="item.equipos" compact />
           </template>
 
           <template v-else-if="column === 'area'">
-            <div class="flex min-h-full flex-col justify-center">
-              <span class="text-[12px] font-medium text-stone-800">
-                {{ item.area.nombre || 'Sin área' }}
-              </span>
-              <span
-                v-if="item.area.codigo"
-                class="mt-1 text-[11px] uppercase tracking-[0.08em] text-stone-500"
-              >
-                {{ item.area.codigo }}
-              </span>
-            </div>
+            <SolicitudAreaCell :area="getSanitizedArea(item)" compact />
           </template>
 
           <template v-else-if="column === 'solicitante'">
-            <div class="flex min-h-full items-center">
-              <span class="text-[12px] text-stone-800">
-                {{ item.solicitante.nombre || 'Sin solicitante' }}
-              </span>
-            </div>
+            <SolicitudSolicitanteCell :solicitante="getSanitizedSolicitante(item)" compact />
           </template>
 
           <template v-else-if="column === 'fechaEntrega'">
-            <div class="flex min-h-full flex-col justify-center">
-              <span class="text-[12px] font-medium text-stone-800">
-                {{ item.fechaEntrega.fecha || 'Sin fecha' }}
-              </span>
-              <span class="mt-1 text-[11px] text-stone-500">
-                {{ getFechaOrigenLabel(item.fechaEntrega.origen) }}
-              </span>
-            </div>
+            <SolicitudFechaEntregaCell :fecha-entrega="item.fechaEntrega" compact />
           </template>
 
           <template v-else-if="column === 'indicadores'">
             <div class="flex min-h-full items-center">
-              <div
-                v-if="getIndicadores(item).length > 0"
-                class="flex flex-wrap gap-1.5"
+              <SolicitudIndicadoresCell
+                :indicadores="getVisibleIndicadores(item)"
+                :role-config="roleVisibility"
+                compact
+              />
+              <span
+                v-if="!hasVisibleIndicadores(item)"
+                class="text-[11px] text-stone-400"
               >
-                <span
-                  v-for="indicador in getIndicadores(item)"
-                  :key="indicador"
-                  class="inline-flex rounded-full border border-stone-200 bg-white px-2 py-1 text-[11px] font-medium text-stone-600"
-                >
-                  {{ indicador }}
-                </span>
-              </div>
-              <span v-else class="text-[11px] text-stone-400">
-                Sin indicadores
+                —
               </span>
             </div>
           </template>
 
           <template v-else-if="column === 'bloqueado'">
             <div class="flex min-h-full items-center">
-              <span
-                class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold"
-                :class="item.indicadores.bloqueado.visible
-                  ? 'border-amber-200 bg-amber-50 text-amber-700'
-                  : 'border-stone-200 bg-stone-100 text-stone-500'"
-              >
-                {{ item.indicadores.bloqueado.visible ? 'Bloqueada' : 'Libre' }}
+              <SolicitudBloqueadoCell
+                v-if="getVisibleIndicadores(item).bloqueado.visible"
+                :bloqueado="getVisibleIndicadores(item).bloqueado"
+                compact
+              />
+              <span v-else class="text-[11px] text-stone-400">
+                —
               </span>
             </div>
           </template>
