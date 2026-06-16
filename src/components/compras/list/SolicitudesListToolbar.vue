@@ -38,7 +38,7 @@ const emit = defineEmits<{
 }>();
 
 const estadoOptions: EstadoOption[] = [
-  { value: null, label: 'Todos los estados' },
+  { value: null, label: 'Todos estados' },
   { value: 'borrador', label: 'Borrador' },
   { value: 'para_revision_almacen', label: 'Para revisión almacén' },
   { value: 'en_revision_almacen', label: 'En revisión almacén' },
@@ -53,7 +53,7 @@ const estadoOptions: EstadoOption[] = [
 ];
 
 const prioridadOptions: PrioridadOption[] = [
-  { value: null, label: 'Todas las prioridades' },
+  { value: null, label: 'Todas prioridades' },
   { value: 'normal', label: 'Normal' },
   { value: 'alta', label: 'Alta' },
   { value: 'urgente', label: 'Urgente' },
@@ -196,7 +196,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
       </div>
 
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between xl:shrink-0">
-        <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:max-w-[17rem]">
+        <div class="flex flex-col gap-2 xl:max-w-[17rem]">
           <label class="inline-flex items-center gap-2 text-xs text-stone-700">
             <input
               :checked="filters.soloBloqueadas"
@@ -204,7 +204,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
               class="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-400"
               @change="onSoloBloqueadasChange"
             >
-            <span>Solo bloqueadas</span>
+            <span>Bloqueadas</span>
           </label>
 
           <label class="inline-flex items-center gap-2 text-xs text-stone-700">
@@ -214,13 +214,13 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
               class="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-400"
               @change="onSoloDiferenciaOcChange"
             >
-            <span>Solo diferencia OC</span>
+            <span>Diferencia OC</span>
           </label>
         </div>
 
         <button
           type="button"
-          class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-stone-900 bg-stone-900 px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-stone-800"
+          class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-main bg-main px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-main-light"
           @click="emit('create')"
         >
           <Plus class="h-3.5 w-3.5" />
