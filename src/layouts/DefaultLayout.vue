@@ -120,6 +120,7 @@ const logout = async () => {
 
 const triggerNew = () => {
   if (route.path.startsWith('/compras')) {
+    window.dispatchEvent(new CustomEvent('open-new-solicitud-compra'));
     return;
   } else {
     window.dispatchEvent(new CustomEvent('open-new-record'));
@@ -277,7 +278,7 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
 
       <!-- FAB Mobile -->
       <button 
-        v-if="route.path !== '/dashboard' && !route.path.startsWith('/compras') && userProfile?.area?.toUpperCase() !== 'ALMACEN' && ['ALL', 'EVALUADOR'].includes(userProfile?.area?.toUpperCase() || '')"
+        v-if="route.path !== '/dashboard' && (route.path.startsWith('/compras') || ['ALL', 'EVALUADOR'].includes(userProfile?.area?.toUpperCase() || ''))"
         @click="triggerNew" 
         class="lg:hidden fixed bottom-20 right-6 w-14 h-14 bg-accent text-gray-900 rounded-full shadow-lg flex items-center justify-center z-40 active:scale-90 transition-transform cursor-pointer"
       >

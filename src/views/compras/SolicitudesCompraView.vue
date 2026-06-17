@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onBeforeUnmount, onMounted } from 'vue';
 
 import SolicitudesDesktopTable from '@/components/compras/list/desktop/SolicitudesDesktopTable.vue';
 import SolicitudesListEmptyState from '@/components/compras/list/SolicitudesListEmptyState.vue';
@@ -65,19 +65,24 @@ const handleGrupoChange = async (
   await onGrupoChange(grupo);
 };
 
-const handleMobileFiltersOpen = (): void => {
-  // El toolbar mobile ya expone el evento; la apertura real se conecta cuando exista ese flujo.
+const handleOpenNewSolicitudCompra = (): void => {
+  onCreateClick();
 };
 
 onMounted(() => {
+  window.addEventListener('open-new-solicitud-compra', handleOpenNewSolicitudCompra);
   void loadInitial();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('open-new-solicitud-compra', handleOpenNewSolicitudCompra);
 });
 </script>
 
 <template>
   <section class="min-h-screen bg-[#EEECE4]">
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 md:px-6 md:py-6">
-      <div class="hidden md:block">
+      <div class="hidden lg:block">
         <SolicitudesListToolbar
           :filters="filters"
           :loading="loading"
@@ -96,7 +101,7 @@ onMounted(() => {
         />
       </div>
 
-      <div class="md:hidden">
+      <div class="lg:hidden">
         <SolicitudesListToolbar
           :filters="filters"
           :loading="loading"
@@ -112,7 +117,6 @@ onMounted(() => {
           @update:solo-bloqueadas="onFilterChange({ soloBloqueadas: $event })"
           @update:solo-diferencia-oc="onFilterChange({ soloDiferenciaOc: $event })"
           @create="onCreateClick"
-          @open-mobile-filters="handleMobileFiltersOpen"
         />
       </div>
 

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import {
+  ChevronDown,
+  Filter,
   Plus,
   Search,
 } from 'lucide-vue-next';
@@ -33,7 +35,6 @@ const emit = defineEmits<{
   (e: 'update:soloBloqueadas', value: boolean): void;
   (e: 'update:soloDiferenciaOc', value: boolean): void;
   (e: 'create'): void;
-  (e: 'openMobileFilters'): void;
 }>();
 
 const desktopSearchPlaceholder = 'Buscar por folio, observación, equipo u orden de compra';
@@ -44,6 +45,37 @@ const normalizedPrioridadValue = computed(() => props.filters.prioridadCodigo ??
 const estadoOptions = computed(() => getEstadoOptionsForGrupo(props.activeGrupo));
 const searchPlaceholder = computed(() =>
   props.isMobile ? mobileSearchPlaceholder : desktopSearchPlaceholder
+);
+const mobileFiltersOpen = ref(false);
+const activeMobileFiltersCount = computed(() => {
+  let count = 0;
+
+  if (props.filters.estadoCodigo) {
+    count += 1;
+  }
+
+  if (props.filters.prioridadCodigo) {
+    count += 1;
+  }
+
+  if (props.filters.fechaDesde || props.filters.fechaHasta) {
+    count += 1;
+  }
+
+  if (props.filters.soloBloqueadas) {
+    count += 1;
+  }
+
+  if (props.filters.soloDiferenciaOc) {
+    count += 1;
+  }
+
+  return count;
+});
+const mobileFiltersLabel = computed(() =>
+  activeMobileFiltersCount.value > 0
+    ? `Filtros (${activeMobileFiltersCount.value})`
+    : 'Filtros'
 );
 
 const onSearchInput = (event: Event): void => {
@@ -77,6 +109,10 @@ const onSoloBloqueadasChange = (event: Event): void => {
 const onSoloDiferenciaOcChange = (event: Event): void => {
   emit('update:soloDiferenciaOc', (event.target as HTMLInputElement).checked);
 };
+
+const toggleMobileFilters = (): void => {
+  mobileFiltersOpen.value = !mobileFiltersOpen.value;
+};
 </script>
 
 <template>
@@ -102,17 +138,43 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
           @update:model-value="emit('update:grupo', $event)"
         />
 
-        <button
-          type="button"
-          class="inline-flex min-h-8 items-center justify-center gap-2 cursor-pointer rounded-2xl border border-accent bg-accent px-5 text-sm font-semibold text-main-dark shadow-sm transition hover:bg-accent-light"
-          @click="emit('create')"
+        <div
+          class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end"
+          :class="isMobile ? '' : 'lg:contents'"
         >
-          <Plus class="h-4 w-4" />
-          <span>Crear</span>
-        </button>
+          <button
+            v-if="isMobile"
+            type="button"
+            class="inline-flex min-h-8 items-center justify-center gap-2 rounded-2xl border border-stone-300 bg-stone-50 px-4 text-sm font-semibold text-stone-700 shadow-sm transition hover:border-stone-400 hover:bg-white"
+            :aria-expanded="mobileFiltersOpen"
+            aria-controls="solicitudes-mobile-filters"
+            @click="toggleMobileFilters"
+          >
+            <Filter class="h-4 w-4" />
+            <span>{{ mobileFiltersLabel }}</span>
+            <ChevronDown
+              class="h-4 w-4 transition"
+              :class="mobileFiltersOpen ? 'rotate-180' : ''"
+            />
+          </button>
+
+          <button
+            v-if="!isMobile"
+            type="button"
+            class="inline-flex min-h-8 items-center justify-center gap-2 cursor-pointer rounded-2xl border border-accent bg-accent px-5 text-sm font-semibold text-main-dark shadow-sm transition hover:bg-accent-light"
+            @click="emit('create')"
+          >
+            <Plus class="h-4 w-4" />
+            <span>Crear</span>
+          </button>
+        </div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3 px-3 py-3">
+      <div
+        v-if="!isMobile || mobileFiltersOpen"
+        id="solicitudes-mobile-filters"
+        class="flex flex-wrap items-center gap-3 px-3 py-3"
+      >
         <label class="relative flex min-h-8 min-w-[15rem] flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white sm:flex-none">
           <select
             :value="normalizedEstadoValue"
