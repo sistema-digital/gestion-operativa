@@ -104,7 +104,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
 
         <button
           type="button"
-          class="inline-flex min-h-8 items-center justify-center gap-2 rounded-2xl border border-main bg-main px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light"
+          class="inline-flex min-h-8 items-center justify-center gap-2 cursor-pointer rounded-2xl border border-accent bg-accent px-5 text-sm font-semibold text-main-dark shadow-sm transition hover:bg-accent-light"
           @click="emit('create')"
         >
           <Plus class="h-4 w-4" />
@@ -152,7 +152,7 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
             <input
               :value="filters.fechaDesde ?? ''"
               type="date"
-              class="w-full bg-transparent text-sm text-stone-900 outline-none"
+              class="w-full bg-transparent cursor-pointer text-sm text-stone-900 outline-none"
               @input="onFechaDesdeChange"
             >
           </label>
@@ -163,27 +163,27 @@ const onSoloDiferenciaOcChange = (event: Event): void => {
             <input
               :value="filters.fechaHasta ?? ''"
               type="date"
-              class="w-full bg-transparent text-sm text-stone-900 outline-none"
+              class="w-full bg-transparent cursor-pointer text-sm text-stone-900 outline-none"
               @input="onFechaHastaChange"
             >
           </label>
         </div>
 
-        <label class="inline-flex min-h-8 items-center gap-2 text-sm text-stone-700">
+        <label class="inline-flex min-h-8 items-center cursor-pointer gap-2 text-sm text-stone-700">
           <input
             :checked="filters.soloBloqueadas"
             type="checkbox"
-            class="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-400"
+            class="h-4 w-4 rounded border-stone-300 cursor-pointer text-stone-900 focus:ring-stone-400"
             @change="onSoloBloqueadasChange"
           >
           <span>Bloqueadas</span>
         </label>
 
-        <label class="inline-flex min-h-8 items-center gap-2 text-sm text-stone-700">
+        <label class="inline-flex min-h-8 items-center cursor-pointer gap-2 text-sm text-stone-700">
           <input
             :checked="filters.soloDiferenciaOc"
             type="checkbox"
-            class="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-400"
+            class="h-4 w-4 rounded border-stone-300 cursor-pointer text-stone-900 focus:ring-stone-400"
             @change="onSoloDiferenciaOcChange"
           >
           <span>Diferencia OC</span>
