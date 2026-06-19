@@ -55,8 +55,26 @@ const shouldDisableNext = computed(() =>
   currentStep.value === 1 ? !isCurrentStepValid.value : false
 );
 
+const creationContextSnapshot = computed(() => ({
+  currentStep: currentStep.value,
+  tipoSolicitud: tipoSolicitud.value,
+  fechaEntrega: fechaEntrega.value,
+  equipos: [...equipos.value],
+  productos: [...productos.value],
+  servicios: [...servicios.value],
+  observacion: observacion.value,
+  solicitarUrgente: solicitarUrgente.value,
+  motivoUrgencia: motivoUrgencia.value,
+  validationErrors: { ...validationErrors.value },
+}));
+
 const closeView = (): void => {
   void router.push({ name: 'Compras' });
+};
+
+const handleNext = (): void => {
+  console.log('Solicitud compra contexto actual', creationContextSnapshot.value);
+  onNext();
 };
 
 const handleSubmit = async (mode: 'draft' | 'send'): Promise<void> => {
@@ -75,8 +93,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="h-screen overflow-hidden bg-[#EEECE4]">
-    <div class="mx-auto grid h-full min-h-0 w-full max-w-7xl grid-cols-4 grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-1 px-3 py-1 md:px-4 md:py-1">
+  <section class="min-h-screen overflow-y-auto bg-[#EEECE4] md:h-screen md:overflow-hidden">
+    <div class="mx-auto grid min-h-screen w-full max-w-7xl grid-cols-4 grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-1 px-3 py-1 md:h-full md:min-h-0 md:px-4 md:py-1">
       <div class="col-span-4 row-start-1">
         <CrearSolicitudCompraHeader
           :solicitante-nombre="headerContext.solicitanteNombre"
@@ -97,7 +115,7 @@ onBeforeUnmount(() => {
       </p>
 
       <div
-        class="col-span-4 row-start-4 flex min-h-0 flex-col overflow-hidden"
+        class="col-span-4 row-start-4 flex min-h-0 flex-col overflow-visible md:overflow-hidden"
       >
         <CrearSolicitudCompraStepDatosBase
           v-if="currentStep === 1"
@@ -160,7 +178,7 @@ onBeforeUnmount(() => {
           :disable-next="shouldDisableNext"
           @cancel="closeView"
           @back="onBack"
-          @next="onNext"
+          @next="handleNext"
           @draft="handleSubmit('draft')"
           @send="handleSubmit('send')"
         />

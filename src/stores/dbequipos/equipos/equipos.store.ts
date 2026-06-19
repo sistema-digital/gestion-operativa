@@ -35,6 +35,24 @@ const createInitialState = (): EquiposState => ({
   lastQuery: '',
 });
 
+const matchesEquipoQuery = (item: EquipoOption, query: string): boolean => {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (normalizedQuery.length < 3) {
+    return false;
+  }
+
+  return [
+    item.codEquipo,
+    item.modelo,
+    item.marca,
+    item.tipo,
+    item.label,
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .some((value) => value.toLowerCase().includes(normalizedQuery));
+};
+
 export const useEquiposStore = defineStore('dbequipos_equipos', {
   state: (): EquiposState => createInitialState(),
 
@@ -44,7 +62,8 @@ export const useEquiposStore = defineStore('dbequipos_equipos', {
       this.lastQuery = normalizedQuery;
       this.error = null;
 
-      if (!normalizedQuery) {
+      if (normalizedQuery.length < 3) {
+        this.isSearching = false;
         this.searchResults = [];
         return [];
       }
@@ -85,9 +104,20 @@ export const useEquiposStore = defineStore('dbequipos_equipos', {
     },
 
     removerEquipo(codEquipo: string): void {
+      const removedItem = this.selectedItems.find((item) => item.codEquipo === codEquipo);
+
       this.selectedItems = this.selectedItems.filter(
         (item) => item.codEquipo !== codEquipo
       );
+
+      if (
+        removedItem
+        && matchesEquipoQuery(removedItem, this.lastQuery)
+        && !this.searchResults.some((item) => item.codEquipo === codEquipo)
+      ) {
+        this.searchResults = [...this.searchResults, removedItem]
+          .sort((left, right) => left.codEquipo.localeCompare(right.codEquipo));
+      }
     },
 
     limpiarResultados(): void {
