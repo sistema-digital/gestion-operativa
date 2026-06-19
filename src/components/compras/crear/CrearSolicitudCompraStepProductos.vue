@@ -110,7 +110,7 @@ const onRemoveLine = (localId: string): void => {
 </script>
 
 <template>
-  <section class="flex h-full flex-col rounded-lg border border-stone-200 bg-white px-3 py-4 shadow-sm md:px-4">
+  <section class="flex h-full flex-col rounded-lg border border-stone-200 bg-white px-3 py-4 shadow-sm lg:px-4">
     <h3 class="text-base font-bold text-main">
       {{ sectionTitle }}
     </h3>
@@ -118,7 +118,7 @@ const onRemoveLine = (localId: string): void => {
       {{ sectionDescription }}
     </p>
 
-    <div class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
+    <div class="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
       <label class="space-y-1">
         <span class="block text-xs font-semibold text-stone-800">{{ formLabel }}</span>
         <input

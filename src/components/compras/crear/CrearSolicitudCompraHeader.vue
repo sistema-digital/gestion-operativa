@@ -8,28 +8,46 @@ const props = defineProps<{
   fechaCreacionLocal: Date;
 }>();
 
-const formattedDate = computed(() =>
-  new Intl.DateTimeFormat('es-PA', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+const formattedDate = computed(() => {
+  if (!props.fechaCreacionLocal) return ''
+
+  const date = new Date(props.fechaCreacionLocal)
+
+  const fecha = new Intl.DateTimeFormat('es-PA', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
     timeZone: 'America/Panama',
-  }).format(props.fechaCreacionLocal)
-);
+  })
+    .format(date)
+    .replace('.', '')
+    .toLowerCase()
+
+  const hora = new Intl.DateTimeFormat('es-PA', {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+  timeZone: 'America/Panama',
+})
+  .format(date)
+  .replace(/\./g, '')
+  .toLowerCase()
+
+  return `${fecha} ${hora}`
+})
 </script>
 
 <template>
-  <header class="rounded-lg border border-stone-200 bg-white px-3 py-3 shadow-md md:px-4">
-    <div class="flex flex-col gap-4 md:flex-row md:items-center">
-      <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-main text-white shadow-sm shadow-main/20">
-        <ShoppingCart class="h-6 w-6" />
-      </div>
+  <header class="rounded-lg border border-stone-200 bg-white px-3 py-3 shadow-md lg:px-4">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-center">
+      
 
       <div class="min-w-0 flex-1">
-        <h2 class="font-display text-base leading-none text-main md:text-md">
+        <h2 class="font-display  text-lg text-center leading-none text-main lg:text-md">
           Nueva solicitud de compra
         </h2>
 
-        <div class="mt-2 grid grid-cols-1 gap-2 text-xs text-stone-700 md:grid-cols-3 md:text-sm">
+        <div class="mt-2 grid grid-cols-1 gap-2 text-xs text-stone-700 lg:grid-cols-3 lg:text-sm">
           <span class="inline-flex items-center gap-2 min-w-0">
             <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-main/8 text-main">
               <UserRound class="h-4 w-4" />

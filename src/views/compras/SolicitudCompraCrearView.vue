@@ -93,8 +93,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="min-h-screen overflow-y-auto bg-[#EEECE4] md:h-screen md:overflow-hidden">
-    <div class="mx-auto grid min-h-screen w-full max-w-7xl grid-cols-4 grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-1 px-3 py-1 md:h-full md:min-h-0 md:px-4 md:py-1">
+  <section class="min-h-screen overflow-y-auto bg-[#EEECE4] lg:h-screen lg:overflow-hidden">
+    <div class="mx-auto grid min-h-screen w-full max-w-7xl grid-cols-4 grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-1 px-3 py-1 lg:h-full lg:min-h-0 lg:px-4 lg:py-1">
       <div class="col-span-4 row-start-1">
         <CrearSolicitudCompraHeader
           :solicitante-nombre="headerContext.solicitanteNombre"
@@ -109,13 +109,13 @@ onBeforeUnmount(() => {
 
       <p
         v-if="createError"
-        class="col-span-4 row-start-3 rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-xs font-medium text-danger md:text-sm"
+        class="col-span-4 row-start-3 rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-xs font-medium text-danger lg:text-sm"
       >
         {{ createError }}
       </p>
 
       <div
-        class="col-span-4 row-start-4 flex min-h-0 flex-col overflow-visible md:overflow-hidden"
+        class="col-span-4 row-start-4 flex min-h-0 flex-col overflow-visible lg:overflow-hidden"
       >
         <CrearSolicitudCompraStepDatosBase
           v-if="currentStep === 1"
@@ -171,7 +171,7 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <div class="col-span-4 row-start-5 shrink-0 rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm md:px-4">
+      <div class="col-span-4 row-start-5 shrink-0 rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm lg:px-4">
         <CrearSolicitudCompraFooterActions
           :current-step="currentStep"
           :loading="loading"

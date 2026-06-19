@@ -15,7 +15,7 @@ defineEmits<{
 </script>
 
 <template>
-  <section class="flex h-full flex-col rounded-lg border border-stone-200 bg-white px-3 py-4 shadow-sm md:px-4">
+  <section class="flex h-full flex-col rounded-lg border border-stone-200 bg-white px-3 py-4 shadow-sm lg:px-4">
     <h3 class="text-base font-bold text-main">
       Paso 3 · Observaciones y urgencia
     </h3>
@@ -66,7 +66,7 @@ defineEmits<{
         v-if="solicitarUrgente"
         class="space-y-2"
       >
-        <p class="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-xs text-warning md:text-sm">
+        <p class="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-xs text-warning lg:text-sm">
           La solicitud se creará con prioridad normal. La urgencia quedará pendiente de aprobación solo al enviar.
         </p>
 

@@ -17,7 +17,7 @@ const steps = [
 
 <template>
   <div class="rounded-md border border-stone-200 bg-white px-2 py-2 shadow-sm">
-    <div class="hidden md:grid md:grid-cols-4 md:gap-2">
+    <div class="hidden lg:grid lg:grid-cols-4 lg:gap-2">
       <div
         v-for="step in steps"
         :key="step.id"
@@ -55,7 +55,7 @@ const steps = [
       </div>
     </div>
 
-    <div class="md:hidden">
+    <div class="lg:hidden">
       <p class="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
         Paso {{ currentStep }} de 4
       </p>

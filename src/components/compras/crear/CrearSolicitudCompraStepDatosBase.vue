@@ -39,9 +39,9 @@ const emitFechaEntrega = (value: string | null | undefined): void => {
 </script>
 
 <template>
-  <section class="flex h-full min-h-0 flex-col overflow-y-auto rounded-lg border border-stone-200 bg-white px-3 py-1 shadow-sm md:overflow-hidden md:px-4">
+  <section class="flex h-full min-h-0 flex-col overflow-y-auto rounded-lg border border-stone-200 bg-white px-3 py-1 shadow-sm lg:overflow-hidden lg:px-4">
     <div class="mt-4 flex min-h-0 flex-1 flex-col gap-4">
-      <div class="grid gap-4 md:grid-cols-2">
+      <div class="grid gap-4 lg:grid-cols-2">
         <CrearSolicitudTipoField
           :model-value="tipoSolicitud"
           :error="validationErrors.tipoSolicitud"

@@ -57,12 +57,12 @@ const searchStateMessage = computed(() => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col gap-3 overflow-y-auto md:overflow-hidden">
+  <div class="flex h-full min-h-0 flex-col gap-3 overflow-y-auto lg:overflow-hidden">
     <label class="block text-xs font-semibold text-stone-800">
       Equipos <span class="text-danger">*</span>
     </label>
 
-    <div class="grid min-h-0 flex-1 gap-4 md:grid-cols-2 md:overflow-hidden">
+    <div class="grid min-h-0 flex-1 gap-4 lg:grid-cols-2 lg:overflow-hidden">
       <div class="flex min-h-0 flex-col gap-3">
         <div
           class="rounded-lg border bg-white px-3 py-2"
@@ -98,9 +98,31 @@ const searchStateMessage = computed(() => {
         </div>
 
         <div
+          v-if="selectedItems.length > 0"
+          class="sticky top-0 z-40 -mt-1 rounded-lg border border-stone-200 bg-stone-50/95 px-3 py-2 shadow-sm backdrop-blur lg:hidden"
+        >
+          <div class="flex flex-wrap items-start gap-2">
+            <CrearSolicitudEquipoChip
+              v-for="item in selectedItems"
+              :key="item.codEquipo"
+              :label="item.label"
+              full-width-mobile
+              @remove="emit('remove', item.codEquipo)"
+            />
+          </div>
+        </div>
+
+        <div
+          v-else
+          class="sticky top-0 z-40 -mt-1 rounded-lg border border-dashed border-stone-300 bg-white/95 px-3 py-2 text-xs text-stone-500 shadow-sm backdrop-blur md:text-sm lg:hidden"
+        >
+          Aún no has seleccionado equipos.
+        </div>
+
+        <div
           id="result_serach_equipo"
           class="flex-1 overflow-y-auto rounded-lg border border-stone-200 bg-stone-50"
-          :class="searchResults.length > 0 ? 'min-h-[12rem] md:min-h-0' : 'hidden lg:block lg:min-h-0'"
+          :class="searchResults.length > 0 ? 'min-h-[12rem] lg:min-h-0' : 'hidden lg:block lg:min-h-0'"
         >
           <template v-if="searchResults.length > 0">
             <button
@@ -124,7 +146,7 @@ const searchStateMessage = computed(() => {
         </div>
       </div>
 
-      <div class="min-h-[12rem] overflow-hidden rounded-lg border border-stone-200 bg-stone-50 px-3 py-3 md:min-h-0">
+      <div class="hidden min-h-[12rem] overflow-hidden rounded-lg border border-stone-200 bg-stone-50 px-3 py-3 lg:block lg:min-h-0">
         <div
           v-if="selectedItems.length > 0"
           class="grid max-h-full grid-cols-2 items-start content-start gap-3 overflow-y-auto lg:grid-cols-3"
