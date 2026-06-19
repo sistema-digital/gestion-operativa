@@ -101,11 +101,6 @@ export const useSolicitudesCompraList = () => {
     store.prepararAbrirDetalle(item.id);
   };
 
-  const onCreateClick = (): void => {
-    clearSearchDebounce();
-    store.prepararCrearSolicitud();
-  };
-
   onBeforeUnmount(() => {
     clearSearchDebounce();
   });
@@ -130,6 +125,5 @@ export const useSolicitudesCompraList = () => {
     onRetry,
     onRowClick,
     onCardClick,
-    onCreateClick,
   };
 };

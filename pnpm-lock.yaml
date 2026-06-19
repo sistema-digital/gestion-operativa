@@ -35,6 +35,9 @@ importers:
       chartjs-plugin-datalabels:
         specifier: 2.2.0
         version: 2.2.0(chart.js@4.5.1)
+      date-fns:
+        specifier: ^4.4.0
+        version: 4.4.0
       dotenv:
         specifier: 17.2.3
         version: 17.2.3
@@ -75,7 +78,7 @@ importers:
         specifier: 4.6.4
         version: 4.6.4(vue@3.5.32(typescript@5.8.2))
       zod:
-        specifier: ^4.4.3
+        specifier: 4.4.3
         version: 4.4.3
     devDependencies:
       '@types/node':

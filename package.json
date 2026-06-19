@@ -25,6 +25,7 @@
     "@vueuse/core": "10.11.1",
     "chart.js": "4.5.1",
     "chartjs-plugin-datalabels": "2.2.0",
+    "date-fns": "^4.4.0",
     "dotenv": "17.2.3",
     "echarts": "6.0.0",
     "express": "4.21.2",

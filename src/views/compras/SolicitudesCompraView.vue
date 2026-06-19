@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 
 import SolicitudesDesktopTable from '@/components/compras/list/desktop/SolicitudesDesktopTable.vue';
 import SolicitudesListEmptyState from '@/components/compras/list/SolicitudesListEmptyState.vue';
@@ -34,8 +35,8 @@ const {
   onRetry,
   onRowClick,
   onCardClick,
-  onCreateClick,
 } = useSolicitudesCompraList();
+const router = useRouter();
 
 const roleCodigo = computed<SolicitudCompraRoleCodigo>(
   () => items.value[0]?.viewerRoleCodigo ?? baseItems.value[0]?.viewerRoleCodigo ?? 'operativo'
@@ -66,7 +67,7 @@ const handleGrupoChange = async (
 };
 
 const handleOpenNewSolicitudCompra = (): void => {
-  onCreateClick();
+  void router.push({ name: 'SolicitudCompraCrear' });
 };
 
 onMounted(() => {
@@ -97,7 +98,7 @@ onBeforeUnmount(() => {
           @update:fecha-hasta="onFilterChange({ fechaHasta: $event })"
           @update:solo-bloqueadas="onFilterChange({ soloBloqueadas: $event })"
           @update:solo-diferencia-oc="onFilterChange({ soloDiferenciaOc: $event })"
-          @create="onCreateClick"
+          @create="router.push({ name: 'SolicitudCompraCrear' })"
         />
       </div>
 
@@ -116,7 +117,7 @@ onBeforeUnmount(() => {
           @update:fecha-hasta="onFilterChange({ fechaHasta: $event })"
           @update:solo-bloqueadas="onFilterChange({ soloBloqueadas: $event })"
           @update:solo-diferencia-oc="onFilterChange({ soloDiferenciaOc: $event })"
-          @create="onCreateClick"
+          @create="router.push({ name: 'SolicitudCompraCrear' })"
         />
       </div>
 

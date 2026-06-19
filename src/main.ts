@@ -7,6 +7,7 @@ import ToastService from 'primevue/toastservice';
 import router from './router';
 import App from './App.vue';
 import 'primeicons/primeicons.css';
+import '@vuepic/vue-datepicker/dist/main.css';
 import './index.css';
 
 const app = createApp(App);
