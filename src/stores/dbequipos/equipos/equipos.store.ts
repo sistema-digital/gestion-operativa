@@ -9,7 +9,7 @@ import type {
 
 const mapEquipoRowToOption = (row: EquipoRow): EquipoOption => {
   const parts = [row.cod_equipo];
-  const trailing = [row.tipo, row.marca, row.modelo]
+  const trailing = [row.tipo]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' · ');
 
@@ -18,10 +18,10 @@ const mapEquipoRowToOption = (row: EquipoRow): EquipoOption => {
   }
 
   return {
-    id: row.id,
+    id: 0,
     codEquipo: row.cod_equipo,
-    modelo: row.modelo,
-    marca: row.marca,
+    modelo: null,
+    marca: null,
     tipo: row.tipo,
     label: parts.join(' · '),
   };

@@ -1,10 +1,6 @@
 export interface EquipoRow {
-  id: number;
   cod_equipo: string;
-  modelo: string | null;
-  marca: string | null;
   tipo: string | null;
-  activo: boolean | null;
 }
 
 export interface EquipoOption {

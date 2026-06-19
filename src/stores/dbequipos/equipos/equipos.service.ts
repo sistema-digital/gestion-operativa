@@ -23,12 +23,10 @@ export const equiposService = {
 
     const { data, error } = await supabaseEquipos
       .from('equipos')
-      .select('id, cod_equipo, modelo, marca, tipo, activo')
+      .select('cod_equipo, tipo')
       .eq('activo', true)
       .or([
         `cod_equipo.ilike.%${normalizedQuery}%`,
-        `modelo.ilike.%${normalizedQuery}%`,
-        `marca.ilike.%${normalizedQuery}%`,
         `tipo.ilike.%${normalizedQuery}%`,
       ].join(','))
       .order('cod_equipo', { ascending: true })
