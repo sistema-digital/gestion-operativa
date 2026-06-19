@@ -25,7 +25,7 @@ defineEmits<{
       <div class="flex flex-col gap-3 lg:flex-row">
         <button
           type="button"
-          class="inline-flex min-h-10 items-center justify-center rounded-lg border border-danger-light bg-danger px-4 text-sm font-semibold text-white transition hover:bg-danger-light"
+          class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-danger-light bg-danger px-4 text-sm font-semibold text-white transition hover:bg-danger-light"
           @click="$emit('cancel')"
         >
           Cancelar
@@ -35,7 +35,7 @@ defineEmits<{
       <div class="flex flex-col gap-3 lg:flex-row">
         <button
           type="button"
-          class="inline-flex min-h-10 items-center justify-center rounded-lg bg-main px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-light disabled:cursor-not-allowed disabled:opacity-55 lg:order-2"
+          class="inline-flex cursor-pointer min-h-10 items-center justify-center rounded-lg bg-main px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-light disabled:cursor-not-allowed disabled:opacity-55 lg:order-2"
           :disabled="disableNext || loading"
           @click="$emit('next')"
         >
@@ -45,7 +45,7 @@ defineEmits<{
         <button
           v-if="currentStep > 1"
           type="button"
-          class="inline-flex min-h-10 items-center justify-center rounded-lg border border-main px-4 text-sm font-semibold text-main transition hover:bg-main/5 disabled:opacity-60 lg:order-1"
+          class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-main px-4 text-sm font-semibold text-main transition hover:bg-main/5 disabled:opacity-60 lg:order-1"
           :disabled="loading"
           @click="$emit('back')"
         >
@@ -58,7 +58,7 @@ defineEmits<{
       <div class="flex shrink-0 flex-col gap-3 lg:hidden">
         <button
           type="button"
-          class="inline-flex min-h-10 items-center justify-center rounded-lg bg-main px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light disabled:opacity-60"
+          class="inline-flex cursor-pointer min-h-10 items-center justify-center rounded-lg bg-main px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light disabled:opacity-60"
           :disabled="loading"
           @click="$emit('send')"
         >
@@ -67,7 +67,7 @@ defineEmits<{
 
         <button
           type="button"
-          class="inline-flex min-h-10 items-center justify-center rounded-lg border border-white bg-accent px-4 text-sm font-semibold text-main transition hover:bg-accent-light disabled:opacity-60"
+          class="inline-flex cursor-pointer min-h-10 items-center justify-center rounded-lg border border-white bg-accent px-4 text-sm font-semibold text-main transition hover:bg-accent-light disabled:opacity-60"
           :disabled="loading"
           @click="$emit('draft')"
         >
@@ -76,7 +76,7 @@ defineEmits<{
 
         <button
           type="button"
-          class="inline-flex min-h-10 items-center justify-center rounded-lg border border-main px-4 text-sm font-semibold text-main transition hover:bg-main/5 disabled:opacity-60"
+          class="inline-flex cursor-pointer min-h-10 items-center justify-center rounded-lg border border-main px-4 text-sm font-semibold text-main transition hover:bg-main/5 disabled:opacity-60"
           :disabled="loading"
           @click="$emit('back')"
         >
@@ -85,7 +85,7 @@ defineEmits<{
 
         <button
           type="button"
-          class="inline-flex min-h-10 items-center justify-center rounded-lg border border-danger-light bg-danger px-4 text-sm font-semibold text-white transition hover:bg-danger-light"
+            class="inline-flex cursor-pointer min-h-10 items-center justify-center rounded-lg border border-danger-light bg-danger px-4 text-sm font-semibold text-white transition hover:bg-danger-light"
           @click="$emit('cancel')"
         >
           Cancelar
@@ -96,7 +96,7 @@ defineEmits<{
         <div class="flex flex-col gap-3 lg:flex-row">
           <button
             type="button"
-            class="inline-flex min-h-10 items-center justify-center rounded-lg border border-danger-light bg-danger px-4 text-sm font-semibold text-white transition hover:bg-danger-light"
+            class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-danger-light bg-danger px-4 text-sm font-semibold text-white transition hover:bg-danger-light"
             @click="$emit('cancel')"
           >
             Cancelar
@@ -106,7 +106,7 @@ defineEmits<{
         <div class="flex flex-col gap-3 lg:flex-row">
           <button
             type="button"
-            class="inline-flex min-h-10 items-center justify-center rounded-lg border border-main px-4 text-sm font-semibold text-main transition hover:bg-main/5 disabled:opacity-60"
+            class="inline-flex cursor-pointer min-h-10 items-center justify-center rounded-lg border border-main px-4 text-sm font-semibold text-main transition hover:bg-main/5 disabled:opacity-60"
             :disabled="loading"
             @click="$emit('back')"
           >
@@ -115,7 +115,7 @@ defineEmits<{
 
           <button
             type="button"
-            class="inline-flex min-h-10 items-center justify-center rounded-lg bg-main px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light disabled:opacity-60"
+            class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg bg-main px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light disabled:opacity-60"
             :disabled="loading"
             @click="$emit('send')"
           >
@@ -124,7 +124,7 @@ defineEmits<{
 
           <button
             type="button"
-            class="inline-flex min-h-10 items-center justify-center rounded-lg border border-white bg-accent px-4 text-sm font-semibold text-main transition hover:bg-accent-light disabled:opacity-60"
+            class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-white bg-accent px-4 text-sm font-semibold text-main transition hover:bg-accent-light disabled:opacity-60"
             :disabled="loading"
             @click="$emit('draft')"
           >
