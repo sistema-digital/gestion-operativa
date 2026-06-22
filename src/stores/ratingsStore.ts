@@ -121,6 +121,15 @@ export const useRatingsStore = defineStore('ratings', () => {
     return empleados.value.filter(e => e.rol && e.rol.toLowerCase().trim() === 'supervisor');
   });
 
+  const removeInspectionFromState = (inspectionId: number) => {
+    inspecciones.value = inspecciones.value.filter((insp) => {
+      const currentInspectionId = insp.id_inspeccion || insp.id || 0;
+      return currentInspectionId !== inspectionId;
+    });
+
+    detalles.value = detalles.value.filter((detalle) => detalle.id_inspeccion !== inspectionId);
+  };
+
   return {
     empleados,
     inspecciones,
@@ -133,6 +142,7 @@ export const useRatingsStore = defineStore('ratings', () => {
     errorPuntuacionSupervisoresOt,
     fetchAll,
     fetchPuntuacionSupervisoresOt,
+    removeInspectionFromState,
     normalizedInspections,
     validSupervisors
   };
