@@ -28,6 +28,7 @@ import BaseRow from '@/components/BaseRow.vue';
 import BaseButton from '@/components/BaseButton.vue';
 import SupervisorOtCompliancePanel from '@/components/ratings/SupervisorOtCompliancePanel.vue';
 import type { PuntuacionSupervisorOtArea } from '@/stores/ratingsStore.types';
+import type { RatingsFetchScope } from '@/stores/ratingsStore.types';
 import type { MecanicoMantenimiento } from '@/stores/db_mantenimiento/mecanicos/mecanicos.types';
 
 interface Inspeccion {
@@ -109,22 +110,55 @@ const timeFilter = ref('Hoy');
 
 const currentUserArea = ref('ALL');
 
+const getDefaultTimeFilterForArea = (area: string) => (
+  area !== 'ALL' && area !== 'EVALUADOR' ? 'Esta semana' : 'Hoy'
+);
+
 // Re-evaluate default filter once user role is loaded
 watch(currentUserArea, (newArea) => {
-  if (newArea !== 'ALL' && newArea !== 'EVALUADOR') {
-    timeFilter.value = 'Esta semana';
-  } else {
-    timeFilter.value = 'Hoy';
-  }
+  if (selectedDate.value) return;
+  timeFilter.value = getDefaultTimeFilterForArea(newArea);
 }, { immediate: true });
 
-const setTimeFilter = (f: string) => {
-  timeFilter.value = f;
-  selectedDate.value = '';
+const getRatingsFetchScope = (): RatingsFetchScope => {
+  if (selectedDate.value) {
+    return {
+      mode: 'single-date',
+      date: selectedDate.value,
+    };
+  }
+
+  if (timeFilter.value === 'Todas') {
+    return { mode: 'all' };
+  }
+
+  return {
+    mode: 'date-range',
+    from: startOfLastWeek,
+    to: todayDate,
+  };
 };
 
-const onDateSelect = () => {
-  timeFilter.value = 'Custom';
+const setTimeFilter = async (f: string) => {
+  const previousFilter = timeFilter.value;
+  const hadSelectedDate = selectedDate.value !== '';
+
+  timeFilter.value = f;
+  selectedDate.value = '';
+
+  if (f === 'Todas' || previousFilter === 'Todas' || hadSelectedDate) {
+    await loadData({ forceStore: true, background: true });
+  }
+};
+
+const onDateSelect = async () => {
+  if (!selectedDate.value) {
+    timeFilter.value = getDefaultTimeFilterForArea(currentUserArea.value);
+  } else {
+    timeFilter.value = 'Custom';
+  }
+
+  await loadData({ forceStore: true, background: true });
 };
 
 const showPhotosModal = ref(false);
@@ -1023,7 +1057,7 @@ const loadData = async ({ forceStore = false, background = false } = {}) => {
       }
     }
 
-    await ratingsStore.fetchAll(forceStore);
+    await ratingsStore.fetchAll(forceStore, getRatingsFetchScope());
     
     let sups = ratingsStore.validSupervisors;
     const emps = ratingsStore.empleados;

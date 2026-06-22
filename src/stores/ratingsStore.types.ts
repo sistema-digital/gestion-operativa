@@ -29,6 +29,26 @@ export interface RatingsDetalle {
   puntuacion: number;
 }
 
+export interface RatingsFetchScopeAll {
+  mode: 'all';
+}
+
+export interface RatingsFetchScopeDateRange {
+  mode: 'date-range';
+  from: string;
+  to: string;
+}
+
+export interface RatingsFetchScopeSingleDate {
+  mode: 'single-date';
+  date: string;
+}
+
+export type RatingsFetchScope =
+  | RatingsFetchScopeAll
+  | RatingsFetchScopeDateRange
+  | RatingsFetchScopeSingleDate;
+
 export interface RatingsInspeccionNormalizada extends RatingsInspeccion {
   final_supervisor_id: number;
   final_inspector_id: number;
