@@ -497,7 +497,12 @@ const isConcludedOrder = (order: OrdenMantenimiento): boolean => {
 
 const getStatusBucket = (order: OrdenMantenimiento): string => {
   if (isConcludedOrder(order)) return 'Concluida';
-  return getRawStatus(order) || 'Sin Estatus';
+  const rawStatus = getRawStatus(order);
+  const normalizedStatus = rawStatus.toLowerCase();
+
+  if (normalizedStatus === 'detenido') return 'Detenido';
+
+  return rawStatus || 'Sin Estatus';
 };
 
 const getConcludedBreakdown = (orders: OrdenMantenimiento[]) => {
@@ -773,11 +778,12 @@ const statusStats = computed(() => {
     'Programado': { bar: 'bg-[#1A6A96]', dot: 'bg-[#1A6A96]' },
     'Concluida': { bar: 'bg-[#2d8a54]', dot: 'bg-[#2d8a54]' },
     'En Proceso': { bar: 'bg-[#d4a94d]', dot: 'bg-[#d4a94d]' },
+    'Detenido': { bar: 'bg-danger', dot: 'bg-danger' },
   };
 
   const defaultColors = { bar: 'bg-gray-300', dot: 'bg-gray-400' };
 
-  return ['Programado', 'Concluida', 'En Proceso'].map(label => {
+  return ['Programado', 'Concluida', 'En Proceso', 'Detenido'].map(label => {
     const detail = counts[label] || { total: 0, concluida: 0, nr: 0 };
     const mappingKey = Object.keys(colorMap).find(k => k.toLowerCase() === label.toLowerCase());
     const colors = mappingKey ? colorMap[mappingKey] : defaultColors;
@@ -804,11 +810,12 @@ const getStatusClass = (status: string) => {
 
 const echartBarOption = computed(() => {
   const stats = statusStats.value;
-  const orderedLabels = ['Programado', 'Concluida', 'En Proceso'];
+  const orderedLabels = ['Programado', 'Concluida', 'En Proceso', 'Detenido'];
   const colorMap: Record<string, string> = {
     'Programado': '#1A6A96',
     'Concluida': '#2D8A54',
-    'En Proceso': '#D4A94D'
+    'En Proceso': '#D4A94D',
+    'Detenido': '#dc2626'
   };
 
   const labels: string[] = [];
@@ -907,10 +914,11 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
     'Programado': '#1A6A96',
     'Concluida': '#2D8A54',
     'En Proceso': '#D4A94D',
+    'Detenido': '#dc2626',
   };
   const fallbackColors = ['#94a3b8', '#64748b', '#475569', '#cbd5e1'];
 
-  const uniqueStatuses = ['Programado', 'Concluida', 'En Proceso'];
+  const uniqueStatuses = ['Programado', 'Concluida', 'En Proceso', 'Detenido'];
 
   const groups: Record<string, {
     total: number;
