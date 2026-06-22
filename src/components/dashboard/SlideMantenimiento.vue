@@ -2371,14 +2371,10 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
     ...params.selected,
   };
 
-  const operationalSelected = !!params.selected['Pérdida Operativa'];
-  const personalSelected = !!params.selected['Falta de Personal'];
+  const toggledLossSeries = params.name === 'Pérdida Operativa' || params.name === 'Falta de Personal';
 
-  if (
-    Object.prototype.hasOwnProperty.call(params.selected, 'Pérdida Operativa') ||
-    Object.prototype.hasOwnProperty.call(params.selected, 'Falta de Personal')
-  ) {
-    weeklyLossVisible.value = operationalSelected || personalSelected;
+  if (toggledLossSeries) {
+    weeklyLossVisible.value = !!params.selected[params.name];
   }
 };
 
