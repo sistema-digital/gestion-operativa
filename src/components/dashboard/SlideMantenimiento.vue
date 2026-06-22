@@ -36,7 +36,7 @@ const { setStatusFilter, setWeekFilter } = maintenanceStore;
 const isRefreshing = ref(false);
 const userArea = ref('');
 const targetLabel = "META 2.94% MIN";
-const defaultEtapa = 'ZAFRA';
+const defaultEtapa = 'Zafra';
 
 const windowWidth = ref(window.innerWidth);
 const MAX_VISIBLE_BARS = computed(() => {
@@ -450,7 +450,9 @@ const options = computed(() => {
   const etapas = Array.from(new Set(baseData.map(d => d.Etapa).filter(Boolean))).sort();
 
   let areaData = baseData;
-  if (filters.value.etapa) areaData = areaData.filter(d => d.Etapa === filters.value.etapa);
+  if (filters.value.etapa) {
+    areaData = areaData.filter(d => normalizeAreaKey(String(d.Etapa || '')) === normalizeAreaKey(filters.value.etapa));
+  }
   const areas = Array.from(new Set(areaData.map(d => d.Área).filter(Boolean))).sort();
 
   let itemData = areaData;
@@ -472,7 +474,9 @@ const filteredData = computed(() => {
     result = result.filter(d => d.Área?.toUpperCase() === areaFixed);
   }
 
-  if (filters.value.etapa) result = result.filter(d => d.Etapa === filters.value.etapa);
+  if (filters.value.etapa) {
+    result = result.filter(d => normalizeAreaKey(String(d.Etapa || '')) === normalizeAreaKey(filters.value.etapa));
+  }
   if (filters.value.area) result = result.filter(d => d.Área === filters.value.area);
   if (filters.value.item) result = result.filter(d => d.ITEM === filters.value.item);
   if (filters.value.idEquipo) result = result.filter(d => d["ID_#EQUIPO"] === filters.value.idEquipo);
@@ -1208,11 +1212,11 @@ const handleEChartClick = (dimensionKey: string, params: any) => {
 };
 
 const comparisonIsZafra = computed(() => (
-  Boolean(filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra')
+  Boolean(filters.value.etapa && normalizeAreaKey(filters.value.etapa) === defaultEtapa)
 ));
 
 const buildComparisonAreaRows = (comparisonMode: 'normalized' | 'actual') => {
-  const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
+  const isZafra = filters.value.etapa && normalizeAreaKey(filters.value.etapa) === defaultEtapa;
   const weeks = new Set(allWeeklyProgress.value.map(d => String(d.semana)));
   const areaFixed = userArea.value?.toUpperCase();
   const areaFixedKey = normalizeAreaKey(userArea.value || '');
@@ -1222,7 +1226,7 @@ const buildComparisonAreaRows = (comparisonMode: 'normalized' | 'actual') => {
     : allOrders.value.filter(d => normalizeAreaKey(d.Área || '') === areaFixedKey);
 
   if (filters.value.etapa) {
-    orderList = orderList.filter(d => d.Etapa === filters.value.etapa);
+    orderList = orderList.filter(d => normalizeAreaKey(String(d.Etapa || '')) === normalizeAreaKey(filters.value.etapa));
   }
 
   if (areaFixed === 'ALL' && filters.value.area) {
@@ -1377,7 +1381,7 @@ const buildWeeklyProgress = (limitToLastFive: boolean) => {
     : allOrders.value.filter(d => d.Área?.toUpperCase() === areaFixed);
 
   if (filters.value.etapa) {
-    globalList = globalList.filter(d => d.Etapa === filters.value.etapa);
+    globalList = globalList.filter(d => normalizeAreaKey(String(d.Etapa || '')) === normalizeAreaKey(filters.value.etapa));
   }
 
   if (areaFixed === 'ALL' && filters.value.area) {
@@ -1596,7 +1600,7 @@ const weeklyAreaSummary = computed(() => {
     : allOrders.value.filter(d => normalizeAreaKey(d.Área || '') === areaFixedKey);
 
   if (filters.value.etapa) {
-    orderList = orderList.filter(d => d.Etapa === filters.value.etapa);
+    orderList = orderList.filter(d => normalizeAreaKey(String(d.Etapa || '')) === normalizeAreaKey(filters.value.etapa));
   }
 
   if (areaFixed === 'ALL' && filters.value.area) {
@@ -1753,7 +1757,7 @@ const getLostProgressOrderList = () => {
     : allOrders.value.filter(d => normalizeAreaKey(d.Área || '') === areaFixedKey);
 
   if (filters.value.etapa) {
-    orderList = orderList.filter(d => d.Etapa === filters.value.etapa);
+    orderList = orderList.filter(d => normalizeAreaKey(String(d.Etapa || '')) === normalizeAreaKey(filters.value.etapa));
   }
 
   if (areaFixed === 'ALL' && filters.value.area) {
@@ -2059,7 +2063,7 @@ const weeklyEChartOption = computed(() => {
     return isNrVisible ? weekData.avance : weekData.concluidaAvance;
   };
 
-  const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
+  const isZafra = filters.value.etapa && normalizeAreaKey(filters.value.etapa) === defaultEtapa;
   const showLoss = isZafra && weeklyLossVisible.value;
   const avanceValues2025 = isZafra ? labels.map(sem => getProgress2025NormalizedValue(sem)) : [];
 
