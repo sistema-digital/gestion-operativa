@@ -199,4 +199,24 @@ export const ratingsService = {
 
     return data as PuntuacionSupervisoresOtResponse;
   },
+
+  async deleteInspeccion(inspectionId: number): Promise<void> {
+    const { error: detailsError } = await supabaseRatings
+      .from('inspecciones_detalle')
+      .delete()
+      .eq('id_inspeccion', inspectionId);
+
+    if (detailsError) {
+      throw new Error(detailsError.message || 'No se pudieron eliminar los detalles de la inspeccion');
+    }
+
+    const { error: inspectionError } = await supabaseRatings
+      .from('inspecciones')
+      .delete()
+      .eq('id_inspeccion', inspectionId);
+
+    if (inspectionError) {
+      throw new Error(inspectionError.message || 'No se pudo eliminar la inspeccion');
+    }
+  },
 };

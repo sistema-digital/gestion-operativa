@@ -130,6 +130,11 @@ export const useRatingsStore = defineStore('ratings', () => {
     detalles.value = detalles.value.filter((detalle) => detalle.id_inspeccion !== inspectionId);
   };
 
+  const deleteInspection = async (inspectionId: number) => {
+    await ratingsService.deleteInspeccion(inspectionId);
+    removeInspectionFromState(inspectionId);
+  };
+
   return {
     empleados,
     inspecciones,
@@ -142,7 +147,7 @@ export const useRatingsStore = defineStore('ratings', () => {
     errorPuntuacionSupervisoresOt,
     fetchAll,
     fetchPuntuacionSupervisoresOt,
-    removeInspectionFromState,
+    deleteInspection,
     normalizedInspections,
     validSupervisors
   };

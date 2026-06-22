@@ -1087,21 +1087,7 @@ const deleteInspeccion = async () => {
   deletingInspectionId.value = inspectionId;
 
   try {
-    const { error: detailsError } = await supabaseRatings
-      .from('inspecciones_detalle')
-      .delete()
-      .eq('id_inspeccion', inspectionId);
-
-    if (detailsError) throw detailsError;
-
-    const { error: inspectionError } = await supabaseRatings
-      .from('inspecciones')
-      .delete()
-      .eq('id_inspeccion', inspectionId);
-
-    if (inspectionError) throw inspectionError;
-
-    ratingsStore.removeInspectionFromState(inspectionId);
+    await ratingsStore.deleteInspection(inspectionId);
     removeInspectionFromSupervisors(inspectionId);
     deleteCandidate.value = null;
   } catch (error) {
