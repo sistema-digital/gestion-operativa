@@ -84,6 +84,8 @@ const normalizeAreaKey = (area: string) => String(area || '')
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '');
 
+const defaultEtapaKey = normalizeAreaKey(defaultEtapa);
+
 const hoursPerOrderByArea: Record<string, number> = {
   'COSECHA AGRICOLA': 2,
   'COSECHA MECANIZADA': 4,
@@ -717,8 +719,8 @@ const fetchData = async (forceRefresh = false) => {
     await maintenanceStore.fetchAllOrders(forceRefresh);
 
     const zafraEtapa = Array.from(new Set(allOrders.value.map(d => d.Etapa).filter(Boolean)))
-      .find(etapa => normalizeAreaKey(String(etapa)) === defaultEtapa);
-    if (zafraEtapa && normalizeAreaKey(filters.value.etapa) === defaultEtapa) {
+      .find(etapa => normalizeAreaKey(String(etapa)) === defaultEtapaKey);
+    if (zafraEtapa && normalizeAreaKey(filters.value.etapa) === defaultEtapaKey) {
       filters.value.etapa = String(zafraEtapa);
     }
   } catch (e) {
@@ -1212,11 +1214,11 @@ const handleEChartClick = (dimensionKey: string, params: any) => {
 };
 
 const comparisonIsZafra = computed(() => (
-  Boolean(filters.value.etapa && normalizeAreaKey(filters.value.etapa) === defaultEtapa)
+  Boolean(filters.value.etapa && normalizeAreaKey(filters.value.etapa) === defaultEtapaKey)
 ));
 
 const buildComparisonAreaRows = (comparisonMode: 'normalized' | 'actual') => {
-  const isZafra = filters.value.etapa && normalizeAreaKey(filters.value.etapa) === defaultEtapa;
+  const isZafra = filters.value.etapa && normalizeAreaKey(filters.value.etapa) === defaultEtapaKey;
   const weeks = new Set(allWeeklyProgress.value.map(d => String(d.semana)));
   const areaFixed = userArea.value?.toUpperCase();
   const areaFixedKey = normalizeAreaKey(userArea.value || '');
@@ -2063,7 +2065,7 @@ const weeklyEChartOption = computed(() => {
     return isNrVisible ? weekData.avance : weekData.concluidaAvance;
   };
 
-  const isZafra = filters.value.etapa && normalizeAreaKey(filters.value.etapa) === defaultEtapa;
+  const isZafra = filters.value.etapa && normalizeAreaKey(filters.value.etapa) === defaultEtapaKey;
   const showLoss = isZafra && weeklyLossVisible.value;
   const avanceValues2025 = isZafra ? labels.map(sem => getProgress2025NormalizedValue(sem)) : [];
 
