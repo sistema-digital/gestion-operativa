@@ -1,0 +1,139 @@
+import type {
+  SolicitudCompraListFilters,
+  SolicitudCompraListItem,
+  SolicitudCompraEquipoPreview,
+  SolicitudCompraPagination,
+} from './solicitudesCompra.types';
+
+const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_VISIBLE_EQUIPOS = 3;
+const MOCK_EQUIPOS = ['422005', '422009', '422014'] as const;
+
+export const normalizarTextoVacio = (value: string | null | undefined): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalizedValue = value.trim();
+  return normalizedValue.length > 0 ? normalizedValue : null;
+};
+
+export const normalizarBusqueda = (value: string): string =>
+  value.trim().replace(/\s+/g, ' ');
+
+export const safeArrayText = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  const normalizedValue = typeof value === 'string' ? value.trim() : '';
+  return normalizedValue.length > 0 ? [normalizedValue] : [];
+};
+
+export const calcularEquiposVisibles = (
+  codigos: string[],
+  max = DEFAULT_VISIBLE_EQUIPOS
+): { visibles: string[]; ocultos: number } => {
+  const normalizedCodigos = safeArrayText(codigos);
+  const visibles = normalizedCodigos.slice(0, max);
+  const ocultos = Math.max(normalizedCodigos.length - visibles.length, 0);
+
+  return { visibles, ocultos };
+};
+
+export const crearEquiposMock = (): SolicitudCompraEquipoPreview => {
+  const codigos = [...MOCK_EQUIPOS];
+  const { visibles, ocultos } = calcularEquiposVisibles(codigos);
+
+  return {
+    loading: false,
+    codigos,
+    visibles,
+    ocultos,
+    error: null,
+    source: 'mock',
+  };
+};
+
+export const isSearchMode = (value: string): boolean =>
+  normalizarBusqueda(value).length > 0;
+
+const formatDatePart = (value: number): string => value.toString().padStart(2, '0');
+
+export const toDateInputValue = (date: Date): string => [
+  date.getFullYear(),
+  formatDatePart(date.getMonth() + 1),
+  formatDatePart(date.getDate()),
+].join('-');
+
+export const getDefaultDateRange = (): Pick<
+  SolicitudCompraListFilters,
+  'fechaDesde' | 'fechaHasta'
+> => {
+  const today = new Date();
+  const sixMonthsAgo = new Date(today);
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  return {
+    fechaDesde: toDateInputValue(sixMonthsAgo),
+    fechaHasta: toDateInputValue(today),
+  };
+};
+
+export const formatFolioSol = (folioSol: string | null): string | null => {
+  const normalizedFolio = normalizarTextoVacio(folioSol);
+
+  if (!normalizedFolio) {
+    return null;
+  }
+
+  return normalizedFolio.startsWith('#') ? normalizedFolio : `#${normalizedFolio}`;
+};
+
+export const getInitialPagination = (
+  totalCount = 0
+): SolicitudCompraPagination => ({
+  pageSize: DEFAULT_PAGE_SIZE,
+  localVisibleCount: DEFAULT_PAGE_SIZE,
+  totalCount,
+  hasMore: totalCount > DEFAULT_PAGE_SIZE,
+});
+
+export const canShowMoreLocal = (
+  totalItems: number,
+  visibleCount: number
+): boolean => totalItems > visibleCount;
+
+const includesNeedle = (value: string | null | undefined, needle: string): boolean =>
+  typeof value === 'string' && value.toLocaleLowerCase().includes(needle);
+
+export const matchesSolicitudBusqueda = (
+  item: SolicitudCompraListItem,
+  searchTerm: string
+): boolean => {
+  const normalizedSearch = normalizarBusqueda(searchTerm).toLocaleLowerCase();
+
+  if (!normalizedSearch) {
+    return true;
+  }
+
+  return [
+    item.folio.folioSol,
+    item.folio.folioSolLabel,
+    item.folio.folioOcPrincipal,
+    ...item.folio.foliosOc,
+    item.observacion,
+    item.estado.codigo,
+    item.estado.nombre,
+    item.prioridad.codigo,
+    item.prioridad.nombre,
+    item.area.codigo,
+    item.area.nombre,
+    item.solicitante.nombre,
+    item.ocResumen.ordenesCompraResumen,
+    item.ocResumen.proveedorPrincipal,
+  ].some((value) => includesNeedle(value, normalizedSearch));
+};

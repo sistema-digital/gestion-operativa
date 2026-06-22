@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { supabaseRatings, supabase } from '@/lib/supabase';
+import { useFeatureAccessStore } from '@/stores/db_mantenimiento/app_feature_access/featureAccess.store';
 import { 
   Users, 
   Search, 
@@ -16,7 +17,9 @@ import {
   X,
   RefreshCw,
   Camera,
-  Image as ImageIcon
+  Image as ImageIcon,
+  SquarePen,
+  Trash
 } from 'lucide-vue-next';
 import { useRatingsStore } from '@/stores/ratingsStore';
 import { useAssignedHoursStore } from '@/stores/assignedHoursStore';
@@ -28,6 +31,7 @@ import BaseRow from '@/components/BaseRow.vue';
 import BaseButton from '@/components/BaseButton.vue';
 import SupervisorOtCompliancePanel from '@/components/ratings/SupervisorOtCompliancePanel.vue';
 import type { PuntuacionSupervisorOtArea } from '@/stores/ratingsStore.types';
+import type { RatingsFetchScope } from '@/stores/ratingsStore.types';
 import type { MecanicoMantenimiento } from '@/stores/db_mantenimiento/mecanicos/mecanicos.types';
 
 interface Inspeccion {
@@ -81,12 +85,14 @@ type HorasAsignadasGrupo =
 const ratingsStore = useRatingsStore();
 const assignedHoursStore = useAssignedHoursStore();
 const mecanicosStore = useMecanicosStore();
+const featureAccessStore = useFeatureAccessStore();
 const {
   puntuacionSupervisoresOt,
   fechaPuntuacionSupervisoresOt,
   isPuntuacionSupervisoresOtLoading,
   errorPuntuacionSupervisoresOt,
 } = storeToRefs(ratingsStore);
+const { isLoaded: isFeatureAccessLoaded } = storeToRefs(featureAccessStore);
 const {
   mecanicosPorArea,
   isLoading: isMecanicosLoading,
@@ -109,22 +115,55 @@ const timeFilter = ref('Hoy');
 
 const currentUserArea = ref('ALL');
 
+const getDefaultTimeFilterForArea = (area: string) => (
+  area !== 'ALL' && area !== 'EVALUADOR' ? 'Esta semana' : 'Hoy'
+);
+
 // Re-evaluate default filter once user role is loaded
 watch(currentUserArea, (newArea) => {
-  if (newArea !== 'ALL' && newArea !== 'EVALUADOR') {
-    timeFilter.value = 'Esta semana';
-  } else {
-    timeFilter.value = 'Hoy';
-  }
+  if (selectedDate.value) return;
+  timeFilter.value = getDefaultTimeFilterForArea(newArea);
 }, { immediate: true });
 
-const setTimeFilter = (f: string) => {
-  timeFilter.value = f;
-  selectedDate.value = '';
+const getRatingsFetchScope = (): RatingsFetchScope => {
+  if (selectedDate.value) {
+    return {
+      mode: 'single-date',
+      date: selectedDate.value,
+    };
+  }
+
+  if (timeFilter.value === 'Todas') {
+    return { mode: 'all' };
+  }
+
+  return {
+    mode: 'date-range',
+    from: startOfLastWeek,
+    to: todayDate,
+  };
 };
 
-const onDateSelect = () => {
-  timeFilter.value = 'Custom';
+const setTimeFilter = async (f: string) => {
+  const previousFilter = timeFilter.value;
+  const hadSelectedDate = selectedDate.value !== '';
+
+  timeFilter.value = f;
+  selectedDate.value = '';
+
+  if (f === 'Todas' || previousFilter === 'Todas' || hadSelectedDate) {
+    await loadData({ forceStore: true, background: true });
+  }
+};
+
+const onDateSelect = async () => {
+  if (!selectedDate.value) {
+    timeFilter.value = getDefaultTimeFilterForArea(currentUserArea.value);
+  } else {
+    timeFilter.value = 'Custom';
+  }
+
+  await loadData({ forceStore: true, background: true });
 };
 
 const showPhotosModal = ref(false);
@@ -143,6 +182,16 @@ const currentUserEmail = ref('');
 const router = useRouter();
 
 const isRegularSup = computed(() => currentUserArea.value !== 'EVALUADOR' && currentUserArea.value !== 'ALL');
+const canDeleteRatings = computed(() => {
+  return isFeatureAccessLoaded.value && featureAccessStore.tieneFuncionalidad('calificaciones.eliminar');
+});
+const deleteCandidateSupervisorName = computed(() => {
+  if (!deleteCandidate.value) return '';
+
+  return supervisors.value.find((supervisor) => (
+    supervisor.inspecciones.some((inspection) => inspection.id_inspeccion === deleteCandidate.value?.id_inspeccion)
+  ))?.name || 'Desconocido';
+});
 
 const filteredSupervisors = computed(() => {
   let result = supervisors.value.map(sup => {
@@ -252,6 +301,8 @@ const btnSaving = ref(false);
 const errorMsg = ref('');
 const isEditing = ref(false);
 const editingId = ref<number | null>(null);
+const deleteCandidate = ref<Inspeccion | null>(null);
+const deletingInspectionId = ref<number | null>(null);
 
 const formEmpleados = ref<any[]>([]);
 const formCriterios = ref<any[]>([]);
@@ -1006,6 +1057,46 @@ const saveInspeccion = async () => {
   }
 };
 
+const openDeleteModal = (insp: Inspeccion) => {
+  if (!canDeleteRatings.value) return;
+
+  deleteCandidate.value = insp;
+};
+
+const closeDeleteModal = () => {
+  if (deletingInspectionId.value) return;
+  deleteCandidate.value = null;
+};
+
+const removeInspectionFromSupervisors = (inspectionId: number) => {
+  supervisors.value = supervisors.value
+    .map((supervisor) => ({
+      ...supervisor,
+      inspecciones: supervisor.inspecciones.filter(
+        (inspection) => inspection.id_inspeccion !== inspectionId
+      ),
+    }))
+    .filter((supervisor) => supervisor.inspecciones.length > 0);
+};
+
+const deleteInspeccion = async () => {
+  if (!canDeleteRatings.value) return;
+  if (!deleteCandidate.value) return;
+
+  const inspectionId = deleteCandidate.value.id_inspeccion;
+  deletingInspectionId.value = inspectionId;
+
+  try {
+    await ratingsStore.deleteInspection(inspectionId);
+    removeInspectionFromSupervisors(inspectionId);
+    deleteCandidate.value = null;
+  } catch (error) {
+    console.error('Error eliminando inspección', error);
+  } finally {
+    deletingInspectionId.value = null;
+  }
+};
+
 
 // --- Carga de datos principales ---
 
@@ -1023,7 +1114,7 @@ const loadData = async ({ forceStore = false, background = false } = {}) => {
       }
     }
 
-    await ratingsStore.fetchAll(forceStore);
+    await ratingsStore.fetchAll(forceStore, getRatingsFetchScope());
     
     let sups = ratingsStore.validSupervisors;
     const emps = ratingsStore.empleados;
@@ -1179,7 +1270,13 @@ onUnmounted(() => {
                   <div v-for="group in supervisor.groupedInsps" :key="group.label">
                     <h4 v-if="group.label !== 'Registros'" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-2 mb-2">{{ group.label }}</h4>
                     <div class="divide-y divide-gray-100 flex flex-col gap-2">
-                      <div v-for="insp in group.items" :key="insp.id_inspeccion" class="p-4 border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/50 rounded-xl">
+                      <div v-for="insp in group.items" :key="insp.id_inspeccion" class="relative p-4 border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/50 rounded-xl">
+                        <div v-if="deletingInspectionId === insp.id_inspeccion" class="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/80 backdrop-blur-[1px]">
+                          <div class="flex items-center gap-2 text-sm font-semibold text-rose-700">
+                            <Loader2 class="w-4 h-4 animate-spin" />
+                            Eliminando...
+                          </div>
+                        </div>
                         <div class="min-w-[150px]">
                             <p class="text-xs font-bold text-gray-900">{{ insp.fecha }} &bull; <span class="text-gray-500 font-medium">{{ insp.hora }}</span></p>
                             <p class="text-[10px] text-gray-500 uppercase mt-1">Inspector: <span class="font-bold text-gray-700">{{ insp.inspector_nombre }}</span></p>
@@ -1191,7 +1288,12 @@ onUnmounted(() => {
                             {{ insp.observacion || 'Sin observaciones detalladas.' }}
                         </div>
                         <div class="flex-shrink-0 text-right flex items-center justify-end gap-2">
-                            <BaseButton v-if="!isRegularSup" variant="outline" class="!py-1.5 !px-3 text-[10px] border-gray-200 cursor-pointer hover:cursor-pointer" @click="openEditModal(insp)">Editar</BaseButton>
+                            <BaseButton v-if="!isRegularSup && canDeleteRatings" variant="outline" class="!py-1.5 !px-3 border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 cursor-pointer hover:cursor-pointer" :disabled="deletingInspectionId === insp.id_inspeccion" @click="openDeleteModal(insp)">
+                              <Trash class="w-3.5 h-3.5" />
+                            </BaseButton>
+                            <BaseButton v-if="!isRegularSup" variant="outline" class="!py-1.5 !px-3 border-gray-200 cursor-pointer hover:cursor-pointer" @click="openEditModal(insp)">
+                              <SquarePen class="w-3.5 h-3.5" />
+                            </BaseButton>
                             <BaseButton v-if="insp.foto_url" variant="secondary" class="!py-1.5 !px-3 text-[10px] border-gray-200 cursor-pointer hover:cursor-pointer" @click="openPhotos(insp.foto_url)">Ver Fotos</BaseButton>
                             <span v-else class="text-[10px] text-gray-400 italic px-2">Sin registro visual</span>
                         </div>
@@ -1217,7 +1319,13 @@ onUnmounted(() => {
                   <div v-for="group in supervisor.groupedInsps" :key="group.label">
                     <h4 v-if="group.label !== 'Registros'" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-2 mb-2">{{ group.label }}</h4>
                     <div class="divide-y divide-gray-100 flex flex-col gap-2">
-                      <div v-for="insp in group.items" :key="insp.id_inspeccion" class="p-4 border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white rounded-lg shadow-sm">
+                      <div v-for="insp in group.items" :key="insp.id_inspeccion" class="relative p-4 border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white rounded-lg shadow-sm">
+                        <div v-if="deletingInspectionId === insp.id_inspeccion" class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/80 backdrop-blur-[1px]">
+                          <div class="flex items-center gap-2 text-sm font-semibold text-rose-700">
+                            <Loader2 class="w-4 h-4 animate-spin" />
+                            Eliminando...
+                          </div>
+                        </div>
                         <div class="min-w-[150px]">
                             <p class="text-xs font-bold text-gray-900">{{ insp.fecha }} &bull; <span class="text-gray-500 font-medium">{{ insp.hora }}</span></p>
                             <p class="text-[10px] text-gray-500 uppercase mt-1">Inspector: <span class="font-bold text-gray-700">{{ insp.inspector_nombre }}</span></p>
@@ -1229,7 +1337,12 @@ onUnmounted(() => {
                             {{ insp.observacion || 'Sin observaciones detalladas.' }}
                         </div>
                         <div class="flex-shrink-0 text-right flex items-center justify-end gap-2">
-                            <BaseButton v-if="!isRegularSup" variant="outline" class="!py-1.5 !px-3 text-[10px] border-gray-200 cursor-pointer hover:cursor-pointer" @click="openEditModal(insp)">Editar</BaseButton>
+                            <BaseButton v-if="!isRegularSup && canDeleteRatings" variant="outline" class="!py-1.5 !px-3 border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 cursor-pointer hover:cursor-pointer" :disabled="deletingInspectionId === insp.id_inspeccion" @click="openDeleteModal(insp)">
+                              <Trash class="w-3.5 h-3.5" />
+                            </BaseButton>
+                            <BaseButton v-if="!isRegularSup" variant="outline" class="!py-1.5 !px-3 border-gray-200 cursor-pointer hover:cursor-pointer" @click="openEditModal(insp)">
+                              <SquarePen class="w-3.5 h-3.5" />
+                            </BaseButton>
                             <BaseButton v-if="insp.foto_url" variant="secondary" class="!py-1.5 !px-3 text-[10px] border-gray-200 cursor-pointer hover:cursor-pointer" @click="openPhotos(insp.foto_url)">Ver Fotos</BaseButton>
                             <span v-else class="text-[10px] text-gray-400 italic px-2">Sin registro visual</span>
                         </div>
@@ -1273,7 +1386,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Modal Nuevo Registro -->
-    <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+  <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
       <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl overflow-hidden flex flex-col h-[90vh] max-h-[90vh]">
         <div class="p-6 border-b border-gray-100 flex flex-none items-center justify-between bg-gray-50">
           <h3 class="font-display text-xl text-gray-900 tracking-tight">{{ isEditing ? 'Actualizar Inspección' : 'Nueva Inspección' }}</h3>
@@ -1653,6 +1766,35 @@ onUnmounted(() => {
             <span v-else class="flex items-center gap-2"><Loader2 class="w-4 h-4 animate-spin" /> Procesando...</span>
           </BaseButton>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div v-if="deleteCandidate" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+    <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+      <div class="px-6 py-5 border-b border-gray-100">
+        <h3 class="text-lg font-bold text-gray-900">Calificación a eliminar</h3>
+        
+      </div>
+      <div class="px-6 py-4 text-sm text-gray-600 space-y-1">
+        <p><span class="font-semibold text-gray-800">Supervisor:</span> {{ deleteCandidateSupervisorName }}</p>
+        <p><span class="font-semibold text-gray-800">Puntuación:</span> {{ deleteCandidate.puntuacion_promedio }}</p>
+        <p><span class="font-semibold text-gray-800">Fecha:</span> {{ deleteCandidate.fecha }}</p>
+        <p><span class="font-semibold text-gray-800">Hora:</span> {{ deleteCandidate.hora }}</p>
+        <p><span class="font-semibold text-gray-800">Inspector:</span> {{ deleteCandidate.inspector_nombre }}</p>
+      </div>
+      <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 bg-gray-50">
+        <BaseButton variant="tertiary" :disabled="!!deletingInspectionId" class="cursor-pointer" @click="closeDeleteModal">Cancelar</BaseButton>
+        <BaseButton variant="outline" class="border-rose-200 cursor-pointer text-rose-600 hover:bg-rose-50 hover:text-rose-700" :disabled="!!deletingInspectionId" @click="deleteInspeccion">
+          <span v-if="!deletingInspectionId" class="flex items-center gap-2">
+            <Trash class="w-4 h-4" />
+            Eliminar
+          </span>
+          <span v-else class="flex items-center gap-2">
+            <Loader2 class="w-4 h-4 animate-spin" />
+            Eliminando...
+          </span>
+        </BaseButton>
       </div>
     </div>
   </div>

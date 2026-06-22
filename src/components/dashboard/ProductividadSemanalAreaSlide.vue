@@ -16,6 +16,8 @@ import type {
   ProductividadSemanalEquipo,
 } from '@/stores/horasTrabajo.types';
 import type { ProductividadDashboardTableItem } from '@/stores/productividadSemanalDashboard.types';
+import { useUsageOrdenesActividadUsuariosStore } from '@/stores/db_mantenimiento/usage_ordenes_actividad_usuarios/usageOrdenesActividadUsuarios.store';
+import { formatPanamaDateTime } from '@/utils/dateUtils';
 
 const props = defineProps<{
   area: ProductividadSemanalArea;
@@ -26,6 +28,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   selectArea: [area: ProductividadSemanalArea];
 }>();
+
+const usageOrdenesActividadUsuariosStore = useUsageOrdenesActividadUsuariosStore();
 
 const normalizeAreaKey = (value: string) => String(value || '')
   .trim()
@@ -78,6 +82,46 @@ const isCurrentArea = (candidateArea: ProductividadSemanalArea) => (
   normalizeAreaKey(candidateArea.area) === normalizeAreaKey(props.area.area)
 );
 
+const areaUsageActivity = computed(() => (
+  usageOrdenesActividadUsuariosStore.obtenerPorArea(props.area.area)[0] ?? null
+));
+
+const formatUsageDateTime = (value: string | null) => (
+  value ? formatPanamaDateTime(value) : 'Sin registro'
+);
+
+const formatUsageText = (value: string | null | undefined, fallback = 'Sin registro') => {
+  const normalized = String(value || '').trim();
+  return normalized || fallback;
+};
+
+const formatOmStatusLabel = (value: string | null | undefined) => {
+  const normalized = String(value || '').trim();
+
+  if (!normalized) {
+    return 'Sin registro';
+  }
+
+  return normalized.toUpperCase() === 'NR' ? 'Buen Estado' : normalized;
+};
+
+const latestUpdatedOrderLabel = computed(() => {
+  const activity = areaUsageActivity.value;
+
+  if (!activity) {
+    return 'Sin registro';
+  }
+
+  const equipo = formatUsageText(activity.equipo_actualizado, '');
+  const descripcion = formatUsageText(activity.descripcion_actualizada, '');
+  const estadoAnterior = formatOmStatusLabel(activity.estado_anterior);
+  const estadoNuevo = formatOmStatusLabel(activity.estado_nuevo);
+  const orderParts = [equipo, descripcion].filter(Boolean);
+  const orderLabel = orderParts.length > 0 ? orderParts.join(' ') : formatUsageText(activity.id_orden_actualizada);
+
+  return `${orderLabel}: ${estadoAnterior} -> ${estadoNuevo}`;
+});
+
 const toggleAreaMenu = () => {
   if (!canChooseArea.value) return;
   isAreaMenuOpen.value = !isAreaMenuOpen.value;
@@ -100,6 +144,9 @@ const handlePointerDownOutside = (event: MouseEvent) => {
 };
 
 onMounted(() => {
+  if (!usageOrdenesActividadUsuariosStore.isLoaded && !usageOrdenesActividadUsuariosStore.isLoading) {
+    void usageOrdenesActividadUsuariosStore.cargarActividad().catch(() => null);
+  }
   document.addEventListener('mousedown', handlePointerDownOutside);
 });
 
@@ -225,9 +272,23 @@ onUnmounted(() => {
 
     <footer v-if="props.area.resto" class="rest-panel">
       <span class="rest-icon"><FileText class="h-8 w-8" /></span>
-      <div>
+      <div class="rest-content">
         <h2>Resto de horas</h2>
         <p>{{ restoParrafo }}</p>
+        <div class="usage-activity-row">
+          <p>
+            <span class="usage-activity-label">Ultima vista de ordenes:</span>
+            <span>{{ formatUsageDateTime(areaUsageActivity?.ultima_entrada_ordenes_at ?? null) }}</span>
+          </p>
+          <p>
+            <span class="usage-activity-label">Ultimo cambio de estado:</span>
+            <span>{{ formatUsageDateTime(areaUsageActivity?.ultima_actualizacion_om_at ?? null) }}</span>
+          </p>
+          <p>
+            <span class="usage-activity-label">OM actualizada:</span>
+            <span>{{ latestUpdatedOrderLabel }}</span>
+          </p>
+        </div>
       </div>
     </footer>
   </article>
@@ -543,6 +604,33 @@ h1 {
   font-weight: 800;
 }
 
+.rest-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.usage-activity-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem 0.9rem;
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(201, 195, 180, 0.5);
+  color: rgba(88, 88, 88, 0.92);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.usage-activity-row p {
+  min-width: 0;
+}
+
+.usage-activity-label {
+  margin-right: 0.25rem;
+  color: rgba(76, 98, 45, 0.78);
+  font-weight: 600;
+}
+
 @media (max-width: 1100px) {
   .productivity-slide { --productivity-slide-scale: 0.82; }
   .hero-art { display: none; }
@@ -552,6 +640,7 @@ h1 {
   .ranking-card p { grid-column: 2 / -1; }
   .equipment-hours { border-right: 0; padding-right: 0; }
   .rest-panel { margin-inline: 1.25rem; }
+  .usage-activity-row { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {

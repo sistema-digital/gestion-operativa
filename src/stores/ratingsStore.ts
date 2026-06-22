@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { ratingsService } from './ratingsStore.service';
 import type {
+  RatingsFetchScope,
   PuntuacionSupervisoresOtResponse,
   RatingsDetalle,
   RatingsEmpleado,
@@ -20,23 +21,33 @@ export const useRatingsStore = defineStore('ratings', () => {
   const isLoading = ref(false);
   const isPuntuacionSupervisoresOtLoading = ref(false);
   const errorPuntuacionSupervisoresOt = ref<string | null>(null);
+  const loadedScopeKey = ref('');
 
-  const fetchAll = async (force = false) => {
-    if (isLoaded.value && !force) return;
+  const fetchAll = async (
+    force = false,
+    scope: RatingsFetchScope = { mode: 'all' }
+  ) => {
+    const nextScopeKey = JSON.stringify(scope);
+
+    if (isLoaded.value && !force && loadedScopeKey.value === nextScopeKey) return;
     
     isLoading.value = true;
     try {
-      const [empleadosData, inspeccionesData, detallesData] = await Promise.all([
+      const [empleadosData, inspeccionesData] = await Promise.all([
         ratingsService.fetchEmpleados(),
-        ratingsService.fetchInspecciones(),
-        ratingsService.fetchDetalles(),
+        ratingsService.fetchInspecciones(scope),
       ]);
+      const detallesData = await ratingsService.fetchDetalles(
+        scope,
+        inspeccionesData.map((inspeccion) => inspeccion.id_inspeccion || inspeccion.id || 0)
+      );
 
       empleados.value = empleadosData;
       inspecciones.value = inspeccionesData;
       detalles.value = detallesData;
 
       isLoaded.value = true;
+      loadedScopeKey.value = nextScopeKey;
     } catch (e) {
       console.error('Error fetching ratings state', e);
     } finally {
@@ -110,6 +121,20 @@ export const useRatingsStore = defineStore('ratings', () => {
     return empleados.value.filter(e => e.rol && e.rol.toLowerCase().trim() === 'supervisor');
   });
 
+  const removeInspectionFromState = (inspectionId: number) => {
+    inspecciones.value = inspecciones.value.filter((insp) => {
+      const currentInspectionId = insp.id_inspeccion || insp.id || 0;
+      return currentInspectionId !== inspectionId;
+    });
+
+    detalles.value = detalles.value.filter((detalle) => detalle.id_inspeccion !== inspectionId);
+  };
+
+  const deleteInspection = async (inspectionId: number) => {
+    await ratingsService.deleteInspeccion(inspectionId);
+    removeInspectionFromState(inspectionId);
+  };
+
   return {
     empleados,
     inspecciones,
@@ -122,6 +147,7 @@ export const useRatingsStore = defineStore('ratings', () => {
     errorPuntuacionSupervisoresOt,
     fetchAll,
     fetchPuntuacionSupervisoresOt,
+    deleteInspection,
     normalizedInspections,
     validSupervisors
   };

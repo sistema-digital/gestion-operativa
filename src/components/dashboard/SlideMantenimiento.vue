@@ -36,7 +36,7 @@ const { setStatusFilter, setWeekFilter } = maintenanceStore;
 const isRefreshing = ref(false);
 const userArea = ref('');
 const targetLabel = "META 2.94% MIN";
-const defaultEtapa = 'ZAFRA';
+const defaultEtapa = 'Zafra';
 
 const windowWidth = ref(window.innerWidth);
 const MAX_VISIBLE_BARS = computed(() => {
@@ -83,6 +83,8 @@ const normalizeAreaKey = (area: string) => String(area || '')
   .toUpperCase()
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '');
+
+const defaultEtapaKey = normalizeAreaKey(defaultEtapa);
 
 const hoursPerOrderByArea: Record<string, number> = {
   'COSECHA AGRICOLA': 2,
@@ -450,7 +452,9 @@ const options = computed(() => {
   const etapas = Array.from(new Set(baseData.map(d => d.Etapa).filter(Boolean))).sort();
 
   let areaData = baseData;
-  if (filters.value.etapa) areaData = areaData.filter(d => d.Etapa === filters.value.etapa);
+  if (filters.value.etapa) {
+    areaData = areaData.filter(d => normalizeAreaKey(String(d.Etapa || '')) === normalizeAreaKey(filters.value.etapa));
+  }
   const areas = Array.from(new Set(areaData.map(d => d.Área).filter(Boolean))).sort();
 
   let itemData = areaData;
@@ -472,7 +476,9 @@ const filteredData = computed(() => {
     result = result.filter(d => d.Área?.toUpperCase() === areaFixed);
   }
 
-  if (filters.value.etapa) result = result.filter(d => d.Etapa === filters.value.etapa);
+  if (filters.value.etapa) {
+    result = result.filter(d => normalizeAreaKey(String(d.Etapa || '')) === normalizeAreaKey(filters.value.etapa));
+  }
   if (filters.value.area) result = result.filter(d => d.Área === filters.value.area);
   if (filters.value.item) result = result.filter(d => d.ITEM === filters.value.item);
   if (filters.value.idEquipo) result = result.filter(d => d["ID_#EQUIPO"] === filters.value.idEquipo);
@@ -497,7 +503,12 @@ const isConcludedOrder = (order: OrdenMantenimiento): boolean => {
 
 const getStatusBucket = (order: OrdenMantenimiento): string => {
   if (isConcludedOrder(order)) return 'Concluida';
-  return getRawStatus(order) || 'Sin Estatus';
+  const rawStatus = getRawStatus(order);
+  const normalizedStatus = rawStatus.toLowerCase();
+
+  if (normalizedStatus === 'detenido') return 'Detenido';
+
+  return rawStatus || 'Sin Estatus';
 };
 
 const getConcludedBreakdown = (orders: OrdenMantenimiento[]) => {
@@ -708,8 +719,8 @@ const fetchData = async (forceRefresh = false) => {
     await maintenanceStore.fetchAllOrders(forceRefresh);
 
     const zafraEtapa = Array.from(new Set(allOrders.value.map(d => d.Etapa).filter(Boolean)))
-      .find(etapa => normalizeAreaKey(String(etapa)) === defaultEtapa);
-    if (zafraEtapa && normalizeAreaKey(filters.value.etapa) === defaultEtapa) {
+      .find(etapa => normalizeAreaKey(String(etapa)) === defaultEtapaKey);
+    if (zafraEtapa && normalizeAreaKey(filters.value.etapa) === defaultEtapaKey) {
       filters.value.etapa = String(zafraEtapa);
     }
   } catch (e) {
@@ -773,11 +784,12 @@ const statusStats = computed(() => {
     'Programado': { bar: 'bg-[#1A6A96]', dot: 'bg-[#1A6A96]' },
     'Concluida': { bar: 'bg-[#2d8a54]', dot: 'bg-[#2d8a54]' },
     'En Proceso': { bar: 'bg-[#d4a94d]', dot: 'bg-[#d4a94d]' },
+    'Detenido': { bar: 'bg-danger', dot: 'bg-danger' },
   };
 
   const defaultColors = { bar: 'bg-gray-300', dot: 'bg-gray-400' };
 
-  return ['Programado', 'Concluida', 'En Proceso'].map(label => {
+  return ['Programado', 'Concluida', 'En Proceso', 'Detenido'].map(label => {
     const detail = counts[label] || { total: 0, concluida: 0, nr: 0 };
     const mappingKey = Object.keys(colorMap).find(k => k.toLowerCase() === label.toLowerCase());
     const colors = mappingKey ? colorMap[mappingKey] : defaultColors;
@@ -804,11 +816,12 @@ const getStatusClass = (status: string) => {
 
 const echartBarOption = computed(() => {
   const stats = statusStats.value;
-  const orderedLabels = ['Programado', 'Concluida', 'En Proceso'];
+  const orderedLabels = ['Programado', 'Concluida', 'En Proceso', 'Detenido'];
   const colorMap: Record<string, string> = {
     'Programado': '#1A6A96',
     'Concluida': '#2D8A54',
-    'En Proceso': '#D4A94D'
+    'En Proceso': '#D4A94D',
+    'Detenido': '#dc2626'
   };
 
   const labels: string[] = [];
@@ -907,10 +920,11 @@ const buildEChartStackedOption = (data: OrdenMantenimiento[], groupKey: keyof Or
     'Programado': '#1A6A96',
     'Concluida': '#2D8A54',
     'En Proceso': '#D4A94D',
+    'Detenido': '#dc2626',
   };
   const fallbackColors = ['#94a3b8', '#64748b', '#475569', '#cbd5e1'];
 
-  const uniqueStatuses = ['Programado', 'Concluida', 'En Proceso'];
+  const uniqueStatuses = ['Programado', 'Concluida', 'En Proceso', 'Detenido'];
 
   const groups: Record<string, {
     total: number;
@@ -1200,11 +1214,11 @@ const handleEChartClick = (dimensionKey: string, params: any) => {
 };
 
 const comparisonIsZafra = computed(() => (
-  Boolean(filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra')
+  Boolean(filters.value.etapa && normalizeAreaKey(filters.value.etapa) === defaultEtapaKey)
 ));
 
 const buildComparisonAreaRows = (comparisonMode: 'normalized' | 'actual') => {
-  const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
+  const isZafra = filters.value.etapa && normalizeAreaKey(filters.value.etapa) === defaultEtapaKey;
   const weeks = new Set(allWeeklyProgress.value.map(d => String(d.semana)));
   const areaFixed = userArea.value?.toUpperCase();
   const areaFixedKey = normalizeAreaKey(userArea.value || '');
@@ -1214,7 +1228,7 @@ const buildComparisonAreaRows = (comparisonMode: 'normalized' | 'actual') => {
     : allOrders.value.filter(d => normalizeAreaKey(d.Área || '') === areaFixedKey);
 
   if (filters.value.etapa) {
-    orderList = orderList.filter(d => d.Etapa === filters.value.etapa);
+    orderList = orderList.filter(d => normalizeAreaKey(String(d.Etapa || '')) === normalizeAreaKey(filters.value.etapa));
   }
 
   if (areaFixed === 'ALL' && filters.value.area) {
@@ -1369,7 +1383,7 @@ const buildWeeklyProgress = (limitToLastFive: boolean) => {
     : allOrders.value.filter(d => d.Área?.toUpperCase() === areaFixed);
 
   if (filters.value.etapa) {
-    globalList = globalList.filter(d => d.Etapa === filters.value.etapa);
+    globalList = globalList.filter(d => normalizeAreaKey(String(d.Etapa || '')) === normalizeAreaKey(filters.value.etapa));
   }
 
   if (areaFixed === 'ALL' && filters.value.area) {
@@ -1588,7 +1602,7 @@ const weeklyAreaSummary = computed(() => {
     : allOrders.value.filter(d => normalizeAreaKey(d.Área || '') === areaFixedKey);
 
   if (filters.value.etapa) {
-    orderList = orderList.filter(d => d.Etapa === filters.value.etapa);
+    orderList = orderList.filter(d => normalizeAreaKey(String(d.Etapa || '')) === normalizeAreaKey(filters.value.etapa));
   }
 
   if (areaFixed === 'ALL' && filters.value.area) {
@@ -1745,7 +1759,7 @@ const getLostProgressOrderList = () => {
     : allOrders.value.filter(d => normalizeAreaKey(d.Área || '') === areaFixedKey);
 
   if (filters.value.etapa) {
-    orderList = orderList.filter(d => d.Etapa === filters.value.etapa);
+    orderList = orderList.filter(d => normalizeAreaKey(String(d.Etapa || '')) === normalizeAreaKey(filters.value.etapa));
   }
 
   if (areaFixed === 'ALL' && filters.value.area) {
@@ -2051,7 +2065,7 @@ const weeklyEChartOption = computed(() => {
     return isNrVisible ? weekData.avance : weekData.concluidaAvance;
   };
 
-  const isZafra = filters.value.etapa && filters.value.etapa.toLowerCase() === 'zafra';
+  const isZafra = filters.value.etapa && normalizeAreaKey(filters.value.etapa) === defaultEtapaKey;
   const showLoss = isZafra && weeklyLossVisible.value;
   const avanceValues2025 = isZafra ? labels.map(sem => getProgress2025NormalizedValue(sem)) : [];
 
@@ -2357,14 +2371,10 @@ const handleWeeklyLegendSelectChanged = (params: any) => {
     ...params.selected,
   };
 
-  const operationalSelected = !!params.selected['Pérdida Operativa'];
-  const personalSelected = !!params.selected['Falta de Personal'];
+  const toggledLossSeries = params.name === 'Pérdida Operativa' || params.name === 'Falta de Personal';
 
-  if (
-    Object.prototype.hasOwnProperty.call(params.selected, 'Pérdida Operativa') ||
-    Object.prototype.hasOwnProperty.call(params.selected, 'Falta de Personal')
-  ) {
-    weeklyLossVisible.value = operationalSelected || personalSelected;
+  if (toggledLossSeries) {
+    weeklyLossVisible.value = !!params.selected[params.name];
   }
 };
 

@@ -202,3 +202,24 @@
 ::-webkit-scrollbar-track { background: var(--color-gray-100); }
 ::-webkit-scrollbar-thumb { background: var(--color-gray-300); border-radius: var(--radius-full); }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-gray-400); }
+
+.crear-solicitud-datepicker {
+  --dp-border-radius: 0.5rem;
+  --dp-input-padding: 0 2rem 0 0.75rem;
+  --dp-button-height: 2rem;
+}
+
+.crear-solicitud-datepicker,
+.crear-solicitud-datepicker .dp__main,
+.crear-solicitud-datepicker .dp__input_wrap {
+  width: 100%;
+}
+
+.crear-solicitud-datepicker-input {
+  @apply text-sm;
+  height: 2rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 2rem;
+}
+

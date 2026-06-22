@@ -16,11 +16,13 @@ import {
 import { useSlideProductividadViewModel } from '@/composables/useSlideProductividadViewModel';
 import type { ProductividadSemanalArea } from '@/stores/horasTrabajo.types';
 import type { ProductividadDashboardTableItem } from '@/stores/productividadSemanalDashboard.types';
+import { useUsageOrdenesActividadUsuariosStore } from '@/stores/db_mantenimiento/usage_ordenes_actividad_usuarios/usageOrdenesActividadUsuarios.store';
 import type {
   ProductividadSlideHeroMetric,
   ProductividadSlideOperationalCause,
   ProductividadSlidePersonalCause,
 } from '@/components/dashboard/productividadSlide.types';
+import { formatPanamaDateTime } from '@/utils/dateUtils';
 
 const props = defineProps<{
   area: ProductividadSemanalArea;
@@ -32,6 +34,7 @@ const emit = defineEmits<{
   selectArea: [area: ProductividadSemanalArea];
 }>();
 
+const usageOrdenesActividadUsuariosStore = useUsageOrdenesActividadUsuariosStore();
 const viewModel = useSlideProductividadViewModel({
   area: toRef(props, 'area'),
   dashboardTables: toRef(props, 'dashboardTables'),
@@ -168,6 +171,46 @@ const isCurrentArea = (candidateArea: ProductividadSemanalArea) => (
   normalizeAreaKey(candidateArea.area) === normalizeAreaKey(props.area.area)
 );
 
+const areaUsageActivity = computed(() => (
+  usageOrdenesActividadUsuariosStore.obtenerPorArea(props.area.area)[0] ?? null
+));
+
+const formatUsageDateTime = (value: string | null) => (
+  value ? formatPanamaDateTime(value) : 'Sin registro'
+);
+
+const formatUsageText = (value: string | null | undefined, fallback = 'Sin registro') => {
+  const normalized = String(value || '').trim();
+  return normalized || fallback;
+};
+
+const formatOmStatusLabel = (value: string | null | undefined) => {
+  const normalized = String(value || '').trim();
+
+  if (!normalized) {
+    return 'Sin registro';
+  }
+
+  return normalized.toUpperCase() === 'NR' ? 'Buen Estado' : normalized;
+};
+
+const latestUpdatedOrderLabel = computed(() => {
+  const activity = areaUsageActivity.value;
+
+  if (!activity) {
+    return 'Sin registro';
+  }
+
+  const equipo = formatUsageText(activity.equipo_actualizado, '');
+  const descripcion = formatUsageText(activity.descripcion_actualizada, '');
+  const estadoAnterior = formatOmStatusLabel(activity.estado_anterior);
+  const estadoNuevo = formatOmStatusLabel(activity.estado_nuevo);
+  const orderParts = [equipo, descripcion].filter(Boolean);
+  const orderLabel = orderParts.length > 0 ? orderParts.join(' ') : formatUsageText(activity.id_orden_actualizada);
+
+  return `${orderLabel}: ${estadoAnterior} -> ${estadoNuevo}`;
+});
+
 const toggleAreaMenu = () => {
   if (!canChooseArea.value) return;
   isAreaMenuOpen.value = !isAreaMenuOpen.value;
@@ -190,6 +233,9 @@ const handlePointerDownOutside = (event: MouseEvent) => {
 };
 
 onMounted(() => {
+  if (!usageOrdenesActividadUsuariosStore.isLoaded && !usageOrdenesActividadUsuariosStore.isLoading) {
+    void usageOrdenesActividadUsuariosStore.cargarActividad().catch(() => null);
+  }
   document.addEventListener('mousedown', handlePointerDownOutside);
 });
 
@@ -565,6 +611,23 @@ onUnmounted(() => {
             </div>
             <p class="mt-1 text-[0.84rem] text-[#202020]">Avance aproximado</p>
           </div>
+        </div>
+      </section>
+
+      <section class="col-span-12">
+        <div class="flex flex-col gap-1.5 rounded-[14px] border border-[#f0ede6] bg-white/70 px-3 py-1.5 text-[0.7rem] text-[#7a7a7a] shadow-[0_4px_14px_rgba(20,20,20,0.03)] lg:flex-row lg:items-center lg:justify-between lg:gap-3">
+          <p class="min-w-0">
+            <span class="font-medium text-[#6c6c6c]">Ultima vista de ordenes:</span>
+            <span class="ml-1 break-words">{{ formatUsageDateTime(areaUsageActivity?.ultima_entrada_ordenes_at ?? null) }}</span>
+          </p>
+          <p class="min-w-0">
+            <span class="font-medium text-[#6c6c6c]">Ultimo cambio de estado:</span>
+            <span class="ml-1 break-words">{{ formatUsageDateTime(areaUsageActivity?.ultima_actualizacion_om_at ?? null) }}</span>
+          </p>
+          <p class="min-w-0 lg:max-w-[42%]">
+            <span class="font-medium text-[#6c6c6c]">OM actualizada:</span>
+            <span class="ml-1 break-words">{{ latestUpdatedOrderLabel }}</span>
+          </p>
         </div>
       </section>
     </div>

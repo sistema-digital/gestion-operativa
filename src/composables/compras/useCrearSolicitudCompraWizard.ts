@@ -1,0 +1,92 @@
+import { storeToRefs } from 'pinia';
+import { computed } from 'vue';
+
+import { useEquiposStore } from '@/stores/dbequipos/equipos/equipos.store';
+import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/solicitudesCompraCrear.store';
+import type {
+  ProductoSolicitudTemporalItem,
+  SolicitudCompraSubmitMode,
+} from '@/stores/db_compras/solicitudes_compra/solicitudesCompraCrear.types';
+
+export const useCrearSolicitudCompraWizard = () => {
+  const store = useSolicitudesCompraCrearStore();
+  const equiposStore = useEquiposStore();
+
+  const storeRefs = storeToRefs(store);
+  const equiposRefs = storeToRefs(equiposStore);
+
+  const stepTitle = computed(() => {
+    switch (storeRefs.currentStep.value) {
+      case 1:
+        return 'Datos base';
+      case 2:
+        return storeRefs.tipoSolicitud.value === 'servicio'
+          ? 'Servicios'
+          : 'Productos';
+      case 3:
+        return 'Observaciones';
+      default:
+        return 'Resumen';
+    }
+  });
+
+  const headerContext = computed(() => ({
+    solicitanteNombre: storeRefs.solicitanteNombre.value,
+    solicitanteEmail: storeRefs.solicitanteEmail.value,
+    areaNombre: storeRefs.areaNombre.value,
+    fechaCreacionLocal: storeRefs.fechaCreacionLocal.value,
+  }));
+
+  const onNext = (): boolean => store.goToNextStep();
+  const onBack = (): void => store.goToPreviousStep();
+
+  const onSubmit = async (
+    mode: Exclude<SolicitudCompraSubmitMode, null>
+  ): Promise<void> => {
+    await store.submit(mode);
+  };
+
+  const addTemporaryProduct = (
+    item: Omit<ProductoSolicitudTemporalItem, 'localId' | 'tipo' | 'temporal'>
+  ): void => {
+    store.agregarProductoTemporal(item);
+  };
+
+  return {
+    currentStep: storeRefs.currentStep,
+    tipoSolicitud: storeRefs.tipoSolicitud,
+    fechaEntrega: storeRefs.fechaEntrega,
+    equipos: storeRefs.equipos,
+    productos: storeRefs.productos,
+    servicios: storeRefs.servicios,
+    observacion: storeRefs.observacion,
+    solicitarUrgente: storeRefs.solicitarUrgente,
+    motivoUrgencia: storeRefs.motivoUrgencia,
+    validationErrors: storeRefs.validationErrors,
+    loading: storeRefs.loading,
+    createError: storeRefs.error,
+    searchResults: equiposRefs.searchResults,
+    isSearching: equiposRefs.isSearching,
+    equiposSearchError: equiposRefs.error,
+    stepTitle,
+    headerContext,
+    isCurrentStepValid: computed(() => store.isCurrentStepValid),
+    onNext,
+    onBack,
+    onSubmit,
+    addTemporaryProduct,
+    setTipoSolicitud: store.setTipoSolicitud,
+    setFechaEntrega: store.setFechaEntrega,
+    setObservacion: store.setObservacion,
+    setSolicitarUrgente: store.setSolicitarUrgente,
+    setMotivoUrgencia: store.setMotivoUrgencia,
+    buscarEquipos: store.buscarEquipos,
+    agregarEquipo: store.agregarEquipo,
+    removerEquipo: store.removerEquipo,
+    buscarProductos: store.buscarProductos,
+    agregarProductoExistente: store.agregarProductoExistente,
+    removerProducto: store.removerProducto,
+    agregarServicio: store.agregarServicio,
+    removerServicio: store.removerServicio,
+  };
+};

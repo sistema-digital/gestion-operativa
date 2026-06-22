@@ -1,0 +1,256 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue';
+import {
+  ChevronDown,
+  Filter,
+  Plus,
+  Search,
+} from 'lucide-vue-next';
+
+import SolicitudesGrupoTabs from '@/components/compras/list/SolicitudesGrupoTabs.vue';
+import {
+  getEstadoOptionsForGrupo,
+  prioridadOptions,
+} from '@/components/compras/list/solicitudesListOptions';
+import type {
+  SolicitudCompraGrupoListado,
+  SolicitudCompraListFilters,
+} from '@/stores/db_compras/solicitudes_compra/solicitudesCompra.types';
+
+const props = defineProps<{
+  filters: SolicitudCompraListFilters;
+  loading: boolean;
+  searching: boolean;
+  activeGrupo: SolicitudCompraGrupoListado;
+  isMobile: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: 'update:search', value: string): void;
+  (e: 'update:grupo', value: SolicitudCompraGrupoListado): void;
+  (e: 'update:estado', value: string | null): void;
+  (e: 'update:prioridad', value: string | null): void;
+  (e: 'update:fechaDesde', value: string | null): void;
+  (e: 'update:fechaHasta', value: string | null): void;
+  (e: 'update:soloBloqueadas', value: boolean): void;
+  (e: 'update:soloDiferenciaOc', value: boolean): void;
+  (e: 'create'): void;
+}>();
+
+const desktopSearchPlaceholder = 'Buscar por folio, observación, equipo u orden de compra';
+const mobileSearchPlaceholder = 'Buscar folio, observación o equipo';
+
+const normalizedEstadoValue = computed(() => props.filters.estadoCodigo ?? '');
+const normalizedPrioridadValue = computed(() => props.filters.prioridadCodigo ?? '');
+const estadoOptions = computed(() => getEstadoOptionsForGrupo(props.activeGrupo));
+const searchPlaceholder = computed(() =>
+  props.isMobile ? mobileSearchPlaceholder : desktopSearchPlaceholder
+);
+const mobileFiltersOpen = ref(false);
+const activeMobileFiltersCount = computed(() => {
+  let count = 0;
+
+  if (props.filters.estadoCodigo) {
+    count += 1;
+  }
+
+  if (props.filters.prioridadCodigo) {
+    count += 1;
+  }
+
+  if (props.filters.fechaDesde || props.filters.fechaHasta) {
+    count += 1;
+  }
+
+  if (props.filters.soloBloqueadas) {
+    count += 1;
+  }
+
+  if (props.filters.soloDiferenciaOc) {
+    count += 1;
+  }
+
+  return count;
+});
+const mobileFiltersLabel = computed(() =>
+  activeMobileFiltersCount.value > 0
+    ? `Filtros (${activeMobileFiltersCount.value})`
+    : 'Filtros'
+);
+
+const onSearchInput = (event: Event): void => {
+  emit('update:search', (event.target as HTMLInputElement).value);
+};
+
+const onEstadoChange = (event: Event): void => {
+  const value = (event.target as HTMLSelectElement).value;
+  emit('update:estado', value || null);
+};
+
+const onPrioridadChange = (event: Event): void => {
+  const value = (event.target as HTMLSelectElement).value;
+  emit('update:prioridad', value || null);
+};
+
+const onFechaDesdeChange = (event: Event): void => {
+  const value = (event.target as HTMLInputElement).value;
+  emit('update:fechaDesde', value || null);
+};
+
+const onFechaHastaChange = (event: Event): void => {
+  const value = (event.target as HTMLInputElement).value;
+  emit('update:fechaHasta', value || null);
+};
+
+const onSoloBloqueadasChange = (event: Event): void => {
+  emit('update:soloBloqueadas', (event.target as HTMLInputElement).checked);
+};
+
+const onSoloDiferenciaOcChange = (event: Event): void => {
+  emit('update:soloDiferenciaOc', (event.target as HTMLInputElement).checked);
+};
+
+const toggleMobileFilters = (): void => {
+  mobileFiltersOpen.value = !mobileFiltersOpen.value;
+};
+</script>
+
+<template>
+  <section
+    class="overflow-hidden rounded-[1.75rem] border border-stone-300 bg-white/90 shadow-sm backdrop-blur"
+    :class="isMobile ? 'p-3' : ''"
+  >
+    <div class="divide-y divide-stone-200/90">
+      <div class="grid gap-3 p-3 lg:grid-cols-[minmax(0,1.55fr)_auto_auto] lg:items-center">
+        <label class="flex min-h-8 items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+          <Search class="h-4 w-4 shrink-0 text-stone-400" />
+          <input
+            :value="filters.busqueda"
+            type="search"
+            :placeholder="searchPlaceholder"
+            class="w-full bg-transparent text-sm text-stone-900 outline-none placeholder:text-stone-400"
+            @input="onSearchInput"
+          >
+        </label>
+
+        <SolicitudesGrupoTabs
+          :model-value="activeGrupo"
+          @update:model-value="emit('update:grupo', $event)"
+        />
+
+        <div
+          class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end"
+          :class="isMobile ? '' : 'lg:contents'"
+        >
+          <button
+            v-if="isMobile"
+            type="button"
+            class="inline-flex min-h-8 items-center justify-center gap-2 rounded-2xl border border-stone-300 bg-stone-50 px-4 text-sm font-semibold text-stone-700 shadow-sm transition hover:border-stone-400 hover:bg-white"
+            :aria-expanded="mobileFiltersOpen"
+            aria-controls="solicitudes-mobile-filters"
+            @click="toggleMobileFilters"
+          >
+            <Filter class="h-4 w-4" />
+            <span>{{ mobileFiltersLabel }}</span>
+            <ChevronDown
+              class="h-4 w-4 transition"
+              :class="mobileFiltersOpen ? 'rotate-180' : ''"
+            />
+          </button>
+
+          <button
+            v-if="!isMobile"
+            type="button"
+            class="inline-flex min-h-8 items-center justify-center gap-2 cursor-pointer rounded-2xl border border-accent bg-accent px-5 text-sm font-semibold text-main-dark shadow-sm transition hover:bg-accent-light"
+            @click="emit('create')"
+          >
+            <Plus class="h-4 w-4" />
+            <span>Crear</span>
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="!isMobile || mobileFiltersOpen"
+        id="solicitudes-mobile-filters"
+        class="flex flex-wrap items-center gap-3 px-3 py-3"
+      >
+        <label class="relative flex min-h-8 min-w-[15rem] flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white sm:flex-none">
+          <select
+            :value="normalizedEstadoValue"
+            class="w-full cursor-pointer bg-transparent pr-4 text-sm text-stone-900 outline-none"
+            @change="onEstadoChange"
+          >
+            <option
+              v-for="option in estadoOptions"
+              :key="option.value ?? 'all-estados'"
+              :value="option.value ?? ''"
+            >
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+
+        <label class="relative flex min-h-8 min-w-[15rem] flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white sm:flex-none">
+          <select
+            :value="normalizedPrioridadValue"
+            class="w-full cursor-pointer bg-transparent pr-6 text-sm text-stone-900 outline-none"
+            @change="onPrioridadChange"
+          >
+            <option
+              v-for="option in prioridadOptions"
+              :key="option.value ?? 'all-prioridades'"
+              :value="option.value ?? ''"
+            >
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+
+        <span class="text-sm font-semibold text-stone-700">Fechas:</span>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="flex min-h-8 min-w-[8rem] items-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+            <input
+              :value="filters.fechaDesde ?? ''"
+              type="date"
+              class="w-full bg-transparent cursor-pointer text-sm text-stone-900 outline-none"
+              @input="onFechaDesdeChange"
+            >
+          </label>
+
+          <span class="text-sm text-stone-500">-</span>
+
+          <label class="flex min-h-8 min-w-[8rem] items-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-700 shadow-sm transition focus-within:border-stone-400 focus-within:bg-white">
+            <input
+              :value="filters.fechaHasta ?? ''"
+              type="date"
+              class="w-full bg-transparent cursor-pointer text-sm text-stone-900 outline-none"
+              @input="onFechaHastaChange"
+            >
+          </label>
+        </div>
+
+        <label class="inline-flex min-h-8 items-center cursor-pointer gap-2 text-sm text-stone-700">
+          <input
+            :checked="filters.soloBloqueadas"
+            type="checkbox"
+            class="h-4 w-4 rounded border-stone-300 cursor-pointer text-stone-900 focus:ring-stone-400"
+            @change="onSoloBloqueadasChange"
+          >
+          <span>Bloqueadas</span>
+        </label>
+
+        <label class="inline-flex min-h-8 items-center cursor-pointer gap-2 text-sm text-stone-700">
+          <input
+            :checked="filters.soloDiferenciaOc"
+            type="checkbox"
+            class="h-4 w-4 rounded border-stone-300 cursor-pointer text-stone-900 focus:ring-stone-400"
+            @change="onSoloDiferenciaOcChange"
+          >
+          <span>Diferencia OC</span>
+        </label>
+      </div>
+    </div>
+  </section>
+</template>
