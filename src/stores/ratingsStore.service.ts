@@ -15,25 +15,17 @@ type PagedQueryResponse<T> = Promise<{
   error: { message?: string } | null;
 }>;
 
-const fetchFromFirstAvailableTable = async <T>(
-  tableNames: [string, string],
+const fetchTableData = async <T>(
+  tableName: string,
   select = '*'
 ): Promise<T[]> => {
-  const [{ data: lowerData, error: lowerError }, { data: exactData, error: exactError }] =
-    await Promise.all([
-      supabaseRatings.from(tableNames[0]).select(select),
-      supabaseRatings.from(tableNames[1]).select(select),
-    ]);
+  const { data, error } = await supabaseRatings.from(tableName).select(select);
 
-  if (lowerError && exactError) {
-    throw new Error(lowerError.message || exactError.message);
+  if (error) {
+    throw new Error(error.message);
   }
 
-  if (lowerData && lowerData.length > 0) {
-    return lowerData as T[];
-  }
-
-  return (exactData || []) as T[];
+  return (data || []) as T[];
 };
 
 const buildInspeccionesScopeQuery = (
@@ -76,43 +68,19 @@ const buildDetallesPageQuery = (
   return query;
 };
 
-const selectFirstAvailablePagedTable = async <T>(
-  tableNames: [string, string],
-  queryFactory: (tableName: string, from: number) => PagedQueryResponse<T>
-): Promise<{ tableName: string; initialData: T[] }> => {
-  const [{ data: lowerData, error: lowerError }, { data: exactData, error: exactError }] =
-    await Promise.all([
-      queryFactory(tableNames[0], 0),
-      queryFactory(tableNames[1], 0),
-    ]);
-
-  if (lowerError && exactError) {
-    throw new Error(lowerError.message || exactError.message);
-  }
-
-  if (lowerData && lowerData.length > 0) {
-    return { tableName: tableNames[0], initialData: lowerData as T[] };
-  }
-
-  if (exactData && exactData.length > 0) {
-    return { tableName: tableNames[1], initialData: exactData as T[] };
-  }
-
-  if (!lowerError) {
-    return { tableName: tableNames[0], initialData: (lowerData || []) as T[] };
-  }
-
-  return { tableName: tableNames[1], initialData: (exactData || []) as T[] };
-};
-
 const fetchPagedData = async <T>(
-  tableNames: [string, string],
+  tableName: string,
   queryFactory: (tableName: string, from: number) => PagedQueryResponse<T>
 ): Promise<T[]> => {
-  const { tableName, initialData } = await selectFirstAvailablePagedTable<T>(tableNames, queryFactory);
-  const records = [...initialData];
+  const { data: initialData, error: initialError } = await queryFactory(tableName, 0);
 
-  if (initialData.length < SUPABASE_BATCH_SIZE) {
+  if (initialError) {
+    throw new Error(initialError.message);
+  }
+
+  const records = [...((initialData || []) as T[])];
+
+  if (records.length < SUPABASE_BATCH_SIZE) {
     return records;
   }
 
@@ -141,12 +109,12 @@ const fetchPagedData = async <T>(
 
 export const ratingsService = {
   async fetchEmpleados(): Promise<RatingsEmpleado[]> {
-    return fetchFromFirstAvailableTable<RatingsEmpleado>(['empleados', 'Empleados']);
+    return fetchTableData<RatingsEmpleado>('empleados');
   },
 
   async fetchInspecciones(scope: RatingsFetchScope = { mode: 'all' }): Promise<RatingsInspeccion[]> {
     return fetchPagedData<RatingsInspeccion>(
-      ['inspecciones', 'Inspecciones'],
+      'inspecciones',
       (tableName, from) => buildInspeccionesScopeQuery(tableName, scope, from) as unknown as PagedQueryResponse<RatingsInspeccion>
     );
   },
@@ -166,7 +134,7 @@ export const ratingsService = {
       for (let index = 0; index < uniqueInspectionIds.length; index += DETAIL_ID_CHUNK_SIZE) {
         const idChunk = uniqueInspectionIds.slice(index, index + DETAIL_ID_CHUNK_SIZE);
         const chunkRecords = await fetchPagedData<RatingsDetalle>(
-          ['inspecciones_detalle', 'Inspecciones_Detalle'],
+          'inspecciones_detalle',
           (tableName, from) => buildDetallesPageQuery(tableName, from, idChunk) as unknown as PagedQueryResponse<RatingsDetalle>
         );
 
@@ -177,7 +145,7 @@ export const ratingsService = {
     }
 
     return fetchPagedData<RatingsDetalle>(
-      ['inspecciones_detalle', 'Inspecciones_Detalle'],
+      'inspecciones_detalle',
       (tableName, from) => buildDetallesPageQuery(tableName, from) as unknown as PagedQueryResponse<RatingsDetalle>
     );
   },
