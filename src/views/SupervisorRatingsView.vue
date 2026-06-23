@@ -145,6 +145,8 @@ const getRatingsFetchScope = (): RatingsFetchScope => {
 };
 
 const setTimeFilter = async (f: string) => {
+  if (f === 'Ayer' && !canUsePreviousRatingsFilter.value) return;
+
   const previousFilter = timeFilter.value;
   const hadSelectedDate = selectedDate.value !== '';
 
@@ -194,6 +196,8 @@ const deleteCandidateSupervisorName = computed(() => {
 });
 
 const filteredSupervisors = computed(() => {
+  const yesterdayFilterDate = resolvedPreviousRatingsDate.value;
+
   let result = supervisors.value.map(sup => {
     let filteredInsps = sup.inspecciones;
 
@@ -203,7 +207,9 @@ const filteredSupervisors = computed(() => {
       if (timeFilter.value === 'Hoy') {
         filteredInsps = filteredInsps.filter(i => i.fecha === todayDate);
       } else if (timeFilter.value === 'Ayer') {
-        filteredInsps = filteredInsps.filter(i => i.fecha === yesterdayDate);
+        filteredInsps = yesterdayFilterDate
+          ? filteredInsps.filter(i => i.fecha === yesterdayFilterDate)
+          : [];
       } else if (timeFilter.value === 'Esta semana') {
         filteredInsps = filteredInsps.filter(i => i.fecha >= startOfWeek && i.fecha <= todayDate);
       } else if (timeFilter.value === 'Semana pasada') {
@@ -266,6 +272,50 @@ const filteredSupervisors = computed(() => {
   }
 
   return result;
+});
+
+const availablePreviousRatingsDates = computed(() => {
+  const dates = new Set<string>();
+
+  supervisors.value.forEach((supervisor) => {
+    supervisor.inspecciones.forEach((inspection) => {
+      if (inspection.fecha && inspection.fecha < todayDate) {
+        dates.add(inspection.fecha);
+      }
+    });
+  });
+
+  return Array.from(dates).sort((a, b) => b.localeCompare(a));
+});
+
+const resolvedPreviousRatingsDate = computed(() => {
+  return availablePreviousRatingsDates.value[0] || '';
+});
+
+const previousRatingsButtonLabel = computed(() => {
+  const resolvedDate = resolvedPreviousRatingsDate.value;
+
+  if (!resolvedDate || resolvedDate === yesterdayDate) {
+    return 'Ayer';
+  }
+
+  const date = new Date(`${resolvedDate}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Ayer';
+  }
+
+  const formatted = new Intl.DateTimeFormat('es', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(date);
+
+  return formatted
+    .replace('.', '')
+    .split(' ')
+    .map((part, index) => (index === 0 ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+    .join(' ');
 });
 
 // --- KPIs ---
@@ -1184,6 +1234,10 @@ const loadData = async ({ forceStore = false, background = false } = {}) => {
   }
 };
 
+const canUsePreviousRatingsFilter = computed(() => {
+  return resolvedPreviousRatingsDate.value !== '';
+});
+
 onMounted(() => {
   loadData();
   window.addEventListener('open-new-record', openNewModal);
@@ -1253,7 +1307,7 @@ onUnmounted(() => {
           <div class="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
             <button @click="setTimeFilter('Todas')" :class="timeFilter === 'Todas' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Todas</button>
             <button v-if="!isRegularSup" @click="setTimeFilter('Hoy')" :class="timeFilter === 'Hoy' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Hoy</button>
-            <button v-if="!isRegularSup" @click="setTimeFilter('Ayer')" :class="timeFilter === 'Ayer' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Ayer</button>
+            <button v-if="!isRegularSup" @click="setTimeFilter('Ayer')" :disabled="!canUsePreviousRatingsFilter" :class="timeFilter === 'Ayer' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{{ previousRatingsButtonLabel }}</button>
             <button @click="setTimeFilter('Esta semana')" :class="timeFilter === 'Esta semana' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Esta semana</button>
             <button @click="setTimeFilter('Semana pasada')" :class="timeFilter === 'Semana pasada' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Semana pasada</button>
           </div>
