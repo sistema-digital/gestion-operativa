@@ -1420,27 +1420,25 @@ onUnmounted(() => {
         <Users class="w-12 h-12 text-gray-200 mx-auto mb-4" />
         <p class="text-gray-400 font-medium">No hay inspecciones para el filtro seleccionado</p>
       </div>
-    </div>
-
     <!-- Modal Ver Fotos -->
     <div v-if="showPhotosModal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-200">
-       <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
-          <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-             <h3 class="font-display text-xl text-gray-900 tracking-tight">Fotos de la Inspección</h3>
-             <button @click="showPhotosModal = false" class="text-gray-400 hover:text-gray-600">
-               <X class="w-5 h-5" />
-             </button>
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+          <h3 class="font-display text-xl text-gray-900 tracking-tight">Fotos de la Inspección</h3>
+          <button @click="showPhotosModal = false" class="text-gray-400 hover:text-gray-600">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+        <div class="p-6 overflow-y-auto flex-1 bg-gray-100/50">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <img v-for="(img, i) in currentPhotos" :key="i" :src="img" class="w-full h-auto rounded-lg shadow-sm border border-gray-200" />
           </div>
-          <div class="p-6 overflow-y-auto flex-1 bg-gray-100/50">
-             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <img v-for="(img, i) in currentPhotos" :key="i" :src="img" class="w-full h-auto rounded-lg shadow-sm border border-gray-200" />
-             </div>
-          </div>
-       </div>
+        </div>
+      </div>
     </div>
 
     <!-- Modal Nuevo Registro -->
-  <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+    <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
       <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl overflow-hidden flex flex-col h-[90vh] max-h-[90vh]">
         <div class="p-6 border-b border-gray-100 flex flex-none items-center justify-between bg-gray-50">
           <h3 class="font-display text-xl text-gray-900 tracking-tight">{{ isEditing ? 'Actualizar Inspección' : 'Nueva Inspección' }}</h3>
@@ -1850,6 +1848,7 @@ onUnmounted(() => {
           </span>
         </BaseButton>
       </div>
+    </div>
     </div>
   </div>
 </template>
