@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
+import type { Component } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Loader2, ChevronDown, Check } from 'lucide-vue-next';
 import { supabase } from '@/lib/supabase';
@@ -12,10 +13,19 @@ import MaintSlideStages from '@/components/maintenance/MaintSlideStages.vue';
 import MaintSlideMetrics from '@/components/maintenance/MaintSlideMetrics.vue';
 import MaintSlideUpdates from '@/components/maintenance/MaintSlideUpdates.vue';
 
+type MaintenanceSlide = {
+  id: string;
+  label: string;
+  mobileLabel?: string;
+  component: Component;
+  adminOnly?: boolean;
+};
+
 const route = useRoute();
 const router = useRouter();
+const CACHE_LIMIT = 3;
 
-const allSlides = [
+const allSlides: MaintenanceSlide[] = [
   { id: 'ordenes', label: 'Ordenes De Mantenimiento', mobileLabel: 'Orden', component: MaintSlideOrders },
   { id: 'servicios_generales', label: 'Servicios Generales', mobileLabel: 'Servicios', component: MaintSlideSG },
   { id: 'horas_asignadas', label: 'Horas Asignadas', mobileLabel: 'Horas', component: MaintSlideHours },
@@ -27,6 +37,7 @@ const allSlides = [
 const isLoading = ref(true);
 const userArea = ref('');
 const showDropdown = ref(false);
+const activeSlideId = ref('');
 
 const openDashboard = () => {
   if (userArea.value === 'SERVICIOS GENERALES') {
@@ -55,28 +66,61 @@ const filteredSlides = computed(() => {
 
 const primarySlides = computed(() => filteredSlides.value.slice(0, 3)); 
 const overflowSlides = computed(() => filteredSlides.value.slice(3));
+const activeSlide = computed(() => (
+  filteredSlides.value.find((slide) => slide.id === activeSlideId.value)
+  ?? filteredSlides.value[0]
+  ?? null
+));
+const currentSlideIndex = computed(() => (
+  activeSlide.value
+    ? filteredSlides.value.findIndex((slide) => slide.id === activeSlide.value?.id)
+    : -1
+));
 
-const containerRef = ref<HTMLElement | null>(null);
-const currentSlideIndex = ref(0);
-
-const scrollToSlideIndex = (index: number) => {
-  if (containerRef.value) {
-    const slideEl = containerRef.value.children[index] as HTMLElement;
-    if (slideEl) {
-      containerRef.value.scrollTo({ left: slideEl.offsetLeft, behavior: 'smooth' });
-    }
+const syncRouteWithSlide = async (slideId: string) => {
+  if (route.query.maint_slide === slideId) {
+    return;
   }
-  currentSlideIndex.value = index;
-  showDropdown.value = false;
+
+  await router.replace({
+    query: {
+      ...route.query,
+      maint_slide: slideId,
+    },
+  });
 };
 
-const handleScroll = () => {
-  if (!containerRef.value) return;
-  const scrollLeft = containerRef.value.scrollLeft;
-  const slideWidth = containerRef.value.clientWidth;
-  const index = Math.round(scrollLeft / slideWidth);
-  if (currentSlideIndex.value !== index) {
-    currentSlideIndex.value = index;
+const selectSlide = async (slideId: string) => {
+  const slideExists = filteredSlides.value.some((slide) => slide.id === slideId);
+
+  if (!slideExists || activeSlideId.value === slideId) {
+    showDropdown.value = false;
+    return;
+  }
+
+  activeSlideId.value = slideId;
+  showDropdown.value = false;
+
+  await syncRouteWithSlide(slideId);
+};
+
+const setInitialSlide = () => {
+  const requestedSlide = typeof route.query.maint_slide === 'string' ? route.query.maint_slide : '';
+  const firstAvailableSlide = filteredSlides.value[0]?.id ?? '';
+
+  if (requestedSlide && filteredSlides.value.some((slide) => slide.id === requestedSlide)) {
+    activeSlideId.value = requestedSlide;
+    return;
+  }
+
+  activeSlideId.value = firstAvailableSlide;
+};
+
+const handleWindowClick = (event: MouseEvent) => {
+  const target = event.target as HTMLElement | null;
+
+  if (!target?.closest('#maint-dropdown-container')) {
+    showDropdown.value = false;
   }
 };
 
@@ -88,35 +132,39 @@ onMounted(async () => {
   }
   
   isLoading.value = false;
-
-  nextTick(() => {
-    const initialSlide = route.query.maint_slide as string;
-    if (initialSlide) {
-      const idx = filteredSlides.value.findIndex(s => s.id === initialSlide);
-      if (idx !== -1) {
-        currentSlideIndex.value = idx;
-        nextTick(() => {
-          scrollToSlideIndex(idx);
-        });
-      }
-    }
-  });
+  setInitialSlide();
+  if (activeSlideId.value) {
+    syncRouteWithSlide(activeSlideId.value).catch((error) => {
+      console.error('Error sincronizando tab de mantenimiento:', error);
+    });
+  }
 
   // Close dropdown on click outside
-  window.addEventListener('click', (e) => {
-     const target = e.target as HTMLElement;
-     if (!target.closest('#maint-dropdown-container')) {
-       showDropdown.value = false;
-     }
-  });
+  window.addEventListener('click', handleWindowClick);
 });
 
+onUnmounted(() => {
+  window.removeEventListener('click', handleWindowClick);
+});
+
+watch(filteredSlides, (slides) => {
+  if (slides.length === 0) {
+    activeSlideId.value = '';
+    return;
+  }
+
+  if (!slides.some((slide) => slide.id === activeSlideId.value)) {
+    setInitialSlide();
+  }
+}, { immediate: true });
+
 watch(() => route.query.maint_slide, (newSlide) => {
-  if (newSlide) {
-    const idx = filteredSlides.value.findIndex(s => s.id === newSlide);
-    if (idx !== -1 && idx !== currentSlideIndex.value) {
-      scrollToSlideIndex(idx);
-    }
+  if (typeof newSlide !== 'string' || !newSlide) {
+    return;
+  }
+
+  if (filteredSlides.value.some((slide) => slide.id === newSlide)) {
+    activeSlideId.value = newSlide;
   }
 });
 </script>
@@ -145,7 +193,7 @@ watch(() => route.query.maint_slide, (newSlide) => {
           <button 
             v-for="(slide, index) in primarySlides" 
             :key="slide.id"
-            @click="scrollToSlideIndex(index)"
+            @click="selectSlide(slide.id)"
             class="px-2.5 py-1.5 md:px-4 md:py-2 text-[10px] md:text-[11px] font-bold rounded-lg transition-all whitespace-nowrap outline-none"
             :class="index === currentSlideIndex ? 'bg-white text-main shadow-sm' : 'text-gray-400 hover:text-gray-600'"
           >
@@ -171,7 +219,7 @@ watch(() => route.query.maint_slide, (newSlide) => {
               <button
                 v-for="(slide, index) in overflowSlides"
                 :key="slide.id"
-                @click="scrollToSlideIndex(index + 3)"
+                @click="selectSlide(slide.id)"
                 class="w-full text-left px-4 py-2.5 text-xs font-bold transition-colors flex items-center justify-between"
                 :class="(index + 3) === currentSlideIndex ? 'bg-main/5 text-main' : 'text-gray-500 hover:bg-gray-50'"
               >
@@ -184,35 +232,16 @@ watch(() => route.query.maint_slide, (newSlide) => {
       </div>
     </div>
 
-    <!-- Slider Content -->
-    <div 
-      v-if="!isLoading"
-      id="maint-slider-container"
-      ref="containerRef"
-      @scroll.passive="handleScroll"
-      class="flex-1 flex overflow-x-auto snap-x snap-mandatory no-scrollbar bg-gray-50/50"
-      style="scroll-behavior: smooth;"
+    <div
+      v-if="!isLoading && activeSlide"
+      id="maint-tab-panel"
+      class="flex-1 overflow-y-auto bg-gray-50/50"
     >
-      <div 
-        v-for="slide in filteredSlides" 
-        :key="slide.id"
-        :id="'maint-slide-' + slide.id"
-        class="min-w-full w-full flex-shrink-0 snap-center pb-[120px] md:pb-8 lg:pb-10 overflow-y-auto"
-      >
-        <div class="px-4 py-4 md:px-8 md:py-8 lg:px-10 lg:py-10">
-          <component :is="slide.component" />
-        </div>
+      <div class="px-4 py-4 pb-[120px] md:px-8 md:py-8 md:pb-8 lg:px-10 lg:py-10 lg:pb-10">
+        <KeepAlive :max="CACHE_LIMIT">
+          <component :is="activeSlide.component" :key="activeSlide.id" />
+        </KeepAlive>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-</style>
