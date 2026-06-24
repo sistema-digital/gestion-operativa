@@ -12,11 +12,6 @@ const router = createRouter({
       component: () => import('@/views/LoginView.vue'),
     },
     {
-      path: '/compras/nueva',
-      name: 'SolicitudCompraCrear',
-      component: () => import('@/views/compras/SolicitudCompraCrearView.vue'),
-    },
-    {
       path: '/',
       name: 'DefaultLayout',
       component: () => import('@/layouts/DefaultLayout.vue'),
@@ -50,6 +45,13 @@ const router = createRouter({
           path: 'compras',
           name: 'Compras',
           component: () => import('@/views/compras/SolicitudesCompraView.vue'),
+          children: [
+            {
+              path: 'nueva',
+              name: 'SolicitudCompraCrear',
+              component: () => import('@/views/compras/SolicitudCompraCrearView.vue'),
+            },
+          ],
         },
         {
           path: 'catalogo',

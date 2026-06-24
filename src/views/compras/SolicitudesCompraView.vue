@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import SolicitudesDesktopTable from '@/components/compras/list/desktop/SolicitudesDesktopTable.vue';
 import SolicitudesListEmptyState from '@/components/compras/list/SolicitudesListEmptyState.vue';
@@ -37,10 +37,14 @@ const {
   onCardClick,
 } = useSolicitudesCompraList();
 const router = useRouter();
+const route = useRoute();
+const isTransitioningToCreate = ref(false);
+const CREATE_VIEW_TRANSITION_MS = 260;
 
 const roleCodigo = computed<SolicitudCompraRoleCodigo>(
   () => items.value[0]?.viewerRoleCodigo ?? baseItems.value[0]?.viewerRoleCodigo ?? 'operativo'
 );
+const isCreateOverlayOpen = computed(() => route.name === 'SolicitudCompraCrear');
 
 const searchActive = computed(() =>
   filters.value.busqueda.trim().length > 0
@@ -66,8 +70,21 @@ const handleGrupoChange = async (
   await onGrupoChange(grupo);
 };
 
+const openCreateOverlay = (): void => {
+  if (isTransitioningToCreate.value || isCreateOverlayOpen.value) {
+    return;
+  }
+
+  isTransitioningToCreate.value = true;
+  window.dispatchEvent(new CustomEvent('prepare-open-solicitud-compra'));
+
+  window.setTimeout(() => {
+    void router.push({ name: 'SolicitudCompraCrear' });
+  }, CREATE_VIEW_TRANSITION_MS);
+};
+
 const handleOpenNewSolicitudCompra = (): void => {
-  void router.push({ name: 'SolicitudCompraCrear' });
+  openCreateOverlay();
 };
 
 onMounted(() => {
@@ -75,14 +92,30 @@ onMounted(() => {
   void loadInitial();
 });
 
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'Compras') {
+      isTransitioningToCreate.value = false;
+    }
+  }
+);
+
 onBeforeUnmount(() => {
   window.removeEventListener('open-new-solicitud-compra', handleOpenNewSolicitudCompra);
 });
 </script>
 
 <template>
-  <section class="min-h-screen bg-[#EEECE4]">
-    <div class="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 md:px-6 md:py-6">
+  <section class="relative min-h-screen bg-[#EEECE4]">
+    <div
+      class="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 transition-all duration-300 md:px-6 md:py-6"
+      :class="[
+        isCreateOverlayOpen ? 'pointer-events-none select-none' : '',
+        isTransitioningToCreate ? '-translate-x-8 opacity-0' : 'translate-x-0 opacity-100'
+      ]"
+      :aria-hidden="isCreateOverlayOpen"
+    >
       <div class="hidden lg:block">
         <SolicitudesListToolbar
           :filters="filters"
@@ -98,7 +131,7 @@ onBeforeUnmount(() => {
           @update:fecha-hasta="onFilterChange({ fechaHasta: $event })"
           @update:solo-bloqueadas="onFilterChange({ soloBloqueadas: $event })"
           @update:solo-diferencia-oc="onFilterChange({ soloDiferenciaOc: $event })"
-          @create="router.push({ name: 'SolicitudCompraCrear' })"
+          @create="openCreateOverlay"
         />
       </div>
 
@@ -117,7 +150,7 @@ onBeforeUnmount(() => {
           @update:fecha-hasta="onFilterChange({ fechaHasta: $event })"
           @update:solo-bloqueadas="onFilterChange({ soloBloqueadas: $event })"
           @update:solo-diferencia-oc="onFilterChange({ soloDiferenciaOc: $event })"
-          @create="router.push({ name: 'SolicitudCompraCrear' })"
+          @create="openCreateOverlay"
         />
       </div>
 
@@ -182,5 +215,29 @@ onBeforeUnmount(() => {
         />
       </template>
     </div>
+
+    <router-view v-slot="{ Component, route: childRoute }">
+      <transition name="overlay-slide">
+        <div
+          v-if="Component"
+          class="fixed inset-0 z-[70] overflow-y-auto bg-[#EEECE4]"
+        >
+          <component :is="Component" :key="childRoute.fullPath" />
+        </div>
+      </transition>
+    </router-view>
   </section>
 </template>
+
+<style scoped>
+.overlay-slide-enter-active,
+.overlay-slide-leave-active {
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.overlay-slide-enter-from,
+.overlay-slide-leave-to {
+  opacity: 0;
+  transform: translateX(3rem);
+}
+</style>

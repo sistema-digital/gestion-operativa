@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRouter, useRoute } from 'vue-router';
 import { supabase, supabaseRatings, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
@@ -23,7 +23,9 @@ const route = useRoute();
 const featureAccessStore = useFeatureAccessStore();
 const { isLoaded: isFeatureAccessLoaded } = storeToRefs(featureAccessStore);
 const isSidebarOpen = ref(true);
+const isPreparingSolicitudCompraCreate = ref(false);
 const { dashboardHeaderNavState, selectDashboardHeaderSlide } = useDashboardHeaderNav();
+const CREATE_VIEW_TRANSITION_MS = 260;
 
 const userProfile = ref<{ nombre?: string; role?: string; area?: string } | null>(null);
 const userEmail = ref('');
@@ -72,11 +74,36 @@ const viewTitle = computed(() => {
   return menuItems.value.find(i => isActive(i.path))?.name || 'Dashboard';
 });
 
+const isSolicitudCompraCreateRoute = computed(() => route.name === 'SolicitudCompraCrear');
 const isDashboardRoute = computed(() => route.path.startsWith('/dashboard'));
 const showDashboardHeaderNav = computed(() => isDashboardRoute.value && dashboardHeaderNavState.isVisible);
 const mobileTopBarSpacerClass = computed(() => showDashboardHeaderNav.value ? 'h-[124px]' : 'h-[68px]');
+const hideShellForSolicitudCompraCreate = computed(() =>
+  isPreparingSolicitudCompraCreate.value || isSolicitudCompraCreateRoute.value
+);
+
+let clearSolicitudCompraTransitionTimer: number | null = null;
+
+const handlePrepareSolicitudCompraCreate = (): void => {
+  if (!route.path.startsWith('/compras') || route.name === 'SolicitudCompraCrear') {
+    return;
+  }
+
+  isPreparingSolicitudCompraCreate.value = true;
+
+  if (clearSolicitudCompraTransitionTimer !== null) {
+    window.clearTimeout(clearSolicitudCompraTransitionTimer);
+  }
+
+  clearSolicitudCompraTransitionTimer = window.setTimeout(() => {
+    isPreparingSolicitudCompraCreate.value = false;
+    clearSolicitudCompraTransitionTimer = null;
+  }, CREATE_VIEW_TRANSITION_MS + 80);
+};
 
 onMounted(async () => {
+  window.addEventListener('prepare-open-solicitud-compra', handlePrepareSolicitudCompraCreate);
+
   featureAccessStore.cargarFuncionalidadesPermitidas().catch((error) => {
     console.error('Error cargando funcionalidades permitidas:', error);
   });
@@ -108,6 +135,15 @@ onMounted(async () => {
   }
 });
 
+onBeforeUnmount(() => {
+  window.removeEventListener('prepare-open-solicitud-compra', handlePrepareSolicitudCompraCreate);
+
+  if (clearSolicitudCompraTransitionTimer !== null) {
+    window.clearTimeout(clearSolicitudCompraTransitionTimer);
+    clearSolicitudCompraTransitionTimer = null;
+  }
+});
+
 const logout = async () => {
   await Promise.all([
     supabase.auth.signOut(),
@@ -136,7 +172,10 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
     <aside 
       id="desktop-sidebar-container"
       class="hidden md:flex flex-col w-64 bg-main-dark text-white p-6 transition-all duration-300 relative z-20"
-      :class="{ '-ml-64': !isSidebarOpen }"
+      :class="[
+        { '-ml-64': !isSidebarOpen },
+        hideShellForSolicitudCompraCreate ? '-translate-x-8 opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'
+      ]"
     >
       <div class="mb-10">
         <h1 class="font-display text-2xl text-accent tracking-widest">CADASA</h1>
@@ -172,7 +211,10 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
     <!-- Main Content -->
     <main class="flex-1 flex flex-col min-w-0 bg-second overflow-hidden relative">
       <!-- Top Header (Desktop) -->
-      <header class="hidden md:flex items-center gap-6 px-8 h-16 bg-white border-b border-gray-200 shadow-md relative z-10">
+      <header
+        class="hidden md:flex items-center gap-6 px-8 h-16 bg-white border-b border-gray-200 shadow-md relative z-10 transition-all duration-300"
+        :class="hideShellForSolicitudCompraCreate ? '-translate-x-8 opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'"
+      >
         <div class="flex items-center gap-4 min-w-0">
           <button @click="isSidebarOpen = !isSidebarOpen" class="p-2 hover:bg-gray-50 rounded-lg text-gray-400">
             <Menu class="w-5 h-5" />
@@ -216,7 +258,10 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
       </header>
 
       <!-- Mobile Top Bar -->
-      <div class="md:hidden bg-white border-b border-gray-100 absolute top-0 left-0 w-full z-[30] shadow-sm">
+      <div
+        class="md:hidden bg-white border-b border-gray-100 absolute top-0 left-0 w-full z-[30] shadow-sm transition-all duration-300"
+        :class="hideShellForSolicitudCompraCreate ? '-translate-x-6 opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'"
+      >
         <div class="flex items-center justify-between px-6 py-4">
           <div class="flex items-center gap-2 min-w-0">
             <h1 class="font-display text-xl text-main tracking-widest leading-none">CADASA</h1>
@@ -262,7 +307,8 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
       <!-- Mobile Bottom Nav - SCROLLABLE -->
       <nav 
         id="mobile-bottom-nav" 
-        class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-2 flex items-center justify-around gap-2 overflow-x-auto z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-3xl hide-scrollbar"
+        class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-2 flex items-center justify-around gap-2 overflow-x-auto z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-3xl hide-scrollbar transition-all duration-300"
+        :class="hideShellForSolicitudCompraCreate ? '-translate-x-6 opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'"
       >
         <router-link 
           v-for="item in menuItems" 
@@ -280,7 +326,8 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
       <button 
         v-if="route.path !== '/dashboard' && (route.path.startsWith('/compras') || ['ALL', 'EVALUADOR'].includes(userProfile?.area?.toUpperCase() || ''))"
         @click="triggerNew" 
-        class="lg:hidden fixed bottom-20 right-6 w-14 h-14 bg-accent text-gray-900 rounded-full shadow-lg flex items-center justify-center z-40 active:scale-90 transition-transform cursor-pointer"
+        class="lg:hidden fixed bottom-20 right-6 w-14 h-14 bg-accent text-gray-900 rounded-full shadow-lg flex items-center justify-center z-40 active:scale-90 transition-all duration-300 cursor-pointer"
+        :class="hideShellForSolicitudCompraCreate ? '-translate-x-6 opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'"
       >
         <Plus class="w-8 h-8" />
       </button>
