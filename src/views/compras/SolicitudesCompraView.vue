@@ -39,7 +39,7 @@ const {
 const router = useRouter();
 const route = useRoute();
 const isTransitioningToCreate = ref(false);
-const CREATE_VIEW_TRANSITION_MS = 260;
+const CREATE_VIEW_NAVIGATION_DELAY_MS = 320;
 
 const roleCodigo = computed<SolicitudCompraRoleCodigo>(
   () => items.value[0]?.viewerRoleCodigo ?? baseItems.value[0]?.viewerRoleCodigo ?? 'operativo'
@@ -77,10 +77,11 @@ const openCreateOverlay = (): void => {
 
   isTransitioningToCreate.value = true;
   window.dispatchEvent(new CustomEvent('prepare-open-solicitud-compra'));
+  void import('@/views/compras/SolicitudCompraCrearView.vue');
 
   window.setTimeout(() => {
     void router.push({ name: 'SolicitudCompraCrear' });
-  }, CREATE_VIEW_TRANSITION_MS);
+  }, CREATE_VIEW_NAVIGATION_DELAY_MS);
 };
 
 const handleOpenNewSolicitudCompra = (): void => {
@@ -225,6 +226,18 @@ onBeforeUnmount(() => {
           <component :is="Component" :key="childRoute.fullPath" />
         </div>
       </transition>
+
+      <transition name="overlay-fade">
+        <div
+          v-if="!Component && (isTransitioningToCreate || isCreateOverlayOpen)"
+          class="fixed inset-0 z-[65] flex items-center justify-center bg-[#EEECE4]/96 backdrop-blur-[1px]"
+        >
+          <div class="flex flex-col items-center gap-4 text-main">
+            <div class="create-loader h-10 w-10 rounded-full border-4 border-main/15 border-t-main"></div>
+            <p class="text-sm font-semibold tracking-wide uppercase">Cargando formulario...</p>
+          </div>
+        </div>
+      </transition>
     </router-view>
   </section>
 </template>
@@ -239,5 +252,25 @@ onBeforeUnmount(() => {
 .overlay-slide-leave-to {
   opacity: 0;
   transform: translateX(3rem);
+}
+
+.overlay-fade-enter-active,
+.overlay-fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.overlay-fade-enter-from,
+.overlay-fade-leave-to {
+  opacity: 0;
+}
+
+.create-loader {
+  animation: create-loader-spin 0.8s linear infinite;
+}
+
+@keyframes create-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
