@@ -2,11 +2,11 @@ import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 
 import { useEquiposStore } from '@/stores/dbequipos/equipos/equipos.store';
-import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/solicitudesCompraCrear.store';
+import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
 import type {
   ProductoSolicitudTemporalItem,
   SolicitudCompraSubmitMode,
-} from '@/stores/db_compras/solicitudes_compra/solicitudesCompraCrear.types';
+} from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 export const useCrearSolicitudCompraWizard = () => {
   const store = useSolicitudesCompraCrearStore();

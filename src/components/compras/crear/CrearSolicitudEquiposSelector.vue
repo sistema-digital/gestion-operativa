@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, shallowRef, watch } from 'vue';
 
 import CrearSolicitudEquipoChip from './CrearSolicitudEquipoChip.vue';
 import type { EquipoOption } from '@/stores/dbequipos/equipos/equipos.types';
-import type { EquipoSeleccionado } from '@/stores/db_compras/solicitudes_compra/solicitudesCompraCrear.types';
+import type { EquipoSeleccionado } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 defineProps<{
   selectedItems: EquipoSeleccionado[];

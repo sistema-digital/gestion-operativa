@@ -5,7 +5,7 @@ import type {
   ProductoSolicitudItem,
   ServicioSolicitudItem,
   SolicitudCompraTipoSolicitud,
-} from '@/stores/db_compras/solicitudes_compra/solicitudesCompraCrear.types';
+} from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 const props = defineProps<{
   tipoSolicitud: SolicitudCompraTipoSolicitud | null;

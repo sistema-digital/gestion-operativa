@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Check } from 'lucide-vue-next';
 
-import type { SolicitudCompraCreateStep } from '@/stores/db_compras/solicitudes_compra/solicitudesCompraCrear.types';
+import type { SolicitudCompraCreateStep } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 const props = defineProps<{
   currentStep: SolicitudCompraCreateStep;
