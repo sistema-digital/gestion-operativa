@@ -26,6 +26,10 @@ const {
   observacion,
   solicitarUrgente,
   motivoUrgencia,
+  productSearchQuery,
+  productSearchResults,
+  productSearchLoading,
+  productSearchError,
   loading,
   createError,
   validationErrors,
@@ -42,10 +46,12 @@ const {
   setObservacion,
   setSolicitarUrgente,
   setMotivoUrgencia,
+  setProductSearchQuery,
   buscarEquipos,
+  buscarProductos,
   agregarEquipo,
   removerEquipo,
-  addTemporaryProduct,
+  agregarProductoExistente,
   agregarServicio,
   removerProducto,
   removerServicio,
@@ -136,13 +142,18 @@ onBeforeUnmount(() => {
         <CrearSolicitudCompraStepProductos
           v-else-if="currentStep === 2"
           :tipo-solicitud="tipoSolicitud"
+          :search-query="productSearchQuery"
+          :search-results="productSearchResults"
+          :is-searching="productSearchLoading"
+          :search-error="productSearchError"
           :productos="productos"
           :servicios="servicios"
           :productos-error="validationErrors.productos"
           :servicios-error="validationErrors.servicios"
-          @add-producto-temporal="addTemporaryProduct"
+          @update:search-query="setProductSearchQuery"
+          @search:productos="buscarProductos"
+          @add-producto-existente="agregarProductoExistente"
           @remove-producto="removerProducto"
-          @add-servicio="agregarServicio"
           @remove-servicio="removerServicio"
         />
 

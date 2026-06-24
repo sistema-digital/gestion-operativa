@@ -196,6 +196,15 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       delete this.validationErrors.motivoUrgencia;
     },
 
+    setProductSearchQuery(value: string): void {
+      this.productSearchQuery = value;
+      this.productSearchError = null;
+
+      if (!value.trim()) {
+        this.productSearchResults = [];
+      }
+    },
+
     async buscarEquipos(query: string): Promise<void> {
       const equiposStore = useEquiposStore();
 
@@ -231,8 +240,9 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       this.productSearchQuery = normalizedQuery;
       this.productSearchError = null;
 
-      if (!normalizedQuery) {
+      if (normalizedQuery.length < 2) {
         this.productSearchResults = [];
+        this.productSearchLoading = false;
         return;
       }
 
@@ -240,23 +250,14 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
 
       try {
         const rows = await solicitudesCompraCrearService.buscarProductos(normalizedQuery);
-        const selectedCodes = new Set(
-          this.productos
-            .filter((item): item is Extract<ProductoSolicitudItem, { tipo: 'existente' }> => item.tipo === 'existente')
-            .map((item) => item.codProducto)
-        );
-
         this.productSearchResults = rows
           .map<ProductoCatalogoOption>((row) => ({
-            id: row.id,
+            productoId: row.producto_id,
             codProducto: row.cod_producto,
             descripcion: row.descripcion,
-            unidadCodigo: row.unidad_medida?.codigo ?? '',
-            unidadLabel: row.unidad_medida?.abreviatura
-              ?? row.unidad_medida?.descripcion
-              ?? '',
-          }))
-          .filter((item) => !selectedCodes.has(item.codProducto));
+            unidadCodigo: row.unidad_codigo,
+            unidadLabel: row.unidad_mostrar || row.unidad_abreviatura || row.unidad_codigo,
+          }));
       } catch (error) {
         const message = error instanceof Error
           ? error.message
@@ -279,15 +280,13 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         {
           localId: createLocalId(),
           tipo: 'existente',
+          productoId: item.productoId,
           codProducto: item.codProducto,
           descripcion: item.descripcion,
           unidadCodigo: item.unidadCodigo,
           unidadLabel: item.unidadLabel,
         },
       ];
-      this.productSearchResults = this.productSearchResults.filter(
-        (product) => product.codProducto !== item.codProducto
-      );
       delete this.validationErrors.productos;
     },
 

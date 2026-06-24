@@ -11,6 +11,7 @@ import type {
 
 const RPC_PREPARAR_UPLOAD = 'rpc_preparar_upload_solicitud_go';
 const RPC_CREAR_SOLICITUD = 'rpc_crear_solicitud_compra_go';
+const RPC_BUSCAR_PRODUCTOS = 'rpc_buscar_productos_solicitud_go';
 const DEFAULT_PRODUCT_SEARCH_LIMIT = 10;
 
 const getFileExtension = (fileName: string): string | null => {
@@ -34,41 +35,21 @@ export const solicitudesCompraCrearService = {
   async buscarProductos(query: string): Promise<ProductoCatalogoRow[]> {
     const normalizedQuery = query.trim();
 
-    if (!normalizedQuery) {
+    if (normalizedQuery.length < 2) {
       return [];
     }
 
     const { data, error } = await supabaseCompras
-      .from('producto')
-      .select(`
-        id,
-        cod_producto,
-        descripcion,
-        activo,
-        es_temporal,
-        estado_catalogo,
-        unidad_medida:unidad_medida_id (
-          codigo,
-          abreviatura,
-          descripcion
-        )
-      `)
-      .eq('activo', true)
-      .eq('es_temporal', false)
-      .eq('estado_catalogo', 'confirmado')
-      .or([
-        `cod_producto.ilike.%${normalizedQuery}%`,
-        `descripcion.ilike.%${normalizedQuery}%`,
-      ].join(','))
-      .order('cod_producto', { ascending: true })
-      .limit(DEFAULT_PRODUCT_SEARCH_LIMIT)
-      .overrideTypes<ProductoCatalogoRow[], { merge: false }>();
+      .rpc(RPC_BUSCAR_PRODUCTOS, {
+        p_query: normalizedQuery,
+        p_limit: DEFAULT_PRODUCT_SEARCH_LIMIT,
+      });
 
     if (error) {
       throw new Error(error.message || 'No se pudieron obtener los productos');
     }
 
-    return data ?? [];
+    return (data ?? []) as ProductoCatalogoRow[];
   },
 
   async prepararUploadSession(): Promise<CrearSolicitudUploadSession> {
