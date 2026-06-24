@@ -55,7 +55,12 @@ export interface ProductoSolicitudTemporalItem {
   descripcion: string;
   unidadCodigo: string;
   unidadLabel: string;
-  notas: string;
+}
+
+export interface ProductoTemporalDraft {
+  descripcion: string;
+  unidadCodigo: string;
+  unidadLabel: string;
 }
 
 export type ProductoSolicitudItem =

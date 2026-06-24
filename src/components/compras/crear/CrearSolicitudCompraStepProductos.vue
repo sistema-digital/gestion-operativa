@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { Check, LoaderCircle, PackageSearch, Plus, Search, Trash2, X } from 'lucide-vue-next';
+import { Check, LoaderCircle, PackageSearch, Plus, Search, Trash2, X,SquarePen  } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue';
 import { shallowRef } from 'vue';
 
 import type {
   ProductoCatalogoOption,
   ProductoSolicitudItem,
+  ProductoSolicitudTemporalItem,
   ServicioSolicitudItem,
   SolicitudCompraTipoSolicitud,
 } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
@@ -29,6 +30,7 @@ const emit = defineEmits<{
   (e: 'remove-producto', localId: string): void;
   (e: 'remove-servicio', localId: string): void;
   (e: 'manual-request', value: string): void;
+  (e: 'edit-producto-temporal', value: ProductoSolicitudTemporalItem): void;
 }>();
 
 const isServicio = computed(() => props.tipoSolicitud === 'servicio');
@@ -93,6 +95,7 @@ onBeforeUnmount(() => {
 
 const normalizedQuery = computed(() => localQuery.value.trim());
 const selectedProducts = computed(() => props.productos.map((item) => ({
+  item,
   localId: item.localId,
   codProducto: item.tipo === 'existente' ? item.codProducto : 'MANUAL',
   descripcion: item.descripcion,
@@ -176,6 +179,14 @@ const clearSearch = (): void => {
   localQuery.value = '';
 };
 
+const onEditTemporal = (item: ProductoSolicitudItem): void => {
+  if (item.tipo !== 'temporal') {
+    return;
+  }
+
+  emit('edit-producto-temporal', item);
+};
+
 const onSelectRow = (
   row: SearchRow
 ): void => {
@@ -257,7 +268,7 @@ const onSelectRow = (
                   <div class="hidden grid-cols-[10rem_minmax(0,1fr)_8rem_3.25rem] items-center gap-4 text-center md:grid">
                     <template v-if="row.kind === 'manual'">
                       <p class="break-words text-sm font-semibold text-main">
-                        Manual
+                        MANUAL
                       </p>
                       <p class="break-words text-sm text-stone-600">
                         {{ row.label }}
@@ -319,7 +330,7 @@ const onSelectRow = (
                   <div class="flex items-center justify-between gap-3 md:hidden">
                     <div class="min-w-0 flex-1 break-words text-sm text-stone-700">
                       <template v-if="row.kind === 'manual'">
-                        <span class="font-semibold text-main">Manual</span>
+                        <span class="font-semibold text-main">MANUAL</span>
                         {{ ' ' }}·{{ ' ' }}{{ row.label }}
                       </template>
 
@@ -381,7 +392,7 @@ const onSelectRow = (
             v-if="!isSearchFocused"
             type="button"
             class="inline-flex min-h-11 shrink-0 self-start items-center justify-center gap-2 rounded-lg border border-main bg-white px-4 text-sm font-semibold text-main transition hover:bg-main/5"
-            @click="$emit('manual-request', normalizedQuery)"
+            @click="$emit('manual-request', '')"
           >
             <Plus class="h-4 w-4" />
             <span class="md:hidden">
@@ -418,7 +429,7 @@ const onSelectRow = (
             :key="item.localId"
             class="rounded-lg border border-stone-200 bg-white px-3 py-3"
           >
-            <div class="hidden grid-cols-[10rem_minmax(0,1fr)_8rem_3.25rem] items-center gap-4 text-center text-sm md:grid">
+            <div class="hidden grid-cols-[10rem_minmax(0,1fr)_8rem_3.8rem] items-center gap-4 text-center text-sm md:grid">
               <p class="break-words font-semibold text-stone-900">
                 {{ item.codProducto }}
               </p>
@@ -428,7 +439,15 @@ const onSelectRow = (
               <p class="break-words text-xs text-stone-500">
                 {{ item.unidadLabel }}
               </p>
-              <div class="flex justify-center">
+              <div class="flex justify-center gap-1">
+                <button
+                  v-if="item.isTemporal"
+                  type="button"
+                  class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-main/25  text-main transition hover:bg-main/5"
+                  @click="onEditTemporal(item.item)"
+                >
+                  <SquarePen  class="h-4 w-4" />
+                </button>
                 <button
                   type="button"
                   class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-200 text-stone-500 transition hover:border-danger/40 hover:bg-danger-bg hover:text-danger"
@@ -446,13 +465,23 @@ const onSelectRow = (
                 <span class="text-xs text-stone-500">{{ item.unidadLabel }}</span>
               </p>
 
-              <button
-                type="button"
-                class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-200 text-stone-500 transition hover:border-danger/40 hover:bg-danger-bg hover:text-danger"
-                @click="$emit('remove-producto', item.localId)"
-              >
-                <Trash2 class="h-4 w-4" />
-              </button>
+              <div class="flex shrink-0 items-center gap-2">
+                <button
+                  v-if="item.isTemporal"
+                  type="button"
+                  class="inline-flex h-9 items-center justify-center rounded-lg border border-main/25 px-3 text-xs font-semibold text-main transition hover:bg-main/5"
+                  @click="onEditTemporal(item.item)"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 text-stone-500 transition hover:border-danger/40 hover:bg-danger-bg hover:text-danger"
+                  @click="$emit('remove-producto', item.localId)"
+                >
+                  <Trash2 class="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

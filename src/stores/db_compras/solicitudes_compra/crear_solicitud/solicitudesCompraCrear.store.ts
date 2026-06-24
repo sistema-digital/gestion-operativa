@@ -18,6 +18,7 @@ import type {
   EquipoSeleccionado,
   ProductoCatalogoOption,
   ProductoSolicitudItem,
+  ProductoTemporalDraft,
   ProductoSolicitudTemporalItem,
   ServicioSolicitudItem,
   SolicitudCompraCreateStep,
@@ -291,7 +292,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     },
 
     agregarProductoTemporal(
-      item: Omit<ProductoSolicitudTemporalItem, 'localId' | 'tipo' | 'temporal'>
+      item: ProductoTemporalDraft
     ): void {
       this.productos = [
         ...this.productos,
@@ -302,6 +303,23 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
           ...item,
         },
       ];
+      delete this.validationErrors.productos;
+    },
+
+    actualizarProductoTemporal(localId: string, item: ProductoTemporalDraft): void {
+      this.productos = this.productos.map((product) => {
+        if (product.localId !== localId || product.tipo !== 'temporal') {
+          return product;
+        }
+
+        return {
+          ...product,
+          descripcion: item.descripcion,
+          unidadCodigo: item.unidadCodigo,
+          unidadLabel: item.unidadLabel,
+        };
+      });
+
       delete this.validationErrors.productos;
     },
 

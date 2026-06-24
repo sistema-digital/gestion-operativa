@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import { useEquiposStore } from '@/stores/dbequipos/equipos/equipos.store';
 import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
 import type {
+  ProductoTemporalDraft,
   SolicitudCompraSubmitMode,
 } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
@@ -82,6 +83,9 @@ export const useCrearSolicitudCompraWizard = () => {
     removerEquipo: store.removerEquipo,
     buscarProductos: store.buscarProductos,
     agregarProductoExistente: store.agregarProductoExistente,
+    agregarProductoTemporal: (item: ProductoTemporalDraft) => store.agregarProductoTemporal(item),
+    actualizarProductoTemporal: (localId: string, item: ProductoTemporalDraft) =>
+      store.actualizarProductoTemporal(localId, item),
     removerProducto: store.removerProducto,
     agregarServicio: store.agregarServicio,
     removerServicio: store.removerServicio,

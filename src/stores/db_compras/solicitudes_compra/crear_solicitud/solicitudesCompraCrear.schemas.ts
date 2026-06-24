@@ -51,7 +51,6 @@ const productoTemporalSchema = z.object({
   descripcion: z.string().trim().min(1, 'La descripción del producto temporal es obligatoria.'),
   unidadCodigo: z.string().trim().min(1, 'La unidad del producto temporal es obligatoria.'),
   unidadLabel: z.string().min(1),
-  notas: z.string(),
 });
 
 export const productoSolicitudSchema = z.union([
