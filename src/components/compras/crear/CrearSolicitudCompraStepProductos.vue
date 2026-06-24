@@ -391,7 +391,7 @@ const onSelectRow = (
           <button
             v-if="!isSearchFocused"
             type="button"
-            class="inline-flex min-h-11 shrink-0 self-start items-center justify-center gap-2 rounded-lg border border-main bg-white px-4 text-sm font-semibold text-main transition hover:bg-main/5"
+            class="inline-flex min-h-9 shrink-0 self-start items-center justify-center gap-2 rounded-lg border border-main bg-white px-4 text-sm font-semibold text-main transition hover:bg-main/5"
             @click="$emit('manual-request', '')"
           >
             <Plus class="h-4 w-4" />

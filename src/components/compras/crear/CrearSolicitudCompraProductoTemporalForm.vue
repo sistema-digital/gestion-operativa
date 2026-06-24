@@ -126,7 +126,7 @@ const handleSubmit = (): void => {
   emit('submit', {
     descripcion: formState.descripcion.trim(),
     unidadCodigo: formState.unidadCodigo.trim(),
-    unidadLabel: formState.unidadLabel.trim(),
+    unidadLabel: formState.unidadCodigo.trim(),
   });
 };
 </script>
