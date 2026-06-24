@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRouter, useRoute } from 'vue-router';
 import { supabase, supabaseRatings, supabaseCompras, supabaseEquipos } from '@/lib/supabase';
@@ -25,7 +25,6 @@ const { isLoaded: isFeatureAccessLoaded } = storeToRefs(featureAccessStore);
 const isSidebarOpen = ref(true);
 const isPreparingSolicitudCompraCreate = ref(false);
 const { dashboardHeaderNavState, selectDashboardHeaderSlide } = useDashboardHeaderNav();
-const CREATE_VIEW_TRANSITION_MS = 260;
 
 const userProfile = ref<{ nombre?: string; role?: string; area?: string } | null>(null);
 const userEmail = ref('');
@@ -82,24 +81,27 @@ const hideShellForSolicitudCompraCreate = computed(() =>
   isPreparingSolicitudCompraCreate.value || isSolicitudCompraCreateRoute.value
 );
 
-let clearSolicitudCompraTransitionTimer: number | null = null;
-
 const handlePrepareSolicitudCompraCreate = (): void => {
   if (!route.path.startsWith('/compras') || route.name === 'SolicitudCompraCrear') {
     return;
   }
 
   isPreparingSolicitudCompraCreate.value = true;
-
-  if (clearSolicitudCompraTransitionTimer !== null) {
-    window.clearTimeout(clearSolicitudCompraTransitionTimer);
-  }
-
-  clearSolicitudCompraTransitionTimer = window.setTimeout(() => {
-    isPreparingSolicitudCompraCreate.value = false;
-    clearSolicitudCompraTransitionTimer = null;
-  }, CREATE_VIEW_TRANSITION_MS + 80);
 };
+
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'SolicitudCompraCrear') {
+      isPreparingSolicitudCompraCreate.value = false;
+      return;
+    }
+
+    if (name === 'Compras') {
+      isPreparingSolicitudCompraCreate.value = false;
+    }
+  }
+);
 
 onMounted(async () => {
   window.addEventListener('prepare-open-solicitud-compra', handlePrepareSolicitudCompraCreate);
@@ -137,11 +139,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('prepare-open-solicitud-compra', handlePrepareSolicitudCompraCreate);
-
-  if (clearSolicitudCompraTransitionTimer !== null) {
-    window.clearTimeout(clearSolicitudCompraTransitionTimer);
-    clearSolicitudCompraTransitionTimer = null;
-  }
 });
 
 const logout = async () => {
