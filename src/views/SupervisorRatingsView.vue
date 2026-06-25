@@ -30,10 +30,15 @@ import BaseInput from '@/components/BaseInput.vue';
 import BaseToggle from '@/components/BaseToggle.vue';
 import BaseRow from '@/components/BaseRow.vue';
 import BaseButton from '@/components/BaseButton.vue';
+import MeetingBatchPanel from '@/components/ratings/MeetingBatchPanel.vue';
 import SupervisorOtCompliancePanel from '@/components/ratings/SupervisorOtCompliancePanel.vue';
 import type { PuntuacionSupervisorOtArea } from '@/stores/ratingsStore.types';
 import type { RatingsFetchScope } from '@/stores/ratingsStore.types';
 import type { MecanicoMantenimiento } from '@/stores/db_mantenimiento/mecanicos/mecanicos.types';
+import type {
+  MeetingBatchDraftPayload,
+  MeetingBatchItem,
+} from '@/components/ratings/meetingBatch.types';
 import {
   getMeetingAssignedWeekday,
   getMeetingBadgeLabel,
@@ -103,6 +108,28 @@ type HorasAsignadasGrupo =
       isAssigned: boolean;
       items: any[];
     };
+
+const MEETING_WEEKDAY_INDEX: Record<string, number> = {
+  Lunes: 1,
+  Martes: 2,
+  Miercoles: 3,
+  Jueves: 4,
+  Viernes: 5,
+};
+
+const getDateWeekdayIndex = (dateString: string) => {
+  const date = new Date(`${dateString}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  const weekday = date.getDay();
+  return weekday === 0 ? 7 : weekday;
+};
+
+const getInspectionSortValue = (fecha: string, hora: string) => {
+  const date = new Date(`${fecha}T${hora || '00:00'}`);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
 
 const ratingsStore = useRatingsStore();
 const assignedHoursStore = useAssignedHoursStore();
@@ -340,6 +367,105 @@ const previousRatingsButtonLabel = computed(() => {
     .join(' ');
 });
 
+const canManageMeetingBatch = computed(() => currentUserArea.value === 'ALL');
+
+const meetingBatchRange = computed(() => {
+  if (selectedDate.value) {
+    return {
+      from: selectedDate.value,
+      to: selectedDate.value,
+      label: `Fecha ${selectedDate.value}`,
+    };
+  }
+
+  if (timeFilter.value === 'Semana pasada') {
+    return {
+      from: startOfLastWeek,
+      to: endOfLastWeek,
+      label: `Semana del ${startOfLastWeek} al ${endOfLastWeek}`,
+    };
+  }
+
+  return {
+    from: startOfWeek,
+    to: todayDate,
+    label: `Semana actual (${startOfWeek} a ${todayDate})`,
+  };
+});
+
+const meetingBatchSavingBySupervisor = ref<Record<number, boolean>>({});
+const meetingBatchErrorBySupervisor = ref<Record<number, string>>({});
+
+const weeklyMeetingBatchItems = computed<MeetingBatchItem[]>(() => {
+  const { from, to } = meetingBatchRange.value;
+  const employees = ratingsStore.empleados;
+  const rawInspections = ratingsStore.inspecciones;
+  const details = ratingsStore.detalles;
+
+  return supervisors.value
+    .filter((supervisor) => supervisor.meetingWeekday !== 'Sin asignar')
+    .map((supervisor) => {
+    const assignedWeekday = supervisor.meetingWeekday;
+    const assignedWeekdayIndex = MEETING_WEEKDAY_INDEX[assignedWeekday] ?? null;
+
+    const scopedInspections = rawInspections
+      .filter((inspection) => {
+        const inspectionSupervisorId = inspection.id_supervisor || inspection.supervisor_id;
+        return (
+          inspectionSupervisorId === supervisor.id &&
+          inspection.fecha >= from &&
+          inspection.fecha <= to
+        );
+      })
+      .sort((left, right) => (
+        getInspectionSortValue(right.fecha, right.hora) - getInspectionSortValue(left.fecha, left.hora)
+      ));
+
+    const inspectionWithMeeting = scopedInspections.find((inspection) => {
+      const inspectionId = inspection.id_inspeccion || inspection.id || 0;
+
+      return details.some((detail) => (
+        detail.id_inspeccion === inspectionId &&
+        detail.id_criterio === 5
+      ));
+    });
+
+    const assignedDayInspection = scopedInspections.find((inspection) => (
+      assignedWeekdayIndex !== null &&
+      getDateWeekdayIndex(inspection.fecha) === assignedWeekdayIndex
+    ));
+
+    const baseInspection = inspectionWithMeeting || assignedDayInspection || null;
+    const inspectionId = baseInspection?.id_inspeccion || baseInspection?.id || null;
+    const meetingDetail = inspectionId
+      ? details.find((detail) => (
+          detail.id_inspeccion === inspectionId &&
+          detail.id_criterio === 5
+        ))
+      : null;
+    const parsedObservation = parseMeetingObservation(baseInspection?.observacion || '');
+    const inspectorRecord = employees.find((employee) => employee.id_empleado === (
+      baseInspection?.id_inspector || baseInspection?.inspector_id
+    ));
+
+    return {
+      supervisorId: supervisor.id,
+      supervisorName: supervisor.name,
+      assignedMeetingWeekday: assignedWeekday,
+      evaluatedDate: baseInspection?.fecha || null,
+      inspectionId,
+      inspectorId: baseInspection?.id_inspector || baseInspection?.inspector_id || null,
+      inspectorName: inspectorRecord?.nombre_completo || 'Sin inspector registrado',
+      currentMeetingScore: meetingDetail?.puntuacion ?? null,
+      supervisorObservation: parsedObservation.meetingObservation.supervisor || '',
+      managementObservation: parsedObservation.meetingObservation.gerencia || '',
+      originalObservation: baseInspection?.observacion || '',
+      hasExistingMeeting: !!meetingDetail,
+      hasBaseInspection: !!baseInspection,
+    };
+  });
+});
+
 const getInspectionDisplayScore = (inspection: Inspeccion) => (
   inspection.kind === 'meeting'
     ? inspection.puntuacion_reunion ?? 0
@@ -392,6 +518,7 @@ const errorMsg = ref('');
 const isEditing = ref(false);
 const editingId = ref<number | null>(null);
 const showMeetingModal = ref(false);
+const showMeetingBatchModal = ref(false);
 const meetingModalLoading = ref(false);
 const meetingSaving = ref(false);
 const meetingErrorMsg = ref('');
@@ -1189,6 +1316,72 @@ const saveMeeting = async () => {
   }
 };
 
+const saveMeetingBatchItem = async (payload: MeetingBatchDraftPayload) => {
+  const batchItem = weeklyMeetingBatchItems.value.find((item) => item.supervisorId === payload.supervisorId);
+
+  if (!batchItem) {
+    return;
+  }
+
+  if (!batchItem.hasBaseInspection || !batchItem.inspectionId) {
+    meetingBatchErrorBySupervisor.value = {
+      ...meetingBatchErrorBySupervisor.value,
+      [payload.supervisorId]: 'No existe inspeccion diaria base para registrar la reunion en este rango.',
+    };
+    return;
+  }
+
+  await ensureRatingsCatalogsLoaded();
+
+  if (!meetingCriterionId.value) {
+    meetingBatchErrorBySupervisor.value = {
+      ...meetingBatchErrorBySupervisor.value,
+      [payload.supervisorId]: 'No se encontró el criterio dedicado de reunión.',
+    };
+    return;
+  }
+
+  meetingBatchSavingBySupervisor.value = {
+    ...meetingBatchSavingBySupervisor.value,
+    [payload.supervisorId]: true,
+  };
+  meetingBatchErrorBySupervisor.value = {
+    ...meetingBatchErrorBySupervisor.value,
+    [payload.supervisorId]: '',
+  };
+
+  try {
+    const mergedObservation = upsertMeetingObservationBlock(
+      batchItem.originalObservation,
+      'gerencia',
+      payload.observacionGerencia
+    );
+
+    await ratingsStore.upsertMeetingRating({
+      inspectionId: batchItem.inspectionId,
+      fecha: batchItem.evaluatedDate || meetingBatchRange.value.to,
+      hora: '00:00',
+      id_supervisor: batchItem.supervisorId,
+      id_inspector: batchItem.inspectorId || 0,
+      meetingCriterionId: meetingCriterionId.value,
+      puntuacion: payload.puntuacion,
+      observacion: mergedObservation,
+    });
+
+    await loadData({ forceStore: true, background: true });
+  } catch (error: any) {
+    meetingBatchErrorBySupervisor.value = {
+      ...meetingBatchErrorBySupervisor.value,
+      [payload.supervisorId]: error.message || 'No se pudo guardar la validación semanal de reunión.',
+    };
+  } finally {
+    meetingBatchSavingBySupervisor.value = {
+      ...meetingBatchSavingBySupervisor.value,
+      [payload.supervisorId]: false,
+    };
+  }
+};
+
 const saveInspeccion = async () => {
   if (!form.value.id_supervisor || !form.value.id_inspector) {
     errorMsg.value = 'Debe seleccionar un Supervisor y un Inspector';
@@ -1593,6 +1786,7 @@ const loadData = async ({ forceStore = false, background = false } = {}) => {
     });
 
     supervisors.value = mapped;
+    meetingBatchErrorBySupervisor.value = {};
 
   } catch (error) {
     console.error('Error fetching data', error);
@@ -1626,6 +1820,14 @@ onUnmounted(() => {
       </div>
       <div class="flex items-center gap-2">
         <BaseButton v-if="['ALL', 'EVALUADOR'].includes(currentUserArea)" variant="outline" class="border-gray-200 text-gray-500 shadow-sm bg-white cursor-pointer hover:cursor-pointer" @click="router.push('/dashboard?slide=calificaciones&back=/calificaciones')">Ver Dashboard</BaseButton>
+        <BaseButton
+          v-if="canManageMeetingBatch"
+          variant="outline"
+          class="border-gray-200  text-amber-700 shadow-sm bg-white cursor-pointer hover:bg-amber-50 hover:cursor-pointer"
+          @click="showMeetingBatchModal = true"
+        >
+          Revisión Reunión
+        </BaseButton>
         <BaseButton v-if="['ALL', 'EVALUADOR'].includes(currentUserArea)" variant="secondary" class="cursor-pointer hover:cursor-pointer" @click="openNewModal">
           Nueva Calificación
         </BaseButton>
@@ -1840,6 +2042,34 @@ onUnmounted(() => {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <img v-for="(img, i) in currentPhotos" :key="i" :src="img" class="w-full h-auto rounded-lg shadow-sm border border-gray-200" />
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showMeetingBatchModal" class="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+      <div class="w-full max-w-5xl rounded-2xl bg-white shadow-xl border border-gray-200 overflow-hidden max-h-[90vh] flex flex-col">
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-amber-50">
+          <div>
+            <h3 class="font-display text-xl text-gray-900 tracking-tight">Revisión Semanal de Reunión</h3>
+          </div>
+          <button @click="showMeetingBatchModal = false" class="text-gray-400 hover:text-gray-600">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto flex-1 bg-gray-50/40">
+          <MeetingBatchPanel
+            :items="weeklyMeetingBatchItems"
+            :levels="formNiveles"
+            :is-saving-by-supervisor="meetingBatchSavingBySupervisor"
+            :error-by-supervisor="meetingBatchErrorBySupervisor"
+            :range-label="meetingBatchRange.label"
+            @save="saveMeetingBatchItem"
+          />
+        </div>
+
+        <div class="px-6 py-4 border-t border-gray-100 bg-white flex justify-end">
+          <BaseButton variant="tertiary" @click="showMeetingBatchModal = false">Cerrar</BaseButton>
         </div>
       </div>
     </div>

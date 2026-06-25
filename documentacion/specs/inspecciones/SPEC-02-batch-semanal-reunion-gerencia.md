@@ -12,6 +12,12 @@ Definir el flujo batch semanal que permite a gerencia revisar, validar y ajustar
 
 Este flujo trabaja solo sobre la parte de reunion.
 
+Base ya implementada a respetar:
+
+- el criterio de reunion vigente es `id_criterio = 5`
+- la reunion vive sobre el mismo `id_inspeccion` de la inspeccion diaria base
+- la UI puede mostrar reunion como fila separada, pero BD mantiene una sola cabecera `inspecciones`
+
 =====================================================================
 2. ALCANCE
 =====================================================================
@@ -61,6 +67,11 @@ Secuencia esperada:
 3. gerencia puede confirmar o corregir la puntuacion final
 4. gerencia puede agregar su propia observacion reservada
 
+Ajuste por implementacion actual:
+
+- la base de reunion nace sobre una inspeccion diaria ya existente
+- el batch semanal no debe asumir una cabecera paralela exclusiva para reunion
+
 =====================================================================
 5. MODELO LOGICO DE OBSERVACION DE REUNION
 =====================================================================
@@ -76,6 +87,9 @@ Reglas:
 - ambos son independientes
 - el flujo individual solo toca `supervisor`
 - el batch semanal solo toca `gerencia`
+- el bloque reservado vigente usa exactamente:
+  - apertura `[[GO_REUNION]]`
+  - cierre `[[/GO_REUNION]]`
 
 Importante:
 
@@ -95,6 +109,11 @@ Reglas:
 - si gerencia no la cambia, se mantiene la individual
 
 No deben coexistir dos puntuaciones visibles de reunion para el mismo supervisor y fecha.
+
+Implementacion compatible requerida:
+
+- el valor final de reunion debe seguir viviendo en un solo detalle `inspecciones_detalle`
+- el batch debe actualizar el criterio `5` existente o crearlo dentro del mismo `id_inspeccion`
 
 =====================================================================
 7. REGLAS DEL FORMULARIO BATCH
@@ -121,14 +140,16 @@ La observacion del supervisor debe mostrarse como contexto, no como campo editab
 
 Si al entrar al batch no existe reunion previa para un supervisor:
 
-- el batch puede crearla
-- debe crear la puntuacion de reunion con el valor definido por gerencia
+- el batch puede crear la parte de reunion solo si ya existe inspeccion diaria base para esa fecha
+- debe crear la puntuacion de reunion con el valor definido por gerencia dentro del mismo `id_inspeccion`
 - debe agregar observacion de `gerencia` si el usuario la escribe
 - no debe inventar observacion de `supervisor`
+- no debe crear una segunda fila fisica en `inspecciones` solo para reunion si la base ya existe
 
 Resultado:
 
 - la reunion puede nacer desde gerencia aunque no haya habido registro individual previo
+- pero debe seguir asociada a una inspeccion base existente
 
 =====================================================================
 9. REGLAS DE ACTUALIZACION DESDE BATCH
@@ -142,6 +163,8 @@ Si ya existe reunion previa:
 - no debe tocar el subbloque `supervisor`
 - no debe tocar la observacion normal de inspeccion fuera del bloque reservado de reunion
 - no debe tocar otros criterios normales de inspeccion
+- no debe borrar ni reemplazar en bloque todos los `inspecciones_detalle`
+- debe actualizar solo el detalle del criterio `5`
 
 =====================================================================
 10. REGLAS DE OBSERVACION DE GERENCIA
@@ -192,6 +215,10 @@ Cada supervisor debe verse como una fila o bloque independiente con:
 
 La meta del batch no es navegar historico, sino revisar y ajustar rapidamente varios supervisores.
 
+Regla de consistencia visual:
+
+- aunque en BD reunion comparta `id_inspeccion` con la inspeccion diaria, el batch debe tratar la reunion como un bloque visual separado y entendible
+
 =====================================================================
 13. REGLAS DE ORDEN
 =====================================================================
@@ -224,5 +251,7 @@ Al finalizar este flujo:
 - cada supervisor conserva su observacion individual separada
 - gerencia puede agregar su propia observacion separada
 - la reunion mantiene una sola puntuacion final visible
+- la reunion sigue usando el criterio `5`
+- la reunion sigue asociada al mismo `id_inspeccion` de la inspeccion base
 - la inspeccion diaria normal no cambia
 - el sistema soporta tanto registro individual como correccion batch sin mezclar responsabilidades
