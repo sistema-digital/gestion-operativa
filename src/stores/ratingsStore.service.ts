@@ -1,11 +1,14 @@
 import { supabase, supabaseRatings } from '@/lib/supabase';
 import type {
+  DeleteMeetingRatingPayload,
   RatingsFetchScope,
   PuntuacionSupervisoresOtResponse,
   RatingsDetalle,
   RatingsEmpleado,
   RatingsInspeccion,
+  UpsertMeetingRatingPayload,
 } from './ratingsStore.types';
+import { removeMeetingObservationBlock } from '@/utils/meetingRatings';
 
 const SUPABASE_BATCH_SIZE = 1000;
 const DETAIL_ID_CHUNK_SIZE = 200;
@@ -185,6 +188,130 @@ export const ratingsService = {
 
     if (inspectionError) {
       throw new Error(inspectionError.message || 'No se pudo eliminar la inspeccion');
+    }
+  },
+
+  async upsertMeetingRating(payload: UpsertMeetingRatingPayload): Promise<number> {
+    const observation = payload.observacion.trim() || null;
+
+    if (payload.inspectionId) {
+      const { error: inspectionError } = await supabaseRatings
+        .from('inspecciones')
+        .update({
+          observacion: observation,
+        })
+        .eq('id_inspeccion', payload.inspectionId);
+
+      if (inspectionError) {
+        throw new Error(inspectionError.message || 'No se pudo actualizar la reunion');
+      }
+
+      const { data: existingDetail, error: detailFetchError } = await supabaseRatings
+        .from('inspecciones_detalle')
+        .select('id_inspeccion, id_criterio')
+        .eq('id_inspeccion', payload.inspectionId)
+        .eq('id_criterio', payload.meetingCriterionId)
+        .maybeSingle();
+
+      if (detailFetchError) {
+        throw new Error(detailFetchError.message || 'No se pudo validar el detalle de reunion');
+      }
+
+      if (existingDetail) {
+        const { error: detailUpdateError } = await supabaseRatings
+          .from('inspecciones_detalle')
+          .update({ puntuacion: payload.puntuacion })
+          .eq('id_inspeccion', payload.inspectionId)
+          .eq('id_criterio', payload.meetingCriterionId);
+
+        if (detailUpdateError) {
+          throw new Error(detailUpdateError.message || 'No se pudo actualizar la puntuacion de reunion');
+        }
+      } else {
+        const { error: detailInsertError } = await supabaseRatings
+          .from('inspecciones_detalle')
+          .insert({
+            id_inspeccion: payload.inspectionId,
+            id_criterio: payload.meetingCriterionId,
+            puntuacion: payload.puntuacion,
+          });
+
+        if (detailInsertError) {
+          throw new Error(detailInsertError.message || 'No se pudo crear la puntuacion de reunion');
+        }
+      }
+
+      return payload.inspectionId;
+    }
+
+    const newInspectionId = Date.now();
+    const { data: inspectionRecord, error: inspectionInsertError } = await supabaseRatings
+      .from('inspecciones')
+      .insert({
+        id_inspeccion: newInspectionId,
+        fecha: payload.fecha,
+        hora: payload.hora,
+        observacion: observation,
+        foto_url: null,
+        id_supervisor: payload.id_supervisor,
+        id_inspector: payload.id_inspector,
+      })
+      .select()
+      .single();
+
+    if (inspectionInsertError || !inspectionRecord) {
+      throw new Error(inspectionInsertError?.message || 'No se pudo crear la reunion');
+    }
+
+    const createdInspectionId = inspectionRecord.id_inspeccion || inspectionRecord.id;
+
+    const { error: detailInsertError } = await supabaseRatings
+      .from('inspecciones_detalle')
+      .insert({
+        id_inspeccion: createdInspectionId,
+        id_criterio: payload.meetingCriterionId,
+        puntuacion: payload.puntuacion,
+      });
+
+    if (detailInsertError) {
+      throw new Error(detailInsertError.message || 'No se pudo crear el detalle de reunion');
+    }
+
+    return createdInspectionId;
+  },
+
+  async deleteMeetingRating(payload: DeleteMeetingRatingPayload): Promise<void> {
+    const { data: inspectionRecord, error: inspectionFetchError } = await supabaseRatings
+      .from('inspecciones')
+      .select('observacion')
+      .eq('id_inspeccion', payload.inspectionId)
+      .maybeSingle();
+
+    if (inspectionFetchError) {
+      throw new Error(inspectionFetchError.message || 'No se pudo cargar la reunion a eliminar');
+    }
+
+    const nextObservation = removeMeetingObservationBlock(inspectionRecord?.observacion || '');
+
+    const { error: detailDeleteError } = await supabaseRatings
+      .from('inspecciones_detalle')
+      .delete()
+      .eq('id_inspeccion', payload.inspectionId)
+      .eq('id_criterio', payload.meetingCriterionId);
+
+    if (detailDeleteError) {
+      throw new Error(detailDeleteError.message || 'No se pudo eliminar la puntuacion de reunion');
+    }
+
+    const { error: inspectionUpdateError } = await supabaseRatings
+      .from('inspecciones')
+      .update({
+        observacion: nextObservation || null,
+      })
+      .eq('id_inspeccion', payload.inspectionId);
+
+    if (inspectionUpdateError) {
+      throw new Error(inspectionUpdateError.message || 'No se pudo limpiar la observacion de reunion');
     }
   },
 };
