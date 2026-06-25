@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { 
-  X, 
-  Edit, 
-  Trash2, 
+import { reactive, ref, watch } from 'vue';
+import {
+  X,
+  Edit,
+  Trash2,
   Image as ImageIcon,
   Info,
   Tag,
@@ -13,8 +13,12 @@ import {
   Calendar,
   AlertCircle
 } from 'lucide-vue-next';
-import type { RepuestoCaptura } from '@/stores/dbequipos/repuestos/repuestos.types';
+import type {
+  RepuestoCaptura,
+  RepuestoImagenesFirmadas
+} from '@/stores/dbequipos/repuestos/repuestos.types';
 import { formatArrayValue } from '@/stores/dbequipos/repuestos/repuestos.helpers';
+import { useRepuestosStore } from '@/stores/dbequipos/repuestos/repuestos.store';
 import {
   getCurrentUserIdentity,
   resolveCreatedByDisplay,
@@ -32,13 +36,21 @@ const emit = defineEmits<{
   (e: 'delete', id: string): void;
 }>();
 
+const repuestosStore = useRepuestosStore();
 const createdByDisplay = ref('Sistema');
 const currentUserIdentity = ref<CurrentUserIdentity>({
   email: '',
   nombre: ''
 });
+const signedImages = reactive<RepuestoImagenesFirmadas>({
+  miniaturaUrl: null,
+  frenteUrl: null,
+  ladoUrl: null,
+  puestaUrl: null,
+  extraUrl: null,
+  originales: []
+});
 
-// Helpers de formateo
 const formatDate = (dateString?: string | null) => {
   if (!dateString) return '-';
   return new Date(dateString).toLocaleDateString('es-ES', {
@@ -60,15 +72,18 @@ const getCriticidadClass = (criticidad: string | null | undefined) => {
 };
 
 watch(
-  () => [props.isOpen, props.repuesto?.creado_por] as const,
-  async ([open, createdBy]) => {
-    if (!open) return;
+  () => [props.isOpen, props.repuesto] as const,
+  async ([open, repuesto]) => {
+    if (!open || !repuesto) return;
 
     currentUserIdentity.value = await getCurrentUserIdentity();
     createdByDisplay.value = await resolveCreatedByDisplay(
-      createdBy,
+      repuesto.creado_por,
       currentUserIdentity.value
     );
+
+    const resolvedImages = await repuestosStore.resolverImagenesFirmadas(repuesto);
+    Object.assign(signedImages, resolvedImages);
   },
   { immediate: true }
 );
@@ -76,136 +91,131 @@ watch(
 
 <template>
   <Teleport to="body">
-    <!-- Backdrop superpuesto -->
     <transition name="fade">
-      <div 
-        v-if="isOpen" 
-        class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[100] transition-opacity"
+      <div
+        v-if="isOpen"
+        class="fixed inset-0 z-[100] bg-gray-900/40 backdrop-blur-sm transition-opacity"
         @click="emit('close')"
       ></div>
     </transition>
 
-    <!-- Panel lateral (Slide-over) -->
     <transition name="slide">
-      <div 
-        v-if="isOpen && repuesto" 
-        class="fixed inset-y-0 right-0 z-[110] w-full md:w-[600px] lg:w-[800px] bg-gray-50 flex flex-col shadow-2xl border-l border-gray-200"
+      <div
+        v-if="isOpen && repuesto"
+        class="fixed inset-y-0 right-0 z-[110] flex w-full flex-col border-l border-gray-200 bg-gray-50 shadow-2xl md:w-[600px] lg:w-[800px]"
       >
-        <!-- Header -->
-        <header class="bg-white px-6 py-5 border-b border-gray-200 flex items-center justify-between sticky top-0 z-10 shrink-0">
+        <header class="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-5">
           <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-main/10 rounded-xl flex items-center justify-center text-main border border-main/20">
-              <Box class="w-6 h-6" />
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl border border-main/20 bg-main/10 text-main">
+              <Box class="h-6 w-6" />
             </div>
             <div>
-              <h2 class="text-xl font-bold text-gray-900 leading-tight">{{ repuesto.nombre_repuesto }}</h2>
-              <div class="flex items-center gap-3 mt-1 text-sm">
-                <span class="text-gray-500 font-mono">{{ repuesto.codigo_original || 'S/N' }}</span>
-                <span class="w-1 h-1 rounded-full bg-gray-300"></span>
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <h2 class="text-xl font-bold leading-tight text-gray-900">
+                {{ repuesto.nombre_repuesto }}
+              </h2>
+              <div class="mt-1 flex items-center gap-3 text-sm">
+                <span class="font-mono text-gray-500">{{ repuesto.codigo_original || 'S/N' }}</span>
+                <span class="h-1 w-1 rounded-full bg-gray-300"></span>
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                   {{ repuesto.estado || 'Activo' }}
                 </span>
               </div>
             </div>
           </div>
-          <button 
+          <button
+            class="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             @click="emit('close')"
-            class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
           >
-            <X class="w-6 h-6" />
+            <X class="h-6 w-6" />
           </button>
         </header>
 
-        <!-- Body (Scrollable content) -->
-        <div class="flex-1 overflow-y-auto p-6 space-y-6">
-          
-          <!-- Grid Principal de Datos -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <!-- Bloque: Información Principal -->
-            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div class="bg-gray-50/80 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-                <Info class="w-4 h-4 text-gray-500" />
-                <h3 class="font-semibold text-gray-800 text-sm">Información Principal</h3>
+        <div class="flex-1 space-y-6 overflow-y-auto p-6">
+          <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50/80 px-4 py-3">
+                <Info class="h-4 w-4 text-gray-500" />
+                <h3 class="text-sm font-semibold text-gray-800">Información Principal</h3>
               </div>
-              <div class="p-4 space-y-4">
+              <div class="space-y-4 p-4">
                 <div>
-                  <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Tipo de Equipo / Modelo</p>
+                  <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Tipo de Equipo / Modelo</p>
                   <p class="text-sm font-medium text-gray-900">
                     {{ formatArrayValue(repuesto.tipo_equipo) || '-' }}
-                    <span v-if="formatArrayValue(repuesto.modelo)" class="text-gray-400 font-normal">
+                    <span
+                      v-if="formatArrayValue(repuesto.modelo)"
+                      class="font-normal text-gray-400"
+                    >
                       | {{ formatArrayValue(repuesto.modelo) }}
                     </span>
                   </p>
                 </div>
                 <div>
-                  <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Categoría</p>
+                  <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Categoría</p>
                   <p class="text-sm font-medium text-gray-900">{{ repuesto.categoria || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Sistema</p>
+                  <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Sistema</p>
                   <p class="text-sm font-medium text-gray-900">{{ repuesto.sistema || '-' }}</p>
                 </div>
               </div>
             </div>
 
-            <!-- Bloque: Códigos y Proveedor -->
-            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div class="bg-gray-50/80 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-                <Hash class="w-4 h-4 text-gray-500" />
-                <h3 class="font-semibold text-gray-800 text-sm">Códigos y Proveedor</h3>
+            <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50/80 px-4 py-3">
+                <Hash class="h-4 w-4 text-gray-500" />
+                <h3 class="text-sm font-semibold text-gray-800">Códigos y Proveedor</h3>
               </div>
-              <div class="p-4 space-y-4">
+              <div class="space-y-4 p-4">
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Cód. Original</p>
+                    <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Cód. Original</p>
                     <p class="text-sm font-mono font-medium text-gray-900">{{ repuesto.codigo_original || '-' }}</p>
                   </div>
                   <div>
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Cód. Almacén</p>
+                    <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Cód. Almacén</p>
                     <p class="text-sm font-mono font-medium text-gray-900">{{ repuesto.codigo_almacen || '-' }}</p>
                   </div>
                 </div>
                 <div>
-                  <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Cód. Proveedor</p>
+                  <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Cód. Proveedor</p>
                   <p class="text-sm font-mono font-medium text-gray-900">{{ repuesto.codigo_proveedor || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Proveedor / Marca</p>
+                  <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Proveedor / Marca</p>
                   <div class="flex items-center gap-2 text-sm font-medium text-gray-900">
-                    <Truck class="w-4 h-4 text-gray-400" />
+                    <Truck class="h-4 w-4 text-gray-400" />
                     {{ repuesto.nombre_proveedor || '-' }}
                   </div>
                 </div>
                 <div v-if="repuesto.tipo_codigo_proveedor">
-                  <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Tipo de Código</p>
+                  <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Tipo de Código</p>
                   <p class="text-sm text-gray-700">{{ repuesto.tipo_codigo_proveedor }}</p>
                 </div>
               </div>
             </div>
 
-            <!-- Bloque: Especificaciones Técnicas -->
-            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div class="bg-gray-50/80 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-                <AlertCircle class="w-4 h-4 text-gray-500" />
-                <h3 class="font-semibold text-gray-800 text-sm">Especificaciones Operativas</h3>
+            <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50/80 px-4 py-3">
+                <AlertCircle class="h-4 w-4 text-gray-500" />
+                <h3 class="text-sm font-semibold text-gray-800">Especificaciones Operativas</h3>
               </div>
-              <div class="p-4 space-y-4">
+              <div class="space-y-4 p-4">
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Criticidad</p>
-                    <span 
-                      class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide"
+                    <p class="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">Criticidad</p>
+                    <span
+                      class="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-bold uppercase tracking-wide"
                       :class="getCriticidadClass(repuesto.criticidad)"
                     >
                       {{ repuesto.criticidad || 'No def.' }}
                     </span>
                   </div>
                   <div>
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Cant. Requerida</p>
+                    <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Cant. Requerida</p>
                     <p class="text-lg font-bold text-gray-900">
-                      {{ repuesto.cantidad_requerida || '-' }} 
+                      {{ repuesto.cantidad_requerida || '-' }}
                       <span class="text-sm font-medium text-gray-500">{{ repuesto.unidad || '' }}</span>
                     </p>
                   </div>
@@ -213,119 +223,136 @@ watch(
               </div>
             </div>
 
-            <!-- Bloque: Auditoría -->
-            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div class="bg-gray-50/80 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-                <Calendar class="w-4 h-4 text-gray-500" />
-                <h3 class="font-semibold text-gray-800 text-sm">Registro y Auditoría</h3>
+            <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50/80 px-4 py-3">
+                <Calendar class="h-4 w-4 text-gray-500" />
+                <h3 class="text-sm font-semibold text-gray-800">Registro y Auditoría</h3>
               </div>
-              <div class="p-4 space-y-4">
+              <div class="space-y-4 p-4">
                 <div>
-                  <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Creado Por</p>
+                  <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Creado Por</p>
                   <p class="text-sm font-medium text-gray-900">{{ createdByDisplay }}</p>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Fecha Creación</p>
+                    <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Fecha Creación</p>
                     <p class="text-xs text-gray-700">{{ formatDate(repuesto.created_at) }}</p>
                   </div>
                   <div>
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Últ. Actualización</p>
+                    <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Últ. Actualización</p>
                     <p class="text-xs text-gray-700">{{ formatDate(repuesto.updated_at) }}</p>
                   </div>
                 </div>
               </div>
             </div>
-
           </div>
 
-          <!-- Bloque: Descripciones y Observaciones (Ancho completo) -->
-          <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div class="bg-gray-50/80 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-              <Tag class="w-4 h-4 text-gray-500" />
-              <h3 class="font-semibold text-gray-800 text-sm">Descripciones</h3>
+          <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50/80 px-4 py-3">
+              <Tag class="h-4 w-4 text-gray-500" />
+              <h3 class="text-sm font-semibold text-gray-800">Descripciones</h3>
             </div>
-            <div class="p-4 space-y-5">
+            <div class="space-y-5 p-4">
               <div v-if="repuesto.descripcion_detallada">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Descripción Detallada</p>
-                <div class="p-3 bg-gray-50 rounded-lg text-sm text-gray-700 whitespace-pre-wrap">
+                <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Descripción Detallada</p>
+                <div class="whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
                   {{ repuesto.descripcion_detallada }}
                 </div>
               </div>
               <div v-if="repuesto.observacion">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Observaciones</p>
-                <p class="text-sm text-amber-800 bg-amber-50 p-3 rounded-lg border border-amber-100">
+                <p class="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Observaciones</p>
+                <p class="rounded-lg border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">
                   {{ repuesto.observacion }}
                 </p>
               </div>
-              <div v-if="!repuesto.descripcion_detallada && !repuesto.observacion" class="text-center py-4 text-gray-400 text-sm italic">
+              <div
+                v-if="!repuesto.descripcion_detallada && !repuesto.observacion"
+                class="py-4 text-center text-sm italic text-gray-400"
+              >
                 No hay descripciones registradas para este repuesto.
               </div>
             </div>
           </div>
 
-          <!-- Bloque: Imágenes -->
-          <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div class="bg-gray-50/80 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-              <ImageIcon class="w-4 h-4 text-gray-500" />
-              <h3 class="font-semibold text-gray-800 text-sm">Imágenes Adjuntas</h3>
+          <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50/80 px-4 py-3">
+              <ImageIcon class="h-4 w-4 text-gray-500" />
+              <h3 class="text-sm font-semibold text-gray-800">Imágenes Adjuntas</h3>
             </div>
-            <div class="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              
-              <!-- Imagen 1 -->
-              <div class="flex flex-col gap-2">
-                <span class="text-xs font-medium text-gray-500 uppercase tracking-wider">Imagen Principal</span>
-                <div class="aspect-video bg-gray-50 border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center relative group">
-                  <img 
-                    v-if="repuesto.imagen_1" 
-                    :src="repuesto.imagen_1" 
-                    alt="Imagen Principal" 
-                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+
+            <div class="space-y-5 p-4">
+              <div>
+                <span class="text-xs font-medium uppercase tracking-wider text-gray-500">Miniatura principal</span>
+                <div class="mt-2 flex aspect-square w-full max-w-[220px] items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                  <img
+                    v-if="signedImages.miniaturaUrl"
+                    :src="signedImages.miniaturaUrl"
+                    alt="Miniatura del repuesto"
+                    class="h-full w-full object-cover"
                   />
-                  <div v-else class="text-center flex flex-col items-center justify-center text-gray-400">
-                    <ImageIcon class="w-8 h-8 mb-2 opacity-50" />
-                    <span class="text-xs font-medium">Sin imagen</span>
+                  <div
+                    v-else
+                    class="flex flex-col items-center justify-center text-center text-gray-400"
+                  >
+                    <ImageIcon class="mb-2 h-8 w-8 opacity-50" />
+                    <span class="text-xs font-medium">Sin miniatura</span>
                   </div>
                 </div>
               </div>
 
-              <!-- Imagen 2 -->
-              <div class="flex flex-col gap-2">
-                <span class="text-xs font-medium text-gray-500 uppercase tracking-wider">Imagen Secundaria</span>
-                <div class="aspect-video bg-gray-50 border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center relative group">
-                  <img 
-                    v-if="repuesto.imagen_2" 
-                    :src="repuesto.imagen_2" 
-                    alt="Imagen Secundaria" 
-                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div v-else class="text-center flex flex-col items-center justify-center text-gray-400">
-                    <ImageIcon class="w-8 h-8 mb-2 opacity-50" />
-                    <span class="text-xs font-medium">Sin imagen</span>
+              <div>
+                <span class="text-xs font-medium uppercase tracking-wider text-gray-500">Galería original</span>
+                <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div
+                    v-for="image in signedImages.originales"
+                    :key="image.slot"
+                    class="flex flex-col gap-2"
+                  >
+                    <span class="text-xs font-semibold capitalize text-gray-600">{{ image.slot }}</span>
+                    <div class="group relative flex aspect-video items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                      <img
+                        v-if="image.url"
+                        :src="image.url"
+                        :alt="`Imagen ${image.slot}`"
+                        class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <div
+                        v-else
+                        class="flex flex-col items-center justify-center text-center text-gray-400"
+                      >
+                        <ImageIcon class="mb-2 h-8 w-8 opacity-50" />
+                        <span class="text-xs font-medium">Imagen no disponible</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    v-if="signedImages.originales.length === 0"
+                    class="col-span-full rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-400"
+                  >
+                    No hay imágenes originales registradas para este repuesto.
                   </div>
                 </div>
               </div>
-
             </div>
           </div>
-
         </div>
 
-        <!-- Footer / Actions -->
-        <div class="bg-white border-t border-gray-200 p-4 px-6 flex items-center justify-end gap-3 shrink-0">
-          <button 
+        <div class="flex shrink-0 items-center justify-end gap-3 border-t border-gray-200 bg-white p-4 px-6">
+          <button
+            class="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
             @click="emit('delete', repuesto.id!)"
-            class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
           >
-            <Trash2 class="w-4 h-4" />
+            <Trash2 class="h-4 w-4" />
             Eliminar
           </button>
-          <button 
+
+          <button
+            class="flex items-center gap-2 rounded-lg bg-main px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-main-light"
             @click="emit('edit', repuesto.id!)"
-            class="flex items-center gap-2 px-6 py-2 text-sm font-bold bg-main text-white hover:bg-main-light rounded-lg transition-colors shadow-sm"
           >
-            <Edit class="w-4 h-4" />
-            Editar Repuesto
+            <Edit class="h-4 w-4" />
+            Editar
           </button>
         </div>
       </div>
@@ -336,8 +363,9 @@ watch(
 <style scoped>
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 180ms ease;
 }
+
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
@@ -345,8 +373,9 @@ watch(
 
 .slide-enter-active,
 .slide-leave-active {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 220ms ease;
 }
+
 .slide-enter-from,
 .slide-leave-to {
   transform: translateX(100%);

@@ -1,33 +1,40 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Image as ImageIcon, Upload, X } from 'lucide-vue-next';
+import { Camera, Image as ImageIcon, RefreshCw, Upload, X } from 'lucide-vue-next';
 
 const props = withDefaults(defineProps<{
-  modelValue?: string | null;
+  modelValue?: File | null;
+  previewUrl?: string | null;
   label: string;
   accept?: string;
+  capture?: 'user' | 'environment' | '' | null;
   maxSizeMb?: number;
   error?: string;
+  required?: boolean;
 }>(), {
-  accept: 'image/jpeg,image/png',
-  maxSizeMb: 2,
-  error: ''
+  accept: 'image/jpeg,image/png,image/webp',
+  capture: 'environment',
+  maxSizeMb: 5,
+  error: '',
+  required: false
 });
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: string | null): void;
+  (e: 'update:modelValue', value: File | null): void;
   (e: 'error', value: string): void;
 }>();
 
 const inputRef = ref<HTMLInputElement | null>(null);
 
-const preview = computed(() => props.modelValue || '');
+const preview = computed(() => props.previewUrl || '');
+const helperText = computed(() => `JPG, PNG o WEBP · Máx. ${props.maxSizeMb}MB`);
 
 const openPicker = () => {
   inputRef.value?.click();
 };
 
 const clearImage = () => {
+  emit('error', '');
   emit('update:modelValue', null);
 
   if (inputRef.value) {
@@ -49,25 +56,31 @@ const handleChange = (event: Event) => {
     return;
   }
 
-  const reader = new FileReader();
+  if (!file.type.startsWith('image/')) {
+    emit('error', 'Selecciona un archivo de imagen válido.');
+    input.value = '';
+    return;
+  }
 
-  reader.onload = () => {
-    emit('update:modelValue', String(reader.result));
-  };
-
-  reader.readAsDataURL(file);
+  emit('error', '');
+  emit('update:modelValue', file);
 };
 </script>
 
 <template>
   <div>
-    <span class="mb-1.5 block text-xs font-semibold text-gray-700">
-      {{ label }}
-    </span>
+    <div class="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+      <span>{{ label }}</span>
+      <span
+        v-if="required"
+        class="text-red-500"
+      >
+        *
+      </span>
+    </div>
 
     <div
-      class="relative flex min-h-[96px] cursor-pointer items-center justify-center overflow-hidden
-             rounded-xl border border-dashed bg-white transition hover:bg-gray-50"
+      class="relative flex min-h-[132px] cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed bg-white transition hover:bg-gray-50"
       :class="error ? 'border-red-300' : 'border-gray-300'"
       @click="openPicker"
     >
@@ -75,6 +88,7 @@ const handleChange = (event: Event) => {
         ref="inputRef"
         type="file"
         :accept="accept"
+        :capture="capture || undefined"
         class="hidden"
         @change="handleChange"
       />
@@ -82,18 +96,31 @@ const handleChange = (event: Event) => {
       <template v-if="preview">
         <img
           :src="preview"
-          alt="Imagen del repuesto"
-          class="h-full max-h-[150px] w-full object-cover"
+          :alt="label"
+          class="h-full min-h-[132px] w-full object-cover"
         />
 
-        <button
-          type="button"
-          class="absolute right-2 top-2 rounded-full bg-white/90 p-1.5 text-gray-600
-                 shadow-sm hover:bg-white hover:text-red-600"
-          @click.stop="clearImage"
-        >
-          <X class="h-4 w-4" />
-        </button>
+        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 py-2 text-xs font-medium text-white">
+          {{ modelValue?.name || 'Imagen cargada' }}
+        </div>
+
+        <div class="absolute right-2 top-2 flex gap-2">
+          <button
+            type="button"
+            class="rounded-full bg-white/90 p-1.5 text-gray-600 shadow-sm transition hover:bg-white hover:text-main"
+            @click.stop="openPicker"
+          >
+            <RefreshCw class="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            class="rounded-full bg-white/90 p-1.5 text-gray-600 shadow-sm transition hover:bg-white hover:text-red-600"
+            @click.stop="clearImage"
+          >
+            <X class="h-4 w-4" />
+          </button>
+        </div>
       </template>
 
       <template v-else>
@@ -107,8 +134,13 @@ const handleChange = (event: Event) => {
           </p>
 
           <p class="mt-1 text-xs text-gray-400">
-            JPG, PNG · Máx. {{ maxSizeMb }}MB
+            {{ helperText }}
           </p>
+
+          <div class="mt-2 inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-500">
+            <Camera class="h-3.5 w-3.5" />
+            Cámara o galería
+          </div>
 
           <ImageIcon class="mt-2 h-4 w-4 text-gray-300" />
         </div>

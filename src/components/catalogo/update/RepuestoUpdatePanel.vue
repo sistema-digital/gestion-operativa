@@ -11,8 +11,16 @@ import {
 } from '@/utils/createdBy';
 import type {
   CatalogTableName,
-  RepuestoCaptura
+  RepuestoCaptura,
+  RepuestoImageFileMap,
+  RepuestoImageSlot,
+  RepuestoImageUrlMap
 } from '@/stores/dbequipos/repuestos/repuestos.types';
+import {
+  createEmptyRepuestoImageFileMap,
+  createEmptyRepuestoImageUrlMap,
+  REQUIRED_REPUESTO_IMAGE_SLOTS
+} from '@/stores/dbequipos/repuestos/repuestos.images';
 import {
   ensureStringArray,
   extractUniqueValues
@@ -92,6 +100,8 @@ const createEmptyForm = (): UpdateForm => ({
 });
 
 const form = reactive<UpdateForm>(createEmptyForm());
+const imageFiles = reactive<RepuestoImageFileMap>(createEmptyRepuestoImageFileMap());
+const imagePreviews = reactive<RepuestoImageUrlMap>(createEmptyRepuestoImageUrlMap());
 
 const cantidadText = ref('');
 const isSaving = ref(false);
@@ -101,6 +111,13 @@ const currentUserIdentity = ref<CurrentUserIdentity>({
   email: '',
   nombre: ''
 });
+
+const imageFieldMap: Record<RepuestoImageSlot, string> = {
+  frente: 'imagen_frente',
+  lado: 'imagen_lado',
+  puesta: 'imagen_puesta',
+  extra: 'imagen_extra'
+};
 
 const criticidadOptions = computed(() => {
   return opcionesCriticidades.value;
@@ -136,14 +153,31 @@ const clearErrors = () => {
   });
 };
 
+const revokePreview = (slot: RepuestoImageSlot) => {
+  const previewUrl = imagePreviews[slot];
+
+  if (previewUrl?.startsWith('blob:')) {
+    URL.revokeObjectURL(previewUrl);
+  }
+};
+
+const resetImages = () => {
+  (Object.keys(imageFiles) as RepuestoImageSlot[]).forEach((slot) => {
+    revokePreview(slot);
+    imageFiles[slot] = null;
+    imagePreviews[slot] = null;
+  });
+};
+
 const nullableText = (value: string | null | undefined) => {
   const cleanValue = value?.trim();
 
   return cleanValue ? cleanValue : null;
 };
 
-const fillForm = (repuesto: RepuestoCaptura | null) => {
+const fillForm = async (repuesto: RepuestoCaptura | null) => {
   clearErrors();
+  resetImages();
 
   if (!repuesto) {
     Object.assign(form, createEmptyForm());
@@ -175,6 +209,12 @@ const fillForm = (repuesto: RepuestoCaptura | null) => {
   cantidadText.value = repuesto.cantidad_requerida !== null && repuesto.cantidad_requerida !== undefined
     ? String(repuesto.cantidad_requerida)
     : '';
+
+  const signedImages = await repuestosStore.resolverImagenesFirmadas(repuesto);
+  imagePreviews.frente = signedImages.frenteUrl;
+  imagePreviews.lado = signedImages.ladoUrl;
+  imagePreviews.puesta = signedImages.puestaUrl;
+  imagePreviews.extra = signedImages.extraUrl;
 };
 
 const validateForm = () => {
@@ -220,6 +260,12 @@ const validateForm = () => {
     errors.codigo_proveedor = 'El código de proveedor es obligatorio.';
   }
 
+  for (const slot of REQUIRED_REPUESTO_IMAGE_SLOTS) {
+    if (!imageFiles[slot] && !imagePreviews[slot]) {
+      errors[imageFieldMap[slot]] = 'Esta imagen es obligatoria.';
+    }
+  }
+
   const cantidadValue = cantidadText.value;
 
   if (cantidadValue !== '') {
@@ -248,11 +294,26 @@ const closePanel = () => {
   if (isSaving.value) return;
 
   clearErrors();
+  resetImages();
   emit('close');
 };
 
-const handleImageError = (field: 'imagen_1' | 'imagen_2', message: string) => {
-  errors[field] = message;
+const handleImageError = (slot: RepuestoImageSlot, message: string) => {
+  const field = imageFieldMap[slot];
+
+  if (message) {
+    errors[field] = message;
+    return;
+  }
+
+  delete errors[field];
+};
+
+const updateImage = (slot: RepuestoImageSlot, file: File | null) => {
+  revokePreview(slot);
+  imageFiles[slot] = file;
+  imagePreviews[slot] = file ? URL.createObjectURL(file) : null;
+  handleImageError(slot, '');
 };
 
 const handleSubmit = async () => {
@@ -276,26 +337,10 @@ const handleSubmit = async () => {
       form.sistema.trim()
     );
 
-    const categoria = await ensureCatalogValue(
-      'repuesto_categoria',
-      form.categoria
-    );
-
-    const criticidad = await ensureCatalogValue(
-      'repuesto_criticidad',
-      form.criticidad
-    );
-
-    const unidad = await ensureCatalogValue(
-      'repuesto_unidad',
-      form.unidad
-    );
-
-    const nombreProveedor = await ensureCatalogValue(
-      'repuesto_proveedor',
-      form.nombre_proveedor
-    );
-
+    const categoria = await ensureCatalogValue('repuesto_categoria', form.categoria);
+    const criticidad = await ensureCatalogValue('repuesto_criticidad', form.criticidad);
+    const unidad = await ensureCatalogValue('repuesto_unidad', form.unidad);
+    const nombreProveedor = await ensureCatalogValue('repuesto_proveedor', form.nombre_proveedor);
     const tipoCodigoProveedor = await ensureCatalogValue(
       'repuesto_tipo_codigo_proveedor',
       form.tipo_codigo_proveedor
@@ -322,9 +367,16 @@ const handleSubmit = async () => {
       observacion: nullableText(form.observacion)
     };
 
-    const updated = await repuestosStore.actualizarRepuestoCaptura(
+    const updated = await repuestosStore.actualizarRepuestoCapturaConImagenes(
       form.id,
-      payload
+      payload,
+      {
+        frente: imageFiles.frente,
+        lado: imageFiles.lado,
+        puesta: imageFiles.puesta,
+        extra: imageFiles.extra
+      },
+      props.repuesto
     );
 
     emit('updated', updated);
@@ -340,11 +392,14 @@ const handleSubmit = async () => {
 watch(
   () => [props.isOpen, props.repuesto] as const,
   async ([open, repuesto]) => {
-    if (!open) return;
+    if (!open) {
+      resetImages();
+      return;
+    }
 
     await repuestosStore.cargarCatalogos();
     currentUserIdentity.value = await getCurrentUserIdentity();
-    fillForm(repuesto);
+    await fillForm(repuesto);
     createdByDisplay.value = await resolveCreatedByDisplay(
       repuesto?.creado_por,
       currentUserIdentity.value
@@ -375,7 +430,6 @@ watch(
         <aside
           class="drawer-panel flex h-full w-full flex-col bg-white shadow-2xl lg:w-[760px] lg:max-w-[760px]"
         >
-          <!-- Header -->
           <header class="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4 md:px-7 lg:px-8">
             <div>
               <h2 class="text-xl font-bold tracking-tight text-gray-900">
@@ -400,7 +454,6 @@ watch(
             class="flex min-h-0 flex-1 flex-col"
             @submit.prevent="handleSubmit"
           >
-            <!-- Body -->
             <main class="flex-1 space-y-7 overflow-y-auto px-5 py-5 md:px-7 lg:px-8">
               <div
                 v-if="errors.general"
@@ -546,17 +599,39 @@ watch(
                 />
 
                 <UpdateImageUpload
-                  v-model="form.imagen_1"
-                  label="Imagen 1"
-                  :error="errors.imagen_1"
-                  @error="(message) => handleImageError('imagen_1', message)"
+                  :model-value="imageFiles.frente"
+                  :preview-url="imagePreviews.frente"
+                  label="Frente"
+                  :error="errors.imagen_frente"
+                  @update:model-value="updateImage('frente', $event)"
+                  @error="(message) => handleImageError('frente', message)"
                 />
 
                 <UpdateImageUpload
-                  v-model="form.imagen_2"
-                  label="Imagen 2"
-                  :error="errors.imagen_2"
-                  @error="(message) => handleImageError('imagen_2', message)"
+                  :model-value="imageFiles.lado"
+                  :preview-url="imagePreviews.lado"
+                  label="Lado"
+                  :error="errors.imagen_lado"
+                  @update:model-value="updateImage('lado', $event)"
+                  @error="(message) => handleImageError('lado', message)"
+                />
+
+                <UpdateImageUpload
+                  :model-value="imageFiles.puesta"
+                  :preview-url="imagePreviews.puesta"
+                  label="Puesta"
+                  :error="errors.imagen_puesta"
+                  @update:model-value="updateImage('puesta', $event)"
+                  @error="(message) => handleImageError('puesta', message)"
+                />
+
+                <UpdateImageUpload
+                  :model-value="imageFiles.extra"
+                  :preview-url="imagePreviews.extra"
+                  label="Extra"
+                  :error="errors.imagen_extra"
+                  @update:model-value="updateImage('extra', $event)"
+                  @error="(message) => handleImageError('extra', message)"
                 />
 
                 <UpdateTextField
@@ -578,15 +653,12 @@ watch(
               </UpdateFormSection>
             </main>
 
-            <!-- Footer -->
             <footer
-              class="sticky bottom-0 flex shrink-0 flex-col-reverse gap-3 border-t border-gray-100
-                     bg-white/95 px-5 py-4 backdrop-blur md:px-7 sm:flex-row sm:justify-end lg:px-8"
+              class="sticky bottom-0 flex shrink-0 flex-col-reverse gap-3 border-t border-gray-100 bg-white/95 px-5 py-4 backdrop-blur md:px-7 sm:flex-row sm:justify-end lg:px-8"
             >
               <button
                 type="button"
-                class="rounded-xl border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700
-                       transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                class="rounded-xl border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="isSaving"
                 @click="closePanel"
               >
@@ -595,9 +667,7 @@ watch(
 
               <button
                 type="submit"
-                class="inline-flex items-center justify-center gap-2 rounded-xl bg-main px-6 py-2.5
-                       text-sm font-semibold text-white shadow-sm transition hover:bg-main-light
-                       disabled:cursor-not-allowed disabled:opacity-70"
+                class="inline-flex items-center justify-center gap-2 rounded-xl bg-main px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light disabled:cursor-not-allowed disabled:opacity-70"
                 :disabled="isSaving"
               >
                 <Loader2
