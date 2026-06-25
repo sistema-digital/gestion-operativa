@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useRatingsStore } from '@/stores/ratingsStore';
 import ImageZoomViewer from '@/components/common/ImageZoomViewer.vue';
+import { parseMeetingObservation } from '@/utils/meetingRatings';
 import { Bar } from 'vue-chartjs';
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
@@ -222,6 +223,25 @@ const formatHora = (hora?: string | null): string => {
 
   return `${hour}:${minute.padStart(2, '0')} ${ampm}`
 }
+
+const getInspectionObservationText = (observation?: string | null) => {
+  const parsed = parseMeetingObservation(observation || '');
+  const fragments = [];
+
+  if (parsed.generalObservation) {
+    fragments.push(`Inspección: ${parsed.generalObservation}`);
+  }
+
+  if (parsed.meetingObservation.supervisor) {
+    fragments.push(`Reunión supervisor: ${parsed.meetingObservation.supervisor}`);
+  }
+
+  if (parsed.meetingObservation.gerencia) {
+    fragments.push(`Reunión gerencia: ${parsed.meetingObservation.gerencia}`);
+  }
+
+  return fragments.join('\n');
+}
 </script>
 
 <template>
@@ -319,9 +339,9 @@ const formatHora = (hora?: string | null): string => {
                     {{ Number(((insp.puntuacion_promedio / 5) * 100).toFixed(1)) }}%
                   </span>
                 </td>
-                <td class="py-3 text-[11px] text-gray-500 max-w-[220px] md:max-w-[420px] whitespace-normal break-words align-top" :title="insp.observacion">
-                  <div class="line-clamp-2 md:line-clamp-none">
-                    {{ insp.observacion || '---' }}
+                <td class="py-3 text-[11px] text-gray-500 max-w-[220px] md:max-w-[420px] whitespace-normal break-words align-top" :title="getInspectionObservationText(insp.observacion)">
+                  <div class="line-clamp-2 md:line-clamp-none whitespace-pre-wrap">
+                    {{ getInspectionObservationText(insp.observacion) || '---' }}
                   </div>
                 </td>
                 <td class="py-3 text-right">
@@ -379,8 +399,8 @@ const formatHora = (hora?: string | null): string => {
                <!-- Observación -->
                <div class="mt-1 pt-3 border-t border-gray-100">
                   <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Observación</span>
-                  <p class="text-[11px] text-gray-600 leading-relaxed italic">
-                    {{ insp.observacion || 'Sin observaciones detalladas.' }}
+                  <p class="text-[11px] text-gray-600 leading-relaxed italic whitespace-pre-wrap">
+                    {{ getInspectionObservationText(insp.observacion) || 'Sin observaciones detalladas.' }}
                   </p>
                </div>
             </div>

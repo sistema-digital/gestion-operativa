@@ -1973,7 +1973,7 @@ onUnmounted(() => {
                               <Trash class="w-3.5 h-3.5" />
                             </BaseButton>
                             <BaseButton
-                              v-if="!isRegularSup && insp.kind !== 'meeting'"
+                              v-if="!isRegularSup && insp.kind !== 'meeting' && !insp.meetingCriterionId"
                               variant="outline"
                               class="!py-1.5 !px-3 border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 cursor-pointer hover:cursor-pointer"
                               @click="openEditMeetingModal(insp)"
@@ -2042,7 +2042,7 @@ onUnmounted(() => {
                               <Trash class="w-3.5 h-3.5" />
                             </BaseButton>
                             <BaseButton
-                              v-if="!isRegularSup && insp.kind !== 'meeting'"
+                              v-if="!isRegularSup && insp.kind !== 'meeting' && !insp.meetingCriterionId"
                               variant="outline"
                               class="!py-1.5 !px-3 border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 cursor-pointer hover:cursor-pointer"
                               @click="openEditMeetingModal(insp)"
