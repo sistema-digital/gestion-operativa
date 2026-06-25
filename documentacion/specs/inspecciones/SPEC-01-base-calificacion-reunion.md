@@ -85,14 +85,18 @@ La reunion reutiliza el esquema actual con estas reglas:
 5.1 Criterio de reunion
 
 - debe existir un criterio dedicado en `criterios_evaluacion`
+- el criterio de reunion vigente es `id_criterio = 5`
 - ese criterio representa la calificacion de reunion
 - usa los mismos puntajes definidos en `niveles_calificacion`
+- ese criterio no debe mostrarse en el formulario normal de inspeccion diaria
 
 5.2 Persistencia
 
 - la cabecera vive en `inspecciones`
 - la puntuacion de reunion vive en `inspecciones_detalle`
 - la trazabilidad textual vive en `inspecciones.observacion`
+- la reunion no crea una cabecera paralela cuando ya existe inspeccion diaria base
+- la reunion se asocia al mismo `id_inspeccion` de la fila base sobre la que se registra
 
 5.3 Observacion reservada de reunion
 
@@ -101,7 +105,9 @@ La reunion debe usar un bloque reservado dentro de `observacion`.
 Reglas:
 
 - no se debe leer cualquier texto entre corchetes
-- se debe usar un prefijo fijo de reunion
+- se debe usar un bloque fijo exacto:
+  - apertura `[[GO_REUNION]]`
+  - cierre `[[/GO_REUNION]]`
 - dentro del bloque de reunion debe existir un subbloque `supervisor`
 - este subbloque solo pertenece al flujo individual
 - si no hay observacion de reunion, no se inserta bloque `supervisor`
@@ -133,11 +139,18 @@ No puede editar:
 
 6.3 Creacion
 
-Si no existe reunion para ese supervisor y fecha:
+Si una inspeccion diaria base aun no tiene reunion:
 
-- se registra la parte de reunion usando el esquema actual
+- se registra solo la parte de reunion usando el esquema actual
 - se agrega la puntuacion del criterio de reunion
 - se agrega el subbloque `supervisor` si hay observacion
+- la operacion usa el `id_inspeccion` de la fila base seleccionada
+- no debe crear una inspeccion visualmente separada en base de datos para el mismo caso
+
+Si no existe inspeccion diaria base:
+
+- este flujo individual no debe crear reunion desde un boton global independiente
+- primero debe existir la inspeccion base sobre la cual se asociara la reunion
 
 6.4 Edicion
 
@@ -153,6 +166,9 @@ Si el usuario no escribe observacion:
 
 - no se debe insertar bloque `supervisor`
 - si antes existia y ahora se limpia, debe eliminarse el subbloque `supervisor`
+- deben mantenerse intactos:
+  - la observacion general normal
+  - el subbloque `gerencia` si existe
 
 =====================================================================
 7. REGLAS DE ELIMINACION DE REUNION
@@ -177,6 +193,14 @@ La reunion debe mostrarse como una fila mas dentro del toggle/card del superviso
 
 Debe convivir con la fila normal de inspeccion, pero distinguirse visualmente.
 
+Regla de representacion:
+
+- una misma `inspeccion` puede producir dos filas visuales:
+  - una fila normal con criterios diarios
+  - una fila de reunion si existe el criterio `5`
+- ambas filas comparten el mismo `id_inspeccion` en base de datos
+- la separacion es visual, no una duplicacion fisica de la cabecera en BD
+
 Cada fila de reunion debe mostrar:
 
 - fecha
@@ -191,6 +215,11 @@ La observacion visible en esa fila debe corresponder a la reunion, no a toda la 
 Si no existe observacion reservada de reunion:
 
 - mostrar `Sin observacion de reunion`
+
+En la fila normal:
+
+- no debe mostrarse el bloque crudo `[[GO_REUNION]]...[[/GO_REUNION]]`
+- solo debe verse la observacion general no reservada
 
 =====================================================================
 9. BADGES DE REUNION SEGUN FILTRO
@@ -225,6 +254,13 @@ Editar reunion debe abrir una experiencia corta y especifica de reunion.
 
 No debe abrir el formulario completo de inspeccion diaria.
 
+Reglas adicionales del modal de reunion:
+
+- fecha y hora deben verse bloqueadas porque dependen de la inspeccion asociada
+- el supervisor debe seleccionarse visualmente desde un selector tipo dropdown hecho con `div`
+- el selector de supervisor debe mostrar badge del dia asignado de reunion
+- el inspector solo puede ser editable si el area del usuario es `ALL`
+
 10.2 Eliminar
 
 Eliminar reunion debe tener una confirmacion explicita.
@@ -246,5 +282,7 @@ Al finalizar este flujo:
 - la reunion se registra con el mismo sistema de puntajes
 - la reunion queda integrada a la calificacion diaria
 - la reunion se muestra como una fila diferenciada dentro de la misma card
+- la reunion usa el criterio `5`
+- la reunion queda asociada al mismo `id_inspeccion` de la fila base
 - editar reunion toca solo reunion
 - eliminar reunion elimina toda la informacion reservada de reunion y el detalle del criterio, pero no la inspeccion completa
