@@ -131,6 +131,18 @@ const getInspectionSortValue = (fecha: string, hora: string) => {
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 };
 
+const buildMeetingObservationText = (
+  supervisorObservation: string | undefined,
+  managementObservation: string | undefined
+) => {
+  const fragments = [
+    supervisorObservation ? `Supervisor: ${supervisorObservation}` : '',
+    managementObservation ? `Gerencia: ${managementObservation}` : '',
+  ].filter(Boolean);
+
+  return fragments.join(' | ');
+};
+
 const ratingsStore = useRatingsStore();
 const assignedHoursStore = useAssignedHoursStore();
 const mecanicosStore = useMecanicosStore();
@@ -395,6 +407,8 @@ const meetingBatchRange = computed(() => {
 
 const meetingBatchSavingBySupervisor = ref<Record<number, boolean>>({});
 const meetingBatchErrorBySupervisor = ref<Record<number, string>>({});
+const meetingBatchSuccessBySupervisor = ref<Record<number, string>>({});
+const meetingBatchSuccessTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
 
 const weeklyMeetingBatchItems = computed<MeetingBatchItem[]>(() => {
   const { from, to } = meetingBatchRange.value;
@@ -1349,8 +1363,15 @@ const saveMeetingBatchItem = async (payload: MeetingBatchDraftPayload) => {
     ...meetingBatchErrorBySupervisor.value,
     [payload.supervisorId]: '',
   };
+  meetingBatchSuccessBySupervisor.value = {
+    ...meetingBatchSuccessBySupervisor.value,
+    [payload.supervisorId]: '',
+  };
 
   try {
+    const successMessage = batchItem.hasExistingMeeting
+      ? 'Reunión actualizada correctamente.'
+      : 'Reunión creada correctamente.';
     const mergedObservation = upsertMeetingObservationBlock(
       batchItem.originalObservation,
       'gerencia',
@@ -1369,10 +1390,33 @@ const saveMeetingBatchItem = async (payload: MeetingBatchDraftPayload) => {
     });
 
     await loadData({ forceStore: true, background: true });
+    meetingBatchSuccessBySupervisor.value = {
+      ...meetingBatchSuccessBySupervisor.value,
+      [payload.supervisorId]: successMessage,
+    };
+
+    const existingTimeout = meetingBatchSuccessTimeouts.get(payload.supervisorId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+
+    const timeoutId = setTimeout(() => {
+      meetingBatchSuccessBySupervisor.value = {
+        ...meetingBatchSuccessBySupervisor.value,
+        [payload.supervisorId]: '',
+      };
+      meetingBatchSuccessTimeouts.delete(payload.supervisorId);
+    }, 3000);
+
+    meetingBatchSuccessTimeouts.set(payload.supervisorId, timeoutId);
   } catch (error: any) {
     meetingBatchErrorBySupervisor.value = {
       ...meetingBatchErrorBySupervisor.value,
       [payload.supervisorId]: error.message || 'No se pudo guardar la validación semanal de reunión.',
+    };
+    meetingBatchSuccessBySupervisor.value = {
+      ...meetingBatchSuccessBySupervisor.value,
+      [payload.supervisorId]: '',
     };
   } finally {
     meetingBatchSavingBySupervisor.value = {
@@ -1729,10 +1773,10 @@ const loadData = async ({ forceStore = false, background = false } = {}) => {
             foto_url: insp.foto_url,
             observacion: insp.observacion,
             observacion_general: parsedObservation.generalObservation,
-            observacion_reunion:
-              parsedObservation.meetingObservation.supervisor ||
-              parsedObservation.meetingObservation.gerencia ||
-              '',
+            observacion_reunion: buildMeetingObservationText(
+              parsedObservation.meetingObservation.supervisor,
+              parsedObservation.meetingObservation.gerencia
+            ),
             puntuacion_promedio: normalAvg,
             puntuacion_reunion: meetingDetail?.puntuacion ?? null,
             inspector_nombre: inspector ? inspector.nombre_completo : 'Desconocido',
@@ -1752,10 +1796,10 @@ const loadData = async ({ forceStore = false, background = false } = {}) => {
             foto_url: insp.foto_url,
             observacion: insp.observacion,
             observacion_general: parsedObservation.generalObservation,
-            observacion_reunion:
-              parsedObservation.meetingObservation.supervisor ||
-              parsedObservation.meetingObservation.gerencia ||
-              '',
+            observacion_reunion: buildMeetingObservationText(
+              parsedObservation.meetingObservation.supervisor,
+              parsedObservation.meetingObservation.gerencia
+            ),
             puntuacion_promedio: avgInsp,
             puntuacion_reunion: meetingDetail.puntuacion ?? null,
             inspector_nombre: inspector ? inspector.nombre_completo : 'Desconocido',
@@ -1806,6 +1850,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('open-new-record', openNewModal);
+  meetingBatchSuccessTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
+  meetingBatchSuccessTimeouts.clear();
 });
 </script>
 
@@ -2063,6 +2109,7 @@ onUnmounted(() => {
             :levels="formNiveles"
             :is-saving-by-supervisor="meetingBatchSavingBySupervisor"
             :error-by-supervisor="meetingBatchErrorBySupervisor"
+            :success-by-supervisor="meetingBatchSuccessBySupervisor"
             :range-label="meetingBatchRange.label"
             @save="saveMeetingBatchItem"
           />

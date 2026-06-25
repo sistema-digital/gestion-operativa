@@ -18,6 +18,7 @@ const props = defineProps<{
   levels: RatingLevel[];
   isSavingBySupervisor: Record<number, boolean>;
   errorBySupervisor: Record<number, string>;
+  successBySupervisor: Record<number, string>;
   rangeLabel: string;
 }>();
 
@@ -175,13 +176,15 @@ const saveItem = (supervisorId: number) => {
               placeholder="Agregar observación reservada de gerencia..."
               class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:cursor-not-allowed disabled:bg-gray-100"
             />
-            <p class="mt-1 text-[11px] text-gray-500">
-              Si lo dejas vacío, no se crea bloque `gerencia`. Si ya existía y lo borras, se elimina solo ese subbloque.
-            </p>
+            
           </div>
 
           <div v-if="errorBySupervisor[item.supervisorId]" class="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-[11px] font-semibold text-rose-700">
             {{ errorBySupervisor[item.supervisorId] }}
+          </div>
+
+          <div v-if="successBySupervisor[item.supervisorId]" class="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700">
+            {{ successBySupervisor[item.supervisorId] }}
           </div>
 
           <div class="mt-4 flex justify-end">
