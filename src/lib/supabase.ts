@@ -15,7 +15,7 @@ export const supabaseRatings = createClient(supabaseRatingsUrl, supabaseRatingsA
 // Client for Compras Database
 const supabaseComprasUrl = import.meta.env.VITE_SUPABASE_COMPRAS_URL || 'https://nnwtjjngneoeqbvifinn.supabase.co'
 const supabaseComprasAnonKey = import.meta.env.VITE_SUPABASE_COMPRAS_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ud3Rqam5nbmVvZXFidmlmaW5uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MDA0NTIsImV4cCI6MjA5Mjk3NjQ1Mn0.PDNubsNqbhSaqPatkO1FfjSDpAYwAUvzq662Ua0uw7Q'
-console.log(supabaseComprasUrl, supabaseComprasAnonKey);
+
 
 export const supabaseCompras = createClient(supabaseComprasUrl, supabaseComprasAnonKey)
 

@@ -1,11 +1,14 @@
 import { supabase, supabaseRatings } from '@/lib/supabase';
 import type {
+  DeleteMeetingRatingPayload,
   RatingsFetchScope,
   PuntuacionSupervisoresOtResponse,
   RatingsDetalle,
   RatingsEmpleado,
   RatingsInspeccion,
+  UpsertMeetingRatingPayload,
 } from './ratingsStore.types';
+import { removeMeetingObservationBlock } from '@/utils/meetingRatings';
 
 const SUPABASE_BATCH_SIZE = 1000;
 const DETAIL_ID_CHUNK_SIZE = 200;
@@ -15,25 +18,17 @@ type PagedQueryResponse<T> = Promise<{
   error: { message?: string } | null;
 }>;
 
-const fetchFromFirstAvailableTable = async <T>(
-  tableNames: [string, string],
+const fetchTableData = async <T>(
+  tableName: string,
   select = '*'
 ): Promise<T[]> => {
-  const [{ data: lowerData, error: lowerError }, { data: exactData, error: exactError }] =
-    await Promise.all([
-      supabaseRatings.from(tableNames[0]).select(select),
-      supabaseRatings.from(tableNames[1]).select(select),
-    ]);
+  const { data, error } = await supabaseRatings.from(tableName).select(select);
 
-  if (lowerError && exactError) {
-    throw new Error(lowerError.message || exactError.message);
+  if (error) {
+    throw new Error(error.message);
   }
 
-  if (lowerData && lowerData.length > 0) {
-    return lowerData as T[];
-  }
-
-  return (exactData || []) as T[];
+  return (data || []) as T[];
 };
 
 const buildInspeccionesScopeQuery = (
@@ -76,43 +71,19 @@ const buildDetallesPageQuery = (
   return query;
 };
 
-const selectFirstAvailablePagedTable = async <T>(
-  tableNames: [string, string],
-  queryFactory: (tableName: string, from: number) => PagedQueryResponse<T>
-): Promise<{ tableName: string; initialData: T[] }> => {
-  const [{ data: lowerData, error: lowerError }, { data: exactData, error: exactError }] =
-    await Promise.all([
-      queryFactory(tableNames[0], 0),
-      queryFactory(tableNames[1], 0),
-    ]);
-
-  if (lowerError && exactError) {
-    throw new Error(lowerError.message || exactError.message);
-  }
-
-  if (lowerData && lowerData.length > 0) {
-    return { tableName: tableNames[0], initialData: lowerData as T[] };
-  }
-
-  if (exactData && exactData.length > 0) {
-    return { tableName: tableNames[1], initialData: exactData as T[] };
-  }
-
-  if (!lowerError) {
-    return { tableName: tableNames[0], initialData: (lowerData || []) as T[] };
-  }
-
-  return { tableName: tableNames[1], initialData: (exactData || []) as T[] };
-};
-
 const fetchPagedData = async <T>(
-  tableNames: [string, string],
+  tableName: string,
   queryFactory: (tableName: string, from: number) => PagedQueryResponse<T>
 ): Promise<T[]> => {
-  const { tableName, initialData } = await selectFirstAvailablePagedTable<T>(tableNames, queryFactory);
-  const records = [...initialData];
+  const { data: initialData, error: initialError } = await queryFactory(tableName, 0);
 
-  if (initialData.length < SUPABASE_BATCH_SIZE) {
+  if (initialError) {
+    throw new Error(initialError.message);
+  }
+
+  const records = [...((initialData || []) as T[])];
+
+  if (records.length < SUPABASE_BATCH_SIZE) {
     return records;
   }
 
@@ -141,12 +112,12 @@ const fetchPagedData = async <T>(
 
 export const ratingsService = {
   async fetchEmpleados(): Promise<RatingsEmpleado[]> {
-    return fetchFromFirstAvailableTable<RatingsEmpleado>(['empleados', 'Empleados']);
+    return fetchTableData<RatingsEmpleado>('empleados');
   },
 
   async fetchInspecciones(scope: RatingsFetchScope = { mode: 'all' }): Promise<RatingsInspeccion[]> {
     return fetchPagedData<RatingsInspeccion>(
-      ['inspecciones', 'Inspecciones'],
+      'inspecciones',
       (tableName, from) => buildInspeccionesScopeQuery(tableName, scope, from) as unknown as PagedQueryResponse<RatingsInspeccion>
     );
   },
@@ -166,7 +137,7 @@ export const ratingsService = {
       for (let index = 0; index < uniqueInspectionIds.length; index += DETAIL_ID_CHUNK_SIZE) {
         const idChunk = uniqueInspectionIds.slice(index, index + DETAIL_ID_CHUNK_SIZE);
         const chunkRecords = await fetchPagedData<RatingsDetalle>(
-          ['inspecciones_detalle', 'Inspecciones_Detalle'],
+          'inspecciones_detalle',
           (tableName, from) => buildDetallesPageQuery(tableName, from, idChunk) as unknown as PagedQueryResponse<RatingsDetalle>
         );
 
@@ -177,7 +148,7 @@ export const ratingsService = {
     }
 
     return fetchPagedData<RatingsDetalle>(
-      ['inspecciones_detalle', 'Inspecciones_Detalle'],
+      'inspecciones_detalle',
       (tableName, from) => buildDetallesPageQuery(tableName, from) as unknown as PagedQueryResponse<RatingsDetalle>
     );
   },
@@ -217,6 +188,130 @@ export const ratingsService = {
 
     if (inspectionError) {
       throw new Error(inspectionError.message || 'No se pudo eliminar la inspeccion');
+    }
+  },
+
+  async upsertMeetingRating(payload: UpsertMeetingRatingPayload): Promise<number> {
+    const observation = payload.observacion.trim() || null;
+
+    if (payload.inspectionId) {
+      const { error: inspectionError } = await supabaseRatings
+        .from('inspecciones')
+        .update({
+          observacion: observation,
+        })
+        .eq('id_inspeccion', payload.inspectionId);
+
+      if (inspectionError) {
+        throw new Error(inspectionError.message || 'No se pudo actualizar la reunion');
+      }
+
+      const { data: existingDetail, error: detailFetchError } = await supabaseRatings
+        .from('inspecciones_detalle')
+        .select('id_inspeccion, id_criterio')
+        .eq('id_inspeccion', payload.inspectionId)
+        .eq('id_criterio', payload.meetingCriterionId)
+        .maybeSingle();
+
+      if (detailFetchError) {
+        throw new Error(detailFetchError.message || 'No se pudo validar el detalle de reunion');
+      }
+
+      if (existingDetail) {
+        const { error: detailUpdateError } = await supabaseRatings
+          .from('inspecciones_detalle')
+          .update({ puntuacion: payload.puntuacion })
+          .eq('id_inspeccion', payload.inspectionId)
+          .eq('id_criterio', payload.meetingCriterionId);
+
+        if (detailUpdateError) {
+          throw new Error(detailUpdateError.message || 'No se pudo actualizar la puntuacion de reunion');
+        }
+      } else {
+        const { error: detailInsertError } = await supabaseRatings
+          .from('inspecciones_detalle')
+          .insert({
+            id_inspeccion: payload.inspectionId,
+            id_criterio: payload.meetingCriterionId,
+            puntuacion: payload.puntuacion,
+          });
+
+        if (detailInsertError) {
+          throw new Error(detailInsertError.message || 'No se pudo crear la puntuacion de reunion');
+        }
+      }
+
+      return payload.inspectionId;
+    }
+
+    const newInspectionId = Date.now();
+    const { data: inspectionRecord, error: inspectionInsertError } = await supabaseRatings
+      .from('inspecciones')
+      .insert({
+        id_inspeccion: newInspectionId,
+        fecha: payload.fecha,
+        hora: payload.hora,
+        observacion: observation,
+        foto_url: null,
+        id_supervisor: payload.id_supervisor,
+        id_inspector: payload.id_inspector,
+      })
+      .select()
+      .single();
+
+    if (inspectionInsertError || !inspectionRecord) {
+      throw new Error(inspectionInsertError?.message || 'No se pudo crear la reunion');
+    }
+
+    const createdInspectionId = inspectionRecord.id_inspeccion || inspectionRecord.id;
+
+    const { error: detailInsertError } = await supabaseRatings
+      .from('inspecciones_detalle')
+      .insert({
+        id_inspeccion: createdInspectionId,
+        id_criterio: payload.meetingCriterionId,
+        puntuacion: payload.puntuacion,
+      });
+
+    if (detailInsertError) {
+      throw new Error(detailInsertError.message || 'No se pudo crear el detalle de reunion');
+    }
+
+    return createdInspectionId;
+  },
+
+  async deleteMeetingRating(payload: DeleteMeetingRatingPayload): Promise<void> {
+    const { data: inspectionRecord, error: inspectionFetchError } = await supabaseRatings
+      .from('inspecciones')
+      .select('observacion')
+      .eq('id_inspeccion', payload.inspectionId)
+      .maybeSingle();
+
+    if (inspectionFetchError) {
+      throw new Error(inspectionFetchError.message || 'No se pudo cargar la reunion a eliminar');
+    }
+
+    const nextObservation = removeMeetingObservationBlock(inspectionRecord?.observacion || '');
+
+    const { error: detailDeleteError } = await supabaseRatings
+      .from('inspecciones_detalle')
+      .delete()
+      .eq('id_inspeccion', payload.inspectionId)
+      .eq('id_criterio', payload.meetingCriterionId);
+
+    if (detailDeleteError) {
+      throw new Error(detailDeleteError.message || 'No se pudo eliminar la puntuacion de reunion');
+    }
+
+    const { error: inspectionUpdateError } = await supabaseRatings
+      .from('inspecciones')
+      .update({
+        observacion: nextObservation || null,
+      })
+      .eq('id_inspeccion', payload.inspectionId);
+
+    if (inspectionUpdateError) {
+      throw new Error(inspectionUpdateError.message || 'No se pudo limpiar la observacion de reunion');
     }
   },
 };

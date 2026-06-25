@@ -2,12 +2,14 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { ratingsService } from './ratingsStore.service';
 import type {
+  DeleteMeetingRatingPayload,
   RatingsFetchScope,
   PuntuacionSupervisoresOtResponse,
   RatingsDetalle,
   RatingsEmpleado,
   RatingsInspeccion,
   RatingsInspeccionNormalizada,
+  UpsertMeetingRatingPayload,
 } from './ratingsStore.types';
 
 export const useRatingsStore = defineStore('ratings', () => {
@@ -135,6 +137,14 @@ export const useRatingsStore = defineStore('ratings', () => {
     removeInspectionFromState(inspectionId);
   };
 
+  const upsertMeetingRating = async (payload: UpsertMeetingRatingPayload) => {
+    return ratingsService.upsertMeetingRating(payload);
+  };
+
+  const deleteMeetingRating = async (payload: DeleteMeetingRatingPayload) => {
+    await ratingsService.deleteMeetingRating(payload);
+  };
+
   return {
     empleados,
     inspecciones,
@@ -148,6 +158,8 @@ export const useRatingsStore = defineStore('ratings', () => {
     fetchAll,
     fetchPuntuacionSupervisoresOt,
     deleteInspection,
+    upsertMeetingRating,
+    deleteMeetingRating,
     normalizedInspections,
     validSupervisors
   };

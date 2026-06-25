@@ -21,21 +21,17 @@ export interface EquipoSeleccionado {
 }
 
 export interface ProductoCatalogoRow {
-  id: string;
+  producto_id: string;
   cod_producto: string;
   descripcion: string;
-  activo: boolean;
-  es_temporal: boolean;
-  estado_catalogo: string;
-  unidad_medida: {
-    codigo: string;
-    abreviatura: string;
-    descripcion: string | null;
-  } | null;
+  unidad_mostrar: string;
+  unidad_medida_id: number;
+  unidad_codigo: string;
+  unidad_abreviatura: string | null;
 }
 
 export interface ProductoCatalogoOption {
-  id: string;
+  productoId: string;
   codProducto: string;
   descripcion: string;
   unidadCodigo: string;
@@ -45,6 +41,7 @@ export interface ProductoCatalogoOption {
 export interface ProductoSolicitudExistenteItem {
   localId: string;
   tipo: 'existente';
+  productoId: string;
   codProducto: string;
   descripcion: string;
   unidadCodigo: string;
@@ -58,7 +55,12 @@ export interface ProductoSolicitudTemporalItem {
   descripcion: string;
   unidadCodigo: string;
   unidadLabel: string;
-  notas: string;
+}
+
+export interface ProductoTemporalDraft {
+  descripcion: string;
+  unidadCodigo: string;
+  unidadLabel: string;
 }
 
 export type ProductoSolicitudItem =

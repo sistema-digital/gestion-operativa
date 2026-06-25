@@ -1,14 +1,22 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue';
+import { Check, LoaderCircle, PackageSearch, Plus, Search, Trash2, X,SquarePen  } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue';
+import { shallowRef } from 'vue';
 
 import type {
+  ProductoCatalogoOption,
   ProductoSolicitudItem,
+  ProductoSolicitudTemporalItem,
   ServicioSolicitudItem,
   SolicitudCompraTipoSolicitud,
-} from '@/stores/db_compras/solicitudes_compra/solicitudesCompraCrear.types';
+} from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 const props = defineProps<{
   tipoSolicitud: SolicitudCompraTipoSolicitud | null;
+  searchQuery: string;
+  searchResults: ProductoCatalogoOption[];
+  isSearching: boolean;
+  searchError?: string | null;
   productos: ProductoSolicitudItem[];
   servicios: ServicioSolicitudItem[];
   productosError?: string;
@@ -16,206 +24,504 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'add-producto-temporal', value: {
-    descripcion: string;
-    unidadCodigo: string;
-    unidadLabel: string;
-    notas: string;
-  }): void;
+  (e: 'update:search-query', value: string): void;
+  (e: 'search:productos', value: string): void;
+  (e: 'add-producto-existente', value: ProductoCatalogoOption): void;
   (e: 'remove-producto', localId: string): void;
-  (e: 'add-servicio', value: {
-    descripcion: string;
-    unidadCodigo: string;
-    unidadLabel: string;
-    notas: string;
-  }): void;
   (e: 'remove-servicio', localId: string): void;
+  (e: 'manual-request', value: string): void;
+  (e: 'edit-producto-temporal', value: ProductoSolicitudTemporalItem): void;
 }>();
-
-const lineForm = reactive({
-  descripcion: '',
-  unidadCodigo: '',
-  unidadLabel: '',
-  notas: '',
-});
 
 const isServicio = computed(() => props.tipoSolicitud === 'servicio');
 const sectionTitle = computed(() => isServicio.value ? 'Paso 2 · Servicios' : 'Paso 2 · Productos');
 const sectionDescription = computed(() => isServicio.value
-  ? 'Agrega líneas de servicio para esta solicitud.'
-  : 'Agrega líneas de producto para esta solicitud.'
-);
-const formLabel = computed(() => isServicio.value ? 'Descripción del servicio' : 'Descripción del producto');
-const codeLabel = computed(() => isServicio.value ? 'Unidad del servicio' : 'Unidad del producto');
-const countLabel = computed(() => isServicio.value
-  ? `Servicios agregados actualmente: ${props.servicios.length}`
-  : `Productos agregados actualmente: ${props.productos.length}`
+  ? 'El flujo visual actual del paso 2 esta enfocado en productos.'
+  : 'Busca productos confirmados y agregalos a la solicitud con un clic.'
 );
 const fieldError = computed(() => isServicio.value ? props.serviciosError : props.productosError);
-const activeItems = computed(() => isServicio.value
-  ? props.servicios.map((item) => ({
-    localId: item.localId,
-    title: item.descripcion,
-    subtitle: `${item.unidadLabel} (${item.unidadCodigo})`,
-    badge: 'Servicio',
-  }))
-  : props.productos.map((item) => ({
-    localId: item.localId,
-    title: item.tipo === 'existente' ? `${item.codProducto} · ${item.descripcion}` : item.descripcion,
-    subtitle: `${item.unidadLabel} (${item.unidadCodigo})`,
-    badge: item.tipo === 'existente' ? 'Existente' : 'Temporal',
-  }))
-);
+const localQuery = shallowRef(props.searchQuery);
+const isSearchFocused = shallowRef(false);
+const searchRootRef = useTemplateRef<HTMLElement>('searchRoot');
 
-const resetForm = (): void => {
-  lineForm.descripcion = '';
-  lineForm.unidadCodigo = '';
-  lineForm.unidadLabel = '';
-  lineForm.notas = '';
-};
-
-const onAddLine = (): void => {
-  const descripcion = lineForm.descripcion.trim();
-  const unidadCodigo = lineForm.unidadCodigo.trim();
-  const unidadLabel = lineForm.unidadLabel.trim() || unidadCodigo;
-
-  if (!descripcion || !unidadCodigo) {
-    return;
+type SearchRow =
+  | {
+    kind: 'manual';
+    key: string;
+    label: string;
   }
-
-  const payload = {
-    descripcion,
-    unidadCodigo,
-    unidadLabel,
-    notas: lineForm.notas.trim(),
+  | {
+    kind: 'product';
+    key: string;
+    item: ProductoCatalogoOption;
+    selected: boolean;
+    localId: string | null;
+  }
+  | {
+    kind: 'selected';
+    key: string;
+    localId: string;
+    codProducto: string;
+    descripcion: string;
+    unidadLabel: string;
+    selected: true;
   };
 
-  if (isServicio.value) {
-    emit('add-servicio', payload);
-  } else {
-    emit('add-producto-temporal', payload);
+watch(() => props.searchQuery, (value) => {
+  if (value !== localQuery.value) {
+    localQuery.value = value;
+  }
+});
+
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+watch(localQuery, (value) => {
+  emit('update:search-query', value);
+
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
   }
 
-  resetForm();
-};
+  debounceTimer = setTimeout(() => {
+    emit('search:productos', value);
+  }, 300);
+});
 
-const onRemoveLine = (localId: string): void => {
+onBeforeUnmount(() => {
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+  }
+});
+
+const normalizedQuery = computed(() => localQuery.value.trim());
+const selectedProducts = computed(() => props.productos.map((item) => ({
+  item,
+  localId: item.localId,
+  codProducto: item.tipo === 'existente' ? item.codProducto : 'MANUAL',
+  descripcion: item.descripcion,
+  unidadLabel: item.unidadLabel,
+  isTemporal: item.tipo === 'temporal',
+})));
+const selectedExistingByCode = computed(() => {
+  const entries = props.productos
+    .filter((item): item is Extract<ProductoSolicitudItem, { tipo: 'existente' }> => item.tipo === 'existente')
+    .map((item) => [item.codProducto, item.localId] as const);
+
+  return new Map(entries);
+});
+const searchRows = computed<SearchRow[]>(() => {
   if (isServicio.value) {
-    emit('remove-servicio', localId);
+    return [];
+  }
+
+  if (!normalizedQuery.value) {
+    return selectedProducts.value.map((item) => ({
+      kind: 'selected',
+      key: `selected-${item.localId}`,
+      localId: item.localId,
+      codProducto: item.codProducto,
+      descripcion: item.descripcion,
+      unidadLabel: item.unidadLabel,
+      selected: true,
+    }));
+  }
+
+  if (normalizedQuery.value.length < 2) {
+    return [];
+  }
+
+  return [
+    {
+      kind: 'manual',
+      key: `manual-${normalizedQuery.value}`,
+      label: normalizedQuery.value,
+    },
+    ...props.searchResults.map((item) => ({
+      kind: 'product' as const,
+      key: item.productoId,
+      item,
+      selected: selectedExistingByCode.value.has(item.codProducto),
+      localId: selectedExistingByCode.value.get(item.codProducto) ?? null,
+    })),
+  ];
+});
+const shouldShowResults = computed(() =>
+  !isServicio.value
+  && isSearchFocused.value
+  && (
+    normalizedQuery.value.length === 0
+    || normalizedQuery.value.length >= 2
+    || props.isSearching
+  )
+);
+const hasVisibleRows = computed(() => searchRows.value.length > 0);
+
+const handleClickOutside = (event: MouseEvent): void => {
+  const root = searchRootRef.value;
+  const target = event.target;
+
+  if (!(target instanceof Node) || !root || root.contains(target)) {
     return;
   }
 
-  emit('remove-producto', localId);
+  isSearchFocused.value = false;
+};
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleClickOutside);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleClickOutside);
+});
+
+const clearSearch = (): void => {
+  localQuery.value = '';
+};
+
+const onEditTemporal = (item: ProductoSolicitudItem): void => {
+  if (item.tipo !== 'temporal') {
+    return;
+  }
+
+  emit('edit-producto-temporal', item);
+};
+
+const onSelectRow = (
+  row: SearchRow
+): void => {
+  if (row.kind === 'manual') {
+    emit('manual-request', row.label);
+    return;
+  }
+
+  if (row.kind === 'selected') {
+    emit('remove-producto', row.localId);
+    return;
+  }
+
+  if (row.selected && row.localId) {
+    emit('remove-producto', row.localId);
+    return;
+  }
+
+  emit('add-producto-existente', row.item);
 };
 </script>
 
 <template>
   <section class="flex h-full flex-col rounded-lg border border-stone-200 bg-white px-3 py-4 shadow-sm lg:px-4">
-    <h3 class="text-base font-bold text-main">
-      {{ sectionTitle }}
-    </h3>
-    <p class="mt-1 text-sm text-stone-500">
-      {{ sectionDescription }}
-    </p>
-
-    <div class="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
-      <label class="space-y-1">
-        <span class="block text-xs font-semibold text-stone-800">{{ formLabel }}</span>
-        <input
-          v-model="lineForm.descripcion"
-          type="text"
-          class="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none"
-          :placeholder="isServicio ? 'Ej. Servicio de torno' : 'Ej. Empaque para tapa de válvula'"
-        >
-      </label>
-
-      <label class="space-y-1">
-        <span class="block text-xs font-semibold text-stone-800">{{ codeLabel }}</span>
-        <input
-          v-model="lineForm.unidadCodigo"
-          type="text"
-          class="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none"
-          :placeholder="isServicio ? 'servicio' : 'UND'"
-        >
-      </label>
-
-      <label class="space-y-1">
-        <span class="block text-xs font-semibold text-stone-800">Etiqueta unidad</span>
-        <input
-          v-model="lineForm.unidadLabel"
-          type="text"
-          class="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none"
-          :placeholder="isServicio ? 'Servicio' : 'Unidad'"
-        >
-      </label>
-    </div>
-
-    <label class="mt-3 block space-y-1">
-      <span class="block text-xs font-semibold text-stone-800">Notas opcionales</span>
-      <textarea
-        v-model="lineForm.notas"
-        rows="2"
-        class="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none"
-        placeholder="Notas opcionales para esta línea"
-      />
-    </label>
-
-    <div class="mt-3 flex justify-end">
-      <button
-        type="button"
-        class="inline-flex min-h-10 items-center justify-center rounded-lg bg-accent px-4 text-sm font-semibold text-main-dark shadow-sm transition hover:bg-accent-light"
-        @click="onAddLine"
-      >
-        Agregar línea
-      </button>
-    </div>
-
-    <div class="mt-4 rounded-lg border border-dashed border-stone-300 bg-stone-50 px-3 py-4">
-      <p class="text-sm font-medium text-stone-700">
-        {{ countLabel }}
-      </p>
-      <p class="mt-2 text-sm text-stone-500">
-        {{ isServicio
-          ? 'Las solicitudes de servicio enviarán líneas en p_servicios.'
-          : 'Las solicitudes de producto enviarán líneas en p_productos.' }}
-      </p>
-
-      <p
-        v-if="fieldError"
-        class="mt-2 text-sm font-medium text-danger"
-      >
-        {{ fieldError }}
-      </p>
-    </div>
-
-    <div
-      v-if="activeItems.length > 0"
-      class="mt-4 space-y-2"
-    >
+    
+    <template v-if="!isServicio">
       <div
-        v-for="item in activeItems"
-        :key="item.localId"
-        class="flex items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-3"
+        ref="searchRoot"
+        class="mt-4"
       >
-        <div class="min-w-0">
-          <p class="text-sm font-medium text-stone-900">
-            {{ item.title }}
-          </p>
-          <p class="mt-1 text-xs text-stone-500">
-            {{ item.subtitle }}
-          </p>
-          <span class="mt-2 inline-flex rounded-md bg-main/8 px-2 py-1 text-[11px] font-semibold text-main">
-            {{ item.badge }}
-          </span>
+        
+
+        <div class="mt-1 flex items-start gap-3">
+          <div class="min-w-0 flex-1">
+            <div class="flex min-w-0 items-center gap-3 rounded-lg border border-stone-300 bg-white px-3 py-2 transition focus-within:border-main">
+              <Search class="h-4 w-4 shrink-0 text-stone-400" />
+              <input
+                v-model="localQuery"
+                type="text"
+                class="w-full bg-transparent text-sm text-stone-900 outline-none placeholder:text-stone-400"
+                placeholder="Buscar por codigo, descripcion o unidad"
+                @focus="isSearchFocused = true"
+              >
+              <button
+                v-if="localQuery.length > 0"
+                type="button"
+                class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+                @click="clearSearch"
+              >
+                <X class="h-4 w-4" />
+              </button>
+              <LoaderCircle
+                v-if="isSearching"
+                class="h-4 w-4 shrink-0 animate-spin text-main"
+              />
+            </div>
+
+            <div
+              v-if="shouldShowResults"
+              class="sticky top-0 z-20 mt-3 w-full rounded-lg border border-stone-200 bg-white shadow-lg"
+            >
+              <div class="max-h-72 overflow-y-auto">
+                <div
+                  v-if="isSearching"
+                  class="flex items-center justify-center gap-2 px-4 py-5 text-sm text-stone-500"
+                >
+                  <LoaderCircle class="h-4 w-4 animate-spin text-main" />
+                  Buscando productos...
+                </div>
+
+                <button
+                  v-for="row in searchRows"
+                  :key="row.key"
+                  type="button"
+                  class="w-full border-b border-stone-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-second"
+                  :class="row.kind !== 'manual' && row.selected ? 'bg-main/10' : 'bg-white'"
+                  @click="onSelectRow(row)"
+                >
+                  <div class="hidden grid-cols-[10rem_minmax(0,1fr)_8rem_3.25rem] items-center gap-4 text-center md:grid">
+                    <template v-if="row.kind === 'manual'">
+                      <p class="break-words text-sm font-semibold text-main">
+                        MANUAL
+                      </p>
+                      <p class="break-words text-sm text-stone-600">
+                        {{ row.label }}
+                      </p>
+                      <p class="break-words text-xs text-stone-500">
+                        Sin unidad
+                      </p>
+                    </template>
+
+                    <template v-else-if="row.kind === 'selected'">
+                      <p class="break-words font-semibold text-stone-900">
+                        {{ row.codProducto }}
+                      </p>
+                      <p class="break-words text-stone-700">
+                        {{ row.descripcion }}
+                      </p>
+                      <p class="break-words text-xs text-stone-500">
+                        {{ row.unidadLabel }}
+                      </p>
+                    </template>
+
+                    <template v-else>
+                      <p class="break-words font-semibold text-stone-900">
+                        {{ row.item.codProducto }}
+                      </p>
+                      <p class="break-words text-stone-700">
+                        {{ row.item.descripcion }}
+                      </p>
+                      <p class="break-words text-xs text-stone-500">
+                        {{ row.item.unidadLabel }}
+                      </p>
+                    </template>
+
+                    <div class="flex justify-center">
+                      <span
+                        class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                        :class="row.kind === 'manual'
+                          ? 'bg-accent/20 text-main-dark'
+                          : row.selected
+                            ? 'bg-danger-bg text-danger'
+                            : 'bg-main/10 text-main'"
+                      >
+                        <Plus
+                          v-if="row.kind === 'manual'"
+                          class="h-4 w-4"
+                        />
+                        <Trash2
+                          v-else-if="row.selected"
+                          class="h-4 w-4"
+                        />
+                        <Check
+                          v-else
+                          class="h-4 w-4"
+                        />
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center justify-between gap-3 md:hidden">
+                    <div class="min-w-0 flex-1 break-words text-sm text-stone-700">
+                      <template v-if="row.kind === 'manual'">
+                        <span class="font-semibold text-main">MANUAL</span>
+                        {{ ' ' }}·{{ ' ' }}{{ row.label }}
+                      </template>
+
+                      <template v-else-if="row.kind === 'selected'">
+                        <span class="font-semibold text-stone-900">{{ row.codProducto }}</span>
+                        {{ ' ' }}·{{ ' ' }}{{ row.descripcion }}{{ ' ' }}·{{ ' ' }}
+                        <span class="text-xs text-stone-500">{{ row.unidadLabel }}</span>
+                      </template>
+
+                      <template v-else>
+                        <span class="font-semibold text-stone-900">{{ row.item.codProducto }}</span>
+                        {{ ' ' }}·{{ ' ' }}{{ row.item.descripcion }}{{ ' ' }}·{{ ' ' }}
+                        <span class="text-xs text-stone-500">{{ row.item.unidadLabel }}</span>
+                      </template>
+                    </div>
+
+                    <span
+                      class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                      :class="row.kind === 'manual'
+                        ? 'bg-accent/20 text-main-dark'
+                        : row.selected
+                          ? 'bg-danger-bg text-danger'
+                          : 'bg-main/10 text-main'"
+                    >
+                      <Plus
+                        v-if="row.kind === 'manual'"
+                        class="h-4 w-4"
+                      />
+                      <Trash2
+                        v-else-if="row.selected"
+                        class="h-4 w-4"
+                      />
+                      <Check
+                        v-else
+                        class="h-4 w-4"
+                      />
+                    </span>
+                  </div>
+                </button>
+
+                <div
+                  v-if="!isSearching && !searchError && !hasVisibleRows && normalizedQuery.length >= 2"
+                  class="px-4 py-5 text-sm text-stone-500"
+                >
+                  No encontramos productos para esta busqueda.
+                </div>
+
+                <div
+                  v-if="!isSearching && !searchError && !hasVisibleRows && normalizedQuery.length === 0"
+                  class="px-4 py-5 text-sm text-stone-500"
+                >
+                  No hay productos elegidos todavia.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button
+            v-if="!isSearchFocused"
+            type="button"
+            class="inline-flex min-h-9 shrink-0 self-start items-center justify-center gap-2 rounded-lg border border-main bg-white px-4 text-sm font-semibold text-main transition hover:bg-main/5"
+            @click="$emit('manual-request', '')"
+          >
+            <Plus class="h-4 w-4" />
+            <span class="md:hidden">
+              Manual
+            </span>
+            <span class="hidden md:inline">
+              ProductoManual
+            </span>
+          </button>
         </div>
 
-        <button
-          type="button"
-          class="rounded-md border border-stone-200 px-2 py-1 text-xs font-semibold text-stone-700 transition hover:bg-stone-50"
-          @click="onRemoveLine(item.localId)"
+        <p
+          v-if="normalizedQuery.length > 0 && normalizedQuery.length < 2"
+          class="mt-2 text-xs text-stone-500"
         >
-          Eliminar
-        </button>
+          Escribe al menos 2 caracteres para buscar productos.
+        </p>
+
+        <p
+          v-if="searchError"
+          class="mt-3 text-sm font-medium text-danger"
+        >
+          {{ searchError }}
+        </p>
+      </div>
+
+      <div class="mt-4 rounded-lg border border-dashed border-stone-300 bg-stone-50 px-4 py-4">
+        <div
+          v-if="selectedProducts.length > 0"
+          class="  lg:max-h-65    space-y-2 overflow-y-auto pr-1"
+        >
+          <div
+            v-for="item in selectedProducts"
+            :key="item.localId"
+            class="rounded-lg border border-stone-200 bg-white px-3 py-3"
+          >
+            <div class="hidden grid-cols-[10rem_minmax(0,1fr)_8rem_3.8rem] items-center gap-4 text-center text-sm md:grid">
+              <p class="break-words font-semibold text-stone-900">
+                {{ item.codProducto }}
+              </p>
+              <p class="break-words text-stone-700">
+                {{ item.descripcion }}
+              </p>
+              <p class="break-words text-xs text-stone-500">
+                {{ item.unidadLabel }}
+              </p>
+              <div class="flex justify-center gap-1">
+                <button
+                  v-if="item.isTemporal"
+                  type="button"
+                  class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-main/25  text-main transition hover:bg-main/5"
+                  @click="onEditTemporal(item.item)"
+                >
+                  <SquarePen  class="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-200 text-stone-500 transition hover:border-danger/40 hover:bg-danger-bg hover:text-danger"
+                  @click="$emit('remove-producto', item.localId)"
+                >
+                  <Trash2 class="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-3 md:hidden">
+              <p class="min-w-0 flex-1 break-words text-sm text-stone-700">
+                <span class="font-semibold text-stone-900">{{ item.codProducto }}</span>
+                {{ ' ' }}·{{ ' ' }}{{ item.descripcion }}{{ ' ' }}·{{ ' ' }}
+                <span class="text-xs text-stone-500">{{ item.unidadLabel }}</span>
+              </p>
+
+              <div class="flex shrink-0 items-center gap-2">
+                <button
+                  v-if="item.isTemporal"
+                  type="button"
+                  class="inline-flex h-9 items-center justify-center rounded-lg border border-main/25 px-3 text-xs font-semibold text-main transition hover:bg-main/5"
+                  @click="onEditTemporal(item.item)"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 text-stone-500 transition hover:border-danger/40 hover:bg-danger-bg hover:text-danger"
+                  @click="$emit('remove-producto', item.localId)"
+                >
+                  <Trash2 class="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-else
+          class="flex min-h-32 items-center justify-center rounded-lg bg-stone-100 px-4 text-center text-sm text-stone-500"
+        >
+          Sin productos seleccionados.
+        </div>
+
+        <p
+          v-if="fieldError"
+          class="mt-3 text-sm font-medium text-danger"
+        >
+          {{ fieldError }}
+        </p>
+      </div>
+    </template>
+
+    <div
+      v-else
+      class="mt-4 rounded-lg border border-warning/30 bg-warning-bg px-4 py-4"
+    >
+      <div class="flex items-start gap-3">
+        <PackageSearch class="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+        <div>
+          <p class="text-sm font-semibold text-stone-900">
+            El paso 2 actual esta enfocado en productos.
+          </p>
+          <p class="mt-1 text-sm text-stone-600">
+            La busqueda visual de servicios no forma parte de este ajuste.
+          </p>
+          <p
+            v-if="fieldError"
+            class="mt-2 text-sm font-medium text-danger"
+          >
+            {{ fieldError }}
+          </p>
+        </div>
       </div>
     </div>
   </section>

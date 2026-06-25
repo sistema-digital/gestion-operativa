@@ -39,6 +39,9 @@ const targetLabel = "META 2.94% MIN";
 const defaultEtapa = 'Zafra';
 
 const windowWidth = ref(window.innerWidth);
+const handleWindowResize = () => {
+  windowWidth.value = window.innerWidth;
+};
 const MAX_VISIBLE_BARS = computed(() => {
   return windowWidth.value < 768 ? 6 : 7;
 });
@@ -750,12 +753,12 @@ onMounted(() => {
   fetchData();
   horasTrabajoStore.fetchData();
   window.addEventListener('click', handleWindowClick);
-  window.addEventListener('resize', () => { windowWidth.value = window.innerWidth; });
+  window.addEventListener('resize', handleWindowResize);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('click', handleWindowClick);
-  window.removeEventListener('resize', () => { windowWidth.value = window.innerWidth; });
+  window.removeEventListener('resize', handleWindowResize);
   if (scrollButtonTimer) clearTimeout(scrollButtonTimer);
 });
 

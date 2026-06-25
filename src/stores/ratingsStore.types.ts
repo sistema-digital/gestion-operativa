@@ -29,6 +29,22 @@ export interface RatingsDetalle {
   puntuacion: number;
 }
 
+export interface UpsertMeetingRatingPayload {
+  inspectionId?: number | null;
+  fecha: string;
+  hora: string;
+  id_supervisor: number;
+  id_inspector: number;
+  meetingCriterionId: number;
+  puntuacion: number;
+  observacion: string;
+}
+
+export interface DeleteMeetingRatingPayload {
+  inspectionId: number;
+  meetingCriterionId: number;
+}
+
 export interface RatingsFetchScopeAll {
   mode: 'all';
 }

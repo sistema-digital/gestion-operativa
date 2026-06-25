@@ -9,6 +9,7 @@ interface Props {
   placeholder?: string;
   icon?: Component;
   error?: string;
+  disabled?: boolean;
   validator?: (val: any) => string | undefined;
 }
 
@@ -44,7 +45,8 @@ watch(() => props.error, (newErr) => {
     <div 
       class="relative flex items-center rounded-lg border bg-white focus-within:ring-2 focus-within:ring-main-light/20 transition-all duration-200"
       :class="[
-        localError ? 'border-danger' : 'border-gray-200 focus-within:border-main-light'
+        localError ? 'border-danger' : 'border-gray-200 focus-within:border-main-light',
+        props.disabled ? 'bg-gray-50 opacity-70' : ''
       ]"
     >
       <div v-if="icon" class="pl-3 py-2 text-gray-400">
@@ -53,10 +55,11 @@ watch(() => props.error, (newErr) => {
       <input
         :type="type"
         :value="modelValue"
+        :disabled="disabled"
         :placeholder="placeholder"
         @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
         @blur="emit('blur', $event)"
-        class="w-full bg-transparent px-3 py-2 text-sm text-gray-900 placeholder:text-gray-300 outline-none"
+        class="w-full bg-transparent px-3 py-2 text-sm text-gray-900 placeholder:text-gray-300 outline-none disabled:cursor-not-allowed"
       />
       <div v-if="$slots.suffix" class="pr-3 py-2 text-gray-400 flex items-center">
         <slot name="suffix" />

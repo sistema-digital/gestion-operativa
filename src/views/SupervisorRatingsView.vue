@@ -19,7 +19,8 @@ import {
   Camera,
   Image as ImageIcon,
   SquarePen,
-  Trash
+  Trash,
+  Presentation
 } from 'lucide-vue-next';
 import { useRatingsStore } from '@/stores/ratingsStore';
 import { useAssignedHoursStore } from '@/stores/assignedHoursStore';
@@ -33,15 +34,34 @@ import SupervisorOtCompliancePanel from '@/components/ratings/SupervisorOtCompli
 import type { PuntuacionSupervisorOtArea } from '@/stores/ratingsStore.types';
 import type { RatingsFetchScope } from '@/stores/ratingsStore.types';
 import type { MecanicoMantenimiento } from '@/stores/db_mantenimiento/mecanicos/mecanicos.types';
+import {
+  getMeetingAssignedWeekday,
+  getMeetingBadgeLabel,
+  getRelativeMeetingWeekdayLabel,
+  mergeGeneralObservationWithMeetingBlock,
+  parseMeetingObservation,
+  resolveMeetingCriterionId,
+  upsertMeetingObservationBlock,
+} from '@/utils/meetingRatings';
+
+type InspectionKind = 'normal' | 'meeting';
 
 interface Inspeccion {
+  visual_id: string;
   id_inspeccion: number;
   fecha: string;
   hora: string;
   foto_url: string;
   observacion: string;
+  observacion_general: string;
+  observacion_reunion: string;
   puntuacion_promedio: number;
+  puntuacion_reunion: number | null;
   inspector_nombre: string;
+  kind: InspectionKind;
+  meetingBadgeLabel: string;
+  assignedMeetingWeekday: string;
+  meetingCriterionId: number | null;
 }
 
 interface InspGroup {
@@ -145,6 +165,8 @@ const getRatingsFetchScope = (): RatingsFetchScope => {
 };
 
 const setTimeFilter = async (f: string) => {
+  if (f === 'Ayer' && !canUsePreviousRatingsFilter.value) return;
+
   const previousFilter = timeFilter.value;
   const hadSelectedDate = selectedDate.value !== '';
 
@@ -194,6 +216,8 @@ const deleteCandidateSupervisorName = computed(() => {
 });
 
 const filteredSupervisors = computed(() => {
+  const yesterdayFilterDate = resolvedPreviousRatingsDate.value;
+
   let result = supervisors.value.map(sup => {
     let filteredInsps = sup.inspecciones;
 
@@ -203,7 +227,9 @@ const filteredSupervisors = computed(() => {
       if (timeFilter.value === 'Hoy') {
         filteredInsps = filteredInsps.filter(i => i.fecha === todayDate);
       } else if (timeFilter.value === 'Ayer') {
-        filteredInsps = filteredInsps.filter(i => i.fecha === yesterdayDate);
+        filteredInsps = yesterdayFilterDate
+          ? filteredInsps.filter(i => i.fecha === yesterdayFilterDate)
+          : [];
       } else if (timeFilter.value === 'Esta semana') {
         filteredInsps = filteredInsps.filter(i => i.fecha >= startOfWeek && i.fecha <= todayDate);
       } else if (timeFilter.value === 'Semana pasada') {
@@ -268,6 +294,68 @@ const filteredSupervisors = computed(() => {
   return result;
 });
 
+const availablePreviousRatingsDates = computed(() => {
+  const dates = new Set<string>();
+
+  supervisors.value.forEach((supervisor) => {
+    supervisor.inspecciones.forEach((inspection) => {
+      if (inspection.fecha && inspection.fecha < todayDate) {
+        dates.add(inspection.fecha);
+      }
+    });
+  });
+
+  return Array.from(dates).sort((a, b) => b.localeCompare(a));
+});
+
+const resolvedPreviousRatingsDate = computed(() => {
+  return availablePreviousRatingsDates.value[0] || '';
+});
+
+const previousRatingsButtonLabel = computed(() => {
+  const resolvedDate = resolvedPreviousRatingsDate.value;
+
+  if (!resolvedDate || resolvedDate === yesterdayDate) {
+    return 'Ayer';
+  }
+
+  const date = new Date(`${resolvedDate}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Ayer';
+  }
+
+  const formatted = new Intl.DateTimeFormat('es', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(date);
+
+  return formatted
+    .replace('.', '')
+    .split(' ')
+    .map((part, index) => (index === 0 ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+    .join(' ');
+});
+
+const getInspectionDisplayScore = (inspection: Inspeccion) => (
+  inspection.kind === 'meeting'
+    ? inspection.puntuacion_reunion ?? 0
+    : inspection.puntuacion_promedio
+);
+
+const getInspectionObservationText = (inspection: Inspeccion) => (
+  inspection.kind === 'meeting'
+    ? inspection.observacion_reunion || 'Sin observacion de reunion'
+    : inspection.observacion_general || 'Sin observaciones detalladas.'
+);
+
+const getInspectionRowClass = (inspection: Inspeccion) => (
+  inspection.kind === 'meeting'
+    ? 'bg-amber-50/70 border-amber-200 shadow-sm'
+    : 'bg-white rounded-lg shadow-sm border-gray-100'
+);
+
 // --- KPIs ---
 const kpiData = computed(() => {
   let totalInsps = 0;
@@ -301,12 +389,23 @@ const btnSaving = ref(false);
 const errorMsg = ref('');
 const isEditing = ref(false);
 const editingId = ref<number | null>(null);
+const showMeetingModal = ref(false);
+const meetingModalLoading = ref(false);
+const meetingSaving = ref(false);
+const meetingErrorMsg = ref('');
+const meetingEditingInspection = ref<Inspeccion | null>(null);
 const deleteCandidate = ref<Inspeccion | null>(null);
 const deletingInspectionId = ref<number | null>(null);
 
 const formEmpleados = ref<any[]>([]);
 const formCriterios = ref<any[]>([]);
 const formNiveles = ref<any[]>([]);
+const meetingCriterionId = ref<number | null>(null);
+
+const resolveMeetingCriterionIdFromCatalog = () => {
+  meetingCriterionId.value = resolveMeetingCriterionId(formCriterios.value);
+  return meetingCriterionId.value;
+};
 
 const supervisoresValidos = computed(() => {
   return formEmpleados.value.filter(e => e.rol?.toUpperCase().includes('SUPERVISOR'));
@@ -320,6 +419,51 @@ const inspectoresValidos = computed(() => {
   );
 });
 
+const visibleDailyCriteria = computed(() => {
+  return formCriterios.value.filter((criterio) => criterio.id_criterio !== 5);
+});
+
+const meetingCriterionDescription = computed(() => {
+  return formCriterios.value.find((criterio) => criterio.id_criterio === 5)?.descripcion_tarea
+    || 'Calificacion de Reunion';
+});
+
+const ensureRatingsCatalogsLoaded = async () => {
+  let shouldLoadProfiles = false;
+
+  if (formEmpleados.value.length === 0) {
+    const { data: empleadosData, error } = await supabaseRatings.from('empleados').select('*');
+    if (error) throw error;
+    formEmpleados.value = empleadosData || [];
+    shouldLoadProfiles = true;
+  }
+
+  if (formNiveles.value.length === 0) {
+    const { data: nivelesData, error } = await supabaseRatings
+      .from('niveles_calificacion')
+      .select('*')
+      .order('puntuacion', { ascending: true });
+
+    if (error) throw error;
+    formNiveles.value = nivelesData || [];
+  }
+
+  if (formCriterios.value.length === 0) {
+    const { data: criteriosData, error } = await supabaseRatings
+      .from('criterios_evaluacion')
+      .select('*');
+
+    if (error) throw error;
+    formCriterios.value = criteriosData || [];
+  }
+
+  if (shouldLoadProfiles) {
+    await loadProfilesForForm(formEmpleados.value);
+  }
+
+  resolveMeetingCriterionIdFromCatalog();
+};
+
 const form = ref({
   fecha: new Date().toISOString().split('T')[0],
   hora: new Date().toLocaleTimeString('en-GB', { hour12: false }).substring(0,5),
@@ -328,6 +472,16 @@ const form = ref({
   observacion: '',
   detalles: {} as Record<number, number> // id_criterio -> puntuacion (1 a 5)
 });
+
+const meetingForm = ref({
+  fecha: new Date().toISOString().split('T')[0],
+  hora: new Date().toLocaleTimeString('en-GB', { hour12: false }).substring(0, 5),
+  id_supervisor: '',
+  id_inspector: '',
+  puntuacion: 5,
+  observacion: '',
+});
+const showMeetingSupervisorOptions = ref(false);
 
 const getPreviousBusinessDate = (dateString: string) => {
   const baseDate = new Date(`${dateString}T00:00:00`);
@@ -362,6 +516,59 @@ const selectedSupervisorEmail = computed(() => {
   const supervisor = selectedSupervisorForForm.value;
 
   return (supervisor?.correo || supervisor?.email || '').toLowerCase().trim();
+});
+
+const selectedMeetingSupervisor = computed(() => {
+  if (!meetingForm.value.id_supervisor) return null;
+
+  return formEmpleados.value.find(
+    (empleado) => empleado.id_empleado.toString() === meetingForm.value.id_supervisor.toString()
+  ) || null;
+});
+
+const selectedMeetingAssignedWeekday = computed(() => {
+  return getMeetingAssignedWeekday(
+    selectedMeetingSupervisor.value?.correo || selectedMeetingSupervisor.value?.email || ''
+  );
+});
+
+const meetingModalTitle = computed(() => (
+  meetingEditingInspection.value ? 'Editar Reunion' : 'Nueva Reunion'
+));
+
+const meetingWeekdayOrder: Record<string, number> = {
+  Lunes: 1,
+  Martes: 2,
+  Miercoles: 3,
+  Jueves: 4,
+  Viernes: 5,
+  'Sin asignar': 99,
+};
+
+const meetingSupervisorOptions = computed(() => {
+  return [...supervisoresValidos.value]
+    .map((supervisor) => ({
+      ...supervisor,
+      meetingWeekday: getMeetingAssignedWeekday(supervisor.correo || supervisor.email || ''),
+      meetingRelativeWeekday: getRelativeMeetingWeekdayLabel(
+        getMeetingAssignedWeekday(supervisor.correo || supervisor.email || '')
+      ),
+    }))
+    .sort((left, right) => {
+      const weekdayDiff = (meetingWeekdayOrder[left.meetingWeekday] || 99) - (meetingWeekdayOrder[right.meetingWeekday] || 99);
+
+      if (weekdayDiff !== 0) return weekdayDiff;
+
+      return left.nombre_completo.localeCompare(right.nombre_completo);
+    });
+});
+
+const selectedMeetingSupervisorOption = computed(() => {
+  if (!meetingForm.value.id_supervisor) return null;
+
+  return meetingSupervisorOptions.value.find((supervisor) => (
+    supervisor.id_empleado.toString() === meetingForm.value.id_supervisor.toString()
+  )) || null;
 });
 
 const selectedSupervisorOtArea = computed<PuntuacionSupervisorOtArea | null>(() => {
@@ -756,19 +963,10 @@ const openNewModal = async () => {
   showModal.value = true;
   
   try {
-    let emps = formEmpleados.value;
-    if (!hasData) {
-       const { data: fetchEmps, error: errEmps } = await supabaseRatings.from('empleados').select('*');
-       if (errEmps) console.error("Error empleados:", errEmps);
-       if (fetchEmps) {
-          formEmpleados.value = fetchEmps;
-          emps = fetchEmps;
-       }
-    }
+    await ensureRatingsCatalogsLoaded();
+    const emps = formEmpleados.value;
 
     if (emps) {
-       if (!hasData) await loadProfilesForForm(emps);
-       
        // Pre-fill inspector based on email matching for EVALUADOR or ADMINISTRADOR
        if (['EVALUADOR', 'ADMINISTRADOR', 'ALL'].includes(currentUserArea.value.toUpperCase())) {
           const myEmpRecord = emps.find(e => 
@@ -780,29 +978,11 @@ const openNewModal = async () => {
           }
        }
     }
-
-    let niveles = formNiveles.value;
-    if (!hasData) {
-       const { data: fetchNiv, error: errNiv } = await supabaseRatings.from('niveles_calificacion').select('*').order('puntuacion', { ascending: true });
-       if (errNiv) console.error("Error niveles:", errNiv);
-       if (fetchNiv) {
-          formNiveles.value = fetchNiv;
-          niveles = fetchNiv;
-       }
-    }
-
-    let crits = formCriterios.value;
-    if (!hasData) {
-       const { data: fetchCrits, error: errCrits } = await supabaseRatings.from('criterios_evaluacion').select('*');
-       if (errCrits) console.error("Error criterios:", errCrits);
-       if (fetchCrits) {
-          formCriterios.value = fetchCrits;
-          crits = fetchCrits;
-       }
-    }
+    const niveles = formNiveles.value;
+    const crits = formCriterios.value;
     
     if (crits) {
-      crits.forEach(c => {
+      visibleDailyCriteria.value.forEach(c => {
         // Seleccionamos la puntuación más alta por defecto si hay niveles, si no 5
         form.value.detalles[c.id_criterio] = niveles && niveles.length > 0 ? niveles[niveles.length - 1].puntuacion : 5; 
       });
@@ -821,12 +1001,13 @@ const openEditModal = async (insp: any) => {
   existingPhotos.value = insp.foto_url ? insp.foto_url.split(',').filter((u:string) => u.trim() !== '') : [];
 
   // Pree-fill initial known data
+  const parsedObservation = parseMeetingObservation(insp.observacion || '');
   form.value = {
     fecha: insp.fecha,
     hora: insp.hora,
     id_supervisor: '', 
     id_inspector: '', 
-    observacion: insp.observacion || '',
+    observacion: parsedObservation.generalObservation || '',
     detalles: {}
   };
   fechaCumplimientoOt.value = getPreviousBusinessDate(form.value.fecha);
@@ -837,18 +1018,10 @@ const openEditModal = async (insp: any) => {
   showModal.value = true;
 
   try {
-    let emps = formEmpleados.value;
-    if (!hasData) {
-       const { data: fetchEmps } = await supabaseRatings.from('empleados').select('*');
-       if (fetchEmps) {
-          formEmpleados.value = fetchEmps;
-          emps = fetchEmps;
-       }
-    }
+    await ensureRatingsCatalogsLoaded();
+    const emps = formEmpleados.value;
     
     if (emps) {
-       if (!hasData) await loadProfilesForForm(emps);
-       
        // Find the right supervisor matching original DDL lookup
        const mainRecord = ratingsStore.inspecciones.find(i => (i.id_inspeccion || i.id) === insp.id_inspeccion);
        if (mainRecord) {
@@ -856,28 +1029,12 @@ const openEditModal = async (insp: any) => {
          form.value.id_inspector = (mainRecord.id_inspector || mainRecord.inspector_id).toString();
        }
     }
-
-    let niveles = formNiveles.value;
-    if (!hasData) {
-       const { data: fetchNiv } = await supabaseRatings.from('niveles_calificacion').select('*').order('puntuacion', { ascending: true });
-       if (fetchNiv) {
-          formNiveles.value = fetchNiv;
-          niveles = fetchNiv;
-       }
-    }
-
-    let crits = formCriterios.value;
-    if (!hasData) {
-       const { data: fetchCrits } = await supabaseRatings.from('criterios_evaluacion').select('*');
-       if (fetchCrits) {
-          formCriterios.value = fetchCrits;
-          crits = fetchCrits;
-       }
-    }
+    const niveles = formNiveles.value;
+    const crits = formCriterios.value;
     
     if (crits) {
       // Load actual details
-      crits.forEach(c => {
+      visibleDailyCriteria.value.forEach(c => {
          const myDet = ratingsStore.detalles.find(d => d.id_inspeccion === insp.id_inspeccion && d.id_criterio === c.id_criterio);
          if (myDet) {
            form.value.detalles[c.id_criterio] = myDet.puntuacion;
@@ -890,6 +1047,143 @@ const openEditModal = async (insp: any) => {
      console.error(e);
   } finally {
      modalLoading.value = false;
+  }
+};
+
+const closeMeetingModal = () => {
+  if (meetingSaving.value) return;
+  resetMeetingModalState();
+};
+
+const resetMeetingModalState = () => {
+  showMeetingModal.value = false;
+  meetingErrorMsg.value = '';
+  meetingEditingInspection.value = null;
+  showMeetingSupervisorOptions.value = false;
+};
+
+const openNewMeetingModal = async () => {
+  meetingErrorMsg.value = '';
+  meetingEditingInspection.value = null;
+  meetingForm.value = {
+    fecha: new Date().toISOString().split('T')[0],
+    hora: new Date().toLocaleTimeString('en-GB', { hour12: false }).substring(0, 5),
+    id_supervisor: '',
+    id_inspector: '',
+    puntuacion: formNiveles.value.at(-1)?.puntuacion || 5,
+    observacion: '',
+  };
+  showMeetingSupervisorOptions.value = false;
+
+  const hasData = formEmpleados.value.length > 0 && formNiveles.value.length > 0 && formCriterios.value.length > 0;
+  if (!hasData) meetingModalLoading.value = true;
+  showMeetingModal.value = true;
+
+  try {
+    await ensureRatingsCatalogsLoaded();
+
+    const myEmpRecord = formEmpleados.value.find((empleado) => (
+      (empleado.email && empleado.email.toLowerCase() === currentUserEmail.value.toLowerCase()) ||
+      (empleado.correo && empleado.correo.toLowerCase() === currentUserEmail.value.toLowerCase())
+    ));
+
+    if (myEmpRecord) {
+      meetingForm.value.id_inspector = myEmpRecord.id_empleado.toString();
+    }
+
+    if (formNiveles.value.length > 0) {
+      meetingForm.value.puntuacion = formNiveles.value[formNiveles.value.length - 1].puntuacion;
+    }
+  } catch (error: any) {
+    meetingErrorMsg.value = error.message || 'No se pudo preparar el formulario de reunion';
+  } finally {
+    meetingModalLoading.value = false;
+  }
+};
+
+const openEditMeetingModal = async (inspection: Inspeccion) => {
+  meetingErrorMsg.value = '';
+  meetingEditingInspection.value = inspection;
+  const parsedObservation = parseMeetingObservation(inspection.observacion);
+
+  meetingForm.value = {
+    fecha: inspection.fecha,
+    hora: inspection.hora,
+    id_supervisor: '',
+    id_inspector: '',
+    puntuacion: inspection.puntuacion_reunion ?? formNiveles.value.at(-1)?.puntuacion ?? 5,
+    observacion: parsedObservation.meetingObservation.supervisor || '',
+  };
+  showMeetingSupervisorOptions.value = false;
+
+  const hasData = formEmpleados.value.length > 0 && formNiveles.value.length > 0 && formCriterios.value.length > 0;
+  if (!hasData) meetingModalLoading.value = true;
+  showMeetingModal.value = true;
+
+  try {
+    await ensureRatingsCatalogsLoaded();
+
+    const mainRecord = ratingsStore.inspecciones.find((item) => (
+      (item.id_inspeccion || item.id) === inspection.id_inspeccion
+    ));
+
+    if (mainRecord) {
+      meetingForm.value.id_supervisor = String(mainRecord.id_supervisor || mainRecord.supervisor_id || '');
+      meetingForm.value.id_inspector = String(mainRecord.id_inspector || mainRecord.inspector_id || '');
+    }
+  } catch (error: any) {
+    meetingErrorMsg.value = error.message || 'No se pudo cargar la reunion';
+  } finally {
+    meetingModalLoading.value = false;
+  }
+};
+
+const saveMeeting = async () => {
+  if (!meetingEditingInspection.value) {
+    meetingErrorMsg.value = 'La reunion debe asociarse a una inspeccion existente';
+    return;
+  }
+
+  if (!meetingForm.value.id_supervisor || !meetingForm.value.id_inspector) {
+    meetingErrorMsg.value = 'Debe seleccionar supervisor e inspector para la reunion';
+    return;
+  }
+
+  await ensureRatingsCatalogsLoaded();
+
+  if (!meetingCriterionId.value) {
+    meetingErrorMsg.value = 'No se encontro el criterio dedicado de reunion en criterios_evaluacion';
+    return;
+  }
+
+  meetingSaving.value = true;
+  meetingErrorMsg.value = '';
+
+  try {
+    const originalObservation = meetingEditingInspection.value?.observacion || '';
+    const mergedObservation = upsertMeetingObservationBlock(
+      originalObservation,
+      'supervisor',
+      meetingForm.value.observacion
+    );
+
+    await ratingsStore.upsertMeetingRating({
+      inspectionId: meetingEditingInspection.value.id_inspeccion,
+      fecha: meetingForm.value.fecha,
+      hora: meetingForm.value.hora,
+      id_supervisor: Number.parseInt(meetingForm.value.id_supervisor, 10),
+      id_inspector: Number.parseInt(meetingForm.value.id_inspector, 10),
+      meetingCriterionId: meetingCriterionId.value,
+      puntuacion: meetingForm.value.puntuacion,
+      observacion: mergedObservation,
+    });
+
+    resetMeetingModalState();
+    await loadData({ forceStore: true, background: true });
+  } catch (error: any) {
+    meetingErrorMsg.value = error.message || 'No se pudo guardar la reunion';
+  } finally {
+    meetingSaving.value = false;
   }
 };
 
@@ -939,14 +1233,27 @@ const saveInspeccion = async () => {
     const foto_url_string = uploadedUrls.join(',');
 
     let realId = editingId.value;
+    const detallesPayload = Object.keys(form.value.detalles).map(id_criterio => ({
+      id_inspeccion: realId || 0,
+      id_criterio: parseInt(id_criterio),
+      puntuacion: form.value.detalles[parseInt(id_criterio)]
+    }));
 
     if (isEditing.value && editingId.value) {
+       const mainRecord = ratingsStore.inspecciones.find(
+         (item) => (item.id_inspeccion || item.id) === editingId.value
+       );
+       const mergedObservation = mergeGeneralObservationWithMeetingBlock(
+         form.value.observacion,
+         mainRecord?.observacion || ''
+       );
+
        // Update Inspeccion
        const { error: errInsp } = await supabaseRatings.from('inspecciones')
          .update({
             fecha: form.value.fecha,
             hora: form.value.hora,
-            observacion: form.value.observacion,
+            observacion: mergedObservation,
             foto_url: foto_url_string || null,
             id_supervisor: parseInt(form.value.id_supervisor),
             id_inspector: parseInt(form.value.id_inspector)
@@ -954,9 +1261,6 @@ const saveInspeccion = async () => {
          .eq('id_inspeccion', editingId.value);
 
        if (errInsp) throw errInsp;
-       
-       // Override Details By Deleting Then Inserting
-       await supabaseRatings.from('inspecciones_detalle').delete().eq('id_inspeccion', editingId.value);
     } else {
        // Create New
        const id_inspeccion = Date.now();
@@ -974,14 +1278,51 @@ const saveInspeccion = async () => {
        realId = newInsp.id_inspeccion || newInsp.id;
     }
 
-    const detallesToInsert = Object.keys(form.value.detalles).map(id_criterio => ({
+    if (!realId) {
+      throw new Error('No se pudo resolver la inspeccion a actualizar');
+    }
+
+    const resolvedDetallesPayload = detallesPayload.map((detalle) => ({
+      ...detalle,
       id_inspeccion: realId,
-      id_criterio: parseInt(id_criterio),
-      puntuacion: form.value.detalles[parseInt(id_criterio)]
     }));
 
-    const { error: errDet } = await supabaseRatings.from('inspecciones_detalle').insert(detallesToInsert);
-    if (errDet) throw errDet;
+    if (isEditing.value && editingId.value) {
+      const existingDailyDetails = ratingsStore.detalles.filter((detalle) => (
+        detalle.id_inspeccion === editingId.value &&
+        visibleDailyCriteria.value.some((criterio) => criterio.id_criterio === detalle.id_criterio)
+      ));
+
+      const existingDetailIds = new Set(existingDailyDetails.map((detalle) => detalle.id_criterio));
+      const detallesToUpdate = resolvedDetallesPayload.filter((detalle) => existingDetailIds.has(detalle.id_criterio));
+      const detallesToInsert = resolvedDetallesPayload.filter((detalle) => !existingDetailIds.has(detalle.id_criterio));
+
+      await Promise.all(detallesToUpdate.map(async (detalle) => {
+        const { error } = await supabaseRatings
+          .from('inspecciones_detalle')
+          .update({ puntuacion: detalle.puntuacion })
+          .eq('id_inspeccion', realId)
+          .eq('id_criterio', detalle.id_criterio);
+
+        if (error) {
+          throw error;
+        }
+      }));
+
+      if (detallesToInsert.length > 0) {
+        const { error: errDetInsert } = await supabaseRatings
+          .from('inspecciones_detalle')
+          .insert(detallesToInsert);
+
+        if (errDetInsert) throw errDetInsert;
+      }
+    } else {
+      const { error: errDet } = await supabaseRatings
+        .from('inspecciones_detalle')
+        .insert(resolvedDetallesPayload);
+
+      if (errDet) throw errDet;
+    }
 
     // === SG EXTRA SUPERVISORS (TRATO AL CLIENTE #3) ===
     if (isServiciosGenerales.value && selectedExtraSupervisorIds.value.length > 0) {
@@ -1087,8 +1428,22 @@ const deleteInspeccion = async () => {
   deletingInspectionId.value = inspectionId;
 
   try {
-    await ratingsStore.deleteInspection(inspectionId);
-    removeInspectionFromSupervisors(inspectionId);
+    if (deleteCandidate.value.kind === 'meeting') {
+      if (!deleteCandidate.value.meetingCriterionId) {
+        throw new Error('No se encontro el criterio de reunion para eliminar el registro');
+      }
+
+      await ratingsStore.deleteMeetingRating({
+        inspectionId,
+        meetingCriterionId: deleteCandidate.value.meetingCriterionId,
+      });
+
+      await loadData({ forceStore: true, background: true });
+    } else {
+      await ratingsStore.deleteInspection(inspectionId);
+      removeInspectionFromSupervisors(inspectionId);
+    }
+
     deleteCandidate.value = null;
   } catch (error) {
     console.error('Error eliminando inspección', error);
@@ -1114,6 +1469,7 @@ const loadData = async ({ forceStore = false, background = false } = {}) => {
       }
     }
 
+    await ensureRatingsCatalogsLoaded();
     await ratingsStore.fetchAll(forceStore, getRatingsFetchScope());
     
     let sups = ratingsStore.validSupervisors;
@@ -1140,27 +1496,82 @@ const loadData = async ({ forceStore = false, background = false } = {}) => {
       let totalScoreGlobal = 0;
       let countGlobal = 0;
 
-      const myInsps: Inspeccion[] = myInspsRaw.map((insp: any) => {
+      const myInsps: Inspeccion[] = myInspsRaw.flatMap((insp: any) => {
         const inspId = insp.id_inspeccion || insp.id;
         const misDetalles = detalles?.filter((d: any) => d.id_inspeccion === inspId) || [];
+        if (misDetalles.length === 0) return [];
+
         let scoreInsp = 0;
         misDetalles.forEach((d: any) => scoreInsp += d.puntuacion);
         const avgInsp = misDetalles.length > 0 ? Number((scoreInsp / misDetalles.length).toFixed(1)) : 0;
+        const parsedObservation = parseMeetingObservation(insp.observacion);
+        const meetingDetail = meetingCriterionId.value
+          ? misDetalles.find((detalle: any) => detalle.id_criterio === meetingCriterionId.value)
+          : null;
+        const nonMeetingDetails = meetingCriterionId.value
+          ? misDetalles.filter((detalle: any) => detalle.id_criterio !== meetingCriterionId.value)
+          : misDetalles;
+        let normalScore = 0;
+        nonMeetingDetails.forEach((detalle: any) => {
+          normalScore += detalle.puntuacion;
+        });
+        const normalAvg = nonMeetingDetails.length > 0
+          ? Number((normalScore / nonMeetingDetails.length).toFixed(1))
+          : 0;
         
         totalScoreGlobal += scoreInsp;
         countGlobal += misDetalles.length;
 
         const inspector = emps.find((e: any) => e.id_empleado === (insp.id_inspector || insp.inspector_id));
+        const rows: Inspeccion[] = [];
 
-        return {
-          id_inspeccion: inspId,
-          fecha: insp.fecha,
-          hora: insp.hora,
-          foto_url: insp.foto_url,
-          observacion: insp.observacion,
-          puntuacion_promedio: avgInsp,
-          inspector_nombre: inspector ? inspector.nombre_completo : 'Desconocido'
-        };
+        if (nonMeetingDetails.length > 0) {
+          rows.push({
+            visual_id: `${inspId}-normal`,
+            id_inspeccion: inspId,
+            fecha: insp.fecha,
+            hora: insp.hora,
+            foto_url: insp.foto_url,
+            observacion: insp.observacion,
+            observacion_general: parsedObservation.generalObservation,
+            observacion_reunion:
+              parsedObservation.meetingObservation.supervisor ||
+              parsedObservation.meetingObservation.gerencia ||
+              '',
+            puntuacion_promedio: normalAvg,
+            puntuacion_reunion: meetingDetail?.puntuacion ?? null,
+            inspector_nombre: inspector ? inspector.nombre_completo : 'Desconocido',
+            kind: 'normal',
+            meetingBadgeLabel: '',
+            assignedMeetingWeekday: getMeetingAssignedWeekday(sup.correo || sup.email || ''),
+            meetingCriterionId: meetingDetail ? meetingCriterionId.value : null,
+          });
+        }
+
+        if (meetingDetail) {
+          rows.push({
+            visual_id: `${inspId}-meeting`,
+            id_inspeccion: inspId,
+            fecha: insp.fecha,
+            hora: insp.hora,
+            foto_url: insp.foto_url,
+            observacion: insp.observacion,
+            observacion_general: parsedObservation.generalObservation,
+            observacion_reunion:
+              parsedObservation.meetingObservation.supervisor ||
+              parsedObservation.meetingObservation.gerencia ||
+              '',
+            puntuacion_promedio: avgInsp,
+            puntuacion_reunion: meetingDetail.puntuacion ?? null,
+            inspector_nombre: inspector ? inspector.nombre_completo : 'Desconocido',
+            kind: 'meeting',
+            meetingBadgeLabel: getMeetingBadgeLabel(selectedDate.value ? 'Custom' : timeFilter.value, insp.fecha),
+            assignedMeetingWeekday: getMeetingAssignedWeekday(sup.correo || sup.email || ''),
+            meetingCriterionId: meetingCriterionId.value,
+          });
+        }
+
+        return rows;
       });
 
       const rating_global = countGlobal > 0 ? Number((totalScoreGlobal / countGlobal).toFixed(1)) : 0;
@@ -1183,6 +1594,10 @@ const loadData = async ({ forceStore = false, background = false } = {}) => {
     isLoading.value = false;
   }
 };
+
+const canUsePreviousRatingsFilter = computed(() => {
+  return resolvedPreviousRatingsDate.value !== '';
+});
 
 onMounted(() => {
   loadData();
@@ -1253,7 +1668,7 @@ onUnmounted(() => {
           <div class="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
             <button @click="setTimeFilter('Todas')" :class="timeFilter === 'Todas' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Todas</button>
             <button v-if="!isRegularSup" @click="setTimeFilter('Hoy')" :class="timeFilter === 'Hoy' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Hoy</button>
-            <button v-if="!isRegularSup" @click="setTimeFilter('Ayer')" :class="timeFilter === 'Ayer' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Ayer</button>
+            <button v-if="!isRegularSup" @click="setTimeFilter('Ayer')" :disabled="!canUsePreviousRatingsFilter" :class="timeFilter === 'Ayer' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{{ previousRatingsButtonLabel }}</button>
             <button @click="setTimeFilter('Esta semana')" :class="timeFilter === 'Esta semana' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Esta semana</button>
             <button @click="setTimeFilter('Semana pasada')" :class="timeFilter === 'Semana pasada' ? 'bg-accent text-main-dark' : 'bg-gray-200 text-gray-500'" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors">Semana pasada</button>
           </div>
@@ -1270,7 +1685,7 @@ onUnmounted(() => {
                   <div v-for="group in supervisor.groupedInsps" :key="group.label">
                     <h4 v-if="group.label !== 'Registros'" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-2 mb-2">{{ group.label }}</h4>
                     <div class="divide-y divide-gray-100 flex flex-col gap-2">
-                      <div v-for="insp in group.items" :key="insp.id_inspeccion" class="relative p-4 border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/50 rounded-xl">
+                      <div v-for="insp in group.items" :key="insp.visual_id" class="relative p-4 border flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl" :class="insp.kind === 'meeting' ? 'border-amber-200 bg-amber-50/70 shadow-sm' : 'border-gray-100 bg-gray-50/50'">
                         <div v-if="deletingInspectionId === insp.id_inspeccion" class="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/80 backdrop-blur-[1px]">
                           <div class="flex items-center gap-2 text-sm font-semibold text-rose-700">
                             <Loader2 class="w-4 h-4 animate-spin" />
@@ -1280,21 +1695,33 @@ onUnmounted(() => {
                         <div class="min-w-[150px]">
                             <p class="text-xs font-bold text-gray-900">{{ insp.fecha }} &bull; <span class="text-gray-500 font-medium">{{ insp.hora }}</span></p>
                             <p class="text-[10px] text-gray-500 uppercase mt-1">Inspector: <span class="font-bold text-gray-700">{{ insp.inspector_nombre }}</span></p>
+                            <div v-if="insp.kind === 'meeting'" class="mt-2 flex flex-wrap gap-2">
+                              <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">{{ insp.meetingBadgeLabel }}</span>
+                              <span class="inline-flex items-center rounded-full border border-amber-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-amber-700">Dia asignado: {{ insp.assignedMeetingWeekday }}</span>
+                            </div>
                         </div>
-                        <div class="text-sm font-bold flex items-center gap-1 min-w-[70px]" :class="insp.puntuacion_promedio >= 4.5 ? 'text-success' : (insp.puntuacion_promedio >= 3 ? 'text-main' : 'text-warning')">
-                            {{ insp.puntuacion_promedio }} <Star class="w-3 h-3 inline pb-0.5" :class="insp.puntuacion_promedio >= 4.5 ? 'fill-success' : ''"/>
+                        <div class="text-sm font-bold flex items-center gap-1 min-w-[70px]" :class="getInspectionDisplayScore(insp) >= 4.5 ? 'text-success' : (getInspectionDisplayScore(insp) >= 3 ? 'text-main' : 'text-warning')">
+                            {{ getInspectionDisplayScore(insp) }} <Star class="w-3 h-3 inline pb-0.5" :class="getInspectionDisplayScore(insp) >= 4.5 ? 'fill-success' : ''"/>
                         </div>
                         <div class="flex-1 px-2 md:px-6 text-xs text-gray-600 line-clamp-3">
-                            {{ insp.observacion || 'Sin observaciones detalladas.' }}
+                            {{ getInspectionObservationText(insp) }}
                         </div>
                         <div class="flex-shrink-0 text-right flex items-center justify-end gap-2">
                             <BaseButton v-if="!isRegularSup && canDeleteRatings" variant="outline" class="!py-1.5 !px-3 border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 cursor-pointer hover:cursor-pointer" :disabled="deletingInspectionId === insp.id_inspeccion" @click="openDeleteModal(insp)">
                               <Trash class="w-3.5 h-3.5" />
                             </BaseButton>
-                            <BaseButton v-if="!isRegularSup" variant="outline" class="!py-1.5 !px-3 border-gray-200 cursor-pointer hover:cursor-pointer" @click="openEditModal(insp)">
+                            <BaseButton
+                              v-if="!isRegularSup && insp.kind !== 'meeting'"
+                              variant="outline"
+                              class="!py-1.5 !px-3 border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 cursor-pointer hover:cursor-pointer"
+                              @click="openEditMeetingModal(insp)"
+                            >
+                              <Presentation class="w-3.5 h-3.5" />
+                            </BaseButton>
+                            <BaseButton v-if="!isRegularSup" variant="outline" class="!py-1.5 !px-3 border-gray-200 cursor-pointer hover:cursor-pointer" @click="insp.kind === 'meeting' ? openEditMeetingModal(insp) : openEditModal(insp)">
                               <SquarePen class="w-3.5 h-3.5" />
                             </BaseButton>
-                            <BaseButton v-if="insp.foto_url" variant="secondary" class="!py-1.5 !px-3 text-[10px] border-gray-200 cursor-pointer hover:cursor-pointer" @click="openPhotos(insp.foto_url)">Ver Fotos</BaseButton>
+                            <BaseButton v-if="insp.foto_url && insp.kind !== 'meeting'" variant="secondary" class="!py-1.5 !px-3 text-[10px] border-gray-200 cursor-pointer hover:cursor-pointer" @click="openPhotos(insp.foto_url)">Ver Fotos</BaseButton>
                             <span v-else class="text-[10px] text-gray-400 italic px-2">Sin registro visual</span>
                         </div>
                       </div>
@@ -1319,7 +1746,7 @@ onUnmounted(() => {
                   <div v-for="group in supervisor.groupedInsps" :key="group.label">
                     <h4 v-if="group.label !== 'Registros'" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-2 mb-2">{{ group.label }}</h4>
                     <div class="divide-y divide-gray-100 flex flex-col gap-2">
-                      <div v-for="insp in group.items" :key="insp.id_inspeccion" class="relative p-4 border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white rounded-lg shadow-sm">
+                      <div v-for="insp in group.items" :key="insp.visual_id" class="relative p-4 border flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-lg" :class="getInspectionRowClass(insp)">
                         <div v-if="deletingInspectionId === insp.id_inspeccion" class="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/80 backdrop-blur-[1px]">
                           <div class="flex items-center gap-2 text-sm font-semibold text-rose-700">
                             <Loader2 class="w-4 h-4 animate-spin" />
@@ -1329,21 +1756,33 @@ onUnmounted(() => {
                         <div class="min-w-[150px]">
                             <p class="text-xs font-bold text-gray-900">{{ insp.fecha }} &bull; <span class="text-gray-500 font-medium">{{ insp.hora }}</span></p>
                             <p class="text-[10px] text-gray-500 uppercase mt-1">Inspector: <span class="font-bold text-gray-700">{{ insp.inspector_nombre }}</span></p>
+                            <div v-if="insp.kind === 'meeting'" class="mt-2 flex flex-wrap gap-2">
+                              <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">{{ insp.meetingBadgeLabel }}</span>
+                              <span class="inline-flex items-center rounded-full border border-amber-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-amber-700">Dia asignado: {{ insp.assignedMeetingWeekday }}</span>
+                            </div>
                         </div>
-                        <div class="text-sm font-bold flex items-center gap-1 min-w-[70px]" :class="insp.puntuacion_promedio >= 4.5 ? 'text-success' : (insp.puntuacion_promedio >= 3 ? 'text-main' : 'text-warning')">
-                            {{ insp.puntuacion_promedio }} <Star class="w-3 h-3 inline pb-0.5" :class="insp.puntuacion_promedio >= 4.5 ? 'fill-success' : ''"/>
+                        <div class="text-sm font-bold flex items-center gap-1 min-w-[70px]" :class="getInspectionDisplayScore(insp) >= 4.5 ? 'text-success' : (getInspectionDisplayScore(insp) >= 3 ? 'text-main' : 'text-warning')">
+                            {{ getInspectionDisplayScore(insp) }} <Star class="w-3 h-3 inline pb-0.5" :class="getInspectionDisplayScore(insp) >= 4.5 ? 'fill-success' : ''"/>
                         </div>
                         <div class="flex-1 px-2 md:px-6 text-xs text-gray-600 line-clamp-3">
-                            {{ insp.observacion || 'Sin observaciones detalladas.' }}
+                            {{ getInspectionObservationText(insp) }}
                         </div>
                         <div class="flex-shrink-0 text-right flex items-center justify-end gap-2">
                             <BaseButton v-if="!isRegularSup && canDeleteRatings" variant="outline" class="!py-1.5 !px-3 border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 cursor-pointer hover:cursor-pointer" :disabled="deletingInspectionId === insp.id_inspeccion" @click="openDeleteModal(insp)">
                               <Trash class="w-3.5 h-3.5" />
                             </BaseButton>
-                            <BaseButton v-if="!isRegularSup" variant="outline" class="!py-1.5 !px-3 border-gray-200 cursor-pointer hover:cursor-pointer" @click="openEditModal(insp)">
+                            <BaseButton
+                              v-if="!isRegularSup && insp.kind !== 'meeting'"
+                              variant="outline"
+                              class="!py-1.5 !px-3 border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 cursor-pointer hover:cursor-pointer"
+                              @click="openEditMeetingModal(insp)"
+                            >
+                              <Presentation class="w-3.5 h-3.5" />
+                            </BaseButton>
+                            <BaseButton v-if="!isRegularSup" variant="outline" class="!py-1.5 !px-3 border-gray-200 cursor-pointer hover:cursor-pointer" @click="insp.kind === 'meeting' ? openEditMeetingModal(insp) : openEditModal(insp)">
                               <SquarePen class="w-3.5 h-3.5" />
                             </BaseButton>
-                            <BaseButton v-if="insp.foto_url" variant="secondary" class="!py-1.5 !px-3 text-[10px] border-gray-200 cursor-pointer hover:cursor-pointer" @click="openPhotos(insp.foto_url)">Ver Fotos</BaseButton>
+                            <BaseButton v-if="insp.foto_url && insp.kind !== 'meeting'" variant="secondary" class="!py-1.5 !px-3 text-[10px] border-gray-200 cursor-pointer hover:cursor-pointer" @click="openPhotos(insp.foto_url)">Ver Fotos</BaseButton>
                             <span v-else class="text-[10px] text-gray-400 italic px-2">Sin registro visual</span>
                         </div>
                       </div>
@@ -1366,27 +1805,165 @@ onUnmounted(() => {
         <Users class="w-12 h-12 text-gray-200 mx-auto mb-4" />
         <p class="text-gray-400 font-medium">No hay inspecciones para el filtro seleccionado</p>
       </div>
-    </div>
-
     <!-- Modal Ver Fotos -->
     <div v-if="showPhotosModal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-200">
-       <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
-          <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-             <h3 class="font-display text-xl text-gray-900 tracking-tight">Fotos de la Inspección</h3>
-             <button @click="showPhotosModal = false" class="text-gray-400 hover:text-gray-600">
-               <X class="w-5 h-5" />
-             </button>
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+          <h3 class="font-display text-xl text-gray-900 tracking-tight">Fotos de la Inspección</h3>
+          <button @click="showPhotosModal = false" class="text-gray-400 hover:text-gray-600">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+        <div class="p-6 overflow-y-auto flex-1 bg-gray-100/50">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <img v-for="(img, i) in currentPhotos" :key="i" :src="img" class="w-full h-auto rounded-lg shadow-sm border border-gray-200" />
           </div>
-          <div class="p-6 overflow-y-auto flex-1 bg-gray-100/50">
-             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <img v-for="(img, i) in currentPhotos" :key="i" :src="img" class="w-full h-auto rounded-lg shadow-sm border border-gray-200" />
-             </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showMeetingModal" class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+      <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl border border-gray-200 overflow-hidden">
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-amber-50">
+          <div>
+            <h3 class="font-display text-xl text-gray-900 tracking-tight">{{ meetingModalTitle }}</h3>
+            <p class="text-xs text-amber-700 font-medium mt-1">Este flujo solo modifica la puntuacion y observacion reservada de reunion.</p>
           </div>
-       </div>
+          <button @click="closeMeetingModal" class="text-gray-400 hover:text-gray-600">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div class="p-6 space-y-5">
+          <div v-if="meetingModalLoading" class="py-10 flex justify-center">
+            <Loader2 class="w-8 h-8 animate-spin text-main" />
+          </div>
+
+          <template v-else>
+            <div class="grid grid-cols-2 gap-4">
+              <BaseInput type="date" v-model="meetingForm.fecha" label="Fecha de Reunion" :disabled="true" />
+              <BaseInput type="time" v-model="meetingForm.hora" label="Hora de Registro" :disabled="true" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 items-start">
+              <div class="flex flex-col gap-1.5 relative">
+                <label class="text-xs font-medium text-gray-500 ml-1">Supervisor</label>
+                <button
+                  type="button"
+                  :disabled="!!meetingEditingInspection"
+                  class="w-full rounded-xl border px-4 py-2 text-left transition-all disabled:opacity-60"
+                  :class="showMeetingSupervisorOptions ? 'border-amber-300 bg-amber-50 shadow-sm' : 'border-gray-200 bg-white hover:border-amber-200'"
+                  @click="showMeetingSupervisorOptions = !showMeetingSupervisorOptions"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <div v-if="selectedMeetingSupervisorOption">
+                      <p class="text-sm font-semibold text-gray-900">{{ selectedMeetingSupervisorOption.nombre_completo }}</p>
+                    </div>
+                    <p v-else class="text-sm text-gray-500">Seleccione un supervisor...</p>
+                    <span
+                      v-if="selectedMeetingSupervisorOption"
+                      class="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800"
+                      :title="selectedMeetingSupervisorOption.meetingWeekday"
+                    >
+                      {{ selectedMeetingSupervisorOption.meetingRelativeWeekday }}
+                    </span>
+                  </div>
+                </button>
+
+                <div
+                  v-if="showMeetingSupervisorOptions && !meetingEditingInspection"
+                  class="absolute left-0 right-0 top-full z-10 mt-2 max-h-72 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-xl"
+                >
+                  <button
+                    v-for="emp in meetingSupervisorOptions"
+                    :key="emp.id_empleado"
+                    type="button"
+                    class="w-full rounded-xl border px-4 py-3 text-left transition-all mb-2 last:mb-0"
+                    :class="meetingForm.id_supervisor.toString() === emp.id_empleado.toString()
+                      ? 'border-amber-300 bg-amber-50 shadow-sm'
+                      : 'border-transparent bg-white hover:border-amber-200 hover:bg-amber-50/40'"
+                    @click="meetingForm.id_supervisor = emp.id_empleado.toString(); showMeetingSupervisorOptions = false"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div>
+                        <p class="text-sm font-semibold text-gray-900">{{ emp.nombre_completo }}</p>
+                      </div>
+                      <span
+                        class="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800"
+                        :title="emp.meetingWeekday"
+                      >
+                        {{ emp.meetingRelativeWeekday }}
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-medium text-gray-500 ml-1">Inspector</label>
+                <select
+                  v-model="meetingForm.id_inspector"
+                  :disabled="!!meetingEditingInspection || currentUserArea.toUpperCase() !== 'ALL'"
+                  class="w-full bg-white px-3 py-2 text-sm text-gray-900 border border-gray-200 rounded-lg disabled:opacity-60"
+                >
+                  <option value="" disabled>Seleccione...</option>
+                  <option v-for="emp in inspectoresValidos" :key="emp.id_empleado" :value="emp.id_empleado">
+                    {{ emp.nombre_completo }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5">
+              <div class="flex items-center justify-between gap-3 mb-2.5">
+                <div>
+                  <p class="text-[10px] uppercase tracking-widest font-bold text-amber-700">{{ meetingCriterionDescription }}</p>
+                  <p class="text-sm text-gray-600 mt-1">Dia asignado: <span class="font-semibold text-gray-900">{{ selectedMeetingAssignedWeekday }}</span></p>
+                </div>
+                <div class="text-lg font-bold text-amber-800">{{ meetingForm.puntuacion }}</div>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="nivel in formNiveles"
+                  :key="nivel.puntuacion"
+                  type="button"
+                  class="w-10 h-10 rounded-lg border text-sm font-bold transition-all"
+                  :class="meetingForm.puntuacion === nivel.puntuacion ? 'border-amber-300 bg-amber-200 text-amber-900' : 'border-gray-200 bg-white text-gray-500 hover:border-amber-200 hover:text-amber-700'"
+                  @click="meetingForm.puntuacion = nivel.puntuacion"
+                >
+                  {{ nivel.puntuacion }}
+                </button>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-medium text-gray-500 ml-1">Observacion de Reunion del Supervisor</label>
+              <textarea
+                v-model="meetingForm.observacion"
+                rows="4"
+                placeholder="Registrar contexto puntual de la reunion..."
+                class="w-full bg-white px-3 py-2 text-sm text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-main focus:border-main resize-none"
+              ></textarea>
+              <p class="text-[11px] text-gray-500">Si lo dejas vacio, no se guardara el subbloque reservado de supervisor.</p>
+            </div>
+
+            <div v-if="meetingErrorMsg" class="p-3 bg-danger-bg text-danger text-[11px] font-bold rounded-lg">
+              {{ meetingErrorMsg }}
+            </div>
+          </template>
+        </div>
+
+        <div class="px-6 py-4 border-t border-gray-100 bg-white flex items-center justify-end gap-3">
+          <BaseButton variant="tertiary" :disabled="meetingSaving" @click="closeMeetingModal">Cancelar</BaseButton>
+          <BaseButton variant="primary" :disabled="meetingModalLoading || meetingSaving" @click="saveMeeting">
+            <span v-if="!meetingSaving">{{ meetingEditingInspection ? 'Actualizar Reunion' : 'Guardar Reunion' }}</span>
+            <span v-else class="flex items-center gap-2"><Loader2 class="w-4 h-4 animate-spin" /> Procesando...</span>
+          </BaseButton>
+        </div>
+      </div>
     </div>
 
     <!-- Modal Nuevo Registro -->
-  <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+    <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
       <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl overflow-hidden flex flex-col h-[90vh] max-h-[90vh]">
         <div class="p-6 border-b border-gray-100 flex flex-none items-center justify-between bg-gray-50">
           <h3 class="font-display text-xl text-gray-900 tracking-tight">{{ isEditing ? 'Actualizar Inspección' : 'Nueva Inspección' }}</h3>
@@ -1444,7 +2021,7 @@ onUnmounted(() => {
               <p class="text-[10px] uppercase font-bold text-gray-500 mb-4 tracking-widest">Criterios a Evaluar</p>
               <div v-if="formNiveles.length === 0" class="text-xs text-warning font-bold">Cargando niveles de calificación o tabla vacía...</div>
               <div class="space-y-4">
-                <div v-for="criterio in formCriterios" :key="criterio.id_criterio" class="flex flex-col md:flex-row md:items-center justify-between gap-2 p-3 bg-white rounded-lg shadow-sm border border-gray-100">
+                <div v-for="criterio in visibleDailyCriteria" :key="criterio.id_criterio" class="flex flex-col md:flex-row md:items-center justify-between gap-2 p-3 bg-white rounded-lg shadow-sm border border-gray-100">
                   <span class="text-sm font-medium text-gray-700">{{ criterio.descripcion_tarea }}</span>
                   <div class="flex items-center gap-1">
                     <button 
@@ -1773,15 +2350,17 @@ onUnmounted(() => {
   <div v-if="deleteCandidate" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
     <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
       <div class="px-6 py-5 border-b border-gray-100">
-        <h3 class="text-lg font-bold text-gray-900">Calificación a eliminar</h3>
-        
+        <h3 class="text-lg font-bold text-gray-900">{{ deleteCandidate.kind === 'meeting' ? 'Reunion a eliminar' : 'Calificación a eliminar' }}</h3>
       </div>
       <div class="px-6 py-4 text-sm text-gray-600 space-y-1">
         <p><span class="font-semibold text-gray-800">Supervisor:</span> {{ deleteCandidateSupervisorName }}</p>
-        <p><span class="font-semibold text-gray-800">Puntuación:</span> {{ deleteCandidate.puntuacion_promedio }}</p>
+        <p><span class="font-semibold text-gray-800">Puntuación:</span> {{ getInspectionDisplayScore(deleteCandidate) }}</p>
         <p><span class="font-semibold text-gray-800">Fecha:</span> {{ deleteCandidate.fecha }}</p>
         <p><span class="font-semibold text-gray-800">Hora:</span> {{ deleteCandidate.hora }}</p>
         <p><span class="font-semibold text-gray-800">Inspector:</span> {{ deleteCandidate.inspector_nombre }}</p>
+        <p v-if="deleteCandidate.kind === 'meeting'" class="pt-2 text-rose-700">
+          Se eliminara solo la reunion, su puntuacion y toda la observacion reservada de reunion. La inspeccion diaria base no se eliminara.
+        </p>
       </div>
       <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 bg-gray-50">
         <BaseButton variant="tertiary" :disabled="!!deletingInspectionId" class="cursor-pointer" @click="closeDeleteModal">Cancelar</BaseButton>
@@ -1796,6 +2375,7 @@ onUnmounted(() => {
           </span>
         </BaseButton>
       </div>
+    </div>
     </div>
   </div>
 </template>

@@ -138,4 +138,53 @@ describe('solicitudesCompraCrear.store', () => {
       },
     ]);
   });
+
+  it('actualiza solo productos temporales existentes', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.agregarProductoTemporal({
+      descripcion: 'Producto temporal inicial',
+      unidadCodigo: 'unidad',
+      unidadLabel: 'Unidad',
+    });
+    store.agregarProductoExistente({
+      productoId: 'prod-1',
+      codProducto: 'P-001',
+      descripcion: 'Producto catalogado',
+      unidadCodigo: 'kg',
+      unidadLabel: 'Kilogramo',
+    });
+
+    const temporal = store.productos.find((item) => item.tipo === 'temporal');
+    const existente = store.productos.find((item) => item.tipo === 'existente');
+
+    expect(temporal?.tipo).toBe('temporal');
+    expect(existente?.tipo).toBe('existente');
+
+    store.actualizarProductoTemporal(temporal!.localId, {
+      descripcion: 'Producto temporal editado',
+      unidadCodigo: 'caja',
+      unidadLabel: 'Caja',
+    });
+    store.actualizarProductoTemporal(existente!.localId, {
+      descripcion: 'No deberia mutar',
+      unidadCodigo: 'otro',
+      unidadLabel: 'Otro',
+    });
+
+    expect(store.productos).toEqual([
+      expect.objectContaining({
+        tipo: 'temporal',
+        descripcion: 'Producto temporal editado',
+        unidadCodigo: 'caja',
+        unidadLabel: 'Caja',
+      }),
+      expect.objectContaining({
+        tipo: 'existente',
+        codProducto: 'P-001',
+        unidadCodigo: 'kg',
+        unidadLabel: 'Kilogramo',
+      }),
+    ]);
+  });
 });

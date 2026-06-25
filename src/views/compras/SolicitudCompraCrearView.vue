@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { shallowRef } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useCrearSolicitudCompraWizard } from '@/composables/compras/useCrearSolicitudCompraWizard';
-import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/solicitudesCompraCrear.store';
+import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
+import type {
+  ProductoSolicitudTemporalItem,
+  ProductoTemporalDraft,
+} from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 import CrearSolicitudCompraFooterActions from '@/components/compras/crear/CrearSolicitudCompraFooterActions.vue';
 import CrearSolicitudCompraHeader from '@/components/compras/crear/CrearSolicitudCompraHeader.vue';
+import CrearSolicitudCompraProductoTemporalOverlay from '@/components/compras/crear/CrearSolicitudCompraProductoTemporalOverlay.vue';
 import CrearSolicitudCompraStepDatosBase from '@/components/compras/crear/CrearSolicitudCompraStepDatosBase.vue';
 import CrearSolicitudCompraStepObservaciones from '@/components/compras/crear/CrearSolicitudCompraStepObservaciones.vue';
 import CrearSolicitudCompraStepProductos from '@/components/compras/crear/CrearSolicitudCompraStepProductos.vue';
@@ -26,6 +32,10 @@ const {
   observacion,
   solicitarUrgente,
   motivoUrgencia,
+  productSearchQuery,
+  productSearchResults,
+  productSearchLoading,
+  productSearchError,
   loading,
   createError,
   validationErrors,
@@ -42,14 +52,29 @@ const {
   setObservacion,
   setSolicitarUrgente,
   setMotivoUrgencia,
+  setProductSearchQuery,
   buscarEquipos,
+  buscarProductos,
   agregarEquipo,
   removerEquipo,
-  addTemporaryProduct,
+  agregarProductoExistente,
+  agregarProductoTemporal,
+  actualizarProductoTemporal,
   agregarServicio,
   removerProducto,
   removerServicio,
 } = useCrearSolicitudCompraWizard();
+
+const createEmptyTemporalDraft = (descripcion = ''): ProductoTemporalDraft => ({
+  descripcion,
+  unidadCodigo: '',
+  unidadLabel: '',
+});
+
+const isProductoTemporalOverlayOpen = shallowRef(false);
+const productoTemporalOverlayMode = shallowRef<'create' | 'edit'>('create');
+const editingTemporalLocalId = shallowRef<string | null>(null);
+const productoTemporalDraft = ref<ProductoTemporalDraft>(createEmptyTemporalDraft());
 
 const shouldDisableNext = computed(() =>
   currentStep.value === 1 ? !isCurrentStepValid.value : false
@@ -80,6 +105,41 @@ const handleNext = (): void => {
 const handleSubmit = async (mode: 'draft' | 'send'): Promise<void> => {
   await onSubmit(mode);
   void router.push({ name: 'Compras' });
+};
+
+const closeProductoTemporalOverlay = (): void => {
+  isProductoTemporalOverlayOpen.value = false;
+  productoTemporalOverlayMode.value = 'create';
+  editingTemporalLocalId.value = null;
+  productoTemporalDraft.value = createEmptyTemporalDraft();
+};
+
+const handleManualRequest = (initialDescripcion: string): void => {
+  productoTemporalOverlayMode.value = 'create';
+  editingTemporalLocalId.value = null;
+  productoTemporalDraft.value = createEmptyTemporalDraft(initialDescripcion);
+  isProductoTemporalOverlayOpen.value = true;
+};
+
+const handleEditProductoTemporal = (item: ProductoSolicitudTemporalItem): void => {
+  productoTemporalOverlayMode.value = 'edit';
+  editingTemporalLocalId.value = item.localId;
+  productoTemporalDraft.value = {
+    descripcion: item.descripcion,
+    unidadCodigo: item.unidadCodigo,
+    unidadLabel: item.unidadLabel,
+  };
+  isProductoTemporalOverlayOpen.value = true;
+};
+
+const handleSubmitProductoTemporal = (draft: ProductoTemporalDraft): void => {
+  if (productoTemporalOverlayMode.value === 'edit' && editingTemporalLocalId.value) {
+    actualizarProductoTemporal(editingTemporalLocalId.value, draft);
+  } else {
+    agregarProductoTemporal(draft);
+  }
+
+  closeProductoTemporalOverlay();
 };
 
 onMounted(() => {
@@ -136,14 +196,21 @@ onBeforeUnmount(() => {
         <CrearSolicitudCompraStepProductos
           v-else-if="currentStep === 2"
           :tipo-solicitud="tipoSolicitud"
+          :search-query="productSearchQuery"
+          :search-results="productSearchResults"
+          :is-searching="productSearchLoading"
+          :search-error="productSearchError"
           :productos="productos"
           :servicios="servicios"
           :productos-error="validationErrors.productos"
           :servicios-error="validationErrors.servicios"
-          @add-producto-temporal="addTemporaryProduct"
+          @update:search-query="setProductSearchQuery"
+          @search:productos="buscarProductos"
+          @add-producto-existente="agregarProductoExistente"
           @remove-producto="removerProducto"
-          @add-servicio="agregarServicio"
           @remove-servicio="removerServicio"
+          @manual-request="handleManualRequest"
+          @edit-producto-temporal="handleEditProductoTemporal"
         />
 
         <CrearSolicitudCompraStepObservaciones
@@ -184,5 +251,13 @@ onBeforeUnmount(() => {
         />
       </div>
     </div>
+
+    <CrearSolicitudCompraProductoTemporalOverlay
+      v-if="isProductoTemporalOverlayOpen"
+      :mode="productoTemporalOverlayMode"
+      :initial-draft="productoTemporalDraft"
+      @cancel="closeProductoTemporalOverlay"
+      @submit="handleSubmitProductoTemporal"
+    />
   </section>
 </template>

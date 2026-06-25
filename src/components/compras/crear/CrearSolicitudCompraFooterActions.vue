@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SolicitudCompraCreateStep } from '@/stores/db_compras/solicitudes_compra/solicitudesCompraCrear.types';
+import type { SolicitudCompraCreateStep } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 defineProps<{
   currentStep: SolicitudCompraCreateStep;

@@ -2,11 +2,11 @@ import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 
 import { useEquiposStore } from '@/stores/dbequipos/equipos/equipos.store';
-import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/solicitudesCompraCrear.store';
+import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
 import type {
-  ProductoSolicitudTemporalItem,
+  ProductoTemporalDraft,
   SolicitudCompraSubmitMode,
-} from '@/stores/db_compras/solicitudes_compra/solicitudesCompraCrear.types';
+} from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 export const useCrearSolicitudCompraWizard = () => {
   const store = useSolicitudesCompraCrearStore();
@@ -46,12 +46,6 @@ export const useCrearSolicitudCompraWizard = () => {
     await store.submit(mode);
   };
 
-  const addTemporaryProduct = (
-    item: Omit<ProductoSolicitudTemporalItem, 'localId' | 'tipo' | 'temporal'>
-  ): void => {
-    store.agregarProductoTemporal(item);
-  };
-
   return {
     currentStep: storeRefs.currentStep,
     tipoSolicitud: storeRefs.tipoSolicitud,
@@ -62,6 +56,10 @@ export const useCrearSolicitudCompraWizard = () => {
     observacion: storeRefs.observacion,
     solicitarUrgente: storeRefs.solicitarUrgente,
     motivoUrgencia: storeRefs.motivoUrgencia,
+    productSearchQuery: storeRefs.productSearchQuery,
+    productSearchResults: storeRefs.productSearchResults,
+    productSearchLoading: storeRefs.productSearchLoading,
+    productSearchError: storeRefs.productSearchError,
     validationErrors: storeRefs.validationErrors,
     loading: storeRefs.loading,
     createError: storeRefs.error,
@@ -74,17 +72,20 @@ export const useCrearSolicitudCompraWizard = () => {
     onNext,
     onBack,
     onSubmit,
-    addTemporaryProduct,
     setTipoSolicitud: store.setTipoSolicitud,
     setFechaEntrega: store.setFechaEntrega,
     setObservacion: store.setObservacion,
     setSolicitarUrgente: store.setSolicitarUrgente,
     setMotivoUrgencia: store.setMotivoUrgencia,
+    setProductSearchQuery: store.setProductSearchQuery,
     buscarEquipos: store.buscarEquipos,
     agregarEquipo: store.agregarEquipo,
     removerEquipo: store.removerEquipo,
     buscarProductos: store.buscarProductos,
     agregarProductoExistente: store.agregarProductoExistente,
+    agregarProductoTemporal: (item: ProductoTemporalDraft) => store.agregarProductoTemporal(item),
+    actualizarProductoTemporal: (localId: string, item: ProductoTemporalDraft) =>
+      store.actualizarProductoTemporal(localId, item),
     removerProducto: store.removerProducto,
     agregarServicio: store.agregarServicio,
     removerServicio: store.removerServicio,
