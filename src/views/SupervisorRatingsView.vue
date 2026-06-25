@@ -78,6 +78,8 @@ interface SupervisorScore {
   inspecciones: Inspeccion[];
   filteredAvg?: number;
   groupedInsps?: InspGroup[];
+  meetingWeekday: string;
+  meetingRelativeWeekday: string;
 }
 
 interface MecanicoHorasAsignadas {
@@ -1582,7 +1584,11 @@ const loadData = async ({ forceStore = false, background = false } = {}) => {
         role: sup.rol,
         rating: rating_global,
         evalCount: myInsps.length,
-        inspecciones: myInsps
+        inspecciones: myInsps,
+        meetingWeekday: getMeetingAssignedWeekday(sup.correo || sup.email || ''),
+        meetingRelativeWeekday: getRelativeMeetingWeekdayLabel(
+          getMeetingAssignedWeekday(sup.correo || sup.email || '')
+        ),
       };
     });
 
@@ -1680,7 +1686,15 @@ onUnmounted(() => {
             <!-- Modo Administrador/Evaluador: Vista Plana para 1 registro en Hoy/Ayer O para Modo Normal -->
             <template v-if="isRegularSup || ((timeFilter === 'Hoy' || timeFilter === 'Ayer') && supervisor.inspecciones.length === 1)">
               <div class="px-4 py-2 border border-gray-100 bg-white rounded-xl shadow-sm mb-2">
-                <h3 v-if="!isRegularSup" class="text-sm font-bold text-gray-800 mb-2 mt-2">{{ supervisor.name }}</h3>
+                <div v-if="!isRegularSup" class="mb-2 mt-2 flex items-center justify-between gap-3">
+                  <h3 class="text-sm font-bold text-gray-800">{{ supervisor.name }}</h3>
+                  <span
+                    class="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800"
+                    :title="supervisor.meetingWeekday"
+                  >
+                    Reunion {{ supervisor.meetingRelativeWeekday }}
+                  </span>
+                </div>
                 <div class="flex flex-col gap-4 mb-2">
                   <div v-for="group in supervisor.groupedInsps" :key="group.label">
                     <h4 v-if="group.label !== 'Registros'" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-2 mb-2">{{ group.label }}</h4>
@@ -1738,8 +1752,16 @@ onUnmounted(() => {
             <template v-else>
               <BaseToggle :title="supervisor.name" :extra="`${supervisor.inspecciones.length} inspecciones`">
                 <template #title-extra>
-                  <div v-if="supervisor.inspecciones.length > 0" class="text-sm font-bold flex items-center gap-1 ml-2" :class="supervisor.filteredAvg >= 4.5 ? 'text-success' : (supervisor.filteredAvg >= 3 ? 'text-main' : 'text-warning')">
-                      {{ supervisor.filteredAvg }} <Star class="w-3 h-3 inline pb-0.5" :class="supervisor.filteredAvg >= 4.5 ? 'fill-success' : ''"/>
+                  <div class="flex items-center gap-2 ml-2">
+                    <span
+                      class="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800"
+                      :title="supervisor.meetingWeekday"
+                    >
+                      Reunion {{ supervisor.meetingRelativeWeekday }}
+                    </span>
+                    <div v-if="supervisor.inspecciones.length > 0" class="text-sm font-bold flex items-center gap-1" :class="supervisor.filteredAvg >= 4.5 ? 'text-success' : (supervisor.filteredAvg >= 3 ? 'text-main' : 'text-warning')">
+                        {{ supervisor.filteredAvg }} <Star class="w-3 h-3 inline pb-0.5" :class="supervisor.filteredAvg >= 4.5 ? 'fill-success' : ''"/>
+                    </div>
                   </div>
                 </template>
                 <div class="flex flex-col gap-4 mt-4">
