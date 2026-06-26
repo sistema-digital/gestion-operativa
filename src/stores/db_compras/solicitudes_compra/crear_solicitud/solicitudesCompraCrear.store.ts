@@ -20,6 +20,7 @@ import type {
   ProductoSolicitudItem,
   ProductoTemporalDraft,
   ProductoSolicitudTemporalItem,
+  ServicioSolicitudDraft,
   ServicioSolicitudItem,
   SolicitudCompraCreateStep,
   SolicitudCompraCrearPayload,
@@ -158,6 +159,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     setTipoSolicitud(value: SolicitudCompraTipoSolicitud | null): void {
       const previousValue = this.tipoSolicitud;
       this.tipoSolicitud = value;
+      const isSwitchingServicioMode = (previousValue === 'servicio') !== (value === 'servicio');
 
       if (value === 'servicio' && previousValue !== 'servicio') {
         this.productos = [];
@@ -169,6 +171,12 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       if (value !== 'servicio' && previousValue === 'servicio') {
         this.servicios = [];
         delete this.validationErrors.servicios;
+      }
+
+      if (isSwitchingServicioMode) {
+        this.equipos = [];
+        delete this.validationErrors.equipos;
+        useEquiposStore().reset();
       }
 
       delete this.validationErrors.tipoSolicitud;
@@ -328,7 +336,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     },
 
     agregarServicio(
-      item: Omit<ServicioSolicitudItem, 'localId'>
+      item: ServicioSolicitudDraft
     ): void {
       this.servicios = [
         ...this.servicios,
@@ -337,6 +345,24 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
           ...item,
         },
       ];
+      delete this.validationErrors.servicios;
+    },
+
+    actualizarServicio(localId: string, item: ServicioSolicitudDraft): void {
+      this.servicios = this.servicios.map((service) => {
+        if (service.localId !== localId) {
+          return service;
+        }
+
+        return {
+          ...service,
+          cantidad: item.cantidad,
+          descripcion: item.descripcion,
+          unidadCodigo: item.unidadCodigo,
+          unidadLabel: item.unidadLabel,
+        };
+      });
+
       delete this.validationErrors.servicios;
     },
 
@@ -473,10 +499,10 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
           motivoUrgencia: this.motivoUrgencia,
         });
 
-      return {
-        p_tipo_codigo: parsed.tipoSolicitud,
-        p_fecha_entrega: parsed.fechaEntrega,
-        p_observacion: parsed.observacion.trim(),
+        return {
+          p_tipo_codigo: parsed.tipoSolicitud,
+          p_fecha_entrega: parsed.fechaEntrega,
+          p_observacion: parsed.observacion.trim(),
         p_equipos: parsed.equipos.map((item) => item.codEquipo),
         p_productos: parsed.tipoSolicitud === 'servicio'
           ? []
@@ -490,7 +516,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         p_servicios: parsed.tipoSolicitud === 'servicio'
           ? parsed.servicios.map((item) => ({
             descripcion: item.descripcion.trim(),
-            cantidad: 1,
+            cantidad: item.cantidad,
             unidad_codigo: item.unidadCodigo.trim(),
           }))
           : [],

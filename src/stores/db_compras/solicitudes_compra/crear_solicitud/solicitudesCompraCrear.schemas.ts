@@ -58,41 +58,65 @@ export const productoSolicitudSchema = z.union([
   productoTemporalSchema,
 ]);
 
+const equiposArraySchema = z.array(equipoSchema)
+  .superRefine((items, ctx) => {
+    const seen = new Set<string>();
+
+    items.forEach((item, index) => {
+      if (seen.has(item.codEquipo)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'codEquipo'],
+          message: 'No se permiten equipos duplicados.',
+        });
+        return;
+      }
+
+      seen.add(item.codEquipo);
+    });
+  });
+
 export const servicioSolicitudSchema = z.object({
   localId: z.string().min(1),
-  descripcion: z.string().trim().min(1, 'La descripción del servicio es obligatoria.'),
+  cantidad: z.number()
+    .finite('La cantidad del servicio debe ser un numero valido.')
+    .refine((value) => value >= 0, 'La cantidad del servicio no puede ser negativa.')
+    .transform((value) => (value === 0 ? 1 : value)),
+  descripcion: z.string().trim().min(1, 'La descripcion del servicio es obligatoria.'),
   unidadCodigo: z.string().trim().min(1, 'La unidad del servicio es obligatoria.'),
   unidadLabel: z.string().min(1),
-  notas: z.string(),
 });
 
 export const stepDatosBaseSchema = z.object({
   tipoSolicitud: tipoSolicitudSchema,
   fechaEntrega: fechaEntregaSchema,
-  equipos: z.array(equipoSchema)
-    .min(1, 'Debe seleccionar al menos un equipo.')
-    .superRefine((items, ctx) => {
-      const seen = new Set<string>();
+  equipos: equiposArraySchema,
+}).superRefine((value, ctx) => {
+  if (value.equipos.length > 0) {
+    return;
+  }
 
-      items.forEach((item, index) => {
-        if (seen.has(item.codEquipo)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [index, 'codEquipo'],
-            message: 'No se permiten equipos duplicados.',
-          });
-          return;
-        }
-
-        seen.add(item.codEquipo);
-      });
-    }),
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ['equipos'],
+    message: value.tipoSolicitud === 'servicio'
+      ? 'Debe seleccionar al menos un contexto de servicio.'
+      : 'Debe seleccionar al menos un equipo.',
+  });
 });
 
 export const stepProductosSchema = z.object({
   tipoSolicitud: tipoSolicitudSchema,
   productos: z.array(productoSolicitudSchema),
   servicios: z.array(servicioSolicitudSchema),
+}).superRefine((value, ctx) => {
+  if (value.tipoSolicitud === 'servicio' && value.servicios.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['servicios'],
+      message: 'Debe agregar al menos un servicio para continuar.',
+    });
+  }
 });
 
 export const stepObservacionesSchema = z.object({
@@ -101,9 +125,34 @@ export const stepObservacionesSchema = z.object({
   motivoUrgencia: z.string(),
 });
 
-const baseCreateSchema = stepDatosBaseSchema
-  .merge(stepProductosSchema)
-  .merge(stepObservacionesSchema);
+const baseCreateSchema = z.object({
+  tipoSolicitud: tipoSolicitudSchema,
+  fechaEntrega: fechaEntregaSchema,
+  equipos: equiposArraySchema,
+  productos: z.array(productoSolicitudSchema),
+  servicios: z.array(servicioSolicitudSchema),
+  observacion: z.string().trim().min(1, 'La observación es obligatoria.'),
+  solicitarUrgente: z.boolean(),
+  motivoUrgencia: z.string(),
+}).superRefine((value, ctx) => {
+  if (value.equipos.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['equipos'],
+      message: value.tipoSolicitud === 'servicio'
+        ? 'Debe seleccionar al menos un contexto de servicio.'
+        : 'Debe seleccionar al menos un equipo.',
+    });
+  }
+
+  if (value.tipoSolicitud === 'servicio' && value.servicios.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['servicios'],
+      message: 'Debe agregar al menos un servicio para continuar.',
+    });
+  }
+});
 
 export const createSolicitudDraftSchema = baseCreateSchema.transform((value) => ({
   ...value,
@@ -117,7 +166,7 @@ export const createSolicitudSendSchema = baseCreateSchema.superRefine((value, ct
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['servicios'],
-        message: 'Debe agregar al menos un servicio para enviar la solicitud.',
+        message: 'Debe agregar al menos un servicio para continuar.',
       });
     }
   } else if (value.productos.length === 0) {

@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
+import { useCatalogoServicioContextoOptions } from '@/composables/compras/useCatalogoServicioContextoOptions';
+import type { CatalogoServicioContextoOption } from '@/stores/db_compras/catalogo_servicio_contexto/catalogoServicioContexto.types';
+
+import CrearSolicitudContextosServicioSelector from './CrearSolicitudContextosServicioSelector.vue';
 import CrearSolicitudEquiposSelector from './CrearSolicitudEquiposSelector.vue';
 import CrearSolicitudFechaField from './CrearSolicitudFechaField.vue';
 import CrearSolicitudTipoField from './CrearSolicitudTipoField.vue';
@@ -9,7 +15,7 @@ import type {
   SolicitudCompraTipoSolicitud,
 } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
-defineProps<{
+const props = defineProps<{
   tipoSolicitud: SolicitudCompraTipoSolicitud | null;
   fechaEntrega: string | null;
   equipos: EquipoSeleccionado[];
@@ -25,6 +31,7 @@ const emit = defineEmits<{
   (e: 'search:equipos', value: string): void;
   (e: 'add:equipo', item: EquipoOption): void;
   (e: 'remove:equipo', codEquipo: string): void;
+  (e: 'add:contexto-servicio', item: CatalogoServicioContextoOption): void;
 }>();
 
 const emitTipoSolicitud = (
@@ -36,6 +43,15 @@ const emitTipoSolicitud = (
 const emitFechaEntrega = (value: string | null | undefined): void => {
   emit('update:fechaEntrega', value ?? null);
 };
+
+const isServicio = computed(() => props.tipoSolicitud === 'servicio');
+
+const {
+  options: serviceContextOptions,
+  loading: serviceContextLoading,
+  error: serviceContextError,
+  isAuthorized: isServiceContextAuthorized,
+} = useCatalogoServicioContextoOptions(isServicio);
 </script>
 
 <template>
@@ -55,7 +71,26 @@ const emitFechaEntrega = (value: string | null | undefined): void => {
         />
       </div>
 
+      <CrearSolicitudContextosServicioSelector
+        v-if="isServicio"
+        class="min-h-0 flex-1"
+        :selected-items="equipos"
+        :context-options="serviceContextOptions"
+        :equipment-search-results="searchResults"
+        :is-loading="serviceContextLoading"
+        :is-searching-equipment="isSearching"
+        :load-error="serviceContextError"
+        :search-error="searchError"
+        :field-error="validationErrors.equipos"
+        :is-authorized="isServiceContextAuthorized"
+        @search:equipos="emit('search:equipos', $event)"
+        @add:equipo="emit('add:equipo', $event)"
+        @add="emit('add:contexto-servicio', $event)"
+        @remove="emit('remove:equipo', $event)"
+      />
+
       <CrearSolicitudEquiposSelector
+        v-else
         class="min-h-0 flex-1"
         :selected-items="equipos"
         :search-results="searchResults"

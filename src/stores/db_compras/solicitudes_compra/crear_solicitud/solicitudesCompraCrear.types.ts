@@ -67,12 +67,19 @@ export type ProductoSolicitudItem =
   | ProductoSolicitudExistenteItem
   | ProductoSolicitudTemporalItem;
 
-export interface ServicioSolicitudItem {
-  localId: string;
+export interface ServicioSolicitudDraft {
+  cantidad: number;
   descripcion: string;
   unidadCodigo: string;
   unidadLabel: string;
-  notas: string;
+}
+
+export interface ServicioSolicitudItem {
+  localId: string;
+  cantidad: number;
+  descripcion: string;
+  unidadCodigo: string;
+  unidadLabel: string;
 }
 
 export interface CrearSolicitudAdjuntoLocalItem {

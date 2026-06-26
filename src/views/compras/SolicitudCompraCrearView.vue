@@ -4,12 +4,17 @@ import { shallowRef } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useCrearSolicitudCompraWizard } from '@/composables/compras/useCrearSolicitudCompraWizard';
+import type { CatalogoServicioContextoOption } from '@/stores/db_compras/catalogo_servicio_contexto/catalogoServicioContexto.types';
 import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
 import type {
   ProductoSolicitudTemporalItem,
   ProductoTemporalDraft,
+  ServicioSolicitudDraft,
+  ServicioSolicitudItem,
 } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
+import CrearSolicitudCompraServicioBottomSheet from '@/components/compras/crear/CrearSolicitudCompraServicioBottomSheet.vue';
+import CrearSolicitudCompraServicioDrawer from '@/components/compras/crear/CrearSolicitudCompraServicioDrawer.vue';
 import CrearSolicitudCompraFooterActions from '@/components/compras/crear/CrearSolicitudCompraFooterActions.vue';
 import CrearSolicitudCompraHeader from '@/components/compras/crear/CrearSolicitudCompraHeader.vue';
 import CrearSolicitudCompraProductoTemporalOverlay from '@/components/compras/crear/CrearSolicitudCompraProductoTemporalOverlay.vue';
@@ -17,6 +22,7 @@ import CrearSolicitudCompraStepDatosBase from '@/components/compras/crear/CrearS
 import CrearSolicitudCompraStepObservaciones from '@/components/compras/crear/CrearSolicitudCompraStepObservaciones.vue';
 import CrearSolicitudCompraStepProductos from '@/components/compras/crear/CrearSolicitudCompraStepProductos.vue';
 import CrearSolicitudCompraStepResumen from '@/components/compras/crear/CrearSolicitudCompraStepResumen.vue';
+import CrearSolicitudCompraStepServicios from '@/components/compras/crear/CrearSolicitudCompraStepServicios.vue';
 import CrearSolicitudCompraStepper from '@/components/compras/crear/CrearSolicitudCompraStepper.vue';
 
 const router = useRouter();
@@ -61,6 +67,7 @@ const {
   agregarProductoTemporal,
   actualizarProductoTemporal,
   agregarServicio,
+  actualizarServicio,
   removerProducto,
   removerServicio,
 } = useCrearSolicitudCompraWizard();
@@ -71,10 +78,23 @@ const createEmptyTemporalDraft = (descripcion = ''): ProductoTemporalDraft => ({
   unidadLabel: '',
 });
 
+const createEmptyServicioDraft = (): ServicioSolicitudDraft => ({
+  cantidad: 1,
+  descripcion: '',
+  unidadCodigo: '',
+  unidadLabel: '',
+});
+
 const isProductoTemporalOverlayOpen = shallowRef(false);
 const productoTemporalOverlayMode = shallowRef<'create' | 'edit'>('create');
 const editingTemporalLocalId = shallowRef<string | null>(null);
 const productoTemporalDraft = ref<ProductoTemporalDraft>(createEmptyTemporalDraft());
+const isServicioOverlayOpen = shallowRef(false);
+const servicioOverlayMode = shallowRef<'create' | 'edit'>('create');
+const editingServicioLocalId = shallowRef<string | null>(null);
+const servicioDraft = ref<ServicioSolicitudDraft>(createEmptyServicioDraft());
+const viewportWidth = shallowRef(typeof window === 'undefined' ? 1280 : window.innerWidth);
+const isDesktop = computed(() => viewportWidth.value >= 1024);
 
 const shouldDisableNext = computed(() =>
   currentStep.value === 1 ? !isCurrentStepValid.value : false
@@ -114,6 +134,13 @@ const closeProductoTemporalOverlay = (): void => {
   productoTemporalDraft.value = createEmptyTemporalDraft();
 };
 
+const closeServicioOverlay = (): void => {
+  isServicioOverlayOpen.value = false;
+  servicioOverlayMode.value = 'create';
+  editingServicioLocalId.value = null;
+  servicioDraft.value = createEmptyServicioDraft();
+};
+
 const handleManualRequest = (initialDescripcion: string): void => {
   productoTemporalOverlayMode.value = 'create';
   editingTemporalLocalId.value = null;
@@ -142,13 +169,59 @@ const handleSubmitProductoTemporal = (draft: ProductoTemporalDraft): void => {
   closeProductoTemporalOverlay();
 };
 
+const handleAddServicio = (): void => {
+  servicioOverlayMode.value = 'create';
+  editingServicioLocalId.value = null;
+  servicioDraft.value = createEmptyServicioDraft();
+  isServicioOverlayOpen.value = true;
+};
+
+const handleEditServicio = (item: ServicioSolicitudItem): void => {
+  servicioOverlayMode.value = 'edit';
+  editingServicioLocalId.value = item.localId;
+  servicioDraft.value = {
+    cantidad: item.cantidad,
+    descripcion: item.descripcion,
+    unidadCodigo: item.unidadCodigo,
+    unidadLabel: item.unidadLabel,
+  };
+  isServicioOverlayOpen.value = true;
+};
+
+const handleSubmitServicio = (draft: ServicioSolicitudDraft): void => {
+  if (servicioOverlayMode.value === 'edit' && editingServicioLocalId.value) {
+    actualizarServicio(editingServicioLocalId.value, draft);
+  } else {
+    agregarServicio(draft);
+  }
+
+  closeServicioOverlay();
+};
+
+const handleAddContextoServicio = (item: CatalogoServicioContextoOption): void => {
+  agregarEquipo({
+    id: item.id,
+    codEquipo: item.codigo,
+    label: item.nombre,
+    modelo: null,
+    marca: null,
+    tipo: null,
+  });
+};
+
+const syncViewportWidth = (): void => {
+  viewportWidth.value = window.innerWidth;
+};
+
 onMounted(() => {
   createStore.reset();
   void createStore.initialize();
+  window.addEventListener('resize', syncViewportWidth);
 });
 
 onBeforeUnmount(() => {
   createStore.reset();
+  window.removeEventListener('resize', syncViewportWidth);
 });
 </script>
 
@@ -190,11 +263,12 @@ onBeforeUnmount(() => {
           @update:fecha-entrega="setFechaEntrega"
           @search:equipos="buscarEquipos"
           @add:equipo="agregarEquipo"
+          @add:contexto-servicio="handleAddContextoServicio"
           @remove:equipo="removerEquipo"
         />
 
         <CrearSolicitudCompraStepProductos
-          v-else-if="currentStep === 2"
+          v-else-if="currentStep === 2 && tipoSolicitud !== 'servicio'"
           :tipo-solicitud="tipoSolicitud"
           :search-query="productSearchQuery"
           :search-results="productSearchResults"
@@ -211,6 +285,15 @@ onBeforeUnmount(() => {
           @remove-servicio="removerServicio"
           @manual-request="handleManualRequest"
           @edit-producto-temporal="handleEditProductoTemporal"
+        />
+
+        <CrearSolicitudCompraStepServicios
+          v-else-if="currentStep === 2"
+          :servicios="servicios"
+          :servicios-error="validationErrors.servicios"
+          @add="handleAddServicio"
+          @edit="handleEditServicio"
+          @remove="removerServicio"
         />
 
         <CrearSolicitudCompraStepObservaciones
@@ -258,6 +341,22 @@ onBeforeUnmount(() => {
       :initial-draft="productoTemporalDraft"
       @cancel="closeProductoTemporalOverlay"
       @submit="handleSubmitProductoTemporal"
+    />
+
+    <CrearSolicitudCompraServicioDrawer
+      v-if="isServicioOverlayOpen && isDesktop"
+      :mode="servicioOverlayMode"
+      :initial-draft="servicioDraft"
+      @cancel="closeServicioOverlay"
+      @submit="handleSubmitServicio"
+    />
+
+    <CrearSolicitudCompraServicioBottomSheet
+      v-else-if="isServicioOverlayOpen"
+      :mode="servicioOverlayMode"
+      :initial-draft="servicioDraft"
+      @cancel="closeServicioOverlay"
+      @submit="handleSubmitServicio"
     />
   </section>
 </template>

@@ -5,6 +5,7 @@ import { useEquiposStore } from '@/stores/dbequipos/equipos/equipos.store';
 import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
 import type {
   ProductoTemporalDraft,
+  ServicioSolicitudDraft,
   SolicitudCompraSubmitMode,
 } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
@@ -87,7 +88,9 @@ export const useCrearSolicitudCompraWizard = () => {
     actualizarProductoTemporal: (localId: string, item: ProductoTemporalDraft) =>
       store.actualizarProductoTemporal(localId, item),
     removerProducto: store.removerProducto,
-    agregarServicio: store.agregarServicio,
+    agregarServicio: (item: ServicioSolicitudDraft) => store.agregarServicio(item),
+    actualizarServicio: (localId: string, item: ServicioSolicitudDraft) =>
+      store.actualizarServicio(localId, item),
     removerServicio: store.removerServicio,
   };
 };

@@ -37,9 +37,15 @@ defineProps<{
         <dd class="mt-2 text-base font-medium text-stone-900">{{ fechaEntrega ?? 'Sin definir' }}</dd>
       </div>
       <div class="rounded-lg bg-stone-50 px-3 py-3 lg:col-span-2">
-        <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Equipos</dt>
+        <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">
+          {{ tipoSolicitud === 'servicio' ? 'Contextos asociados' : 'Equipos' }}
+        </dt>
         <dd class="mt-2 text-base font-medium text-stone-900">
-          {{ equipos.length > 0 ? equipos.map((item) => item.label).join(', ') : 'Sin equipos' }}
+          {{
+            equipos.length > 0
+              ? equipos.map((item) => item.label).join(', ')
+              : (tipoSolicitud === 'servicio' ? 'Sin contextos asociados' : 'Sin equipos')
+          }}
         </dd>
       </div>
       <div class="rounded-lg bg-stone-50 px-3 py-3 lg:col-span-2">
@@ -49,7 +55,11 @@ defineProps<{
         <dd class="mt-2 text-base font-medium text-stone-900">
           {{
             tipoSolicitud === 'servicio'
-              ? (servicios.length > 0 ? servicios.map((item) => item.descripcion).join(', ') : 'Sin servicios')
+              ? (
+                servicios.length > 0
+                  ? servicios.map((item) => `${item.cantidad} · ${item.descripcion} · ${item.unidadLabel}`).join(', ')
+                  : 'Sin servicios'
+              )
               : (productos.length > 0 ? productos.map((item) => item.tipo === 'existente' ? item.codProducto : item.descripcion).join(', ') : 'Sin productos')
           }}
         </dd>

@@ -112,19 +112,19 @@ describe('solicitudesCompraCrear.store', () => {
     store.equipos = [
       {
         id: 1,
-        codEquipo: 'EQ-001',
-        label: 'EQ-001 · Tractor John Deere 6155M',
-        modelo: '6155M',
-        marca: 'John Deere',
-        tipo: 'Tractor',
+        codEquipo: 'taller',
+        label: 'Instalaciones de taller',
+        modelo: null,
+        marca: null,
+        tipo: null,
       },
     ];
     store.setObservacion('Servicio requerido para torno externo.');
     store.agregarServicio({
+      cantidad: 3,
       descripcion: 'Servicio de torno',
-      unidadCodigo: 'servicio',
-      unidadLabel: 'Servicio',
-      notas: '',
+      unidadCodigo: 'un',
+      unidadLabel: 'Un',
     });
 
     const payload = store.buildPayload('send');
@@ -133,9 +133,59 @@ describe('solicitudesCompraCrear.store', () => {
     expect(payload.p_servicios).toEqual([
       {
         descripcion: 'Servicio de torno',
-        cantidad: 1,
-        unidad_codigo: 'servicio',
+        cantidad: 3,
+        unidad_codigo: 'un',
       },
+    ]);
+  });
+
+  it('exige al menos un servicio para avanzar en el paso 2', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.setTipoSolicitud('servicio');
+    store.setFechaEntrega('2026-06-30');
+    store.equipos = [
+      {
+        id: 1,
+        codEquipo: 'taller',
+        label: 'Instalaciones de taller',
+        modelo: null,
+        marca: null,
+        tipo: null,
+      },
+    ];
+    store.currentStep = 2;
+
+    expect(store.validateStep(2)).toBe(false);
+    expect(store.validationErrors.servicios).toBe('Debe agregar al menos un servicio para continuar.');
+  });
+
+  it('actualiza servicios existentes', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.agregarServicio({
+      cantidad: 1,
+      descripcion: 'Servicio inicial',
+      unidadCodigo: 'un',
+      unidadLabel: 'Un',
+    });
+
+    const servicio = store.servicios[0];
+
+    store.actualizarServicio(servicio.localId, {
+      cantidad: 4,
+      descripcion: 'Servicio editado',
+      unidadCodigo: 'kg',
+      unidadLabel: 'Kg',
+    });
+
+    expect(store.servicios).toEqual([
+      expect.objectContaining({
+        cantidad: 4,
+        descripcion: 'Servicio editado',
+        unidadCodigo: 'kg',
+        unidadLabel: 'Kg',
+      }),
     ]);
   });
 
