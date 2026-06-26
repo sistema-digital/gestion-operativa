@@ -215,7 +215,6 @@ const onSelectRow = (
     <template v-if="!isServicio">
       <div
         ref="searchRoot"
-        class="mt-4"
       >
         
 

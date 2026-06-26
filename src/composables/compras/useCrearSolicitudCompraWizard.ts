@@ -81,6 +81,7 @@ export const useCrearSolicitudCompraWizard = () => {
     setProductSearchQuery: store.setProductSearchQuery,
     buscarEquipos: store.buscarEquipos,
     agregarEquipo: store.agregarEquipo,
+    agregarContextoServicio: store.agregarContextoServicio,
     removerEquipo: store.removerEquipo,
     buscarProductos: store.buscarProductos,
     agregarProductoExistente: store.agregarProductoExistente,

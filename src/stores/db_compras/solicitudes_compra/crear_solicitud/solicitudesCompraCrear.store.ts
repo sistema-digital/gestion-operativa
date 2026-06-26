@@ -13,7 +13,12 @@ import {
   stepObservacionesSchema,
   stepProductosSchema,
 } from './solicitudesCompraCrear.schemas';
+import {
+  OBSERVACION_MAX_LENGTH,
+  OBSERVACION_PREFILL_PREFIX,
+} from './solicitudesCompraCrear.types';
 import type {
+  EquipoSeleccionadoSource,
   CrearSolicitudFieldErrors,
   EquipoSeleccionado,
   ProductoCatalogoOption,
@@ -42,7 +47,9 @@ const createInitialState = (): SolicitudCompraCrearState => ({
   equipos: [],
   productos: [],
   servicios: [],
-  observacion: '',
+  observacion: OBSERVACION_PREFILL_PREFIX,
+  ultimoPrefillObservacion: OBSERVACION_PREFILL_PREFIX,
+  observacionEditadaManual: false,
   solicitarUrgente: false,
   motivoUrgencia: '',
   adjuntosLocales: [],
@@ -76,8 +83,27 @@ const formatZodErrors = (issues: Array<{ path: PropertyKey[]; message: string }>
   return nextErrors;
 };
 
-const toEquipoSeleccionado = (item: EquipoOption): EquipoSeleccionado => ({
+const truncateObservacion = (value: string): string => value.slice(0, OBSERVACION_MAX_LENGTH);
+
+const buildObservacionPrefill = (equipos: EquipoSeleccionado[]): string => {
+  const equipmentCodes = equipos
+    .filter((item) => item.source === 'equipo')
+    .map((item) => item.codEquipo.trim())
+    .filter(Boolean);
+
+  const generated = equipmentCodes.length > 0
+    ? `${OBSERVACION_PREFILL_PREFIX}${equipmentCodes.join(', ')}`
+    : OBSERVACION_PREFILL_PREFIX;
+
+  return truncateObservacion(generated);
+};
+
+const toEquipoSeleccionado = (
+  item: EquipoOption,
+  source: EquipoSeleccionadoSource = 'equipo'
+): EquipoSeleccionado => ({
   id: item.id,
+  source,
   codEquipo: item.codEquipo,
   label: item.label,
   modelo: item.modelo,
@@ -118,9 +144,29 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
 
       return true;
     },
+
+    observacionAutogenerada(state): boolean {
+      return !state.observacionEditadaManual
+        || state.observacion === state.ultimoPrefillObservacion;
+    },
   },
 
   actions: {
+    syncObservacionPrefill(): void {
+      const generated = buildObservacionPrefill(this.equipos);
+      const shouldOverwrite = !this.observacionEditadaManual
+        || this.observacion === this.ultimoPrefillObservacion
+        || this.observacion.trim().length === 0;
+
+      this.ultimoPrefillObservacion = generated;
+
+      if (shouldOverwrite) {
+        this.observacion = generated;
+        this.observacionEditadaManual = false;
+        delete this.validationErrors.observacion;
+      }
+    },
+
     async initialize(): Promise<void> {
       const userStore = useUserStore();
 
@@ -179,6 +225,12 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         useEquiposStore().reset();
       }
 
+      if (value !== 'servicio') {
+        this.equipos = this.equipos.filter((item) => item.source === 'equipo');
+      }
+
+      this.syncObservacionPrefill();
+
       delete this.validationErrors.tipoSolicitud;
     },
 
@@ -188,7 +240,8 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     },
 
     setObservacion(value: string): void {
-      this.observacion = value;
+      this.observacion = truncateObservacion(value);
+      this.observacionEditadaManual = this.observacion !== this.ultimoPrefillObservacion;
       delete this.validationErrors.observacion;
     },
 
@@ -235,6 +288,32 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       }
 
       this.equipos = [...this.equipos, toEquipoSeleccionado(item)];
+      this.syncObservacionPrefill();
+      delete this.validationErrors.equipos;
+    },
+
+    agregarContextoServicio(item: {
+      id: number;
+      codigo: string;
+      nombre: string;
+    }): void {
+      if (this.equipos.some((equipo) => equipo.codEquipo === item.codigo)) {
+        return;
+      }
+
+      this.equipos = [
+        ...this.equipos,
+        {
+          id: item.id,
+          source: 'contexto',
+          codEquipo: item.codigo,
+          label: item.nombre,
+          modelo: null,
+          marca: null,
+          tipo: null,
+        },
+      ];
+      this.syncObservacionPrefill();
       delete this.validationErrors.equipos;
     },
 
@@ -242,6 +321,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       const equiposStore = useEquiposStore();
       equiposStore.removerEquipo(codEquipo);
       this.equipos = this.equipos.filter((item) => item.codEquipo !== codEquipo);
+      this.syncObservacionPrefill();
     },
 
     async buscarProductos(query: string): Promise<void> {

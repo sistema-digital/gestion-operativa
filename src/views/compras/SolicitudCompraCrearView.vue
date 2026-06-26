@@ -62,6 +62,7 @@ const {
   buscarEquipos,
   buscarProductos,
   agregarEquipo,
+  agregarContextoServicio,
   removerEquipo,
   agregarProductoExistente,
   agregarProductoTemporal,
@@ -199,14 +200,7 @@ const handleSubmitServicio = (draft: ServicioSolicitudDraft): void => {
 };
 
 const handleAddContextoServicio = (item: CatalogoServicioContextoOption): void => {
-  agregarEquipo({
-    id: item.id,
-    codEquipo: item.codigo,
-    label: item.nombre,
-    modelo: null,
-    marca: null,
-    tipo: null,
-  });
+  agregarContextoServicio(item);
 };
 
 const syncViewportWidth = (): void => {
@@ -299,6 +293,7 @@ onBeforeUnmount(() => {
         <CrearSolicitudCompraStepObservaciones
           v-else-if="currentStep === 3"
           :observacion="observacion"
+          :equipos="equipos"
           :solicitar-urgente="solicitarUrgente"
           :motivo-urgencia="motivoUrgencia"
           :observacion-error="validationErrors.observacion"

@@ -28,6 +28,7 @@ const fechaEntregaSchema = z.string()
 
 const equipoSchema = z.object({
   id: z.number(),
+  source: z.enum(['equipo', 'contexto']),
   codEquipo: z.string().min(1),
   label: z.string().min(1),
   modelo: z.string().nullable(),
@@ -120,7 +121,10 @@ export const stepProductosSchema = z.object({
 });
 
 export const stepObservacionesSchema = z.object({
-  observacion: z.string().trim().min(1, 'La observación es obligatoria.'),
+  observacion: z.string()
+    .trim()
+    .min(1, 'La observación es obligatoria.')
+    .max(250, 'La observación no puede superar los 250 caracteres.'),
   solicitarUrgente: z.boolean(),
   motivoUrgencia: z.string(),
 });
@@ -131,7 +135,10 @@ const baseCreateSchema = z.object({
   equipos: equiposArraySchema,
   productos: z.array(productoSolicitudSchema),
   servicios: z.array(servicioSolicitudSchema),
-  observacion: z.string().trim().min(1, 'La observación es obligatoria.'),
+  observacion: z.string()
+    .trim()
+    .min(1, 'La observación es obligatoria.')
+    .max(250, 'La observación no puede superar los 250 caracteres.'),
   solicitarUrgente: z.boolean(),
   motivoUrgencia: z.string(),
 }).superRefine((value, ctx) => {

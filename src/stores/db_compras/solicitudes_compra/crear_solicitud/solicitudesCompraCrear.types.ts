@@ -4,6 +4,11 @@ export type SolicitudCompraSubmitMode = 'draft' | 'send' | null;
 
 export type SolicitudCompraTipoSolicitud = 'zafra' | 'cultivo' | 'otros' | 'servicio';
 
+export type EquipoSeleccionadoSource = 'equipo' | 'contexto';
+
+export const OBSERVACION_PREFILL_PREFIX = 'Para uso en: ';
+export const OBSERVACION_MAX_LENGTH = 250;
+
 export interface CrearSolicitudHeaderContext {
   solicitanteNombre: string;
   solicitanteEmail: string;
@@ -13,6 +18,7 @@ export interface CrearSolicitudHeaderContext {
 
 export interface EquipoSeleccionado {
   id: number;
+  source: EquipoSeleccionadoSource;
   codEquipo: string;
   label: string;
   modelo: string | null;
@@ -168,6 +174,8 @@ export interface SolicitudCompraCrearState extends CrearSolicitudHeaderContext {
   productos: ProductoSolicitudItem[];
   servicios: ServicioSolicitudItem[];
   observacion: string;
+  ultimoPrefillObservacion: string;
+  observacionEditadaManual: boolean;
   solicitarUrgente: boolean;
   motivoUrgencia: string;
   adjuntosLocales: CrearSolicitudAdjuntoLocalItem[];

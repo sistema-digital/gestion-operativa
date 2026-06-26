@@ -34,6 +34,7 @@ vi.mock('./solicitudesCompraCrear.service', () => ({
 
 import { solicitudesCompraCrearService } from './solicitudesCompraCrear.service';
 import { useSolicitudesCompraCrearStore } from './solicitudesCompraCrear.store';
+import { OBSERVACION_MAX_LENGTH, OBSERVACION_PREFILL_PREFIX } from './solicitudesCompraCrear.types';
 
 const mockedService = vi.mocked(solicitudesCompraCrearService);
 
@@ -61,6 +62,7 @@ describe('solicitudesCompraCrear.store', () => {
     store.equipos = [
       {
         id: 1,
+        source: 'equipo',
         codEquipo: 'EQ-001',
         label: 'EQ-001 · Tractor John Deere 6155M',
         modelo: '6155M',
@@ -90,6 +92,7 @@ describe('solicitudesCompraCrear.store', () => {
     store.equipos = [
       {
         id: 1,
+        source: 'equipo',
         codEquipo: 'EQ-001',
         label: 'EQ-001 · Tractor John Deere 6155M',
         modelo: '6155M',
@@ -112,6 +115,7 @@ describe('solicitudesCompraCrear.store', () => {
     store.equipos = [
       {
         id: 1,
+        source: 'contexto',
         codEquipo: 'taller',
         label: 'Instalaciones de taller',
         modelo: null,
@@ -147,6 +151,7 @@ describe('solicitudesCompraCrear.store', () => {
     store.equipos = [
       {
         id: 1,
+        source: 'contexto',
         codEquipo: 'taller',
         label: 'Instalaciones de taller',
         modelo: null,
@@ -236,5 +241,84 @@ describe('solicitudesCompraCrear.store', () => {
         unidadLabel: 'Kilogramo',
       }),
     ]);
+  });
+
+  it('autocompleta observacion con el prefijo y codigos de equipos reales', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    expect(store.observacion).toBe(OBSERVACION_PREFILL_PREFIX);
+
+    store.agregarEquipo({
+      id: 1,
+      codEquipo: '422006',
+      label: '422006 · Tractor',
+      modelo: '6155M',
+      marca: 'John Deere',
+      tipo: 'Tractor',
+    });
+    store.agregarEquipo({
+      id: 2,
+      codEquipo: '422018',
+      label: '422018 · Cosechadora',
+      modelo: 'S670',
+      marca: 'John Deere',
+      tipo: 'Cosechadora',
+    });
+
+    expect(store.observacion).toBe('Para uso en: 422006, 422018');
+  });
+
+  it('no sobreescribe la observacion cuando el usuario la edito manualmente', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.agregarEquipo({
+      id: 1,
+      codEquipo: '422006',
+      label: '422006 · Tractor',
+      modelo: '6155M',
+      marca: 'John Deere',
+      tipo: 'Tractor',
+    });
+    store.setObservacion('Para uso en: 422006. Equipo detenido por fuga.');
+    store.agregarEquipo({
+      id: 2,
+      codEquipo: '422018',
+      label: '422018 · Cosechadora',
+      modelo: 'S670',
+      marca: 'John Deere',
+      tipo: 'Cosechadora',
+    });
+
+    expect(store.observacion).toBe('Para uso en: 422006. Equipo detenido por fuga.');
+  });
+
+  it('mantiene solo el prefijo cuando se agregan contextos de servicio sin equipos reales', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.agregarContextoServicio({
+      id: 1,
+      codigo: 'taller',
+      nombre: 'Instalaciones de taller',
+    });
+
+    expect(store.observacion).toBe(OBSERVACION_PREFILL_PREFIX);
+  });
+
+  it('trunca la observacion autogenerada al maximo permitido', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    Array.from({ length: 60 }, (_, index) => index + 1).forEach((index) => {
+      store.agregarEquipo({
+        id: index,
+        codEquipo: `EQ-${String(index).padStart(4, '0')}`,
+        label: `EQ-${String(index).padStart(4, '0')} · Equipo`,
+        modelo: null,
+        marca: null,
+        tipo: null,
+      });
+    });
+
+    expect(store.observacion.length).toBe(OBSERVACION_MAX_LENGTH);
+    expect(store.observacion.startsWith(OBSERVACION_PREFILL_PREFIX)).toBe(true);
   });
 });
