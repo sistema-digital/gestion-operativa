@@ -471,7 +471,7 @@ const onSelectRow = (
                   class="inline-flex h-9 items-center justify-center rounded-lg border border-main/25 px-3 text-xs font-semibold text-main transition hover:bg-main/5"
                   @click="onEditTemporal(item.item)"
                 >
-                  Editar
+                  <SquarePen  class="h-4 w-4" />
                 </button>
                 <button
                   type="button"

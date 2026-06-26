@@ -58,17 +58,17 @@ const emit = defineEmits<{
         <div class="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            class="inline-flex h-9 items-center justify-center rounded-lg border border-main/25 px-3 text-xs font-semibold text-main transition hover:bg-main/5"
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-main/25 text-main transition hover:bg-main/5"
             @click="emit('edit', item)"
           >
-            Editar
+            <SquarePen class="h-4 w-4" />
           </button>
           <button
             type="button"
-            class="inline-flex h-9 items-center justify-center rounded-lg border border-stone-200 px-3 text-xs font-semibold text-stone-600 transition hover:border-danger/40 hover:bg-danger-bg hover:text-danger"
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-200 text-stone-500 transition hover:border-danger/40 hover:bg-danger-bg hover:text-danger"
             @click="emit('remove', item)"
           >
-            Eliminar
+            <Trash2 class="h-4 w-4" />
           </button>
         </div>
       </div>
