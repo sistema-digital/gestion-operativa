@@ -523,44 +523,45 @@ watch(
                   :error="errors.descripcion_detallada"
                 />
 
-                <CatalogImageUpload
-                  :model-value="imageFiles.frente"
-                  :preview-url="imagePreviews.frente"
-                  label="Frente"
-                  required
-                  :error="errors.imagen_frente"
-                  @update:model-value="updateImage('frente', $event)"
-                  @error="(message) => handleImageError('frente', message)"
-                />
+                <div class="col-span-full grid grid-cols-2 gap-4">
+                  <CatalogImageUpload
+                    :model-value="imageFiles.frente"
+                    :preview-url="imagePreviews.frente"
+                    label="Frente"
+                    required
+                    :error="errors.imagen_frente"
+                    @update:model-value="updateImage('frente', $event)"
+                    @error="(message) => handleImageError('frente', message)"
+                  />
 
-                <CatalogImageUpload
-                  :model-value="imageFiles.lado"
-                  :preview-url="imagePreviews.lado"
-                  label="Lado"
-                  required
-                  :error="errors.imagen_lado"
-                  @update:model-value="updateImage('lado', $event)"
-                  @error="(message) => handleImageError('lado', message)"
-                />
+                  <CatalogImageUpload
+                    :model-value="imageFiles.lado"
+                    :preview-url="imagePreviews.lado"
+                    label="Lado"
+                    required
+                    :error="errors.imagen_lado"
+                    @update:model-value="updateImage('lado', $event)"
+                    @error="(message) => handleImageError('lado', message)"
+                  />
 
-                <CatalogImageUpload
-                  :model-value="imageFiles.puesta"
-                  :preview-url="imagePreviews.puesta"
-                  label="Puesta"
-                  required
-                  :error="errors.imagen_puesta"
-                  @update:model-value="updateImage('puesta', $event)"
-                  @error="(message) => handleImageError('puesta', message)"
-                />
+                  <CatalogImageUpload
+                    :model-value="imageFiles.puesta"
+                    :preview-url="imagePreviews.puesta"
+                    label="Puesta"
+                    :error="errors.imagen_puesta"
+                    @update:model-value="updateImage('puesta', $event)"
+                    @error="(message) => handleImageError('puesta', message)"
+                  />
 
-                <CatalogImageUpload
-                  :model-value="imageFiles.extra"
-                  :preview-url="imagePreviews.extra"
-                  label="Extra"
-                  :error="errors.imagen_extra"
-                  @update:model-value="updateImage('extra', $event)"
-                  @error="(message) => handleImageError('extra', message)"
-                />
+                  <CatalogImageUpload
+                    :model-value="imageFiles.extra"
+                    :preview-url="imagePreviews.extra"
+                    label="Extra"
+                    :error="errors.imagen_extra"
+                    @update:model-value="updateImage('extra', $event)"
+                    @error="(message) => handleImageError('extra', message)"
+                  />
+                </div>
 
                 <CatalogTextField
                   v-model="form.observacion"

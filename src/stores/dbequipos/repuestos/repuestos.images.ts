@@ -15,8 +15,7 @@ export const REPUESTO_IMAGE_SLOTS: RepuestoImageSlot[] = [
 
 export const REQUIRED_REPUESTO_IMAGE_SLOTS: RepuestoImageSlot[] = [
   'frente',
-  'lado',
-  'puesta'
+  'lado'
 ];
 
 export const createEmptyRepuestoImageFileMap = (): RepuestoImageFileMap => ({
@@ -36,27 +35,30 @@ export const createEmptyRepuestoImageUrlMap = (): RepuestoImageUrlMap => ({
 export const parseRepuestoImagenes = (
   repuesto: Pick<RepuestoCaptura, 'imagen_1' | 'imagen_2'> | null | undefined
 ): RepuestoImagenesParseadas => {
-  const originales = (repuesto?.imagen_2 ?? '')
+  const originalSlots = (repuesto?.imagen_2 ?? '')
     .split(';')
-    .map((item) => item.trim())
-    .filter(Boolean);
+    .map((item) => item.trim());
+
+  const originales = originalSlots.filter(Boolean);
 
   return {
     miniaturaPath: repuesto?.imagen_1?.trim() || null,
     originales,
-    frentePath: originales[0] ?? null,
-    ladoPath: originales[1] ?? null,
-    puestaPath: originales[2] ?? null,
-    extraPath: originales[3] ?? null
+    frentePath: originalSlots[0] || null,
+    ladoPath: originalSlots[1] || null,
+    puestaPath: originalSlots[2] || null,
+    extraPath: originalSlots[3] || null
   };
 };
 
 export const buildOriginalImagesValue = (
   paths: Partial<Record<RepuestoImageSlot, string | null | undefined>>
 ) => {
-  const orderedPaths = REPUESTO_IMAGE_SLOTS
-    .map((slot) => paths[slot]?.trim() || '')
-    .filter(Boolean);
+  const orderedPaths = REPUESTO_IMAGE_SLOTS.map((slot) => paths[slot]?.trim() || '');
+
+  while (orderedPaths.length > 0 && orderedPaths[orderedPaths.length - 1] === '') {
+    orderedPaths.pop();
+  }
 
   return orderedPaths.length > 0 ? orderedPaths.join(';') : null;
 };

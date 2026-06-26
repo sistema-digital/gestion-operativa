@@ -50,6 +50,7 @@ const signedImages = reactive<RepuestoImagenesFirmadas>({
   extraUrl: null,
   originales: []
 });
+const imageReadError = ref('');
 
 const formatDate = (dateString?: string | null) => {
   if (!dateString) return '-';
@@ -82,8 +83,9 @@ watch(
       currentUserIdentity.value
     );
 
-    const resolvedImages = await repuestosStore.resolverImagenesFirmadas(repuesto);
+    const { images: resolvedImages, errors } = await repuestosStore.resolverImagenesFirmadas(repuesto);
     Object.assign(signedImages, resolvedImages);
+    imageReadError.value = errors.join(' ');
   },
   { immediate: true }
 );
@@ -281,6 +283,13 @@ watch(
             </div>
 
             <div class="space-y-5 p-4">
+              <div
+                v-if="imageReadError"
+                class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700"
+              >
+                {{ imageReadError }}
+              </div>
+
               <div>
                 <span class="text-xs font-medium uppercase tracking-wider text-gray-500">Miniatura principal</span>
                 <div class="mt-2 flex aspect-square w-full max-w-[220px] items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50">

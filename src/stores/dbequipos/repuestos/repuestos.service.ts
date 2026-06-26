@@ -4,7 +4,8 @@ import type {
   CatalogTableName,
   RepuestoCaptura,
   RepuestoImageFileMap,
-  RepuestoImageSlot
+  RepuestoImageSlot,
+  RepuestoImagenesFirmadas
 } from './repuestos.types';
 import {
   buildOriginalImagesValue,
@@ -135,6 +136,21 @@ export const repuestosService = {
     }
   },
 
+  async deleteRepuestoStorageObject(path: string | null | undefined): Promise<void> {
+    const cleanPath = path?.trim();
+
+    if (!cleanPath) return;
+
+    const { error } = await supabaseEquipos.storage
+      .from(REPUESTOS_BUCKET)
+      .remove([cleanPath]);
+
+    if (error) {
+      console.error(`Error eliminando imagen ${cleanPath}:`, error);
+      throw error;
+    }
+  },
+
   async getAuthenticatedUserId(): Promise<string> {
     const { data: { user }, error } = await supabaseEquipos.auth.getUser();
 
@@ -222,12 +238,14 @@ export const repuestosService = {
     files: RepuestoImageFileMap;
     existingImagen1?: string | null;
     existingImagen2?: string | null;
+    removedSlots?: RepuestoImageSlot[];
   }) {
     const { repuestoId, existingImagen1, existingImagen2 } = params;
     const files = {
       ...createEmptyRepuestoImageFileMap(),
       ...params.files
     };
+    const removedSlots = new Set(params.removedSlots ?? []);
     const userId = await this.getAuthenticatedUserId();
     const existingPaths = parseRepuestoImagenes({
       imagen_1: existingImagen1,
@@ -240,28 +258,53 @@ export const repuestosService = {
       puesta: existingPaths.puestaPath,
       extra: existingPaths.extraPath
     };
+    const uploadedPaths: string[] = [];
 
-    for (const slot of REPUESTO_IMAGE_SLOTS) {
-      const file = files[slot];
+    try {
+      for (const slot of removedSlots) {
+        nextOriginalPaths[slot] = null;
+      }
 
-      if (!file) continue;
+      for (const slot of REPUESTO_IMAGE_SLOTS) {
+        const file = files[slot];
 
-      const path = buildOriginalImagePath(userId, repuestoId, slot, file);
-      nextOriginalPaths[slot] = await this.uploadRepuestoImage(path, file);
+        if (!file) continue;
+
+        const path = buildOriginalImagePath(userId, repuestoId, slot, file);
+        nextOriginalPaths[slot] = await this.uploadRepuestoImage(path, file);
+        uploadedPaths.push(path);
+      }
+
+      let thumbnailPath = existingPaths.miniaturaPath;
+
+      if (removedSlots.has('frente')) {
+        thumbnailPath = null;
+      }
+
+      if (files.frente) {
+        const thumbnailFile = await this.createSquareThumbnail(files.frente);
+        const path = buildThumbnailPath(userId, repuestoId);
+        thumbnailPath = await this.uploadRepuestoImage(path, thumbnailFile);
+        uploadedPaths.push(path);
+      }
+
+      return {
+        imagen_1: thumbnailPath,
+        imagen_2: buildOriginalImagesValue(nextOriginalPaths)
+      };
+    } catch (error) {
+      if (uploadedPaths.length > 0) {
+        try {
+          await supabaseEquipos.storage
+            .from(REPUESTOS_BUCKET)
+            .remove(uploadedPaths);
+        } catch (cleanupError) {
+          console.error('Error limpiando imágenes subidas tras fallo:', cleanupError);
+        }
+      }
+
+      throw error;
     }
-
-    let thumbnailPath = existingPaths.miniaturaPath;
-
-    if (files.frente) {
-      const thumbnailFile = await this.createSquareThumbnail(files.frente);
-      const path = buildThumbnailPath(userId, repuestoId);
-      thumbnailPath = await this.uploadRepuestoImage(path, thumbnailFile);
-    }
-
-    return {
-      imagen_1: thumbnailPath,
-      imagen_2: buildOriginalImagesValue(nextOriginalPaths)
-    };
   },
 
   async createSignedImageUrl(path: string | null | undefined, ttl = SIGNED_URL_TTL_SECONDS) {
@@ -287,5 +330,43 @@ export const repuestosService = {
     );
 
     return results;
+  },
+
+  async resolveSignedImagesWithErrors(
+    repuesto: Pick<RepuestoCaptura, 'imagen_1' | 'imagen_2'> | null | undefined
+  ): Promise<{ images: RepuestoImagenesFirmadas; errors: string[] }> {
+    const parsedImages = parseRepuestoImagenes(repuesto);
+    const pathEntries: Array<{ label: string; path: string | null }> = [
+      { label: 'miniatura', path: parsedImages.miniaturaPath },
+      { label: 'frente', path: parsedImages.frentePath },
+      { label: 'lado', path: parsedImages.ladoPath },
+      { label: 'puesta', path: parsedImages.puestaPath },
+      { label: 'extra', path: parsedImages.extraPath }
+    ];
+
+    const urls = await Promise.all(
+      pathEntries.map(async ({ path }) => this.createSignedImageUrl(path))
+    );
+
+    const errors = pathEntries
+      .map((entry, index) => (entry.path && !urls[index] ? `No se pudo leer la imagen ${entry.label}.` : null))
+      .filter((message): message is string => Boolean(message));
+
+    return {
+      images: {
+        miniaturaUrl: urls[0],
+        frenteUrl: urls[1],
+        ladoUrl: urls[2],
+        puestaUrl: urls[3],
+        extraUrl: urls[4],
+        originales: [
+          { slot: 'frente', path: parsedImages.frentePath ?? '', url: urls[1] },
+          { slot: 'lado', path: parsedImages.ladoPath ?? '', url: urls[2] },
+          { slot: 'puesta', path: parsedImages.puestaPath ?? '', url: urls[3] },
+          { slot: 'extra', path: parsedImages.extraPath ?? '', url: urls[4] }
+        ].filter((item): item is { slot: RepuestoImageSlot; path: string; url: string | null } => Boolean(item.path))
+      },
+      errors
+    };
   }
 };

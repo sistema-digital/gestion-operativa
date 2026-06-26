@@ -9,7 +9,7 @@ import type {
   RepuestoImageSlot,
   RepuestoImagenesFirmadas
 } from './repuestos.types';
-import { parseRepuestoImagenes } from './repuestos.images';
+import { buildOriginalImagesValue, parseRepuestoImagenes } from './repuestos.images';
 
 export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
   const sistemas = ref<CatalogItem[]>([]);
@@ -103,9 +103,10 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
   ) => {
     isLoading.value = true;
     error.value = null;
+    let createdRepuesto: RepuestoCaptura | null = null;
 
     try {
-      const createdRepuesto = await repuestosService.insertRepuestoCaptura({
+      createdRepuesto = await repuestosService.insertRepuestoCaptura({
         ...repuestoForm,
         imagen_1: null,
         imagen_2: null
@@ -126,6 +127,17 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
       upsertLocalRepuesto(updatedRepuesto);
       return updatedRepuesto;
     } catch (err: any) {
+      const createdId = createdRepuesto?.id;
+
+      if (createdId) {
+        try {
+          await repuestosService.deleteRepuestoCaptura(createdId);
+          repuestosCaptura.value = repuestosCaptura.value.filter((item) => item.id !== createdId);
+        } catch (rollbackError) {
+          console.error('Error revirtiendo repuesto tras fallo de imágenes:', rollbackError);
+        }
+      }
+
       error.value = err.message || 'Error al guardar el repuesto con imágenes.';
       console.error('Error guardando repuesto con imágenes:', err);
       throw err;
@@ -155,17 +167,52 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
     id: string,
     repuestoForm: Partial<RepuestoCaptura>,
     imageFiles: RepuestoImageFileMap,
-    currentRepuesto: Pick<RepuestoCaptura, 'imagen_1' | 'imagen_2'> | null
+    currentRepuesto: Pick<RepuestoCaptura, 'imagen_1' | 'imagen_2'> | null,
+    removedSlots: RepuestoImageSlot[] = []
   ) => {
     isLoading.value = true;
     error.value = null;
+    const parsedCurrentImages = parseRepuestoImagenes(currentRepuesto);
+    const removalOnlyPayload = {
+      imagen_1: removedSlots.includes('frente') ? null : parsedCurrentImages.miniaturaPath,
+      imagen_2: buildOriginalImagesValue({
+        frente: removedSlots.includes('frente') ? null : parsedCurrentImages.frentePath,
+        lado: removedSlots.includes('lado') ? null : parsedCurrentImages.ladoPath,
+        puesta: removedSlots.includes('puesta') ? null : parsedCurrentImages.puestaPath,
+        extra: removedSlots.includes('extra') ? null : parsedCurrentImages.extraPath
+      })
+    };
+    let deletedSomething = false;
 
     try {
+      for (const slot of removedSlots) {
+        switch (slot) {
+          case 'frente':
+            await repuestosService.deleteRepuestoStorageObject(parsedCurrentImages.frentePath);
+            await repuestosService.deleteRepuestoStorageObject(parsedCurrentImages.miniaturaPath);
+            deletedSomething = true;
+            break;
+          case 'lado':
+            await repuestosService.deleteRepuestoStorageObject(parsedCurrentImages.ladoPath);
+            deletedSomething = true;
+            break;
+          case 'puesta':
+            await repuestosService.deleteRepuestoStorageObject(parsedCurrentImages.puestaPath);
+            deletedSomething = true;
+            break;
+          case 'extra':
+            await repuestosService.deleteRepuestoStorageObject(parsedCurrentImages.extraPath);
+            deletedSomething = true;
+            break;
+        }
+      }
+
       const imagePayload = await repuestosService.uploadRepuestoImages({
         repuestoId: id,
         files: imageFiles,
         existingImagen1: currentRepuesto?.imagen_1 ?? null,
-        existingImagen2: currentRepuesto?.imagen_2 ?? null
+        existingImagen2: currentRepuesto?.imagen_2 ?? null,
+        removedSlots
       });
 
       const updatedRepuesto = await repuestosService.updateRepuestoCaptura(id, {
@@ -176,6 +223,15 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
       upsertLocalRepuesto(updatedRepuesto);
       return updatedRepuesto;
     } catch (err: any) {
+      if (deletedSomething) {
+        try {
+          const syncedRepuesto = await repuestosService.updateRepuestoCaptura(id, removalOnlyPayload);
+          upsertLocalRepuesto(syncedRepuesto);
+        } catch (syncError) {
+          console.error('Error sincronizando columnas tras borrar imágenes en storage:', syncError);
+        }
+      }
+
       error.value = err.message || 'Error al actualizar el repuesto con imágenes.';
       console.error('Error actualizando repuesto con imágenes:', err);
       throw err;
@@ -258,31 +314,8 @@ export const useRepuestosStore = defineStore('dbequipos_repuestos', () => {
 
   const resolverImagenesFirmadas = async (
     repuesto: Pick<RepuestoCaptura, 'imagen_1' | 'imagen_2'> | null | undefined
-  ): Promise<RepuestoImagenesFirmadas> => {
-    const parsedImages = parseRepuestoImagenes(repuesto);
-    const paths = [
-      parsedImages.miniaturaPath,
-      parsedImages.frentePath,
-      parsedImages.ladoPath,
-      parsedImages.puestaPath,
-      parsedImages.extraPath
-    ];
-
-    const [miniaturaUrl, frenteUrl, ladoUrl, puestaUrl, extraUrl] = await repuestosService.createSignedImageUrls(paths);
-
-    return {
-      miniaturaUrl,
-      frenteUrl,
-      ladoUrl,
-      puestaUrl,
-      extraUrl,
-      originales: [
-        { slot: 'frente', path: parsedImages.frentePath ?? '', url: frenteUrl },
-        { slot: 'lado', path: parsedImages.ladoPath ?? '', url: ladoUrl },
-        { slot: 'puesta', path: parsedImages.puestaPath ?? '', url: puestaUrl },
-        { slot: 'extra', path: parsedImages.extraPath ?? '', url: extraUrl }
-      ].filter((item): item is { slot: RepuestoImageSlot; path: string; url: string | null } => Boolean(item.path))
-    };
+  ): Promise<{ images: RepuestoImagenesFirmadas; errors: string[] }> => {
+    return await repuestosService.resolveSignedImagesWithErrors(repuesto);
   };
 
   const resetStore = () => {

@@ -102,6 +102,12 @@ const createEmptyForm = (): UpdateForm => ({
 const form = reactive<UpdateForm>(createEmptyForm());
 const imageFiles = reactive<RepuestoImageFileMap>(createEmptyRepuestoImageFileMap());
 const imagePreviews = reactive<RepuestoImageUrlMap>(createEmptyRepuestoImageUrlMap());
+const removedSlots = reactive<Record<RepuestoImageSlot, boolean>>({
+  frente: false,
+  lado: false,
+  puesta: false,
+  extra: false
+});
 
 const cantidadText = ref('');
 const isSaving = ref(false);
@@ -166,6 +172,7 @@ const resetImages = () => {
     revokePreview(slot);
     imageFiles[slot] = null;
     imagePreviews[slot] = null;
+    removedSlots[slot] = false;
   });
 };
 
@@ -210,11 +217,17 @@ const fillForm = async (repuesto: RepuestoCaptura | null) => {
     ? String(repuesto.cantidad_requerida)
     : '';
 
-  const signedImages = await repuestosStore.resolverImagenesFirmadas(repuesto);
+  const { images: signedImages, errors: readErrors } = await repuestosStore.resolverImagenesFirmadas(repuesto);
   imagePreviews.frente = signedImages.frenteUrl;
   imagePreviews.lado = signedImages.ladoUrl;
   imagePreviews.puesta = signedImages.puestaUrl;
   imagePreviews.extra = signedImages.extraUrl;
+
+  if (readErrors.length > 0) {
+    errors.imagenes = readErrors.join(' ');
+  } else {
+    delete errors.imagenes;
+  }
 };
 
 const validateForm = () => {
@@ -313,7 +326,31 @@ const updateImage = (slot: RepuestoImageSlot, file: File | null) => {
   revokePreview(slot);
   imageFiles[slot] = file;
   imagePreviews[slot] = file ? URL.createObjectURL(file) : null;
+  removedSlots[slot] = !file && Boolean(getExistingPreview(slot));
   handleImageError(slot, '');
+};
+
+const getExistingPreview = (slot: RepuestoImageSlot) => {
+  if (!props.repuesto) return null;
+
+  const originalImages = parseCurrentOriginalImages();
+
+  switch (slot) {
+    case 'frente':
+      return originalImages[0] ?? null;
+    case 'lado':
+      return originalImages[1] ?? null;
+    case 'puesta':
+      return originalImages[2] ?? null;
+    case 'extra':
+      return originalImages[3] ?? null;
+  }
+};
+
+const parseCurrentOriginalImages = () => {
+  return (props.repuesto?.imagen_2 ?? '')
+    .split(';')
+    .map((item) => item.trim());
 };
 
 const handleSubmit = async () => {
@@ -376,7 +413,8 @@ const handleSubmit = async () => {
         puesta: imageFiles.puesta,
         extra: imageFiles.extra
       },
-      props.repuesto
+      props.repuesto,
+      (Object.keys(removedSlots) as RepuestoImageSlot[]).filter((slot) => removedSlots[slot])
     );
 
     emit('updated', updated);
@@ -460,6 +498,13 @@ watch(
                 class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
               >
                 {{ errors.general }}
+              </div>
+
+              <div
+                v-if="errors.imagenes"
+                class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700"
+              >
+                {{ errors.imagenes }}
               </div>
 
               <UpdateFormSection title="Información general">
@@ -598,41 +643,43 @@ watch(
                   :error="errors.descripcion_detallada"
                 />
 
-                <UpdateImageUpload
-                  :model-value="imageFiles.frente"
-                  :preview-url="imagePreviews.frente"
-                  label="Frente"
-                  :error="errors.imagen_frente"
-                  @update:model-value="updateImage('frente', $event)"
-                  @error="(message) => handleImageError('frente', message)"
-                />
+                <div class="col-span-full grid grid-cols-2 gap-4">
+                  <UpdateImageUpload
+                    :model-value="imageFiles.frente"
+                    :preview-url="imagePreviews.frente"
+                    label="Frente"
+                    :error="errors.imagen_frente"
+                    @update:model-value="updateImage('frente', $event)"
+                    @error="(message) => handleImageError('frente', message)"
+                  />
 
-                <UpdateImageUpload
-                  :model-value="imageFiles.lado"
-                  :preview-url="imagePreviews.lado"
-                  label="Lado"
-                  :error="errors.imagen_lado"
-                  @update:model-value="updateImage('lado', $event)"
-                  @error="(message) => handleImageError('lado', message)"
-                />
+                  <UpdateImageUpload
+                    :model-value="imageFiles.lado"
+                    :preview-url="imagePreviews.lado"
+                    label="Lado"
+                    :error="errors.imagen_lado"
+                    @update:model-value="updateImage('lado', $event)"
+                    @error="(message) => handleImageError('lado', message)"
+                  />
 
-                <UpdateImageUpload
-                  :model-value="imageFiles.puesta"
-                  :preview-url="imagePreviews.puesta"
-                  label="Puesta"
-                  :error="errors.imagen_puesta"
-                  @update:model-value="updateImage('puesta', $event)"
-                  @error="(message) => handleImageError('puesta', message)"
-                />
+                  <UpdateImageUpload
+                    :model-value="imageFiles.puesta"
+                    :preview-url="imagePreviews.puesta"
+                    label="Puesta"
+                    :error="errors.imagen_puesta"
+                    @update:model-value="updateImage('puesta', $event)"
+                    @error="(message) => handleImageError('puesta', message)"
+                  />
 
-                <UpdateImageUpload
-                  :model-value="imageFiles.extra"
-                  :preview-url="imagePreviews.extra"
-                  label="Extra"
-                  :error="errors.imagen_extra"
-                  @update:model-value="updateImage('extra', $event)"
-                  @error="(message) => handleImageError('extra', message)"
-                />
+                  <UpdateImageUpload
+                    :model-value="imageFiles.extra"
+                    :preview-url="imagePreviews.extra"
+                    label="Extra"
+                    :error="errors.imagen_extra"
+                    @update:model-value="updateImage('extra', $event)"
+                    @error="(message) => handleImageError('extra', message)"
+                  />
+                </div>
 
                 <UpdateTextField
                   v-model="form.observacion"

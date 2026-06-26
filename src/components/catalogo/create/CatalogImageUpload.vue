@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Camera, Image as ImageIcon, RefreshCw, Upload, X } from 'lucide-vue-next';
+import { Camera, FolderOpen, Image as ImageIcon, RefreshCw, Upload, X } from 'lucide-vue-next';
 
 const props = withDefaults(defineProps<{
   modelValue?: File | null;
@@ -24,22 +24,27 @@ const emit = defineEmits<{
   (e: 'error', value: string): void;
 }>();
 
-const inputRef = ref<HTMLInputElement | null>(null);
+const cameraInputRef = ref<HTMLInputElement | null>(null);
+const galleryInputRef = ref<HTMLInputElement | null>(null);
 
 const preview = computed(() => props.previewUrl || '');
 const helperText = computed(() => `JPG, PNG o WEBP · Máx. ${props.maxSizeMb}MB`);
+const supportsCameraCapture = computed(() => typeof navigator !== 'undefined' && 'mediaDevices' in navigator);
 
-const openPicker = () => {
-  inputRef.value?.click();
+const openCameraPicker = () => {
+  (supportsCameraCapture.value ? cameraInputRef.value : galleryInputRef.value)?.click();
+};
+
+const openGalleryPicker = () => {
+  galleryInputRef.value?.click();
 };
 
 const clearImage = () => {
   emit('error', '');
   emit('update:modelValue', null);
 
-  if (inputRef.value) {
-    inputRef.value.value = '';
-  }
+  if (cameraInputRef.value) cameraInputRef.value.value = '';
+  if (galleryInputRef.value) galleryInputRef.value.value = '';
 };
 
 const handleChange = (event: Event) => {
@@ -80,15 +85,22 @@ const handleChange = (event: Event) => {
     </div>
 
     <div
-      class="relative flex min-h-[132px] cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed bg-white transition hover:bg-gray-50"
+      class="relative flex h-[220px] cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed bg-white transition hover:bg-gray-50"
       :class="error ? 'border-red-300' : 'border-gray-300'"
-      @click="openPicker"
     >
       <input
-        ref="inputRef"
+        ref="cameraInputRef"
         type="file"
         :accept="accept"
         :capture="capture || undefined"
+        class="hidden"
+        @change="handleChange"
+      />
+
+      <input
+        ref="galleryInputRef"
+        type="file"
+        :accept="accept"
         class="hidden"
         @change="handleChange"
       />
@@ -97,7 +109,7 @@ const handleChange = (event: Event) => {
         <img
           :src="preview"
           :alt="label"
-          class="h-full min-h-[132px] w-full object-cover"
+          class="h-full max-h-[220px] w-full object-contain"
         />
 
         <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 py-2 text-xs font-medium text-white">
@@ -108,7 +120,7 @@ const handleChange = (event: Event) => {
           <button
             type="button"
             class="rounded-full bg-white/90 p-1.5 text-gray-600 shadow-sm transition hover:bg-white hover:text-main"
-            @click.stop="openPicker"
+            @click.stop="openGalleryPicker"
           >
             <RefreshCw class="h-4 w-4" />
           </button>
@@ -137,9 +149,24 @@ const handleChange = (event: Event) => {
             {{ helperText }}
           </p>
 
-          <div class="mt-2 inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-500">
-            <Camera class="h-3.5 w-3.5" />
-            Cámara o galería
+          <div class="mt-3 flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 rounded-full bg-main px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-main-light"
+              @click.stop="openCameraPicker"
+            >
+              <Camera class="h-3.5 w-3.5" />
+              {{ supportsCameraCapture ? 'Tomar foto' : 'Abrir cámara/archivos' }}
+            </button>
+
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1.5 text-[11px] font-medium text-gray-600 transition hover:bg-gray-200"
+              @click.stop="openGalleryPicker"
+            >
+              <FolderOpen class="h-3.5 w-3.5" />
+              Elegir archivo
+            </button>
           </div>
 
           <ImageIcon class="mt-2 h-4 w-4 text-gray-300" />
