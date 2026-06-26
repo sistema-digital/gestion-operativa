@@ -19,15 +19,9 @@ defineProps<{
 </script>
 
 <template>
-  <section class="flex h-full flex-col rounded-lg border border-stone-200 bg-white px-3 py-4 shadow-sm lg:px-4">
-    <h3 class="text-base font-bold text-main">
-      Paso 4 · Resumen
-    </h3>
-    <p class="mt-1 text-sm text-stone-500">
-      Revisa los datos antes de guardar borrador o enviar.
-    </p>
-
-    <dl class="mt-4 grid gap-3 lg:grid-cols-2">
+  <section class="flex h-full flex-col rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm lg:px-4">
+    
+    <dl class=" grid gap-3 lg:grid-cols-2">
       <div class="rounded-lg bg-stone-50 px-3 py-3">
         <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Tipo</dt>
         <dd class="mt-2 text-base font-medium text-stone-900">{{ tipoSolicitud ?? 'Sin definir' }}</dd>

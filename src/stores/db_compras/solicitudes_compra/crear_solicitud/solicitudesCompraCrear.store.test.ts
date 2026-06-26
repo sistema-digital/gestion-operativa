@@ -165,6 +165,18 @@ describe('solicitudesCompraCrear.store', () => {
     expect(store.validationErrors.servicios).toBe('Debe agregar al menos un servicio para continuar.');
   });
 
+  it('exige motivo de urgencia para avanzar en el paso 3 cuando aplica', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.currentStep = 3;
+    store.setObservacion('Solicitud con contexto suficiente.');
+    store.setSolicitarUrgente(true);
+    store.setMotivoUrgencia('   ');
+
+    expect(store.validateStep(3)).toBe(false);
+    expect(store.validationErrors.motivoUrgencia).toBe('Debe indicar el motivo de urgencia para continuar.');
+  });
+
   it('actualiza servicios existentes', () => {
     const store = useSolicitudesCompraCrearStore();
 

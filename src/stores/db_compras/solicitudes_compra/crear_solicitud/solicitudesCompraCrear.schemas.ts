@@ -127,6 +127,14 @@ export const stepObservacionesSchema = z.object({
     .max(250, 'La observación no puede superar los 250 caracteres.'),
   solicitarUrgente: z.boolean(),
   motivoUrgencia: z.string(),
+}).superRefine((value, ctx) => {
+  if (value.solicitarUrgente && value.motivoUrgencia.trim().length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['motivoUrgencia'],
+      message: 'Debe indicar el motivo de urgencia para continuar.',
+    });
+  }
 });
 
 const baseCreateSchema = z.object({
