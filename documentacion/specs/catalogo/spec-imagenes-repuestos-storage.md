@@ -2,8 +2,8 @@
 
 > Módulo: Catálogo / Repuestos  
 > Stack: Vue 3 + TypeScript + Pinia + Supabase JS + Supabase Storage + Tailwind  
-> Fecha: 2026-06-25  
-> Estado: Propuesta de implementación
+> Fecha: 2026-06-26  
+> Estado: Implementación ajustada según decisiones funcionales y UX del chat
 
 ## Objetivo
 
@@ -11,26 +11,22 @@ Rediseñar el manejo de imágenes del catálogo de repuestos para dejar de guard
 
 - `frente` obligatoria
 - `lado` obligatoria
-- `puesta` obligatoria
+- `puesta` opcional
 - `extra` opcional
 
-La imagen `frente` debe generar además una miniatura cuadrada de `200x200`, que será la imagen principal de vista rápida.
+La imagen `frente` genera además una miniatura cuadrada de `200x200`, usada como imagen principal de vista rápida.
 
 ## Contexto actual
 
-Hoy el módulo guarda imágenes directamente como texto en los campos:
+Luego de la implementación realizada:
 
-- `imagen_1`
-- `imagen_2`
+- create y update trabajan con objetos `File` en memoria;
+- las previews del formulario usan URLs locales temporales tipo `blob:`;
+- `imagen_1` ya no guarda `base64`, sino el `path` de la miniatura en Storage;
+- `imagen_2` ya no guarda `base64`, sino la lista ordenada de `paths` de originales;
+- el detalle interpreta `imagen_1` como miniatura y `imagen_2` como galería original.
 
-Situación actual detectada:
-
-- Los componentes de create/update usan `input type="file"`.
-- El archivo seleccionado se convierte con `FileReader` a `base64`.
-- El valor resultante se envía como texto a la tabla `catalogo_repuestos_captura`.
-- El detalle del repuesto asume solo 2 imágenes simples.
-
-Archivos actuales relevantes:
+Archivos relevantes:
 
 ```txt
 src/components/catalogo/create/RepuestoCreatePanel.vue
@@ -39,77 +35,89 @@ src/components/catalogo/create/CatalogImageUpload.vue
 src/components/catalogo/update/UpdateImageUpload.vue
 src/components/catalogo/RepuestoDetailPanel.vue
 src/stores/dbequipos/repuestos/repuestos.types.ts
+src/stores/dbequipos/repuestos/repuestos.images.ts
 src/stores/dbequipos/repuestos/repuestos.store.ts
 src/stores/dbequipos/repuestos/repuestos.service.ts
 ```
 
-## Problema a resolver
+## Problema que resuelve
 
-El modelo actual no escala bien porque:
-
-- guardar `base64` en la tabla aumenta demasiado el peso del registro;
-- no existe estructura clara para múltiples imágenes;
-- no hay miniatura optimizada;
-- no hay separación entre almacenamiento físico y datos de negocio;
-- no hay control real de acceso privado a imágenes.
+- elimina el peso excesivo de `base64` en la tabla;
+- separa almacenamiento físico y datos de negocio;
+- soporta múltiples imágenes por repuesto;
+- incorpora miniatura optimizada;
+- mantiene bucket privado con serving vía signed URLs;
+- permite borrado y reemplazo parcial con sincronización entre Storage y columnas.
 
 ## Alcance
 
-- Reemplazar el flujo de `base64` por subida de archivos a `Supabase Storage`.
+- Reemplazar `base64` por subida de archivos a `Supabase Storage`.
 - Soportar 4 imágenes por repuesto.
-- Generar miniatura `200x200` desde la imagen `frente`.
-- Mantener compatibilidad con el esquema actual de la tabla usando `imagen_1` e `imagen_2`.
+- Generar miniatura `200x200` desde `frente`.
+- Mantener compatibilidad con la tabla actual usando `imagen_1` e `imagen_2`.
 - Restringir acceso a imágenes a usuarios autenticados.
-- Permitir captura desde cámara en móvil.
+- Permitir captura desde cámara en móvil cuando el navegador lo soporte.
+- Mostrar errores visibles cuando falle la lectura de imágenes privadas.
 
 ## Fuera de alcance
 
 - Crear una tabla hija nueva para imágenes en esta fase.
-- Cambiar el esquema SQL de `catalogo_repuestos_captura` en esta fase.
-- Implementar edición avanzada con recorte manual visual.
-- Implementar streaming de cámara con overlay cuadrado usando `getUserMedia` en esta fase.
+- Cambiar el esquema SQL de `catalogo_repuestos_captura`.
+- Implementar recorte manual visual.
+- Implementar `getUserMedia` con preview en vivo y overlay de captura.
 
 ## Decisión funcional
 
-### Cantidad y tipos de imágenes
+### Cantidad y tipos
 
 Se manejarán hasta 4 imágenes:
 
 1. `frente` obligatoria
 2. `lado` obligatoria
-3. `puesta` obligatoria
+3. `puesta` opcional
 4. `extra` opcional
 
 ### Miniatura
 
-- La imagen `frente` es la fuente de la miniatura.
-- La miniatura será cuadrada de `200x200`.
-- Debe guardarse como archivo independiente en `Storage`.
+- `frente` es la fuente de la miniatura.
+- La miniatura es cuadrada de `200x200`.
+- Se guarda como archivo independiente en Storage.
 
 ### Persistencia en la tabla actual
 
-Para no romper el esquema actual:
+- `imagen_1`: `storage path` de la miniatura `200x200`
+- `imagen_2`: lista de `storage paths` de originales separadas por `;`
 
-- `imagen_1`: guardará el `storage path` o URL firmable de la miniatura `200x200`
-- `imagen_2`: guardará la lista de `storage paths` de las imágenes originales separadas por `;`
-
-Orden estricto de `imagen_2`:
+Orden lógico de `imagen_2`:
 
 ```txt
 frente;lado;puesta;extra
 ```
 
-Si `extra` no existe:
+Si faltan slots al final:
 
 ```txt
-frente;lado;puesta
+frente;lado
 ```
 
-## Decisión técnica recomendada
+Si se elimina una imagen intermedia en update, se preserva la posición dejando hueco vacío:
+
+```txt
+frente;;puesta
+```
+
+Esto permite seguir asignando por índice:
+
+- posición 1 = `frente`
+- posición 2 = `lado`
+- posición 3 = `puesta`
+- posición 4 = `extra`
+
+## Decisión técnica
 
 ### Guardar `storage path`, no `publicUrl`
 
-Se recomienda guardar en base de datos el `path` del objeto dentro del bucket, no la URL pública.
+Se guarda el `path` del objeto dentro del bucket, no una URL pública.
 
 Ejemplo:
 
@@ -121,13 +129,13 @@ imagen_2 = repuestos/{user_id}/{repuesto_id}/frente.jpg;repuestos/{user_id}/{rep
 Ventajas:
 
 - funciona con bucket privado;
-- permite regenerar URLs firmadas cuando sea necesario;
-- evita acoplar la tabla a un dominio o forma de entrega;
-- facilita mover la estrategia de serving después.
+- permite regenerar signed URLs;
+- evita acoplar la tabla al dominio de entrega;
+- facilita cambiar la estrategia de serving luego.
 
 ## Bucket de Storage
 
-Bucket sugerido:
+Bucket:
 
 ```txt
 catalogo-repuestos
@@ -139,7 +147,7 @@ Tipo de acceso:
 private
 ```
 
-Estructura de carpetas sugerida:
+Estructura sugerida:
 
 ```txt
 repuestos/{user_id}/{repuesto_id}/thumb-200x200.jpg
@@ -151,14 +159,15 @@ repuestos/{user_id}/{repuesto_id}/extra.jpg
 
 ## Seguridad del bucket
 
-El bucket debe permanecer privado y usar políticas RLS sobre `storage.objects`.
+El bucket permanece privado y usa políticas RLS sobre `storage.objects`.
 
 ### Reglas objetivo
 
 - solo usuarios autenticados pueden subir;
 - solo usuarios autenticados pueden leer;
-- opcionalmente cada usuario solo puede escribir dentro de su propia carpeta;
-- no usar `getPublicUrl` para servir imágenes privadas.
+- solo usuarios autenticados pueden borrar;
+- opcionalmente cada usuario solo puede escribir dentro de su carpeta;
+- no usar `getPublicUrl`.
 
 ### Política base mínima
 
@@ -199,39 +208,19 @@ using (
 );
 ```
 
-### Política recomendada por carpeta propia
-
-Si se quiere endurecer el acceso:
-
-```sql
-create policy "catalogo repuestos insert own folder"
-on storage.objects
-for insert
-to authenticated
-with check (
-  bucket_id = 'catalogo-repuestos'
-  and (storage.foldername(name))[1] = 'repuestos'
-  and (storage.foldername(name))[2] = (select auth.jwt()->>'sub')
-);
-```
-
-La lectura podría seguir el mismo principio si el producto lo requiere.
-
 ## Serving de imágenes
 
 Como el bucket es privado:
 
-- no se debe usar `getPublicUrl()`;
-- se debe usar `createSignedUrl()` para imágenes individuales;
-- o `download()` si se quiere resolver el archivo autenticado directamente.
+- no usar `getPublicUrl()`;
+- usar `createSignedUrl()` para imágenes individuales;
+- no persistir signed URLs en la base de datos.
 
 ### Recomendación de serving
 
-Para UI:
-
-- usar `createSignedUrl(path, ttl)` al abrir paneles o listas;
-- TTL sugerido: `3600` segundos;
-- no persistir signed URLs en la base de datos.
+- usar `createSignedUrl(path, 3600)` al abrir paneles o detalle;
+- si una signed URL falla o devuelve `null`, mostrar error visible en la UI;
+- no fallar silenciosamente.
 
 ## Flujo de creación
 
@@ -245,7 +234,7 @@ El usuario agrega:
 
 - frente
 - lado
-- puesta
+- puesta opcional
 - extra opcional
 
 ### Paso 3
@@ -253,13 +242,13 @@ El usuario agrega:
 Frontend valida:
 
 - máximo 4 imágenes;
-- tipos permitidos `image/jpeg,image/png,image/webp` si se habilita;
-- tamaños máximos por archivo;
-- obligatoriedad de `frente`, `lado`, `puesta`.
+- tipos esperados `image/jpeg,image/png,image/webp`;
+- tamaño máximo por archivo configurable;
+- obligatoriedad de `frente` y `lado`.
 
 ### Paso 4
 
-Se crea o persiste el repuesto para obtener `repuesto_id`.
+Se crea el repuesto para obtener `repuesto_id`.
 
 ### Paso 5
 
@@ -272,7 +261,7 @@ Se suben archivos a Storage:
 - `thumb-200x200`
 - `frente`
 - `lado`
-- `puesta`
+- `puesta` si aplica
 - `extra` si aplica
 
 ### Paso 7
@@ -282,134 +271,141 @@ Se actualiza el repuesto con:
 - `imagen_1 = path miniatura`
 - `imagen_2 = paths originales separados por ;`
 
+### Regla transaccional aplicada en create
+
+La creación del catálogo depende del éxito del flujo de imágenes:
+
+- si falla la subida o la generación de miniatura:
+  - se eliminan del bucket los archivos subidos parcialmente;
+  - se elimina el repuesto creado en tabla;
+  - se muestra error;
+  - no debe quedar un catálogo parcialmente creado.
+
 ## Flujo de actualización
 
 - Si el usuario no cambia imágenes, no se toca Storage.
 - Si reemplaza una o más imágenes:
   - se vuelve a subir solo lo modificado;
   - si cambia `frente`, se regenera la miniatura;
-  - se actualiza `imagen_1` e `imagen_2` con los nuevos paths.
-- Opcional fase futura:
-  - borrar versiones viejas para evitar basura en Storage.
+  - se actualiza `imagen_1` e `imagen_2`.
+- Si elimina una imagen existente:
+  - primero debe eliminarse exitosamente en Storage;
+  - solo después se limpia el `path` correspondiente en columnas;
+  - si elimina `frente`, también debe eliminarse la miniatura;
+  - si falla la eliminación en Storage, no se limpia la columna.
+- Si se borró algo en Storage y luego falla otra parte del update:
+  - el sistema debe intentar sincronizar la tabla para no dejar `paths` huérfanos.
 
 ## Comportamiento de cámara
 
-### Fase 1 recomendada
+### Flujo implementado
 
-Usar `input type="file"` con:
+La UI ofrece dos acciones:
 
-```html
-accept="image/*"
-capture="environment"
-```
+- `Tomar foto`
+- `Elegir archivo`
 
-Esto permite en muchos móviles:
+Comportamiento esperado:
 
-- abrir cámara trasera;
-- o mostrar selector cámara/galería según navegador.
+- si el navegador soporta cámara utilizable, `Tomar foto` intenta abrirla con `capture="environment"`;
+- si no la soporta, ese flujo degrada al explorador de archivos o galería;
+- `Elegir archivo` sigue disponible explícitamente.
 
-### Limitación conocida
+### Limitaciones conocidas
 
-`capture="environment"` no garantiza:
-
-- preview real 1:1;
-- recorte visual cuadrado;
-- comportamiento uniforme en todos los navegadores.
-
-### Fase 2 opcional
-
-Si se requiere experiencia controlada:
-
-- usar `navigator.mediaDevices.getUserMedia()`;
-- mostrar preview en vivo;
-- superponer marco `1:1`;
-- capturar el cuadrado usando `canvas`.
-
-Esto queda fuera de esta fase.
+- `capture="environment"` no garantiza comportamiento uniforme;
+- algunos navegadores muestran cámara y galería en el mismo chooser;
+- otros abren directamente galería o explorador.
 
 ## Transformación de imagen
 
-La miniatura puede generarse en frontend con `canvas`.
+La miniatura se genera en frontend con `canvas`.
 
-### Reglas sugeridas
+### Reglas
 
 - tomar la imagen `frente`;
-- calcular recorte centrado cuadrado;
-- exportar a `JPEG` o `WEBP`;
+- calcular recorte cuadrado centrado;
+- exportar a `JPEG`;
 - tamaño final `200x200`;
 - calidad sugerida `0.82` a `0.9`.
+
+## Preview en formulario
+
+- La preview no transforma el archivo original.
+- Se renderiza usando una URL local temporal (`blob:`).
+- Debe mantener la proporción original de la imagen.
+- Debe usar una altura fija para evitar que imágenes altas agranden demasiado el formulario.
+- No se fuerza aspecto `1:1` en la preview.
+- En mobile y tablet, los slots de imágenes se muestran en filas de dos columnas.
 
 ## Cambios requeridos por archivo
 
 ### `src/stores/dbequipos/repuestos/repuestos.types.ts`
 
 - Mantener `imagen_1` e `imagen_2` como `string | null`.
-- Agregar tipos auxiliares para imágenes locales si hace falta.
+- Agregar tipos auxiliares para slots, archivos, previews y signed URLs.
+
+### `src/stores/dbequipos/repuestos/repuestos.images.ts`
+
+- Centralizar parsing y construcción de `imagen_2`.
+- Preservar huecos intermedios cuando se elimina una imagen en update.
 
 ### `src/stores/dbequipos/repuestos/repuestos.service.ts`
 
-Agregar helpers:
+Helpers esperados:
 
 - `uploadRepuestoImage(...)`
 - `uploadRepuestoImages(...)`
+- `deleteRepuestoStorageObject(...)`
 - `createSquareThumbnail(...)`
 - `createSignedImageUrl(...)`
 - `createSignedImageUrls(...)`
-
-No mezclar llamadas directas de Storage dentro del componente.
+- `resolveSignedImagesWithErrors(...)`
 
 ### `src/stores/dbequipos/repuestos/repuestos.store.ts`
 
-Agregar acciones para:
+Acciones esperadas:
 
-- subir imágenes en create;
-- subir/reemplazar imágenes en update;
-- resolver signed URLs si se centraliza en store.
+- create con rollback si fallan imágenes;
+- update con borrado condicionado al éxito en Storage;
+- resolución de signed URLs y errores de lectura;
+- sincronización posterior si hubo borrado parcial.
 
 ### `src/components/catalogo/create/CatalogImageUpload.vue`
-
-Refactor a uploader múltiple orientado a slots fijos:
-
-- frente
-- lado
-- puesta
-- extra
 
 Debe soportar:
 
 - selección de archivo;
-- captura por cámara;
+- intento de captura por cámara;
+- degradación a galería/explorador;
 - preview local;
 - validación por campo;
-- reemplazo individual.
-
-### `src/components/catalogo/update/UpdateImageUpload.vue`
-
-Mantener el mismo contrato visual y funcional que create.
+- reemplazo individual;
+- altura fija manteniendo proporción original.
 
 ### `src/components/catalogo/create/RepuestoCreatePanel.vue`
 
-- dejar de guardar `base64`;
-- trabajar con `File` en memoria hasta subir;
-- separar datos del formulario y archivos locales.
+- trabajar con `File` en memoria;
+- separar formulario y archivos locales;
+- exigir `frente` y `lado`;
+- usar subgrilla de dos columnas para imágenes.
 
 ### `src/components/catalogo/update/RepuestoUpdatePanel.vue`
 
-- mostrar imágenes existentes;
+- mostrar imágenes existentes con signed URLs;
 - permitir reemplazo parcial;
-- regenerar miniatura cuando cambia `frente`.
+- permitir borrado parcial;
+- regenerar miniatura cuando cambia `frente`;
+- mostrar errores visibles si falla la lectura.
 
 ### `src/components/catalogo/RepuestoDetailPanel.vue`
 
-Cambiar lectura:
-
-- `imagen_1` pasa a ser miniatura;
-- `imagen_2` debe parsearse por `;`;
-- el detalle debe mostrar galería de hasta 4 originales.
+- interpretar `imagen_1` como miniatura;
+- parsear `imagen_2` por `;`;
+- mostrar galería original;
+- mostrar error visible si alguna signed URL no pudo resolverse.
 
 ## Contrato temporal de parsing
-
-### Helper sugerido
 
 ```ts
 type RepuestoImagenesParseadas = {
@@ -422,14 +418,17 @@ type RepuestoImagenesParseadas = {
 };
 ```
 
-Regla:
+Reglas:
 
 - `imagen_1` se interpreta como miniatura;
-- `imagen_2` se divide por `;`, se limpian vacíos y se asigna por orden.
+- `imagen_2` se divide por `;`;
+- los vacíos intermedios se preservan por posición;
+- el orden es la verdad de negocio en esta fase.
 
 ## Validaciones funcionales
 
-- `frente`, `lado` y `puesta` son obligatorias.
+- `frente` y `lado` son obligatorias.
+- `puesta` es opcional.
 - `extra` es opcional.
 - máximo 4 imágenes.
 - solo formatos permitidos.
@@ -439,26 +438,23 @@ Regla:
 ## Estrategia de errores
 
 - Si falla la creación del repuesto antes de subir imágenes, no subir nada.
-- Si falla una subida de imagen:
+- Si falla una subida o miniatura en create:
   - mostrar error claro;
   - no cerrar el panel;
-  - permitir reintentar.
-- Si el repuesto ya se creó pero falla una imagen:
-  - registrar error visible;
-  - decidir si se deja el repuesto sin imágenes o si se hace rollback manual.
-
-### Recomendación
-
-Para esta fase, crear primero el repuesto y luego subir imágenes.  
-Si la subida falla, mostrar mensaje de “repuesto creado pero imágenes pendientes” solo si negocio acepta ese estado.  
-Si negocio no lo acepta, entonces conviene hacer flujo transaccional asistido por backend en una fase posterior.
+  - revertir registro + Storage parcial.
+- Si falla el borrado en Storage durante update:
+  - mostrar error claro;
+  - no limpiar la columna.
+- Si falla la lectura de una imagen privada:
+  - mostrar error visible en update o detalle.
 
 ## Riesgos conocidos
 
-- Guardar múltiples paths en `imagen_2` separados por `;` es una solución transitoria.
-- El detalle, listado y edición deben respetar siempre el orden.
-- Las signed URLs expiran y no deben persistirse como verdad de negocio.
+- Guardar múltiples paths en `imagen_2` separados por `;` sigue siendo una solución transitoria.
+- El detalle, edición y listado deben respetar siempre el orden.
+- Las signed URLs expiran y no deben persistirse.
 - La cámara vía `capture` depende del navegador y del dispositivo.
+- Preservar huecos en `imagen_2` es funcional, pero frágil a futuro.
 
 ## Evolución futura recomendada
 
@@ -470,19 +466,23 @@ Fase posterior ideal:
 - metadatos: orden, mime, size, width, height, created_by;
 - relación por `repuesto_id`.
 
-Esto eliminaría la necesidad de usar `;` y dejaría una arquitectura mucho más mantenible.
-
 ## Criterios de aceptación
 
 - El sistema deja de guardar `base64` en `imagen_1` e `imagen_2`.
 - El bucket de imágenes es privado.
 - Solo usuarios autenticados pueden acceder según políticas configuradas.
-- El usuario puede cargar `frente`, `lado`, `puesta` y `extra` opcional.
+- El usuario puede cargar `frente`, `lado`, `puesta` opcional y `extra` opcional.
+- `frente` y `lado` son obligatorias.
 - La imagen `frente` genera miniatura `200x200`.
 - `imagen_1` guarda la miniatura.
 - `imagen_2` guarda los paths de originales separados por `;`.
 - Create y update soportan el nuevo flujo.
-- El detalle del repuesto puede mostrar la miniatura y la galería original.
+- Si falla Storage en create, no debe quedar el repuesto creado.
+- Si falla borrar un archivo en Storage durante update, no debe limpiarse la columna correspondiente.
+- El detalle del repuesto puede mostrar miniatura y galería original.
+- Si no se puede leer una imagen privada, la UI muestra error visible.
+- La preview del formulario mantiene el aspecto original con altura fija.
+- En mobile y tablet, las imágenes se muestran en filas de dos columnas.
 
 ## Referencias
 
