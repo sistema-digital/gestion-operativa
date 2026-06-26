@@ -56,6 +56,36 @@ export function formatPanamaDateTime(dateString: string | null | undefined): str
   return `${getPart("day")} ${getPart("month").replace(".", "").toUpperCase()} ${getPart("year")} ${getPart("hour")}:${getPart("minute")} ${getPart("dayPeriod").toUpperCase()}`;
 }
 
+export function formatPanamaCaptureDateTime(value: Date | string | null | undefined): string {
+  if (!value) return "Sin fecha";
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (isNaN(date.getTime())) return "Fecha invalida";
+
+  const parts = new Intl.DateTimeFormat("es-PA", {
+    timeZone: "America/Panama",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(date);
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes) => {
+    return parts.find((part) => part.type === type)?.value || "";
+  };
+
+  const dayPeriod = getPart("dayPeriod")
+    .replace(/\./g, "")
+    .trim()
+    .toUpperCase();
+
+  const normalizedDayPeriod = dayPeriod === "PM" ? "P. M" : "A. M";
+
+  return `${getPart("day")} ${getPart("month").replace(".", "").toUpperCase()} ${getPart("year")} ${getPart("hour")}:${getPart("minute")} ${normalizedDayPeriod}`;
+}
+
 export function toDateInputValue(value: Date | string | null | undefined): string {
   if (!value) return "";
   

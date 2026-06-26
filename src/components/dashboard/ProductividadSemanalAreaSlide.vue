@@ -17,6 +17,7 @@ import type {
 } from '@/stores/horasTrabajo.types';
 import type { ProductividadDashboardTableItem } from '@/stores/productividadSemanalDashboard.types';
 import { useUsageOrdenesActividadUsuariosStore } from '@/stores/db_mantenimiento/usage_ordenes_actividad_usuarios/usageOrdenesActividadUsuarios.store';
+import { useLivePanamaCaptureTime } from '@/composables/useLivePanamaCaptureTime';
 import { formatPanamaDateTime } from '@/utils/dateUtils';
 
 const props = defineProps<{
@@ -30,6 +31,7 @@ const emit = defineEmits<{
 }>();
 
 const usageOrdenesActividadUsuariosStore = useUsageOrdenesActividadUsuariosStore();
+const { captureTimestampLabel } = useLivePanamaCaptureTime();
 
 const normalizeAreaKey = (value: string) => String(value || '')
   .trim()
@@ -277,11 +279,15 @@ onUnmounted(() => {
         <p>{{ restoParrafo }}</p>
         <div class="usage-activity-row">
           <p>
-            <span class="usage-activity-label">Ultima vista de ordenes:</span>
+            <span class="usage-activity-label">Momento captura:</span>
+            <span>{{ captureTimestampLabel }}</span>
+          </p>
+          <p>
+            <span class="usage-activity-label">Ultima vista ordenes:</span>
             <span>{{ formatUsageDateTime(areaUsageActivity?.ultima_entrada_ordenes_at ?? null) }}</span>
           </p>
           <p>
-            <span class="usage-activity-label">Ultimo cambio de estado:</span>
+            <span class="usage-activity-label">Ultimo cambio estado:</span>
             <span>{{ formatUsageDateTime(areaUsageActivity?.ultima_actualizacion_om_at ?? null) }}</span>
           </p>
           <p>
