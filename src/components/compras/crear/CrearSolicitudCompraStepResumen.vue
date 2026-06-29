@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  shallowRef,
+  useTemplateRef,
+  watch,
+} from 'vue';
 import { BadgeInfo, CalendarArrowDown, Hash, Megaphone, MessageSquareText, PackageCheck, Tractor } from 'lucide-vue-next';
 
 import type {
@@ -19,6 +27,16 @@ const props = defineProps<{
   solicitarUrgente: boolean;
   motivoUrgencia: string;
 }>();
+
+const emit = defineEmits<{
+  (e: 'desktop-scroll-state-change', value: { hasOverflow: boolean; reachedBottom: boolean }): void;
+}>();
+
+const DESKTOP_BREAKPOINT = 1024;
+const SCROLL_BOTTOM_TOLERANCE_PX = 2;
+
+const scrollContainer = useTemplateRef<HTMLElement>('scrollContainer');
+const hasReachedBottom = shallowRef(false);
 
 const fechaEntregaFormateada = computed(() => {
   if (!props.fechaEntrega) {
@@ -40,11 +58,80 @@ const fechaEntregaFormateada = computed(() => {
     timeZone: 'UTC',
   }).format(fecha).replace('.', '').toLowerCase();
 });
+
+const isDesktopViewport = (): boolean => window.innerWidth >= DESKTOP_BREAKPOINT;
+
+const emitDesktopScrollState = (): void => {
+  const container = scrollContainer.value;
+
+  if (!container || !isDesktopViewport()) {
+    hasReachedBottom.value = false;
+    emit('desktop-scroll-state-change', {
+      hasOverflow: false,
+      reachedBottom: false,
+    });
+    return;
+  }
+
+  const hasOverflow = container.scrollHeight > container.clientHeight;
+  const reachedBottom = hasOverflow
+    ? container.scrollTop + container.clientHeight >= container.scrollHeight - SCROLL_BOTTOM_TOLERANCE_PX
+    : false;
+
+  hasReachedBottom.value = reachedBottom;
+  emit('desktop-scroll-state-change', {
+    hasOverflow,
+    reachedBottom,
+  });
+};
+
+const syncDesktopScrollState = (): void => {
+  void nextTick(() => {
+    emitDesktopScrollState();
+  });
+};
+
+const handleContainerScroll = (): void => {
+  if (hasReachedBottom.value) {
+    return;
+  }
+
+  emitDesktopScrollState();
+};
+
+onMounted(() => {
+  syncDesktopScrollState();
+  window.addEventListener('resize', syncDesktopScrollState);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncDesktopScrollState);
+});
+
+watch(
+  () => [
+    props.tipoSolicitud,
+    props.fechaEntrega,
+    props.equipos.length,
+    props.productos.length,
+    props.servicios.length,
+    props.observacion,
+    props.solicitarUrgente,
+    props.motivoUrgencia,
+  ],
+  () => {
+    syncDesktopScrollState();
+  }
+);
 </script>
 
 <template>
   <section class="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm lg:px-4">
-    <div class="min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+    <div
+      ref="scrollContainer"
+      class="min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1"
+      @scroll="handleContainerScroll"
+    >
       <dl class="grid gap-3 lg:grid-cols-2">
       <div class="rounded-lg bg-stone-50 px-3 py-3 lg:col-span-2">
         <div

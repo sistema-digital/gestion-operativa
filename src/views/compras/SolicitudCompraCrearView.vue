@@ -14,6 +14,7 @@ import type {
 } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 import CrearSolicitudCompraServicioBottomSheet from '@/components/compras/crear/CrearSolicitudCompraServicioBottomSheet.vue';
+import CrearSolicitudCompraActionConfirmModal from '@/components/compras/crear/CrearSolicitudCompraActionConfirmModal.vue';
 import CrearSolicitudCompraServicioDrawer from '@/components/compras/crear/CrearSolicitudCompraServicioDrawer.vue';
 import CrearSolicitudCompraFooterActions from '@/components/compras/crear/CrearSolicitudCompraFooterActions.vue';
 import CrearSolicitudCompraHeader from '@/components/compras/crear/CrearSolicitudCompraHeader.vue';
@@ -96,9 +97,19 @@ const editingServicioLocalId = shallowRef<string | null>(null);
 const servicioDraft = ref<ServicioSolicitudDraft>(createEmptyServicioDraft());
 const viewportWidth = shallowRef(typeof window === 'undefined' ? 1280 : window.innerWidth);
 const isDesktop = computed(() => viewportWidth.value >= 1024);
+const resumenHasDesktopOverflow = shallowRef(false);
+const resumenDesktopReachedBottom = shallowRef(false);
+const pendingAction = shallowRef<'send' | 'draft' | 'cancel' | null>(null);
 
 const shouldDisableNext = computed(() =>
   currentStep.value === 1 ? !isCurrentStepValid.value : false
+);
+
+const shouldDisableSend = computed(() =>
+  currentStep.value === 4
+  && isDesktop.value
+  && resumenHasDesktopOverflow.value
+  && !resumenDesktopReachedBottom.value
 );
 
 const creationContextSnapshot = computed(() => ({
@@ -114,13 +125,88 @@ const creationContextSnapshot = computed(() => ({
   validationErrors: { ...validationErrors.value },
 }));
 
+const pendingActionConfig = computed(() => {
+  if (pendingAction.value === 'send') {
+    return {
+      title: 'Enviar solicitud',
+      description: 'La solicitud quedara registrada y se enviara para continuar con el flujo correspondiente.',
+      confirmLabel: 'Si, enviar solicitud',
+      closeLabel: 'No, volver',
+      palette: {
+        badgeClass: 'bg-main/10 text-main',
+        borderClass: 'border-main/20',
+        confirmButtonClass: 'bg-main',
+        confirmButtonHoverClass: 'hover:bg-main-light',
+        confirmButtonTextClass: 'text-white',
+      },
+    };
+  }
+
+  if (pendingAction.value === 'draft') {
+    return {
+      title: 'Guardar borrador',
+      description: 'Se conservara el avance actual para que puedas retomarlo mas tarde desde compras.',
+      confirmLabel: 'Si, guardar borrador',
+      closeLabel: 'No, seguir editando',
+      palette: {
+        badgeClass: 'bg-accent/25 text-main',
+        borderClass: 'border-white',
+        confirmButtonClass: 'bg-accent',
+        confirmButtonHoverClass: 'hover:bg-accent-light',
+        confirmButtonTextClass: 'text-main',
+      },
+    };
+  }
+
+  if (pendingAction.value === 'cancel') {
+    return {
+      title: 'Cancelar creacion',
+      description: 'Se cerrara este flujo y perderas los cambios que no hayas enviado o guardado como borrador.',
+      confirmLabel: 'Si, cancelar',
+      closeLabel: 'No, continuar',
+      palette: {
+        badgeClass: 'bg-danger-bg text-danger',
+        borderClass: 'border-danger/20',
+        confirmButtonClass: 'bg-danger',
+        confirmButtonHoverClass: 'hover:bg-danger-light',
+        confirmButtonTextClass: 'text-white',
+      },
+    };
+  }
+
+  return null;
+});
+
 const closeView = (): void => {
   void router.push({ name: 'Compras' });
+};
+
+const openActionConfirmModal = (action: 'send' | 'draft' | 'cancel'): void => {
+  pendingAction.value = action;
+};
+
+const closeActionConfirmModal = (): void => {
+  pendingAction.value = null;
 };
 
 const handleNext = (): void => {
   console.log('Solicitud compra contexto actual', creationContextSnapshot.value);
   onNext();
+};
+
+const handleConfirmedAction = async (): Promise<void> => {
+  const action = pendingAction.value;
+
+  closeActionConfirmModal();
+
+  if (action === 'cancel') {
+    closeView();
+    return;
+  }
+
+  if (action === 'draft' || action === 'send') {
+    await handleSubmit(action);
+  }
 };
 
 const handleSubmit = async (mode: 'draft' | 'send'): Promise<void> => {
@@ -201,6 +287,17 @@ const handleSubmitServicio = (draft: ServicioSolicitudDraft): void => {
 
 const handleAddContextoServicio = (item: CatalogoServicioContextoOption): void => {
   agregarContextoServicio(item);
+};
+
+const handleResumenDesktopScrollStateChange = ({
+  hasOverflow,
+  reachedBottom,
+}: {
+  hasOverflow: boolean;
+  reachedBottom: boolean;
+}): void => {
+  resumenHasDesktopOverflow.value = hasOverflow;
+  resumenDesktopReachedBottom.value = reachedBottom;
 };
 
 const syncViewportWidth = (): void => {
@@ -313,6 +410,7 @@ onBeforeUnmount(() => {
           :observacion="observacion"
           :solicitar-urgente="solicitarUrgente"
           :motivo-urgencia="motivoUrgencia"
+          @desktop-scroll-state-change="handleResumenDesktopScrollStateChange"
         />
       </div>
 
@@ -321,14 +419,27 @@ onBeforeUnmount(() => {
           :current-step="currentStep"
           :loading="loading"
           :disable-next="shouldDisableNext"
-          @cancel="closeView"
+          :disable-send="shouldDisableSend"
+          @cancel="openActionConfirmModal('cancel')"
           @back="onBack"
           @next="handleNext"
-          @draft="handleSubmit('draft')"
-          @send="handleSubmit('send')"
+          @draft="openActionConfirmModal('draft')"
+          @send="openActionConfirmModal('send')"
         />
       </div>
     </div>
+
+    <CrearSolicitudCompraActionConfirmModal
+      v-if="pendingActionConfig"
+      :title="pendingActionConfig.title"
+      :description="pendingActionConfig.description"
+      :confirm-label="pendingActionConfig.confirmLabel"
+      :close-label="pendingActionConfig.closeLabel"
+      :palette="pendingActionConfig.palette"
+      :loading="loading"
+      @close="closeActionConfirmModal"
+      @confirm="handleConfirmedAction"
+    />
 
     <CrearSolicitudCompraProductoTemporalOverlay
       v-if="isProductoTemporalOverlayOpen"

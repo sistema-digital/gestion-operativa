@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
 import { describe, expect, it } from 'vitest';
 
 import CrearSolicitudCompraStepObservaciones from './CrearSolicitudCompraStepObservaciones.vue';
@@ -52,5 +53,55 @@ describe('CrearSolicitudCompraStepObservaciones', () => {
     expect(wrapper.html()).toContain('rose');
     expect(textarea.attributes('maxlength')).toBe('250');
     expect(references).toContain('19/250');
+  });
+
+  it('emite el estado de scroll en desktop cuando llega al fondo con tolerancia', async () => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 1280,
+      writable: true,
+    });
+
+    const wrapper = mount(CrearSolicitudCompraStepObservaciones, {
+      props: {
+        observacion: '',
+        solicitarUrgente: false,
+        motivoUrgencia: '',
+        equipos: [],
+      },
+    });
+
+    const scrollContainer = wrapper.get('section > div').element as HTMLDivElement;
+
+    Object.defineProperty(scrollContainer, 'clientHeight', {
+      configurable: true,
+      value: 300,
+    });
+    Object.defineProperty(scrollContainer, 'scrollHeight', {
+      configurable: true,
+      value: 600,
+    });
+    Object.defineProperty(scrollContainer, 'scrollTop', {
+      configurable: true,
+      value: 0,
+      writable: true,
+    });
+
+    window.dispatchEvent(new Event('resize'));
+    await nextTick();
+
+    const emittedStates = wrapper.emitted('desktop-scroll-state-change');
+    expect(emittedStates?.at(-1)?.[0]).toEqual({
+      hasOverflow: true,
+      reachedBottom: false,
+    });
+
+    scrollContainer.scrollTop = 298;
+    await wrapper.get('section > div').trigger('scroll');
+
+    expect(wrapper.emitted('desktop-scroll-state-change')?.at(-1)?.[0]).toEqual({
+      hasOverflow: true,
+      reachedBottom: true,
+    });
   });
 });

@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  shallowRef,
+  useTemplateRef,
+  watch,
+} from 'vue';
 
 import CrearSolicitudObservacionChip from './CrearSolicitudObservacionChip.vue';
 import type { EquipoSeleccionado } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
@@ -9,6 +17,14 @@ interface EquipoObservacionChip {
   codEquipo: string;
   present: boolean;
 }
+
+interface DesktopScrollState {
+  hasOverflow: boolean;
+  reachedBottom: boolean;
+}
+
+const DESKTOP_BREAKPOINT = 1024;
+const SCROLL_BOTTOM_TOLERANCE_PX = 2;
 
 const props = defineProps<{
   observacion: string;
@@ -23,7 +39,11 @@ const emit = defineEmits<{
   (e: 'update:observacion', value: string): void;
   (e: 'update:solicitarUrgente', value: boolean): void;
   (e: 'update:motivoUrgencia', value: string): void;
+  (e: 'desktop-scroll-state-change', value: DesktopScrollState): void;
 }>();
+
+const scrollContainer = useTemplateRef<HTMLElement>('scrollContainer');
+const hasReachedBottom = shallowRef(false);
 
 const equipmentChips = computed<EquipoObservacionChip[]>(() => props.equipos
   .filter((item) => item.source === 'equipo')
@@ -45,11 +65,76 @@ const handleObservacionInput = (event: Event): void => {
   const textarea = event.target as HTMLTextAreaElement;
   emit('update:observacion', textarea.value.slice(0, OBSERVACION_MAX_LENGTH));
 };
+
+const isDesktopViewport = (): boolean => window.innerWidth >= DESKTOP_BREAKPOINT;
+
+const emitDesktopScrollState = (): void => {
+  const container = scrollContainer.value;
+
+  if (!container || !isDesktopViewport()) {
+    hasReachedBottom.value = false;
+    emit('desktop-scroll-state-change', {
+      hasOverflow: false,
+      reachedBottom: false,
+    });
+    return;
+  }
+
+  const hasOverflow = container.scrollHeight > container.clientHeight;
+  const reachedBottom = hasOverflow
+    ? container.scrollTop + container.clientHeight >= container.scrollHeight - SCROLL_BOTTOM_TOLERANCE_PX
+    : false;
+
+  hasReachedBottom.value = reachedBottom;
+  emit('desktop-scroll-state-change', {
+    hasOverflow,
+    reachedBottom,
+  });
+};
+
+const syncDesktopScrollState = (): void => {
+  void nextTick(() => {
+    emitDesktopScrollState();
+  });
+};
+
+const handleContainerScroll = (): void => {
+  if (hasReachedBottom.value) {
+    return;
+  }
+
+  emitDesktopScrollState();
+};
+
+onMounted(() => {
+  syncDesktopScrollState();
+  window.addEventListener('resize', syncDesktopScrollState);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncDesktopScrollState);
+});
+
+watch(
+  () => [
+    props.equipos.length,
+    props.solicitarUrgente,
+    props.observacionError,
+    props.motivoUrgenciaError,
+  ],
+  () => {
+    syncDesktopScrollState();
+  }
+);
 </script>
 
 <template>
   <section class="flex h-full min-h-0 flex-col rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm lg:px-4">
-    <div class="space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+    <div
+      ref="scrollContainer"
+      class="space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
+      @scroll="handleContainerScroll"
+    >
       <div class="space-y-2">
         <label class="block text-sm font-semibold text-stone-800">
           Observación <span class="text-danger">*</span>

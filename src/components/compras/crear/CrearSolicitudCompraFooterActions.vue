@@ -1,10 +1,13 @@
 <script setup lang="ts">
+const SEND_TOOLTIP_MESSAGE = 'Debe ver la informacion completa antes de poder enviar.';
+
 import type { SolicitudCompraCreateStep } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 defineProps<{
   currentStep: SolicitudCompraCreateStep;
   loading: boolean;
   disableNext: boolean;
+  disableSend?: boolean;
 }>();
 
 defineEmits<{
@@ -56,14 +59,24 @@ defineEmits<{
 
     <template v-else>
       <div class="flex shrink-0 flex-col gap-3 lg:hidden">
-        <button
-          type="button"
-          class="inline-flex cursor-pointer min-h-10 items-center justify-center rounded-lg bg-main px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light disabled:opacity-60"
-          :disabled="loading"
-          @click="$emit('send')"
-        >
-          Enviar solicitud
-        </button>
+        <div class="group relative flex w-full flex-col items-center">
+          <button
+            type="button"
+            class="inline-flex w-full cursor-pointer min-h-10 items-center justify-center rounded-lg bg-main px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light disabled:opacity-60"
+            :class="disableSend && !loading ? 'pointer-events-none' : ''"
+            :disabled="loading || disableSend"
+            @click="$emit('send')"
+          >
+            Enviar solicitud
+          </button>
+
+          <span
+            v-if="disableSend && !loading"
+            class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max max-w-[18rem] -translate-x-1/2 rounded-lg bg-stone-900 px-3 py-2 text-center text-xs font-medium text-white opacity-0 shadow-lg transition group-hover:opacity-100"
+          >
+            {{ SEND_TOOLTIP_MESSAGE }}
+          </span>
+        </div>
 
         <button
           type="button"
@@ -113,14 +126,24 @@ defineEmits<{
             Atrás
           </button>
 
-          <button
-            type="button"
-            class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg bg-main px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light disabled:opacity-60"
-            :disabled="loading"
-            @click="$emit('send')"
-          >
-            Enviar solicitud
-          </button>
+          <div class="group relative inline-flex">
+            <button
+              type="button"
+              class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg bg-main px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-main-light disabled:opacity-60"
+              :class="disableSend && !loading ? 'pointer-events-none' : ''"
+              :disabled="loading || disableSend"
+              @click="$emit('send')"
+            >
+              Enviar solicitud
+            </button>
+
+            <span
+              v-if="disableSend && !loading"
+              class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max max-w-[18rem] -translate-x-1/2 rounded-lg bg-stone-900 px-3 py-2 text-center text-xs font-medium text-white opacity-0 shadow-lg transition group-hover:opacity-100"
+            >
+              {{ SEND_TOOLTIP_MESSAGE }}
+            </span>
+          </div>
 
           <button
             type="button"
