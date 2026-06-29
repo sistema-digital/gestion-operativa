@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { CalendarArrowDown, Hash, PackageCheck, Tractor } from 'lucide-vue-next';
+import { BadgeInfo, CalendarArrowDown, Hash, Megaphone, MessageSquareText, PackageCheck, Tractor } from 'lucide-vue-next';
 
 import type {
   EquipoSeleccionado,
@@ -142,17 +142,48 @@ const fechaEntregaFormateada = computed(() => {
           <span v-else class="text-base font-medium text-stone-900">Sin productos</span>
         </dd>
       </div>
-      <div class="rounded-lg bg-stone-50 px-3 py-3 lg:col-span-2">
-        <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Observación</dt>
-        <dd class="mt-2 text-base font-medium text-stone-900">{{ observacion || 'Sin observación' }}</dd>
-      </div>
-      <div class="rounded-lg bg-stone-50 px-3 py-3">
-        <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Urgencia</dt>
-        <dd class="mt-2 text-base font-medium text-stone-900">{{ solicitarUrgente ? 'Sí' : 'No' }}</dd>
-      </div>
-      <div class="rounded-lg bg-stone-50 px-3 py-3">
-        <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Motivo</dt>
-        <dd class="mt-2 text-base font-medium text-stone-900">{{ motivoUrgencia || 'No aplica' }}</dd>
+      <div class="overflow-hidden rounded-lg bg-stone-50 lg:col-span-2">
+        <div class="flex items-center gap-3 bg-[#e7e4da] px-3 py-2">
+          <BadgeInfo class="h-5 w-5 shrink-0 text-main-light" />
+          <div class="flex h-8 items-center" aria-hidden="true">
+            <div class="h-[80%] w-px bg-stone-300" />
+          </div>
+          <dt class="text-xs font-semibold uppercase tracking-wide text-stone-600">Informacion Adicional</dt>
+        </div>
+        <dd class="px-3 py-3">
+          <div class="divide-y divide-stone-200">
+            <div class="grid gap-3 py-3 first:pt-0 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+              <div class="flex min-w-0 items-center gap-3">
+                <MessageSquareText class="mt-0.5 h-4 w-4 shrink-0 text-main-light" />
+                <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Observacion</p>
+              </div>
+              <p class="whitespace-normal break-words text-sm font-medium text-stone-900">
+                {{ observacion || 'Sin observación' }}
+              </p>
+            </div>
+            <div class="grid gap-3 py-3 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+              <div class="flex min-w-0 items-center gap-3">
+                <Megaphone class="mt-0.5 h-4 w-4 shrink-0 text-main-light" />
+                <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Urgencia</p>
+              </div>
+              <p class="whitespace-normal break-words text-sm font-medium text-stone-900">
+                {{ solicitarUrgente ? 'Sí' : 'No' }}
+              </p>
+            </div>
+            <div
+              v-if="solicitarUrgente"
+              class="grid gap-3 py-3 last:pb-0 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start"
+            >
+              <div class="flex min-w-0 items-center gap-3">
+                <Megaphone class="mt-0.5 h-4 w-4 shrink-0 text-main-light" />
+                <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Motivo</p>
+              </div>
+              <p class="whitespace-normal break-words text-sm font-medium text-stone-900">
+                {{ motivoUrgencia || 'Sin motivo' }}
+              </p>
+            </div>
+          </div>
+        </dd>
       </div>
       </dl>
     </div>
