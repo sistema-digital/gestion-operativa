@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { CalendarArrowDown, Hash } from 'lucide-vue-next';
+import { CalendarArrowDown, Hash, PackageCheck, Tractor } from 'lucide-vue-next';
 
 import type {
   EquipoSeleccionado,
@@ -43,8 +43,9 @@ const fechaEntregaFormateada = computed(() => {
 </script>
 
 <template>
-  <section class="flex h-full flex-col rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm lg:px-4">
-    <dl class=" grid gap-3 lg:grid-cols-2">
+  <section class="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm lg:px-4">
+    <div class="min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+      <dl class="grid gap-3 lg:grid-cols-2">
       <div class="rounded-lg bg-stone-50 px-3 py-3 lg:col-span-2">
         <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
           <div class="flex items-center gap-3">
@@ -55,7 +56,11 @@ const fechaEntregaFormateada = computed(() => {
             </div>
           </div>
 
-          <div class="hidden h-[80%] w-px self-center bg-stone-200 lg:block" aria-hidden="true" />
+          <div class="hidden lg:block" aria-hidden="true">
+            <div class="flex h-8 items-center">
+              <div class="h-[80%] w-px bg-stone-200" />
+            </div>
+          </div>
 
           <div class="flex items-center gap-3">
             <CalendarArrowDown class="h-5 w-5 shrink-0 text-main-light" />
@@ -66,32 +71,75 @@ const fechaEntregaFormateada = computed(() => {
           </div>
         </div>
       </div>
-      <div class="rounded-lg bg-stone-50 px-3 py-3 lg:col-span-2">
-        <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">
-          {{ tipoSolicitud === 'servicio' ? 'Contextos asociados' : 'Equipos' }}
-        </dt>
+      <div class="overflow-hidden rounded-lg bg-stone-50 lg:col-span-2">
+        <div class="flex items-center gap-3 bg-[#e7e4da] px-3 py-2">
+          <Tractor class="h-5 w-5 shrink-0 text-main-light" />
+          <div class="flex h-8 items-center" aria-hidden="true">
+            <div class="h-[80%] w-px bg-stone-300" />
+          </div>
+          <dt class="text-xs font-semibold uppercase tracking-wide text-stone-600">Equipos Selecionados</dt>
+        </div>
+        <dd class="flex flex-wrap gap-2 px-3 py-3">
+          <template v-if="equipos.length > 0">
+            <span
+              v-for="item in equipos"
+              :key="item.id"
+              class="rounded-full bg-main/10 px-3 py-1 text-sm font-medium text-main"
+            >
+              {{ item.label }}
+            </span>
+          </template>
+          <span v-else class="text-base font-medium text-stone-900">
+            {{ tipoSolicitud === 'servicio' ? 'Sin contextos asociados' : 'Sin equipos' }}
+          </span>
+        </dd>
+      </div>
+      <div v-if="tipoSolicitud === 'servicio'" class="rounded-lg bg-stone-50 px-3 py-3 lg:col-span-2">
+        <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Servicios</dt>
         <dd class="mt-2 text-base font-medium text-stone-900">
           {{
-            equipos.length > 0
-              ? equipos.map((item) => item.label).join(', ')
-              : (tipoSolicitud === 'servicio' ? 'Sin contextos asociados' : 'Sin equipos')
+            servicios.length > 0
+              ? servicios.map((item) => `${item.cantidad} · ${item.descripcion} · ${item.unidadLabel}`).join(', ')
+              : 'Sin servicios'
           }}
         </dd>
       </div>
-      <div class="rounded-lg bg-stone-50 px-3 py-3 lg:col-span-2">
-        <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">
-          {{ tipoSolicitud === 'servicio' ? 'Servicios' : 'Productos' }}
-        </dt>
-        <dd class="mt-2 text-base font-medium text-stone-900">
-          {{
-            tipoSolicitud === 'servicio'
-              ? (
-                servicios.length > 0
-                  ? servicios.map((item) => `${item.cantidad} · ${item.descripcion} · ${item.unidadLabel}`).join(', ')
-                  : 'Sin servicios'
-              )
-              : (productos.length > 0 ? productos.map((item) => item.tipo === 'existente' ? item.codProducto : item.descripcion).join(', ') : 'Sin productos')
-          }}
+      <div v-else class="overflow-hidden rounded-lg bg-stone-50 lg:col-span-2">
+        <div class="flex items-center gap-3 bg-[#e7e4da] px-3 py-2">
+          <PackageCheck class="h-5 w-5 shrink-0 text-main-light" />
+          <div class="flex h-8 items-center" aria-hidden="true">
+            <div class="h-[80%] w-px bg-stone-300" />
+          </div>
+          <dt class="text-xs font-semibold uppercase tracking-wide text-stone-600">Productos Selecionados</dt>
+        </div>
+        <dd class="px-3 py-3">
+          <div v-if="productos.length > 0" class="divide-y divide-stone-200">
+            <div class="hidden gap-3 pb-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)]">
+              <div class="flex items-center gap-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Cod Almacen</p>
+              </div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Unidad</p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Descripcion</p>
+            </div>
+            <div
+              v-for="item in productos"
+              :key="item.localId"
+              class="grid gap-3 py-3 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)] lg:items-start"
+            >
+              <div class="min-w-0">
+                <p class="mt-1 text-sm font-medium text-stone-900">
+                  {{ item.tipo === 'existente' ? item.codProducto : 'Temporal' }}
+                </p>
+              </div>
+              <div class="min-w-0">
+                <p class="mt-1 text-sm font-medium text-stone-900">{{ item.unidadLabel }}</p>
+              </div>
+              <div class="min-w-0">
+                <p class="mt-1 whitespace-normal break-words text-sm font-medium text-stone-900">{{ item.descripcion }}</p>
+              </div>
+            </div>
+          </div>
+          <span v-else class="text-base font-medium text-stone-900">Sin productos</span>
         </dd>
       </div>
       <div class="rounded-lg bg-stone-50 px-3 py-3 lg:col-span-2">
@@ -106,6 +154,7 @@ const fechaEntregaFormateada = computed(() => {
         <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Motivo</dt>
         <dd class="mt-2 text-base font-medium text-stone-900">{{ motivoUrgencia || 'No aplica' }}</dd>
       </div>
-    </dl>
+      </dl>
+    </div>
   </section>
 </template>
