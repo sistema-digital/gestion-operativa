@@ -38,20 +38,13 @@ const confirmDelete = (): void => {
 </script>
 
 <template>
-  <section class="flex h-full flex-col rounded-lg border border-stone-200 bg-white px-3 py-4 shadow-sm lg:px-4">
-    <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h3 class="text-base font-bold text-main">
-          Paso 2 · Servicios
-        </h3>
-        <p class="mt-1 text-sm text-stone-500">
-          Agrega y administra servicios manualmente desde este paso.
-        </p>
-      </div>
+  <section class="flex h-full flex-col rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm lg:px-4">
+    <div class=" flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      
 
       <button
         type="button"
-        class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-main px-4 text-sm font-semibold text-white transition hover:bg-main-dark"
+        class="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-main px-4 text-sm font-semibold text-white transition hover:bg-main-dark"
         @click="emit('add')"
       >
         <Plus class="h-4 w-4" />
