@@ -47,7 +47,14 @@ const fechaEntregaFormateada = computed(() => {
     <div class="min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
       <dl class="grid gap-3 lg:grid-cols-2">
       <div class="rounded-lg bg-stone-50 px-3 py-3 lg:col-span-2">
-        <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
+        <div
+          class="grid gap-4"
+          :class="
+            solicitarUrgente
+              ? 'lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,auto)] lg:items-center'
+              : 'lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center'
+          "
+        >
           <div class="flex items-center gap-3">
             <Hash class="h-5 w-5 shrink-0 text-main-light" />
             <div class="min-w-0">
@@ -68,6 +75,20 @@ const fechaEntregaFormateada = computed(() => {
               <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Fecha de entrega</dt>
               <dd class="mt-1 text-base font-medium text-stone-900">{{ fechaEntregaFormateada }}</dd>
             </div>
+          </div>
+
+          <div v-if="solicitarUrgente" class="hidden lg:block" aria-hidden="true">
+            <div class="flex h-8 items-center">
+              <div class="h-[80%] w-px bg-stone-200" />
+            </div>
+          </div>
+
+          <div
+            v-if="solicitarUrgente"
+            class="flex items-center gap-3"
+          >
+            <Megaphone class="h-5 w-5 shrink-0 text-danger" />
+            <span class="text-sm font-semibold uppercase tracking-wide text-danger">Urgente</span>
           </div>
         </div>
       </div>
