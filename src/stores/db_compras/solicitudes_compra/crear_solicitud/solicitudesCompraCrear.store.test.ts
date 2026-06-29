@@ -136,7 +136,7 @@ describe('solicitudesCompraCrear.store', () => {
     expect(payload.p_productos).toEqual([]);
     expect(payload.p_servicios).toEqual([
       {
-        descripcion: 'Servicio de torno',
+        descripcion: 'SERVICIO DE TORNO',
         cantidad: 3,
         unidad_codigo: 'un',
       },
@@ -199,7 +199,7 @@ describe('solicitudesCompraCrear.store', () => {
     expect(store.servicios).toEqual([
       expect.objectContaining({
         cantidad: 4,
-        descripcion: 'Servicio editado',
+        descripcion: 'SERVICIO EDITADO',
         unidadCodigo: 'kg',
         unidadLabel: 'Kg',
       }),
@@ -242,7 +242,7 @@ describe('solicitudesCompraCrear.store', () => {
     expect(store.productos).toEqual([
       expect.objectContaining({
         tipo: 'temporal',
-        descripcion: 'Producto temporal editado',
+        descripcion: 'PRODUCTO TEMPORAL EDITADO',
         unidadCodigo: 'caja',
         unidadLabel: 'Caja',
       }),

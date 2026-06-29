@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { AlertCircle, Check, ChevronDown, LoaderCircle, Search, X } from 'lucide-vue-next';
-import { computed, onBeforeUnmount, onMounted, reactive, useTemplateRef, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, useTemplateRef, watch } from 'vue';
 import { shallowRef } from 'vue';
 
 import { useUnidadMedidaOptions } from '@/composables/compras/useUnidadMedidaOptions';
@@ -32,6 +32,7 @@ const fieldErrors = reactive<{
   unidadCodigo?: string;
 }>({});
 
+const descripcionFieldRef = useTemplateRef<HTMLTextAreaElement>('descripcionField');
 const unitFieldOpen = shallowRef(false);
 const unitFieldRef = useTemplateRef<HTMLElement>('unitField');
 
@@ -53,6 +54,19 @@ const title = computed(() => props.mode === 'edit'
   : 'Agregar servicio');
 const submitLabel = computed(() => props.mode === 'edit' ? 'Guardar cambios' : 'Agregar');
 const shouldShowUnitResults = computed(() => unitFieldOpen.value && !error.value);
+
+const normalizeDescripcion = (value: string): string => value.trim().toUpperCase();
+
+const resizeDescripcionField = (): void => {
+  const textarea = descripcionFieldRef.value;
+
+  if (!textarea) {
+    return;
+  }
+
+  textarea.style.height = '0px';
+  textarea.style.height = `${textarea.scrollHeight}px`;
+};
 
 const applyDefaultUnidad = (): void => {
   if (props.mode === 'edit' || formState.unidadCodigo || allOptions.value.length === 0) {
@@ -81,6 +95,11 @@ watch(() => props.initialDraft, (nextDraft) => {
 
 watch(allOptions, () => {
   applyDefaultUnidad();
+}, { immediate: true });
+
+watch(() => formState.descripcion, async () => {
+  await nextTick();
+  resizeDescripcionField();
 }, { immediate: true });
 
 watch(query, (value) => {
@@ -175,7 +194,7 @@ const validateForm = (): ServicioSolicitudDraft | null => {
 
   return {
     cantidad,
-    descripcion: formState.descripcion.trim(),
+    descripcion: normalizeDescripcion(formState.descripcion),
     unidadCodigo: formState.unidadCodigo.trim(),
     unidadLabel: formState.unidadLabel.trim() || formState.unidadCodigo.trim(),
   };
@@ -236,14 +255,16 @@ const handleSubmit = (): void => {
           >
             Descripcion
           </label>
-          <input
+          <textarea
             id="servicio-descripcion"
+            ref="descripcionField"
             v-model="formState.descripcion"
-            type="text"
-            class="min-h-11 w-full rounded-xl border bg-white px-3 py-2 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-main"
+            rows="1"
+            class="min-h-11 w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-xl border bg-white px-3 py-2 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-main"
             :class="fieldErrors.descripcion ? 'border-danger/40' : 'border-stone-300'"
             placeholder="Ej. Servicio de torno externo"
-          >
+            @input="resizeDescripcionField"
+          />
           <p
             v-if="fieldErrors.descripcion"
             class="text-sm font-medium text-danger"

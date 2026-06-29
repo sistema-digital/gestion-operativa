@@ -84,6 +84,7 @@ const formatZodErrors = (issues: Array<{ path: PropertyKey[]; message: string }>
 };
 
 const truncateObservacion = (value: string): string => value.slice(0, OBSERVACION_MAX_LENGTH);
+const normalizeDescripcion = (value: string): string => value.trim().toUpperCase();
 
 const buildObservacionPrefill = (equipos: EquipoSeleccionado[]): string => {
   const equipmentCodes = equipos
@@ -389,6 +390,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
           tipo: 'temporal',
           temporal: true,
           ...item,
+          descripcion: normalizeDescripcion(item.descripcion),
         },
       ];
       delete this.validationErrors.productos;
@@ -402,7 +404,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
 
         return {
           ...product,
-          descripcion: item.descripcion,
+          descripcion: normalizeDescripcion(item.descripcion),
           unidadCodigo: item.unidadCodigo,
           unidadLabel: item.unidadLabel,
         };
@@ -423,6 +425,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         {
           localId: createLocalId(),
           ...item,
+          descripcion: normalizeDescripcion(item.descripcion),
         },
       ];
       delete this.validationErrors.servicios;
@@ -437,7 +440,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         return {
           ...service,
           cantidad: item.cantidad,
-          descripcion: item.descripcion,
+          descripcion: normalizeDescripcion(item.descripcion),
           unidadCodigo: item.unidadCodigo,
           unidadLabel: item.unidadLabel,
         };
