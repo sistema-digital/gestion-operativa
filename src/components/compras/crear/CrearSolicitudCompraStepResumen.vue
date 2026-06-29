@@ -133,16 +133,27 @@ const fechaEntregaFormateada = computed(() => {
             <div
               v-for="item in servicios"
               :key="item.localId"
-              class="grid gap-3 py-3 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)] lg:items-start"
+              class="py-3 first:pt-0 last:pb-0"
             >
-              <div class="min-w-0">
-                <p class="mt-1 text-sm font-medium text-stone-900">{{ item.cantidad }}</p>
+              <div class="lg:hidden">
+                <p class="whitespace-normal break-words text-sm font-medium text-stone-900">
+                  <span>{{ item.cantidad }}</span>
+                  <span class="px-1 text-stone-400">·</span>
+                  <span>{{ item.unidadLabel }}</span>
+                  <span class="px-1 text-stone-400">·</span>
+                  <span>{{ item.descripcion }}</span>
+                </p>
               </div>
-              <div class="min-w-0">
-                <p class="mt-1 text-sm font-medium text-stone-900">{{ item.unidadLabel }}</p>
-              </div>
-              <div class="min-w-0">
-                <p class="mt-1 whitespace-normal break-words text-sm font-medium text-stone-900">{{ item.descripcion }}</p>
+              <div class="hidden gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)] lg:items-start">
+                <div class="min-w-0">
+                  <p class="mt-1 text-sm font-medium text-stone-900">{{ item.cantidad }}</p>
+                </div>
+                <div class="min-w-0">
+                  <p class="mt-1 text-sm font-medium text-stone-900">{{ item.unidadLabel }}</p>
+                </div>
+                <div class="min-w-0">
+                  <p class="mt-1 whitespace-normal break-words text-sm font-medium text-stone-900">{{ item.descripcion }}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -169,18 +180,29 @@ const fechaEntregaFormateada = computed(() => {
             <div
               v-for="item in productos"
               :key="item.localId"
-              class="grid gap-3 py-3 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)] lg:items-start"
+              class="py-3 first:pt-0 last:pb-0"
             >
-              <div class="min-w-0">
-                <p class="mt-1 text-sm font-medium text-stone-900">
-                  {{ item.tipo === 'existente' ? item.codProducto : 'Temporal' }}
+              <div class="lg:hidden">
+                <p class="whitespace-normal break-words text-sm font-medium text-stone-900">
+                  <span>{{ item.tipo === 'existente' ? item.codProducto : 'MANUAL' }}</span>
+                  <span class="px-1 text-stone-400">·</span>
+                  <span>{{ item.unidadLabel }}</span>
+                  <span class="px-1 text-stone-400">·</span>
+                  <span>{{ item.descripcion }}</span>
                 </p>
               </div>
-              <div class="min-w-0">
-                <p class="mt-1 text-sm font-medium text-stone-900">{{ item.unidadLabel }}</p>
-              </div>
-              <div class="min-w-0">
-                <p class="mt-1 whitespace-normal break-words text-sm font-medium text-stone-900">{{ item.descripcion }}</p>
+              <div class="hidden gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)] lg:items-start">
+                <div class="min-w-0">
+                  <p class="mt-1 text-sm font-medium text-stone-900">
+                    {{ item.tipo === 'existente' ? item.codProducto : 'MANUAL' }}
+                  </p>
+                </div>
+                <div class="min-w-0">
+                  <p class="mt-1 text-sm font-medium text-stone-900">{{ item.unidadLabel }}</p>
+                </div>
+                <div class="min-w-0">
+                  <p class="mt-1 whitespace-normal break-words text-sm font-medium text-stone-900">{{ item.descripcion }}</p>
+                </div>
               </div>
             </div>
           </div>
