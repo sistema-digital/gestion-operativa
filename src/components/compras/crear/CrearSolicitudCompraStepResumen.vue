@@ -115,14 +115,38 @@ const fechaEntregaFormateada = computed(() => {
           </span>
         </dd>
       </div>
-      <div v-if="tipoSolicitud === 'servicio'" class="rounded-lg bg-stone-50 px-3 py-3 lg:col-span-2">
-        <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Servicios</dt>
-        <dd class="mt-2 text-base font-medium text-stone-900">
-          {{
-            servicios.length > 0
-              ? servicios.map((item) => `${item.cantidad} · ${item.descripcion} · ${item.unidadLabel}`).join(', ')
-              : 'Sin servicios'
-          }}
+      <div v-if="tipoSolicitud === 'servicio'" class="overflow-hidden rounded-lg bg-stone-50 lg:col-span-2">
+        <div class="flex items-center gap-3 bg-[#e7e4da] px-3 py-2">
+          <PackageCheck class="h-5 w-5 shrink-0 text-main-light" />
+          <div class="flex h-8 items-center" aria-hidden="true">
+            <div class="h-[80%] w-px bg-stone-300" />
+          </div>
+          <dt class="text-xs font-semibold uppercase tracking-wide text-stone-600">Servicios Selecionados</dt>
+        </div>
+        <dd class="px-3 py-3">
+          <div v-if="servicios.length > 0" class="divide-y divide-stone-200">
+            <div class="hidden gap-3 pb-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)]">
+              <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Cantidad</p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Unidad</p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Descripcion</p>
+            </div>
+            <div
+              v-for="item in servicios"
+              :key="item.localId"
+              class="grid gap-3 py-3 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)] lg:items-start"
+            >
+              <div class="min-w-0">
+                <p class="mt-1 text-sm font-medium text-stone-900">{{ item.cantidad }}</p>
+              </div>
+              <div class="min-w-0">
+                <p class="mt-1 text-sm font-medium text-stone-900">{{ item.unidadLabel }}</p>
+              </div>
+              <div class="min-w-0">
+                <p class="mt-1 whitespace-normal break-words text-sm font-medium text-stone-900">{{ item.descripcion }}</p>
+              </div>
+            </div>
+          </div>
+          <span v-else class="text-base font-medium text-stone-900">Sin servicios</span>
         </dd>
       </div>
       <div v-else class="overflow-hidden rounded-lg bg-stone-50 lg:col-span-2">
