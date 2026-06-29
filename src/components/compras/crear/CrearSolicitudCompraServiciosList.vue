@@ -20,15 +20,15 @@ const emit = defineEmits<{
       :key="item.localId"
       class="rounded-lg border border-stone-200 bg-white px-3 py-3"
     >
-      <div class="hidden grid-cols-[8rem_minmax(0,1fr)_8rem_5.5rem] items-center gap-4 text-center text-sm md:grid">
+      <div class="hidden grid-cols-[8rem_8rem_minmax(0,1fr)_5.5rem] items-center gap-4 text-center text-sm md:grid">
         <p class="break-words font-semibold text-stone-900">
           {{ item.cantidad }}
         </p>
+        <p class="break-words pl-4 text-xs text-stone-500">
+          {{ item.unidadLabel }}
+        </p>
         <p class="break-words text-stone-700">
           {{ item.descripcion }}
-        </p>
-        <p class="break-words text-xs text-stone-500">
-          {{ item.unidadLabel }}
         </p>
         <div class="flex justify-center gap-1">
           <button
@@ -51,8 +51,9 @@ const emit = defineEmits<{
       <div class="flex items-center justify-between gap-3 md:hidden">
         <p class="min-w-0 flex-1 break-words text-sm text-stone-700">
           <span class="font-semibold text-stone-900">{{ item.cantidad }}</span>
-          {{ ' ' }}·{{ ' ' }}{{ item.descripcion }}{{ ' ' }}·{{ ' ' }}
+          {{ ' ' }}·{{ ' ' }}
           <span class="text-xs text-stone-500">{{ item.unidadLabel }}</span>
+          {{ ' ' }}·{{ ' ' }}{{ item.descripcion }}
         </p>
 
         <div class="flex shrink-0 items-center gap-2">

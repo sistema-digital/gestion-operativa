@@ -264,16 +264,16 @@ const onSelectRow = (
                   :class="row.kind !== 'manual' && row.selected ? 'bg-main/10' : 'bg-white'"
                   @click="onSelectRow(row)"
                 >
-                  <div class="hidden grid-cols-[10rem_minmax(0,1fr)_8rem_3.25rem] items-center gap-4 text-center md:grid">
+                  <div class="hidden grid-cols-[10rem_8rem_minmax(0,1fr)_3.25rem] items-center gap-4 text-center md:grid">
                     <template v-if="row.kind === 'manual'">
                       <p class="break-words text-sm font-semibold text-main">
                         MANUAL
                       </p>
-                      <p class="break-words text-sm text-stone-600">
-                        {{ row.label }}
-                      </p>
                       <p class="break-words text-xs text-stone-500">
                         Sin unidad
+                      </p>
+                      <p class="break-words text-sm text-stone-600">
+                        {{ row.label }}
                       </p>
                     </template>
 
@@ -281,11 +281,11 @@ const onSelectRow = (
                       <p class="break-words font-semibold text-stone-900">
                         {{ row.codProducto }}
                       </p>
-                      <p class="break-words text-stone-700">
-                        {{ row.descripcion }}
-                      </p>
                       <p class="break-words text-xs text-stone-500">
                         {{ row.unidadLabel }}
+                      </p>
+                      <p class="break-words text-stone-700">
+                        {{ row.descripcion }}
                       </p>
                     </template>
 
@@ -293,11 +293,11 @@ const onSelectRow = (
                       <p class="break-words font-semibold text-stone-900">
                         {{ row.item.codProducto }}
                       </p>
-                      <p class="break-words text-stone-700">
-                        {{ row.item.descripcion }}
-                      </p>
                       <p class="break-words text-xs text-stone-500">
                         {{ row.item.unidadLabel }}
+                      </p>
+                      <p class="break-words text-stone-700">
+                        {{ row.item.descripcion }}
                       </p>
                     </template>
 
@@ -335,14 +335,16 @@ const onSelectRow = (
 
                       <template v-else-if="row.kind === 'selected'">
                         <span class="font-semibold text-stone-900">{{ row.codProducto }}</span>
-                        {{ ' ' }}·{{ ' ' }}{{ row.descripcion }}{{ ' ' }}·{{ ' ' }}
+                        {{ ' ' }}·{{ ' ' }}
                         <span class="text-xs text-stone-500">{{ row.unidadLabel }}</span>
+                        {{ ' ' }}·{{ ' ' }}{{ row.descripcion }}
                       </template>
 
                       <template v-else>
                         <span class="font-semibold text-stone-900">{{ row.item.codProducto }}</span>
-                        {{ ' ' }}·{{ ' ' }}{{ row.item.descripcion }}{{ ' ' }}·{{ ' ' }}
+                        {{ ' ' }}·{{ ' ' }}
                         <span class="text-xs text-stone-500">{{ row.item.unidadLabel }}</span>
+                        {{ ' ' }}·{{ ' ' }}{{ row.item.descripcion }}
                       </template>
                     </div>
 
@@ -428,15 +430,15 @@ const onSelectRow = (
             :key="item.localId"
             class="rounded-lg border border-stone-200 bg-white px-3 py-3"
           >
-            <div class="hidden grid-cols-[10rem_minmax(0,1fr)_8rem_3.8rem] items-center gap-4 text-center text-sm md:grid">
+            <div class="hidden grid-cols-[10rem_8rem_minmax(0,1fr)_3.8rem] items-center gap-4 text-center text-sm md:grid">
               <p class="break-words font-semibold text-stone-900">
                 {{ item.codProducto }}
               </p>
-              <p class="break-words text-stone-700">
-                {{ item.descripcion }}
-              </p>
               <p class="break-words text-xs text-stone-500">
                 {{ item.unidadLabel }}
+              </p>
+              <p class="break-words text-stone-700">
+                {{ item.descripcion }}
               </p>
               <div class="flex justify-center gap-1">
                 <button
@@ -460,8 +462,9 @@ const onSelectRow = (
             <div class="flex items-center justify-between gap-3 md:hidden">
               <p class="min-w-0 flex-1 break-words text-sm text-stone-700">
                 <span class="font-semibold text-stone-900">{{ item.codProducto }}</span>
-                {{ ' ' }}·{{ ' ' }}{{ item.descripcion }}{{ ' ' }}·{{ ' ' }}
+                {{ ' ' }}·{{ ' ' }}
                 <span class="text-xs text-stone-500">{{ item.unidadLabel }}</span>
+                {{ ' ' }}·{{ ' ' }}{{ item.descripcion }}
               </p>
 
               <div class="flex shrink-0 items-center gap-2">
