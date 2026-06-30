@@ -9,8 +9,11 @@ export type EquipoSeleccionadoSource = 'equipo' | 'contexto';
 export const OBSERVACION_PREFILL_PREFIX = 'Para uso en: ';
 export const OBSERVACION_MAX_LENGTH = 250;
 export const ADJUNTO_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+export const ADJUNTO_MAX_FILES = 5;
+export const ADJUNTO_MAX_NAME_LENGTH = 50;
 export const ADJUNTO_ERROR_MESSAGE = 'Archivo no valido';
 export const ADJUNTO_DUPLICATE_ERROR_MESSAGE = 'Archivo repetido';
+export const ADJUNTO_MAX_FILES_ERROR_MESSAGE = 'Maximo 5 archivos';
 
 export type CrearSolicitudAdjuntoKind = 'image' | 'pdf' | 'docx';
 
@@ -96,8 +99,14 @@ export interface ServicioSolicitudItem {
 export interface CrearSolicitudAdjuntoLocalItem {
   localId: string;
   file: File;
+  displayName: string;
   kind: CrearSolicitudAdjuntoKind;
   fingerprint: string;
+}
+
+export interface CrearSolicitudAdjuntoDraftInput {
+  file: File;
+  displayName: string;
 }
 
 export interface CrearSolicitudAdjuntoValidationIssue {

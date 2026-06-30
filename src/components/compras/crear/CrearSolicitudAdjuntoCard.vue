@@ -16,7 +16,7 @@ const emit = defineEmits<{
 }>();
 
 const previewUrl = shallowRef<string | null>(null);
-const displayName = computed(() => formatAdjuntoDisplayName(props.item.file.name));
+const displayName = computed(() => formatAdjuntoDisplayName(props.item.displayName));
 
 const syncPreviewUrl = (): void => {
   if (previewUrl.value) {
@@ -39,7 +39,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <article class="relative h-20 w-20 overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white shadow-sm">
+  <article class="relative h-20 w-20 shrink-0 overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white shadow-sm">
     <button
       type="button"
       class="group relative flex h-full w-full items-center justify-center overflow-hidden bg-stone-100 text-left"
@@ -48,7 +48,7 @@ onBeforeUnmount(() => {
       <img
         v-if="previewUrl"
         :src="previewUrl"
-        :alt="item.file.name"
+        :alt="item.displayName"
         class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
       >
       <div

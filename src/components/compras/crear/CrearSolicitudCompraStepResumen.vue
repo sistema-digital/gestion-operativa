@@ -352,10 +352,10 @@ watch(
                     </div>
                     <div class="min-w-0">
                       <p class="truncate text-sm font-semibold text-stone-900">
-                        {{ item.file.name }}
+                        {{ item.displayName }}
                       </p>
                       <p class="text-xs text-stone-500">
-                        {{ getAdjuntoExtension(item.file.name).toUpperCase() }} · {{ formatAdjuntoSize(item.file.size) }}
+                        {{ getAdjuntoExtension(item.displayName).toUpperCase() }} · {{ formatAdjuntoSize(item.file.size) }}
                       </p>
                     </div>
                   </div>

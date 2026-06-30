@@ -5,17 +5,27 @@ import { shallowRef } from 'vue';
 
 import {
   buildAdjuntoFingerprint,
+  buildAdjuntoDisplayName,
+  buildAdjuntoDefaultBaseName,
   formatAdjuntoSize,
   validateAdjuntosSelection,
 } from './crearSolicitudAdjuntos.utils';
 import type {
+  CrearSolicitudAdjuntoDraftInput,
   CrearSolicitudAdjuntoLocalItem,
   CrearSolicitudAdjuntoValidationIssue,
 } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 interface AdjuntoSubmitPayload {
-  files: File[];
+  items: CrearSolicitudAdjuntoDraftInput[];
   hasInvalidFiles: boolean;
+}
+
+interface SelectedAdjuntoDraft {
+  localId: string;
+  file: File;
+  customName: string;
+  defaultBaseName: string;
 }
 
 const props = defineProps<{
@@ -28,7 +38,7 @@ const emit = defineEmits<{
 }>();
 
 const viewportWidth = shallowRef(typeof window === 'undefined' ? 1280 : window.innerWidth);
-const selectedFiles = shallowRef<File[]>([]);
+const selectedFiles = shallowRef<SelectedAdjuntoDraft[]>([]);
 const validationIssues = shallowRef<CrearSolicitudAdjuntoValidationIssue[]>([]);
 const previewUrls = shallowRef<Record<string, string>>({});
 
@@ -55,9 +65,9 @@ const releasePreviewUrls = (): void => {
 const syncPreviewUrls = (): void => {
   releasePreviewUrls();
 
-  previewUrls.value = selectedFiles.value.reduce<Record<string, string>>((acc, file) => {
-    if (file.type.startsWith('image/')) {
-      acc[buildAdjuntoFingerprint(file)] = URL.createObjectURL(file);
+  previewUrls.value = selectedFiles.value.reduce<Record<string, string>>((acc, item) => {
+    if (item.file.type.startsWith('image/')) {
+      acc[item.localId] = URL.createObjectURL(item.file);
     }
     return acc;
   }, {});
@@ -66,35 +76,47 @@ const syncPreviewUrls = (): void => {
 const handleFileSelection = (event: Event): void => {
   const input = event.target as HTMLInputElement;
   const incomingFiles = Array.from(input.files ?? []);
-  const knownFingerprints = new Set(selectedFiles.value.map((file) => buildAdjuntoFingerprint(file)));
+  const knownFingerprints = new Set(selectedFiles.value.map((item) => buildAdjuntoFingerprint(item.file)));
+  const baseIndex = selectedFiles.value.length + 1;
 
   selectedFiles.value = [
     ...selectedFiles.value,
-    ...incomingFiles.filter((file) => !knownFingerprints.has(buildAdjuntoFingerprint(file))),
+    ...incomingFiles
+      .filter((file) => !knownFingerprints.has(buildAdjuntoFingerprint(file)))
+      .map((file, index) => ({
+        localId: crypto.randomUUID(),
+        file,
+        customName: '',
+        defaultBaseName: buildAdjuntoDefaultBaseName(baseIndex + index),
+      })),
   ];
   validationIssues.value = [];
   input.value = '';
 };
 
-const removeSelectedFile = (fingerprint: string): void => {
-  selectedFiles.value = selectedFiles.value.filter((file) => buildAdjuntoFingerprint(file) !== fingerprint);
+const removeSelectedFile = (localId: string): void => {
+  selectedFiles.value = selectedFiles.value.filter((item) => item.localId !== localId);
 };
 
 const handleSubmit = (): void => {
-  const { acceptedFiles, invalidIssues } = validateAdjuntosSelection(selectedFiles.value, props.existingAdjuntos);
+  const itemsToValidate = selectedFiles.value.map<CrearSolicitudAdjuntoDraftInput>((item, index) => ({
+    file: item.file,
+    displayName: buildAdjuntoDisplayName(item.customName, item.file.name, index + 1),
+  }));
+  const { acceptedItems, invalidIssues } = validateAdjuntosSelection(itemsToValidate, props.existingAdjuntos);
   const invalidNames = new Set(invalidIssues.map((issue) => issue.fileName));
 
   validationIssues.value = invalidIssues;
 
-  if (acceptedFiles.length > 0) {
+  if (acceptedItems.length > 0) {
     emit('submit', {
-      files: acceptedFiles,
+      items: acceptedItems,
       hasInvalidFiles: invalidIssues.length > 0,
     });
   }
 
   if (invalidIssues.length > 0) {
-    selectedFiles.value = selectedFiles.value.filter((file) => invalidNames.has(file.name));
+    selectedFiles.value = selectedFiles.value.filter((item) => invalidNames.has(item.file.name));
   }
 };
 
@@ -155,15 +177,15 @@ onBeforeUnmount(() => {
               class="space-y-3"
             >
               <div
-                v-for="file in selectedFiles"
-                :key="buildAdjuntoFingerprint(file)"
-                class="flex items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-3"
+                v-for="(item, index) in selectedFiles"
+                :key="item.localId"
+                class="flex items-start gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-3"
               >
                 <div class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white">
                   <img
-                    v-if="previewUrls[buildAdjuntoFingerprint(file)]"
-                    :src="previewUrls[buildAdjuntoFingerprint(file)]"
-                    :alt="file.name"
+                    v-if="previewUrls[item.localId]"
+                    :src="previewUrls[item.localId]"
+                    :alt="item.file.name"
                     class="h-full w-full object-cover"
                   >
                   <FileText
@@ -172,19 +194,34 @@ onBeforeUnmount(() => {
                   />
                 </div>
 
-                <div class="min-w-0 flex-1">
+                <div class="min-w-0 flex-1 space-y-2">
                   <p class="truncate text-sm font-semibold text-stone-900">
-                    {{ file.name }}
+                    {{ item.file.name }}
                   </p>
                   <p class="mt-1 text-xs text-stone-500">
-                    {{ formatAdjuntoSize(file.size) }}
+                    {{ formatAdjuntoSize(item.file.size) }}
                   </p>
+                  <div class="space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-stone-500">
+                      Nombre del archivo
+                    </label>
+                    <input
+                      v-model="item.customName"
+                      type="text"
+                      maxlength="50"
+                      class="w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-main"
+                      :placeholder="item.defaultBaseName"
+                    >
+                    <p class="text-xs text-stone-500">
+                      Si lo dejas vacio se usara {{ buildAdjuntoDisplayName('', item.file.name, index + 1) }}.
+                    </p>
+                  </div>
                 </div>
 
                 <button
                   type="button"
                   class="inline-flex h-9 w-9 items-center justify-center rounded-full text-stone-400 transition hover:bg-white hover:text-stone-700"
-                  @click="removeSelectedFile(buildAdjuntoFingerprint(file))"
+                  @click="removeSelectedFile(item.localId)"
                 >
                   <X class="h-4 w-4" />
                 </button>

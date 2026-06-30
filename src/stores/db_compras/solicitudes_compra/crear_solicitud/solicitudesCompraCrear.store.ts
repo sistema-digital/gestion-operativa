@@ -23,6 +23,7 @@ import {
   OBSERVACION_PREFILL_PREFIX,
 } from './solicitudesCompraCrear.types';
 import type {
+  CrearSolicitudAdjuntoDraftInput,
   EquipoSeleccionadoSource,
   CrearSolicitudFieldErrors,
   EquipoSeleccionado,
@@ -265,14 +266,14 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       delete this.validationErrors.motivoUrgencia;
     },
 
-    agregarAdjuntos(files: File[]): void {
-      const { acceptedFiles, invalidIssues } = validateAdjuntosSelection(files, this.adjuntosLocales);
+    agregarAdjuntos(items: CrearSolicitudAdjuntoDraftInput[]): void {
+      const { acceptedItems, invalidIssues } = validateAdjuntosSelection(items, this.adjuntosLocales);
 
-      if (acceptedFiles.length > 0) {
+      if (acceptedItems.length > 0) {
         this.adjuntosLocales = [
           ...this.adjuntosLocales,
-          ...acceptedFiles.flatMap((file) => {
-            const kind = getAdjuntoKind(file);
+          ...acceptedItems.flatMap((item) => {
+            const kind = getAdjuntoKind(item.file);
 
             if (!kind) {
               return [];
@@ -280,9 +281,10 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
 
             return [{
               localId: createLocalId(),
-              file,
+              file: item.file,
+              displayName: item.displayName,
               kind,
-              fingerprint: buildAdjuntoFingerprint(file),
+              fingerprint: buildAdjuntoFingerprint(item.file),
             }];
           }),
         ];

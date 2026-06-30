@@ -192,14 +192,33 @@ describe('solicitudesCompraCrear.store', () => {
     const duplicateImage = createFile('foto.jpg', 'image/jpeg');
     const invalidZip = createFile('archivo.zip', 'application/zip');
 
-    store.agregarAdjuntos([validImage, duplicateImage, invalidZip]);
+    store.agregarAdjuntos([
+      { file: validImage, displayName: 'factura_carro.jpg' },
+      { file: duplicateImage, displayName: 'factura_carro_2.jpg' },
+      { file: invalidZip, displayName: 'archivo.zip' },
+    ]);
 
     expect(store.adjuntosLocales).toHaveLength(1);
     expect(store.adjuntosLocales[0]?.file.name).toBe('foto.jpg');
+    expect(store.adjuntosLocales[0]?.displayName).toBe('factura_carro.jpg');
     expect(store.adjuntosErroresRecientes).toHaveLength(2);
     expect(store.adjuntosErroresRecientes[0]?.message).toBe('Archivo repetido');
     expect(store.adjuntosErroresRecientes[1]?.message).toBe('Archivo no valido');
     expect(store.validationErrors.adjuntos).toBe('Archivo repetido');
+  });
+
+  it('limita la carga local a 5 adjuntos', () => {
+    const store = useSolicitudesCompraCrearStore();
+    const items = Array.from({ length: 6 }, (_, index) => ({
+      file: createFile(`archivo-${index + 1}.pdf`, 'application/pdf', 1024, 1719705600000 + index),
+      displayName: `archivo_${index + 1}.pdf`,
+    }));
+
+    store.agregarAdjuntos(items);
+
+    expect(store.adjuntosLocales).toHaveLength(5);
+    expect(store.adjuntosErroresRecientes.at(-1)?.message).toBe('Maximo 5 archivos');
+    expect(store.validationErrors.adjuntos).toBe('Maximo 5 archivos');
   });
 
   it('no sube adjuntos al guardar borrador', async () => {
@@ -224,7 +243,7 @@ describe('solicitudesCompraCrear.store', () => {
       unidadLabel: 'Gal',
     });
     store.setObservacion('Solicitud para mantenimiento preventivo.');
-    store.agregarAdjuntos([createFile('manual.pdf', 'application/pdf')]);
+    store.agregarAdjuntos([{ file: createFile('manual.pdf', 'application/pdf'), displayName: 'manual.pdf' }]);
 
     mockedService.crearSolicitud.mockResolvedValue({
       solicitud_id: 'sol-1',

@@ -1,9 +1,13 @@
 import {
+  ADJUNTO_MAX_FILES,
+  ADJUNTO_MAX_FILES_ERROR_MESSAGE,
   ADJUNTO_DUPLICATE_ERROR_MESSAGE,
   ADJUNTO_ERROR_MESSAGE,
   ADJUNTO_MAX_FILE_SIZE_BYTES,
+  ADJUNTO_MAX_NAME_LENGTH,
 } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 import type {
+  CrearSolicitudAdjuntoDraftInput,
   CrearSolicitudAdjuntoKind,
   CrearSolicitudAdjuntoLocalItem,
   CrearSolicitudAdjuntoValidationIssue,
@@ -39,6 +43,12 @@ const createDuplicateIssue = (file: File): CrearSolicitudAdjuntoValidationIssue 
   message: ADJUNTO_DUPLICATE_ERROR_MESSAGE,
 });
 
+const createMaxFilesIssue = (file: File): CrearSolicitudAdjuntoValidationIssue => ({
+  localId: crypto.randomUUID(),
+  fileName: file.name,
+  message: ADJUNTO_MAX_FILES_ERROR_MESSAGE,
+});
+
 export const getAdjuntoExtension = (fileName: string): string => {
   const parts = fileName.split('.');
   return parts.length > 1 ? parts.at(-1)?.toLowerCase() ?? '' : '';
@@ -56,6 +66,43 @@ export const buildAdjuntoFingerprint = (file: File): string => [
   String(file.lastModified),
 ].join('::');
 
+export const normalizeAdjuntoBaseName = (value: string): string => value
+  .trim()
+  .replace(/\s+/g, '_')
+  .slice(0, ADJUNTO_MAX_NAME_LENGTH);
+
+export const buildAdjuntoDefaultBaseName = (index: number, now = new Date()): string => {
+  const compactNow = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+    String(now.getHours()).padStart(2, '0'),
+    String(now.getMinutes()).padStart(2, '0'),
+    String(now.getSeconds()).padStart(2, '0'),
+  ].join('');
+
+  return normalizeAdjuntoBaseName(`archivo${index}-${compactNow}`);
+};
+
+export const buildAdjuntoDisplayName = (
+  value: string,
+  originalFileName: string,
+  fallbackIndex: number,
+  now = new Date()
+): string => {
+  const extension = getAdjuntoExtension(originalFileName);
+  const maxBaseLength = extension
+    ? Math.max(1, ADJUNTO_MAX_NAME_LENGTH - extension.length - 1)
+    : ADJUNTO_MAX_NAME_LENGTH;
+  const normalizedValue = normalizeAdjuntoBaseName(value);
+  const defaultBaseName = buildAdjuntoDefaultBaseName(fallbackIndex, now).slice(0, maxBaseLength);
+  const baseName = (normalizedValue || defaultBaseName).slice(0, maxBaseLength);
+
+  return extension
+    ? `${baseName}.${extension}`
+    : baseName;
+};
+
 export const isValidAdjuntoFile = (file: File): boolean => {
   const extension = getAdjuntoExtension(file.name);
   const mimeCandidates = MIME_BY_EXTENSION[extension];
@@ -68,37 +115,42 @@ export const isValidAdjuntoFile = (file: File): boolean => {
 };
 
 export const validateAdjuntosSelection = (
-  files: File[],
+  items: CrearSolicitudAdjuntoDraftInput[],
   existingAdjuntos: CrearSolicitudAdjuntoLocalItem[]
 ): {
-  acceptedFiles: File[];
+  acceptedItems: CrearSolicitudAdjuntoDraftInput[];
   invalidIssues: CrearSolicitudAdjuntoValidationIssue[];
 } => {
   const existingFingerprints = new Set(existingAdjuntos.map((item) => item.fingerprint));
   const queuedFingerprints = new Set<string>();
-  const acceptedFiles: File[] = [];
+  const acceptedItems: CrearSolicitudAdjuntoDraftInput[] = [];
   const invalidIssues: CrearSolicitudAdjuntoValidationIssue[] = [];
 
-  files.forEach((file) => {
-    const fingerprint = buildAdjuntoFingerprint(file);
+  items.forEach((item) => {
+    const fingerprint = buildAdjuntoFingerprint(item.file);
     const isDuplicate = existingFingerprints.has(fingerprint) || queuedFingerprints.has(fingerprint);
 
     if (isDuplicate) {
-      invalidIssues.push(createDuplicateIssue(file));
+      invalidIssues.push(createDuplicateIssue(item.file));
       return;
     }
 
-    if (!isValidAdjuntoFile(file) || !getAdjuntoKind(file)) {
-      invalidIssues.push(createIssue(file));
+    if (!isValidAdjuntoFile(item.file) || !getAdjuntoKind(item.file)) {
+      invalidIssues.push(createIssue(item.file));
+      return;
+    }
+
+    if (existingAdjuntos.length + acceptedItems.length >= ADJUNTO_MAX_FILES) {
+      invalidIssues.push(createMaxFilesIssue(item.file));
       return;
     }
 
     queuedFingerprints.add(fingerprint);
-    acceptedFiles.push(file);
+    acceptedItems.push(item);
   });
 
   return {
-    acceptedFiles,
+    acceptedItems,
     invalidIssues,
   };
 };

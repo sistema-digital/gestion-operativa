@@ -41,7 +41,7 @@ const handleEscape = (event: KeyboardEvent): void => {
   }
 };
 
-const title = computed(() => props.item.file.name);
+const title = computed(() => props.item.displayName);
 
 watch(() => props.item, syncObjectUrl, { immediate: true, deep: true });
 
@@ -94,7 +94,7 @@ onBeforeUnmount(() => {
           <img
             v-if="item.kind === 'image' && objectUrl"
             :src="objectUrl"
-            :alt="item.file.name"
+            :alt="item.displayName"
             class="max-h-full max-w-full rounded-2xl object-contain shadow-2xl"
           >
 

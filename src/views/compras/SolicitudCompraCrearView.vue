@@ -7,6 +7,7 @@ import { useCrearSolicitudCompraWizard } from '@/composables/compras/useCrearSol
 import type { CatalogoServicioContextoOption } from '@/stores/db_compras/catalogo_servicio_contexto/catalogoServicioContexto.types';
 import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
 import type {
+  CrearSolicitudAdjuntoDraftInput,
   ProductoSolicitudTemporalItem,
   ProductoTemporalDraft,
   ServicioSolicitudDraft,
@@ -305,8 +306,8 @@ const handleResumenDesktopScrollStateChange = ({
   resumenDesktopReachedBottom.value = reachedBottom;
 };
 
-const handleAddAdjuntos = (files: File[]): void => {
-  agregarAdjuntos(files);
+const handleAddAdjuntos = (items: CrearSolicitudAdjuntoDraftInput[]): void => {
+  agregarAdjuntos(items);
 };
 
 const handleRemoveAdjunto = (localId: string): void => {

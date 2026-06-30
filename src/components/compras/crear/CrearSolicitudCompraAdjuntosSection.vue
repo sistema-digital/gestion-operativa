@@ -7,12 +7,13 @@ import CrearSolicitudAdjuntoCard from './CrearSolicitudAdjuntoCard.vue';
 import CrearSolicitudAdjuntoPreviewModal from './CrearSolicitudAdjuntoPreviewModal.vue';
 import CrearSolicitudCompraAdjuntosForm from './CrearSolicitudCompraAdjuntosForm.vue';
 import type {
+  CrearSolicitudAdjuntoDraftInput,
   CrearSolicitudAdjuntoLocalItem,
   CrearSolicitudAdjuntoValidationIssue,
 } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 interface AdjuntoSubmitPayload {
-  files: File[];
+  items: CrearSolicitudAdjuntoDraftInput[];
   hasInvalidFiles: boolean;
 }
 
@@ -23,7 +24,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'add:adjuntos', value: File[]): void;
+  (e: 'add:adjuntos', value: CrearSolicitudAdjuntoDraftInput[]): void;
   (e: 'remove:adjunto', value: string): void;
   (e: 'clear:adjuntos-errors'): void;
 }>();
@@ -33,8 +34,8 @@ const previewItem = shallowRef<CrearSolicitudAdjuntoLocalItem | null>(null);
 
 const hasAdjuntosErrors = computed(() => props.adjuntosErroresRecientes.length > 0 || Boolean(props.adjuntosError));
 
-const handleSubmit = ({ files, hasInvalidFiles }: AdjuntoSubmitPayload): void => {
-  emit('add:adjuntos', files);
+const handleSubmit = ({ items, hasInvalidFiles }: AdjuntoSubmitPayload): void => {
+  emit('add:adjuntos', items);
 
   if (!hasInvalidFiles) {
     isFormOpen.value = false;
@@ -48,16 +49,10 @@ const openForm = (): void => {
 
 <template>
   <div class="space-y-3">
-    <div class="space-y-1">
-      <p class="text-sm font-semibold text-stone-800">
-        Adjuntos
-      </p>
-      
-    </div>
-
+   
     <button
       type="button"
-      class="flex w-full items-center gap-3 rounded-[1.5rem] border border-dashed border-main/30 bg-main/5 px-4 py-4 text-left transition hover:border-main/50 hover:bg-main/10"
+      class="flex w-full items-center gap-3 rounded-[1.5rem] border border-dashed border-main/30 bg-main/5 px-4 py-2 text-left transition hover:border-main/50 hover:bg-main/10"
       @click="openForm"
     >
       <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-main shadow-sm">
@@ -75,7 +70,7 @@ const openForm = (): void => {
 
     <div
       v-if="adjuntos.length > 0"
-      class="flex gap-1"
+      class="flex flex-wrap gap-3"
     >
       <CrearSolicitudAdjuntoCard
         v-for="item in adjuntos"
