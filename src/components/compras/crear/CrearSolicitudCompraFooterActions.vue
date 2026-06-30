@@ -10,6 +10,7 @@ const props = defineProps<{
   loading: boolean;
   disableNext: boolean;
   disableSend?: boolean;
+  showDraftButton?: boolean;
 }>();
 
 defineEmits<{
@@ -20,7 +21,7 @@ defineEmits<{
   (e: 'send'): void;
 }>();
 
-const shouldShowDraftButton = computed(() => props.currentStep > 1);
+const shouldShowDraftButton = computed(() => props.showDraftButton ?? false);
 </script>
 
 <template>

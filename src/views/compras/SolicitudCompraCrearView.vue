@@ -54,6 +54,7 @@ const {
   equiposSearchError,
   headerContext,
   isCurrentStepValid,
+  canSaveDraft,
   onNext,
   onBack,
   onSubmit,
@@ -458,6 +459,7 @@ onBeforeUnmount(() => {
           :loading="loading"
           :disable-next="shouldDisableNext"
           :disable-send="shouldDisableSend"
+          :show-draft-button="canSaveDraft"
           @cancel="openActionConfirmModal('cancel')"
           @back="onBack"
           @next="handleNext"

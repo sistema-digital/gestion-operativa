@@ -162,6 +162,14 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       return true;
     },
 
+    canSaveDraft(state): boolean {
+      return stepDatosBaseSchema.safeParse({
+        tipoSolicitud: state.tipoSolicitud,
+        fechaEntrega: state.fechaEntrega,
+        equipos: state.equipos,
+      }).success;
+    },
+
     observacionAutogenerada(state): boolean {
       return !state.observacionEditadaManual
         || state.observacion === state.ultimoPrefillObservacion;
@@ -657,8 +665,9 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     buildDraftSnapshot():
       SolicitudCompraBorradorCreatePayload
       | SolicitudCompraBorradorUpdatePayload {
+      const draftStep = (this.currentStep === 1 ? 2 : this.currentStep) as SolicitudCompraBorradorStep;
       const result = solicitudCompraBorradorSchema.safeParse({
-        currentStep: this.currentStep,
+        currentStep: draftStep,
         tipoSolicitud: this.tipoSolicitud,
         fechaEntrega: this.fechaEntrega,
         equipos: this.equipos,

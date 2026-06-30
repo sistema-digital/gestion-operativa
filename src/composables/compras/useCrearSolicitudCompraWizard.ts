@@ -73,6 +73,7 @@ export const useCrearSolicitudCompraWizard = () => {
     stepTitle,
     headerContext,
     isCurrentStepValid: computed(() => store.isCurrentStepValid),
+    canSaveDraft: computed(() => store.canSaveDraft),
     onNext,
     onBack,
     onSubmit,
