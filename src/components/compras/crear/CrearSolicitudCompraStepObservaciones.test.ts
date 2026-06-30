@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import CrearSolicitudCompraStepObservaciones from './CrearSolicitudCompraStepObservaciones.vue';
 
@@ -106,6 +106,61 @@ describe('CrearSolicitudCompraStepObservaciones', () => {
     expect(wrapper.emitted('desktop-scroll-state-change')?.at(-1)?.[0]).toEqual({
       hasOverflow: true,
       reachedBottom: true,
+    });
+  });
+
+  it('hace visible el bloque de urgencia al activar prioridad en desktop', async () => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 1280,
+      writable: true,
+    });
+
+    const wrapper = mount(CrearSolicitudCompraStepObservaciones, {
+      props: {
+        observacion: '',
+        solicitarUrgente: false,
+        motivoUrgencia: '',
+        equipos: [],
+        adjuntos: [],
+        adjuntosErroresRecientes: [],
+      },
+    });
+
+    const scrollContainer = wrapper.get('section > div').element as HTMLDivElement;
+    const scrollTo = vi.fn();
+
+    Object.defineProperty(scrollContainer, 'clientHeight', {
+      configurable: true,
+      value: 300,
+    });
+    Object.defineProperty(scrollContainer, 'scrollTop', {
+      configurable: true,
+      value: 0,
+      writable: true,
+    });
+    Object.defineProperty(scrollContainer, 'scrollTo', {
+      configurable: true,
+      value: scrollTo,
+    });
+
+    Object.defineProperty(HTMLElement.prototype, 'offsetTop', {
+      configurable: true,
+      get: () => 420,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get: () => 140,
+    });
+
+    await wrapper.setProps({
+      solicitarUrgente: true,
+    });
+    await nextTick();
+
+    expect(scrollTo).toHaveBeenCalledWith({
+      top: 260,
+      behavior: 'smooth',
     });
   });
 });

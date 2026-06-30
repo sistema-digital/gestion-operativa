@@ -56,6 +56,7 @@ const emit = defineEmits<{
 }>();
 
 const scrollContainer = useTemplateRef<HTMLElement>('scrollContainer');
+const urgentSection = useTemplateRef<HTMLElement>('urgentSection');
 const hasReachedBottom = shallowRef(false);
 
 const equipmentChips = computed<EquipoObservacionChip[]>(() => props.equipos
@@ -111,6 +112,29 @@ const syncDesktopScrollState = (): void => {
   });
 };
 
+const revealUrgentSection = (): void => {
+  const container = scrollContainer.value;
+  const section = urgentSection.value;
+
+  if (!container || !section || !isDesktopViewport()) {
+    return;
+  }
+
+  const sectionTop = section.offsetTop;
+  const sectionBottom = sectionTop + section.offsetHeight;
+  const visibleTop = container.scrollTop;
+  const visibleBottom = visibleTop + container.clientHeight;
+
+  if (sectionTop >= visibleTop && sectionBottom <= visibleBottom) {
+    return;
+  }
+
+  container.scrollTo({
+    top: Math.max(sectionBottom - container.clientHeight, 0),
+    behavior: 'smooth',
+  });
+};
+
 const handleContainerScroll = (): void => {
   if (hasReachedBottom.value) {
     return;
@@ -140,6 +164,20 @@ watch(
   ],
   () => {
     syncDesktopScrollState();
+  }
+);
+
+watch(
+  () => props.solicitarUrgente,
+  (isUrgent, wasUrgent) => {
+    if (!isUrgent || wasUrgent) {
+      return;
+    }
+
+    void nextTick(() => {
+      revealUrgentSection();
+      emitDesktopScrollState();
+    });
   }
 );
 </script>
@@ -252,6 +290,7 @@ watch(
 
         <div
           v-if="solicitarUrgente"
+          ref="urgentSection"
           class="space-y-2"
         >
           <p class="rounded-xl border border-warning/30 bg-warning-bg px-3 py-2 text-xs text-warning lg:text-sm">
