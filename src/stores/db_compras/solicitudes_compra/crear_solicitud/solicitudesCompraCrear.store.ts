@@ -12,6 +12,7 @@ import { solicitudCompraBorradorSchema } from '@/stores/db_compras/solicitudes_c
 import { solicitudesCompraBorradoresService } from '@/stores/db_compras/solicitudes_compra/borradores/solicitudesCompraBorradores.service';
 import {
   SOLICITUD_COMPRA_BORRADOR_SCHEMA_VERSION,
+  type SolicitudCompraBorradorListadoItem,
   type SolicitudCompraBorradorCreatePayload,
   type SolicitudCompraBorradorStep,
   type SolicitudCompraBorradorUpdatePayload,
@@ -49,6 +50,8 @@ import type {
 } from './solicitudesCompraCrear.types';
 
 const createInitialState = (): SolicitudCompraCrearState => ({
+  entryMode: null,
+  continuedFromDraft: false,
   currentStep: 1,
   submitMode: null,
   draftId: null,
@@ -228,6 +231,94 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         || userSnapshot.areaNombre
       );
       useEquiposStore().reset();
+    },
+
+    async prepareNewEntry(): Promise<void> {
+      this.reset();
+      await this.initialize();
+      this.entryMode = 'new';
+      this.continuedFromDraft = false;
+    },
+
+    hydrateFromDraft(draft: SolicitudCompraBorradorListadoItem): void {
+      const result = solicitudCompraBorradorSchema.safeParse({
+        currentStep: draft.currentStep,
+        tipoSolicitud: draft.tipoSolicitud,
+        fechaEntrega: draft.fechaEntrega,
+        equipos: draft.equipos,
+        productos: draft.productos,
+        servicios: draft.servicios,
+        observacion: draft.observacion,
+        solicitarUrgente: draft.solicitarUrgente,
+        motivoUrgencia: draft.motivoUrgencia,
+      });
+
+      if (!result.success) {
+        throw new Error('El borrador no es válido');
+      }
+
+      const parsed = result.data;
+      const sanitizedProductos = parsed.tipoSolicitud === 'servicio'
+        ? []
+        : parsed.productos;
+      const sanitizedServicios = parsed.tipoSolicitud === 'servicio'
+        ? parsed.servicios
+        : [];
+      const observacionPrefill = buildObservacionPrefill(parsed.equipos);
+      const draftSnapshot = {
+        activo: true,
+        schema_version: draft.schemaVersion,
+        current_step: parsed.currentStep,
+        tipo_solicitud: parsed.tipoSolicitud,
+        fecha_entrega: parsed.fechaEntrega,
+        observacion: parsed.observacion.trim(),
+        solicitar_urgente: parsed.solicitarUrgente,
+        motivo_urgencia: parsed.solicitarUrgente
+          ? parsed.motivoUrgencia.trim()
+          : null,
+        equipos: parsed.equipos,
+        productos: sanitizedProductos,
+        servicios: sanitizedServicios,
+      } satisfies SolicitudCompraBorradorUpdatePayload;
+
+      this.entryMode = 'draft';
+      this.continuedFromDraft = true;
+      this.currentStep = parsed.currentStep;
+      this.submitMode = null;
+      this.draftId = draft.id;
+      this.lastSavedDraftSnapshotHash = createDraftSnapshotHash(draftSnapshot);
+      this.fechaCreacionLocal = new Date(draft.createdAt);
+      this.tipoSolicitud = parsed.tipoSolicitud;
+      this.fechaEntrega = parsed.fechaEntrega;
+      this.equipos = parsed.equipos;
+      this.productos = sanitizedProductos;
+      this.servicios = sanitizedServicios;
+      this.observacion = parsed.observacion;
+      this.ultimoPrefillObservacion = observacionPrefill;
+      this.observacionEditadaManual = parsed.observacion !== observacionPrefill;
+      this.solicitarUrgente = parsed.solicitarUrgente;
+      this.motivoUrgencia = parsed.motivoUrgencia;
+      this.adjuntosLocales = [];
+      this.adjuntosErroresRecientes = [];
+      this.adjuntosSubidos = [];
+      this.uploadSession = null;
+      this.productSearchQuery = '';
+      this.productSearchResults = [];
+      this.productSearchLoading = false;
+      this.productSearchError = null;
+      this.loading = false;
+      this.draftSaving = false;
+      this.uploading = false;
+      this.error = null;
+      this.validationErrors = {};
+      this.lastCreatedResponse = null;
+      this.initialized = true;
+    },
+
+    async prepareDraftEntry(draft: SolicitudCompraBorradorListadoItem): Promise<void> {
+      this.reset();
+      await this.initialize();
+      this.hydrateFromDraft(draft);
     },
 
     setTipoSolicitud(value: SolicitudCompraTipoSolicitud | null): void {

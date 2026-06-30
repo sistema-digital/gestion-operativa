@@ -44,6 +44,22 @@ export interface SolicitudCompraBorradorRow {
   updated_at: string;
 }
 
+export interface SolicitudCompraBorradorListadoItem {
+  id: string;
+  schemaVersion: number;
+  currentStep: SolicitudCompraBorradorStep;
+  tipoSolicitud: SolicitudCompraTipoSolicitud;
+  fechaEntrega: string;
+  observacion: string;
+  solicitarUrgente: boolean;
+  motivoUrgencia: string;
+  equipos: EquipoSeleccionado[];
+  productos: ProductoSolicitudItem[];
+  servicios: ServicioSolicitudItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SolicitudCompraBorradorCreatePayload {
   creado_por_email: string;
   creado_por_nombre: string;

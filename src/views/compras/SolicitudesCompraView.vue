@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import Toast from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
 import { useRoute, useRouter } from 'vue-router';
 
+import SolicitudesCompraDraftsEntryModal from '@/components/compras/list/SolicitudesCompraDraftsEntryModal.vue';
 import SolicitudesDesktopTable from '@/components/compras/list/desktop/SolicitudesDesktopTable.vue';
 import SolicitudesListEmptyState from '@/components/compras/list/SolicitudesListEmptyState.vue';
 import SolicitudesListErrorState from '@/components/compras/list/SolicitudesListErrorState.vue';
@@ -10,6 +13,9 @@ import SolicitudesListSkeleton from '@/components/compras/list/SolicitudesListSk
 import SolicitudesListToolbar from '@/components/compras/list/SolicitudesListToolbar.vue';
 import SolicitudesMobileList from '@/components/compras/list/mobile/SolicitudesMobileList.vue';
 import { useSolicitudesCompraList } from '@/components/compras/list/useSolicitudesCompraList';
+import { solicitudesCompraBorradoresService } from '@/stores/db_compras/solicitudes_compra/borradores/solicitudesCompraBorradores.service';
+import type { SolicitudCompraBorradorListadoItem } from '@/stores/db_compras/solicitudes_compra/borradores/solicitudesCompraBorradores.types';
+import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
 import type {
   SolicitudCompraGrupoListado,
   SolicitudCompraRoleCodigo,
@@ -38,13 +44,22 @@ const {
 } = useSolicitudesCompraList();
 const router = useRouter();
 const route = useRoute();
+const toast = useToast();
+const createStore = useSolicitudesCompraCrearStore();
 const isTransitioningToCreate = ref(false);
+const isCheckingDrafts = ref(false);
+const showDraftsModal = ref(false);
+const availableDrafts = ref<SolicitudCompraBorradorListadoItem[]>([]);
+const lastCreateTriggerElement = ref<HTMLElement | null>(null);
 const CREATE_VIEW_NAVIGATION_DELAY_MS = 320;
 
 const roleCodigo = computed<SolicitudCompraRoleCodigo>(
   () => items.value[0]?.viewerRoleCodigo ?? baseItems.value[0]?.viewerRoleCodigo ?? 'operativo'
 );
 const isCreateOverlayOpen = computed(() => route.name === 'SolicitudCompraCrear');
+const createOverlayLabel = computed(() => isCheckingDrafts.value
+  ? 'Buscando borradores...'
+  : 'Cargando formulario...');
 
 const searchActive = computed(() =>
   filters.value.busqueda.trim().length > 0
@@ -70,11 +85,13 @@ const handleGrupoChange = async (
   await onGrupoChange(grupo);
 };
 
-const openCreateOverlay = (): void => {
-  if (isTransitioningToCreate.value || isCreateOverlayOpen.value) {
-    return;
-  }
+const closeDraftsModal = (): void => {
+  showDraftsModal.value = false;
+  availableDrafts.value = [];
+  lastCreateTriggerElement.value?.focus();
+};
 
+const navigateToCreate = async (): Promise<void> => {
   isTransitioningToCreate.value = true;
   window.dispatchEvent(new CustomEvent('prepare-open-solicitud-compra'));
   void import('@/views/compras/SolicitudCompraCrearView.vue');
@@ -84,8 +101,70 @@ const openCreateOverlay = (): void => {
   }, CREATE_VIEW_NAVIGATION_DELAY_MS);
 };
 
+const openCreateOverlay = async (): Promise<void> => {
+  if (
+    isTransitioningToCreate.value
+    || isCreateOverlayOpen.value
+    || isCheckingDrafts.value
+  ) {
+    return;
+  }
+
+  lastCreateTriggerElement.value = document.activeElement instanceof HTMLElement
+    ? document.activeElement
+    : null;
+  isCheckingDrafts.value = true;
+
+  try {
+    const drafts = await solicitudesCompraBorradoresService.obtenerMisBorradores();
+
+    if (drafts.length === 0) {
+      await createStore.prepareNewEntry();
+      await navigateToCreate();
+      return;
+    }
+
+    availableDrafts.value = drafts;
+    showDraftsModal.value = true;
+  } catch (error) {
+    toast.add({
+      severity: 'warn',
+      summary: 'No pudimos cargar tus borradores',
+      detail: 'Abriremos una solicitud nueva para que puedas continuar.',
+      life: 3500,
+    });
+
+    await createStore.prepareNewEntry();
+    await navigateToCreate();
+  } finally {
+    isCheckingDrafts.value = false;
+  }
+};
+
 const handleOpenNewSolicitudCompra = (): void => {
-  openCreateOverlay();
+  void openCreateOverlay();
+};
+
+const handleCreateNewSolicitud = async (): Promise<void> => {
+  showDraftsModal.value = false;
+  await createStore.prepareNewEntry();
+  await navigateToCreate();
+};
+
+const handleContinueDraft = async (draft: SolicitudCompraBorradorListadoItem): Promise<void> => {
+  try {
+    showDraftsModal.value = false;
+    await createStore.prepareDraftEntry(draft);
+    await navigateToCreate();
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'No pudimos abrir ese borrador',
+      detail: 'Puedes intentar con otro borrador o empezar una solicitud nueva.',
+      life: 3500,
+    });
+    showDraftsModal.value = true;
+  }
 };
 
 onMounted(() => {
@@ -98,6 +177,7 @@ watch(
   (name) => {
     if (name === 'Compras') {
       isTransitioningToCreate.value = false;
+      isCheckingDrafts.value = false;
     }
   }
 );
@@ -109,13 +189,14 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="relative min-h-screen bg-[#EEECE4]">
+    <Toast />
     <div
       class="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 transition-all duration-300 md:px-6 md:py-6"
       :class="[
-        isCreateOverlayOpen ? 'pointer-events-none select-none' : '',
+        (isCreateOverlayOpen || showDraftsModal) ? 'pointer-events-none select-none' : '',
         isTransitioningToCreate ? '-translate-x-8 opacity-0' : 'translate-x-0 opacity-100'
       ]"
-      :aria-hidden="isCreateOverlayOpen"
+      :aria-hidden="isCreateOverlayOpen || showDraftsModal"
     >
       <div class="hidden lg:block">
         <SolicitudesListToolbar
@@ -132,7 +213,7 @@ onBeforeUnmount(() => {
           @update:fecha-hasta="onFilterChange({ fechaHasta: $event })"
           @update:solo-bloqueadas="onFilterChange({ soloBloqueadas: $event })"
           @update:solo-diferencia-oc="onFilterChange({ soloDiferenciaOc: $event })"
-          @create="openCreateOverlay"
+          @create="void openCreateOverlay()"
         />
       </div>
 
@@ -151,7 +232,7 @@ onBeforeUnmount(() => {
           @update:fecha-hasta="onFilterChange({ fechaHasta: $event })"
           @update:solo-bloqueadas="onFilterChange({ soloBloqueadas: $event })"
           @update:solo-diferencia-oc="onFilterChange({ soloDiferenciaOc: $event })"
-          @create="openCreateOverlay"
+          @create="void openCreateOverlay()"
         />
       </div>
 
@@ -217,6 +298,14 @@ onBeforeUnmount(() => {
       </template>
     </div>
 
+    <SolicitudesCompraDraftsEntryModal
+      v-if="showDraftsModal"
+      :drafts="availableDrafts"
+      @close="closeDraftsModal"
+      @new="void handleCreateNewSolicitud()"
+      @continue="void handleContinueDraft($event)"
+    />
+
     <router-view v-slot="{ Component, route: childRoute }">
       <transition name="overlay-slide">
         <div
@@ -229,12 +318,12 @@ onBeforeUnmount(() => {
 
       <transition name="overlay-fade">
         <div
-          v-if="!Component && (isTransitioningToCreate || isCreateOverlayOpen)"
+          v-if="!Component && (isTransitioningToCreate || isCreateOverlayOpen || isCheckingDrafts)"
           class="fixed inset-0 z-[65] flex items-center justify-center bg-[#EEECE4]/96 backdrop-blur-[1px]"
         >
           <div class="flex flex-col items-center gap-4 text-main">
             <div class="create-loader h-10 w-10 rounded-full border-4 border-main/15 border-t-main"></div>
-            <p class="text-sm font-semibold tracking-wide uppercase">Cargando formulario...</p>
+            <p class="text-sm font-semibold tracking-wide uppercase">{{ createOverlayLabel }}</p>
           </div>
         </div>
       </transition>

@@ -34,6 +34,7 @@ vi.mock('./solicitudesCompraCrear.service', () => ({
 
 vi.mock('../borradores/solicitudesCompraBorradores.service', () => ({
   solicitudesCompraBorradoresService: {
+    obtenerMisBorradores: vi.fn(),
     crearBorrador: vi.fn(),
     actualizarBorrador: vi.fn(),
   },
@@ -359,6 +360,81 @@ describe('solicitudesCompraCrear.store', () => {
         servicios: expect.any(Array),
       })
     );
+  });
+
+  it('hidrata el store desde un borrador y evita un autoguardado redundante inmediato', async () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    await store.initialize();
+
+    const draft = {
+      id: 'draft-77',
+      schemaVersion: 1,
+      currentStep: 3 as const,
+      tipoSolicitud: 'zafra' as const,
+      fechaEntrega: '2026-07-02',
+      observacion: 'Solicitud cargada desde borrador.',
+      solicitarUrgente: true,
+      motivoUrgencia: 'Equipo detenido',
+      equipos: [
+        {
+          id: 1,
+          source: 'equipo' as const,
+          codEquipo: 'EQ-777',
+          label: 'EQ-777 · Tractor John Deere 6155M',
+          modelo: '6155M',
+          marca: 'John Deere',
+          tipo: 'Tractor',
+        },
+      ],
+      productos: [
+        {
+          localId: 'prod-1',
+          tipo: 'temporal' as const,
+          temporal: true as const,
+          descripcion: 'ACEITE HIDRAULICO',
+          unidadCodigo: 'gal',
+          unidadLabel: 'Gal',
+        },
+      ],
+      servicios: [],
+      createdAt: '2026-06-29T18:47:00.000Z',
+      updatedAt: '2026-06-30T18:47:00.000Z',
+    };
+
+    store.hydrateFromDraft(draft);
+
+    const autoSaveAttempt = await store.autoSaveDraft();
+
+    expect(store.entryMode).toBe('draft');
+    expect(store.continuedFromDraft).toBe(true);
+    expect(store.draftId).toBe('draft-77');
+    expect(store.currentStep).toBe(3);
+    expect(store.observacion).toBe('Solicitud cargada desde borrador.');
+    expect(store.solicitarUrgente).toBe(true);
+    expect(store.motivoUrgencia).toBe('Equipo detenido');
+    expect(store.adjuntosLocales).toEqual([]);
+    expect(autoSaveAttempt).toBe(false);
+    expect(mockedDraftsService.actualizarBorrador).not.toHaveBeenCalled();
+    expect(mockedDraftsService.crearBorrador).not.toHaveBeenCalled();
+  });
+
+  it('prepara una entrada nueva dejando el wizard listo desde paso 1', async () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.currentStep = 4;
+    store.draftId = 'draft-previo';
+    store.continuedFromDraft = true;
+    store.setTipoSolicitud('servicio');
+
+    await store.prepareNewEntry();
+
+    expect(store.entryMode).toBe('new');
+    expect(store.continuedFromDraft).toBe(false);
+    expect(store.currentStep).toBe(1);
+    expect(store.draftId).toBeNull();
+    expect(store.tipoSolicitud).toBeNull();
+    expect(store.initialized).toBe(true);
   });
 
   it('auto guarda el borrador una sola vez si no hubo cambios desde el ultimo guardado exitoso', async () => {

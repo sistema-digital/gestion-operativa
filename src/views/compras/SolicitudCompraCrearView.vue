@@ -36,6 +36,7 @@ const AUTO_SAVE_INTERVAL_MS = 5 * 60 * 1000;
 
 const {
   currentStep,
+  continuedFromDraft,
   tipoSolicitud,
   fechaEntrega,
   equipos,
@@ -411,8 +412,9 @@ const syncViewportWidth = (): void => {
 };
 
 onMounted(() => {
-  createStore.reset();
-  void createStore.initialize();
+  if (!createStore.entryMode) {
+    void createStore.prepareNewEntry();
+  }
   startAutoSave();
   window.addEventListener('resize', syncViewportWidth);
 });
@@ -443,12 +445,24 @@ onBeforeUnmount(() => {
         <CrearSolicitudCompraStepper :current-step="currentStep" />
       </div>
 
-      <p
-        v-if="createError"
-        class="col-span-4 row-start-3 rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-xs font-medium text-danger lg:text-sm"
+      <div
+        v-if="createError || continuedFromDraft"
+        class="col-span-4 row-start-3 space-y-2"
       >
-        {{ createError }}
-      </p>
+        <p
+          v-if="createError"
+          class="rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-xs font-medium text-danger lg:text-sm"
+        >
+          {{ createError }}
+        </p>
+
+        <p
+          v-if="continuedFromDraft"
+          class="rounded-lg border border-stone-200 bg-stone-100 px-3 py-2 text-xs font-medium text-stone-600"
+        >
+          Los archivos adjuntos no se restauran al continuar un borrador.
+        </p>
+      </div>
 
       <div
         class="col-span-4 row-start-4 flex min-h-0 flex-col overflow-visible lg:overflow-hidden"

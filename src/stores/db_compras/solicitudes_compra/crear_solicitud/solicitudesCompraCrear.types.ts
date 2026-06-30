@@ -193,6 +193,8 @@ export interface CrearSolicitudFieldErrors {
 }
 
 export interface SolicitudCompraCrearState extends CrearSolicitudHeaderContext {
+  entryMode: 'new' | 'draft' | null;
+  continuedFromDraft: boolean;
   currentStep: SolicitudCompraCreateStep;
   submitMode: SolicitudCompraSubmitMode;
   draftId: string | null;
