@@ -132,51 +132,11 @@ onBeforeUnmount(() => {
               </button>
             </div>
 
-            <div class="mt-5 grid gap-3 lg:grid-cols-2">
-              <button
-                type="button"
-                class="group flex min-h-28 items-center justify-between rounded-[1.4rem] border border-[#e0c980] bg-[#fff3cb] px-4 py-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:bg-[#ffefbd] lg:px-5"
-                @click="emit('new')"
-              >
-                <div class="flex items-center gap-3">
-                  <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-[#6b5314] shadow-sm">
-                    <FilePlus2 class="h-5 w-5" />
-                  </span>
-                  <span class="space-y-1">
-                    <span class="block text-sm font-semibold text-stone-900">Nueva solicitud</span>
-                    <span class="block text-xs leading-5 text-stone-600">Crea una solicitud desde cero.</span>
-                  </span>
-                </div>
-                <span class="text-sm font-semibold text-[#6b5314] transition group-hover:translate-x-0.5">Abrir</span>
-              </button>
-
-              <button
-                type="button"
-                class="group flex min-h-28 items-center justify-between rounded-[1.4rem] border border-stone-200 bg-white px-4 py-4 text-left shadow-sm transition hover:border-main/30 hover:bg-[#f6faf8] lg:px-5"
-                @click="scrollToDrafts"
-              >
-                <div class="flex items-center gap-3">
-                  <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#edf3f1] text-main">
-                    <ClipboardList class="h-5 w-5" />
-                  </span>
-                  <span class="space-y-1">
-                    <span class="block text-sm font-semibold text-stone-900">Ver borradores</span>
-                    <span class="block text-xs leading-5 text-stone-600">Revisa y continua solicitudes guardadas.</span>
-                  </span>
-                </div>
-                <ArrowDown class="h-4 w-4 text-main transition group-hover:translate-y-0.5" />
-              </button>
-            </div>
-          </header>
+                      </header>
 
           <div class="flex-1 overflow-y-auto px-5 py-4 lg:px-7 lg:py-5">
             <section ref="list" class="space-y-4">
-              <div class="space-y-1">
-                <h3 class="text-sm font-semibold text-stone-900">Borradores recientes</h3>
-                <p class="text-xs leading-5 text-stone-500">
-                  Continua desde el paso guardado o empieza una solicitud nueva.
-                </p>
-              </div>
+              
 
               <div class="space-y-3">
                 <SolicitudesCompraDraftsEntryCard

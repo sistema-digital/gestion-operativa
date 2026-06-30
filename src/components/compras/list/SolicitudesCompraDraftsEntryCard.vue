@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   ArrowRight,
+  WalletCards,
   CalendarDays,
   CircleAlert,
   Package,
@@ -67,7 +68,7 @@ const progressSteps = computed(() => [2, 3, 4]);
     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <div class="flex min-w-0 gap-3">
         <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#edf3f1] text-main">
-          <CalendarDays class="h-5 w-5" />
+          <WalletCards  class="h-5 w-5" />
         </div>
 
         <div class="min-w-0 space-y-2">
