@@ -1,6 +1,6 @@
 export type SolicitudCompraCreateStep = 1 | 2 | 3 | 4;
 
-export type SolicitudCompraSubmitMode = 'draft' | 'send' | null;
+export type SolicitudCompraSubmitMode = 'send' | null;
 
 export type SolicitudCompraTipoSolicitud = 'zafra' | 'cultivo' | 'otros' | 'servicio';
 
@@ -177,6 +177,10 @@ export interface SolicitudCompraCrearResponse {
   urgente_ignorado_por_borrador: boolean;
 }
 
+export interface SolicitudCompraGuardarBorradorResponse {
+  id: string;
+}
+
 export interface CrearSolicitudFieldErrors {
   tipoSolicitud?: string;
   fechaEntrega?: string;
@@ -191,6 +195,7 @@ export interface CrearSolicitudFieldErrors {
 export interface SolicitudCompraCrearState extends CrearSolicitudHeaderContext {
   currentStep: SolicitudCompraCreateStep;
   submitMode: SolicitudCompraSubmitMode;
+  draftId: string | null;
   tipoSolicitud: SolicitudCompraTipoSolicitud | null;
   fechaEntrega: string | null;
   equipos: EquipoSeleccionado[];
@@ -210,6 +215,7 @@ export interface SolicitudCompraCrearState extends CrearSolicitudHeaderContext {
   productSearchLoading: boolean;
   productSearchError: string | null;
   loading: boolean;
+  draftSaving: boolean;
   uploading: boolean;
   error: string | null;
   validationErrors: CrearSolicitudFieldErrors;

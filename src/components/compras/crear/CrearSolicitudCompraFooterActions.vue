@@ -1,9 +1,11 @@
 <script setup lang="ts">
 const SEND_TOOLTIP_MESSAGE = 'Debe ver la informacion completa antes de poder enviar.';
 
+import { computed } from 'vue';
+
 import type { SolicitudCompraCreateStep } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
-defineProps<{
+const props = defineProps<{
   currentStep: SolicitudCompraCreateStep;
   loading: boolean;
   disableNext: boolean;
@@ -17,25 +19,17 @@ defineEmits<{
   (e: 'draft'): void;
   (e: 'send'): void;
 }>();
+
+const shouldShowDraftButton = computed(() => props.currentStep > 1);
 </script>
 
 <template>
   <footer class="pt-1">
     <div
       v-if="currentStep < 4"
-      class="flex shrink-0 flex-col-reverse gap-3 lg:flex-row lg:items-center lg:justify-between"
+      class="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
     >
-      <div class="flex flex-col gap-3 lg:flex-row">
-        <button
-          type="button"
-          class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-danger-light bg-danger px-4 text-sm font-semibold text-white transition hover:bg-danger-light"
-          @click="$emit('cancel')"
-        >
-          Cancelar
-        </button>
-      </div>
-
-      <div class="flex flex-col gap-3 lg:flex-row">
+      <div class="flex flex-col gap-3 lg:order-2 lg:flex-row">
         <button
           type="button"
           class="inline-flex cursor-pointer min-h-10 items-center justify-center rounded-lg bg-main px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-light disabled:cursor-not-allowed disabled:opacity-55 lg:order-2"
@@ -53,6 +47,26 @@ defineEmits<{
           @click="$emit('back')"
         >
           Atrás
+        </button>
+      </div>
+
+      <div class="flex flex-col gap-3 lg:order-1 lg:flex-row">
+        <button
+          v-if="shouldShowDraftButton"
+          type="button"
+          class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-white bg-accent px-4 text-sm font-semibold text-main transition hover:bg-accent-light disabled:opacity-60 lg:order-2"
+          :disabled="loading"
+          @click="$emit('draft')"
+        >
+          Guardar borrador
+        </button>
+
+        <button
+          type="button"
+          class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-danger-light bg-danger px-4 text-sm font-semibold text-white transition hover:bg-danger-light lg:order-1"
+          @click="$emit('cancel')"
+        >
+          Cancelar
         </button>
       </div>
     </div>
@@ -80,20 +94,21 @@ defineEmits<{
 
         <button
           type="button"
-          class="inline-flex cursor-pointer min-h-10 items-center justify-center rounded-lg border border-white bg-accent px-4 text-sm font-semibold text-main transition hover:bg-accent-light disabled:opacity-60"
-          :disabled="loading"
-          @click="$emit('draft')"
-        >
-          Guardar borrador
-        </button>
-
-        <button
-          type="button"
           class="inline-flex cursor-pointer min-h-10 items-center justify-center rounded-lg border border-main px-4 text-sm font-semibold text-main transition hover:bg-main/5 disabled:opacity-60"
           :disabled="loading"
           @click="$emit('back')"
         >
           Atrás
+        </button>
+
+        <button
+          v-if="shouldShowDraftButton"
+          type="button"
+          class="inline-flex cursor-pointer min-h-10 items-center justify-center rounded-lg border border-white bg-accent px-4 text-sm font-semibold text-main transition hover:bg-accent-light disabled:opacity-60"
+          :disabled="loading"
+          @click="$emit('draft')"
+        >
+          Guardar borrador
         </button>
 
         <button
@@ -113,6 +128,16 @@ defineEmits<{
             @click="$emit('cancel')"
           >
             Cancelar
+          </button>
+
+          <button
+            v-if="shouldShowDraftButton"
+            type="button"
+            class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-white bg-accent px-4 text-sm font-semibold text-main transition hover:bg-accent-light disabled:opacity-60"
+            :disabled="loading"
+            @click="$emit('draft')"
+          >
+            Guardar borrador
           </button>
         </div>
 
@@ -144,15 +169,6 @@ defineEmits<{
               {{ SEND_TOOLTIP_MESSAGE }}
             </span>
           </div>
-
-          <button
-            type="button"
-            class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-white bg-accent px-4 text-sm font-semibold text-main transition hover:bg-accent-light disabled:opacity-60"
-            :disabled="loading"
-            @click="$emit('draft')"
-          >
-            Guardar borrador
-          </button>
         </div>
       </div>
     </template>

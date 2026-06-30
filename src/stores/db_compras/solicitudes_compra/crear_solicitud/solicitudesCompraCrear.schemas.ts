@@ -1,9 +1,6 @@
 import { z } from 'zod';
 
-import type {
-  SolicitudCompraSubmitMode,
-  SolicitudCompraTipoSolicitud,
-} from './solicitudesCompraCrear.types';
+import type { SolicitudCompraTipoSolicitud } from './solicitudesCompraCrear.types';
 
 const todayAtMidnight = (): Date => {
   const date = new Date();
@@ -169,12 +166,6 @@ const baseCreateSchema = z.object({
   }
 });
 
-export const createSolicitudDraftSchema = baseCreateSchema.transform((value) => ({
-  ...value,
-  solicitarUrgente: false,
-  motivoUrgencia: '',
-}));
-
 export const createSolicitudSendSchema = baseCreateSchema.superRefine((value, ctx) => {
   if (value.tipoSolicitud === 'servicio') {
     if (value.servicios.length === 0) {
@@ -200,9 +191,3 @@ export const createSolicitudSendSchema = baseCreateSchema.superRefine((value, ct
     });
   }
 });
-
-export const getCreateSolicitudSchemaByMode = (
-  mode: Exclude<SolicitudCompraSubmitMode, null>
-) => mode === 'draft'
-  ? createSolicitudDraftSchema
-  : createSolicitudSendSchema;

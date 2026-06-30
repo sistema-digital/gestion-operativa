@@ -32,11 +32,20 @@ vi.mock('./solicitudesCompraCrear.service', () => ({
   },
 }));
 
+vi.mock('../borradores/solicitudesCompraBorradores.service', () => ({
+  solicitudesCompraBorradoresService: {
+    crearBorrador: vi.fn(),
+    actualizarBorrador: vi.fn(),
+  },
+}));
+
 import { solicitudesCompraCrearService } from './solicitudesCompraCrear.service';
+import { solicitudesCompraBorradoresService } from '../borradores/solicitudesCompraBorradores.service';
 import { useSolicitudesCompraCrearStore } from './solicitudesCompraCrear.store';
 import { OBSERVACION_MAX_LENGTH, OBSERVACION_PREFILL_PREFIX } from './solicitudesCompraCrear.types';
 
 const mockedService = vi.mocked(solicitudesCompraCrearService);
+const mockedDraftsService = vi.mocked(solicitudesCompraBorradoresService);
 const createFile = (
   name: string,
   type: string,
@@ -63,7 +72,7 @@ describe('solicitudesCompraCrear.store', () => {
     expect(store.areaNombre).toBe('Operativa');
   });
 
-  it('valida paso 1 y arma payload draft ignorando urgencia', () => {
+  it('valida paso 1 y arma payload de envio real', () => {
     const store = useSolicitudesCompraCrearStore();
 
     store.setTipoSolicitud('zafra');
@@ -85,11 +94,17 @@ describe('solicitudesCompraCrear.store', () => {
 
     expect(store.validateStep(1)).toBe(true);
 
-    const payload = store.buildPayload('draft');
+    store.agregarProductoTemporal({
+      descripcion: 'Aceite hidraulico',
+      unidadCodigo: 'gal',
+      unidadLabel: 'Gal',
+    });
 
-    expect(payload.p_enviar).toBe(false);
-    expect(payload.p_solicitar_urgente).toBe(false);
-    expect(payload.p_motivo_urgencia).toBeNull();
+    const payload = store.buildPayload();
+
+    expect(payload.p_enviar).toBe(true);
+    expect(payload.p_solicitar_urgente).toBe(true);
+    expect(payload.p_motivo_urgencia).toBe('Riesgo de paro');
     expect(payload.p_equipos).toEqual(['EQ-001']);
   });
 
@@ -140,7 +155,7 @@ describe('solicitudesCompraCrear.store', () => {
       unidadLabel: 'Un',
     });
 
-    const payload = store.buildPayload('send');
+    const payload = store.buildPayload();
 
     expect(payload.p_productos).toEqual([]);
     expect(payload.p_servicios).toEqual([
@@ -221,9 +236,10 @@ describe('solicitudesCompraCrear.store', () => {
     expect(store.validationErrors.adjuntos).toBe('Maximo 5 archivos');
   });
 
-  it('no sube adjuntos al guardar borrador', async () => {
+  it('guarda un borrador en la tabla dedicada sin usar el RPC de creacion', async () => {
     const store = useSolicitudesCompraCrearStore();
 
+    await store.initialize();
     store.setTipoSolicitud('zafra');
     store.setFechaEntrega('2026-06-30');
     store.equipos = [
@@ -244,30 +260,105 @@ describe('solicitudesCompraCrear.store', () => {
     });
     store.setObservacion('Solicitud para mantenimiento preventivo.');
     store.agregarAdjuntos([{ file: createFile('manual.pdf', 'application/pdf'), displayName: 'manual.pdf' }]);
+    store.currentStep = 4;
 
-    mockedService.crearSolicitud.mockResolvedValue({
-      solicitud_id: 'sol-1',
-      folio_sol: null,
-      tipo_codigo: 'zafra',
-      estado_codigo: 'borrador',
-      prioridad_codigo: 'normal',
-      ciclo_estado: 1,
-      productos_total: 1,
-      servicios_total: 0,
-      equipos_total: 1,
-      adjuntos_total: 0,
-      peticion_urgente_creada: false,
-      urgente_ignorado_por_borrador: true,
+    mockedDraftsService.crearBorrador.mockResolvedValue({
+      id: 'draft-1',
+      creado_por_user_id: 'user-1',
+      creado_por_email: 'juan@cadasa.test',
+      creado_por_nombre: 'Juan Pérez',
+      creado_por_area: 'Operativa',
+      activo: true,
+      schema_version: 1,
+      current_step: 4,
+      tipo_solicitud: 'zafra',
+      fecha_entrega: '2026-06-30',
+      observacion: 'Solicitud para mantenimiento preventivo.',
+      solicitar_urgente: false,
+      motivo_urgencia: null,
+      equipos: store.equipos,
+      productos: store.productos,
+      servicios: [],
+      enviado_at: null,
+      created_at: '2026-06-29T00:00:00.000Z',
+      updated_at: '2026-06-29T00:00:00.000Z',
     });
 
-    await store.submit('draft');
+    await store.saveDraft();
 
     expect(mockedService.prepararUploadSession).not.toHaveBeenCalled();
     expect(mockedService.subirAdjuntos).not.toHaveBeenCalled();
-    expect(mockedService.crearSolicitud).toHaveBeenCalledWith(expect.objectContaining({
-      p_adjuntos: [],
-      p_requerir_adjuntos_storage: false,
+    expect(mockedService.crearSolicitud).not.toHaveBeenCalled();
+    expect(mockedDraftsService.crearBorrador).toHaveBeenCalledWith(expect.objectContaining({
+      creado_por_email: 'juan@cadasa.test',
+      current_step: 4,
+      equipos: expect.any(Array),
+      productos: expect.any(Array),
+      servicios: [],
     }));
+    expect(store.draftId).toBe('draft-1');
+  });
+
+  it('actualiza el mismo borrador si ya existe draftId', async () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    await store.initialize();
+    store.draftId = 'draft-1';
+    store.currentStep = 4;
+    store.setTipoSolicitud('servicio');
+    store.setFechaEntrega('2026-06-30');
+    store.equipos = [
+      {
+        id: 1,
+        source: 'contexto',
+        codEquipo: 'taller',
+        label: 'Instalaciones de taller',
+        modelo: null,
+        marca: null,
+        tipo: null,
+      },
+    ];
+    store.agregarServicio({
+      cantidad: 2,
+      descripcion: 'Servicio de torno',
+      unidadCodigo: 'un',
+      unidadLabel: 'Un',
+    });
+    store.setObservacion('Servicio requerido para torno externo.');
+
+    mockedDraftsService.actualizarBorrador.mockResolvedValue({
+      id: 'draft-1',
+      creado_por_user_id: 'user-1',
+      creado_por_email: 'juan@cadasa.test',
+      creado_por_nombre: 'Juan Pérez',
+      creado_por_area: 'Operativa',
+      activo: true,
+      schema_version: 1,
+      current_step: 4,
+      tipo_solicitud: 'servicio',
+      fecha_entrega: '2026-06-30',
+      observacion: 'Servicio requerido para torno externo.',
+      solicitar_urgente: false,
+      motivo_urgencia: null,
+      equipos: store.equipos,
+      productos: [],
+      servicios: store.servicios,
+      enviado_at: null,
+      created_at: '2026-06-29T00:00:00.000Z',
+      updated_at: '2026-06-29T00:00:00.000Z',
+    });
+
+    await store.saveDraft();
+
+    expect(mockedDraftsService.crearBorrador).not.toHaveBeenCalled();
+    expect(mockedDraftsService.actualizarBorrador).toHaveBeenCalledWith(
+      'draft-1',
+      expect.objectContaining({
+        current_step: 4,
+        tipo_solicitud: 'servicio',
+        servicios: expect.any(Array),
+      })
+    );
   });
 
   it('actualiza servicios existentes', () => {

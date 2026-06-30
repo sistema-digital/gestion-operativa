@@ -8,12 +8,18 @@ import {
   getAdjuntoKind,
   validateAdjuntosSelection,
 } from '@/components/compras/crear/crearSolicitudAdjuntos.utils';
+import { solicitudCompraBorradorSchema } from '@/stores/db_compras/solicitudes_compra/borradores/solicitudesCompraBorradores.schemas';
+import { solicitudesCompraBorradoresService } from '@/stores/db_compras/solicitudes_compra/borradores/solicitudesCompraBorradores.service';
+import {
+  SOLICITUD_COMPRA_BORRADOR_SCHEMA_VERSION,
+  type SolicitudCompraBorradorCreatePayload,
+  type SolicitudCompraBorradorStep,
+  type SolicitudCompraBorradorUpdatePayload,
+} from '@/stores/db_compras/solicitudes_compra/borradores/solicitudesCompraBorradores.types';
 
 import { solicitudesCompraCrearService } from './solicitudesCompraCrear.service';
 import {
-  createSolicitudDraftSchema,
   createSolicitudSendSchema,
-  getCreateSolicitudSchemaByMode,
   stepDatosBaseSchema,
   stepObservacionesSchema,
   stepProductosSchema,
@@ -36,6 +42,7 @@ import type {
   SolicitudCompraCreateStep,
   SolicitudCompraCrearPayload,
   SolicitudCompraCrearResponse,
+  SolicitudCompraGuardarBorradorResponse,
   SolicitudCompraCrearState,
   SolicitudCompraSubmitMode,
   SolicitudCompraTipoSolicitud,
@@ -44,6 +51,7 @@ import type {
 const createInitialState = (): SolicitudCompraCrearState => ({
   currentStep: 1,
   submitMode: null,
+  draftId: null,
   solicitanteNombre: '',
   solicitanteEmail: '',
   areaNombre: '',
@@ -67,6 +75,7 @@ const createInitialState = (): SolicitudCompraCrearState => ({
   productSearchLoading: false,
   productSearchError: null,
   loading: false,
+  draftSaving: false,
   uploading: false,
   error: null,
   validationErrors: {},
@@ -595,17 +604,16 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       }
     },
 
-    buildPayload(mode: Exclude<SolicitudCompraSubmitMode, null>): SolicitudCompraCrearPayload {
-      const schema = getCreateSolicitudSchemaByMode(mode);
-        const result = schema.safeParse({
-          tipoSolicitud: this.tipoSolicitud,
-          fechaEntrega: this.fechaEntrega,
-          equipos: this.equipos,
-          productos: this.productos,
-          servicios: this.servicios,
-          observacion: this.observacion,
-          solicitarUrgente: this.solicitarUrgente,
-          motivoUrgencia: this.motivoUrgencia,
+    buildPayload(): SolicitudCompraCrearPayload {
+      const result = createSolicitudSendSchema.safeParse({
+        tipoSolicitud: this.tipoSolicitud,
+        fechaEntrega: this.fechaEntrega,
+        equipos: this.equipos,
+        productos: this.productos,
+        servicios: this.servicios,
+        observacion: this.observacion,
+        solicitarUrgente: this.solicitarUrgente,
+        motivoUrgencia: this.motivoUrgencia,
       });
 
       if (!result.success) {
@@ -613,32 +621,12 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         throw new Error('La solicitud no es válida');
       }
 
-      const parsed = mode === 'draft'
-        ? createSolicitudDraftSchema.parse({
-          tipoSolicitud: this.tipoSolicitud,
-          fechaEntrega: this.fechaEntrega,
-          equipos: this.equipos,
-          productos: this.productos,
-          servicios: this.servicios,
-          observacion: this.observacion,
-          solicitarUrgente: this.solicitarUrgente,
-          motivoUrgencia: this.motivoUrgencia,
-        })
-        : createSolicitudSendSchema.parse({
-          tipoSolicitud: this.tipoSolicitud,
-          fechaEntrega: this.fechaEntrega,
-          equipos: this.equipos,
-          productos: this.productos,
-          servicios: this.servicios,
-          observacion: this.observacion,
-          solicitarUrgente: this.solicitarUrgente,
-          motivoUrgencia: this.motivoUrgencia,
-        });
+      const parsed = result.data;
 
-        return {
-          p_tipo_codigo: parsed.tipoSolicitud,
-          p_fecha_entrega: parsed.fechaEntrega,
-          p_observacion: parsed.observacion.trim(),
+      return {
+        p_tipo_codigo: parsed.tipoSolicitud,
+        p_fecha_entrega: parsed.fechaEntrega,
+        p_observacion: parsed.observacion.trim(),
         p_equipos: parsed.equipos.map((item) => item.codEquipo),
         p_productos: parsed.tipoSolicitud === 'servicio'
           ? []
@@ -656,14 +644,93 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
             unidad_codigo: item.unidadCodigo.trim(),
           }))
           : [],
-        p_enviar: mode === 'send',
-        p_solicitar_urgente: mode === 'send' ? parsed.solicitarUrgente : false,
-        p_motivo_urgencia: mode === 'send' && parsed.solicitarUrgente
+        p_enviar: true,
+        p_solicitar_urgente: parsed.solicitarUrgente,
+        p_motivo_urgencia: parsed.solicitarUrgente
           ? parsed.motivoUrgencia.trim()
           : null,
-        p_adjuntos: mode === 'send' ? this.adjuntosSubidos : [],
-        p_requerir_adjuntos_storage: mode === 'send' && this.adjuntosLocales.length > 0,
+        p_adjuntos: this.adjuntosSubidos,
+        p_requerir_adjuntos_storage: this.adjuntosLocales.length > 0,
       };
+    },
+
+    buildDraftSnapshot():
+      SolicitudCompraBorradorCreatePayload
+      | SolicitudCompraBorradorUpdatePayload {
+      const result = solicitudCompraBorradorSchema.safeParse({
+        currentStep: this.currentStep,
+        tipoSolicitud: this.tipoSolicitud,
+        fechaEntrega: this.fechaEntrega,
+        equipos: this.equipos,
+        productos: this.productos,
+        servicios: this.servicios,
+        observacion: this.observacion,
+        solicitarUrgente: this.solicitarUrgente,
+        motivoUrgencia: this.motivoUrgencia,
+      });
+
+      if (!result.success) {
+        this.validationErrors = formatZodErrors(result.error.issues);
+        throw new Error('El borrador no es válido');
+      }
+
+      const parsed = result.data;
+      const snapshot = {
+        activo: true,
+        schema_version: SOLICITUD_COMPRA_BORRADOR_SCHEMA_VERSION,
+        current_step: parsed.currentStep as SolicitudCompraBorradorStep,
+        tipo_solicitud: parsed.tipoSolicitud,
+        fecha_entrega: parsed.fechaEntrega,
+        observacion: parsed.observacion.trim(),
+        solicitar_urgente: parsed.solicitarUrgente,
+        motivo_urgencia: parsed.solicitarUrgente
+          ? parsed.motivoUrgencia.trim()
+          : null,
+        equipos: parsed.equipos,
+        productos: parsed.productos,
+        servicios: parsed.servicios,
+      } satisfies SolicitudCompraBorradorUpdatePayload;
+
+      if (this.draftId) {
+        return snapshot;
+      }
+
+      return {
+        ...snapshot,
+        creado_por_email: this.solicitanteEmail.trim(),
+        creado_por_nombre: this.solicitanteNombre.trim(),
+        creado_por_area: this.areaNombre.trim() || null,
+      } satisfies SolicitudCompraBorradorCreatePayload;
+    },
+
+    async saveDraft(): Promise<SolicitudCompraGuardarBorradorResponse> {
+      this.loading = true;
+      this.draftSaving = true;
+      this.error = null;
+      this.validationErrors = {};
+
+      try {
+        const payload = this.buildDraftSnapshot();
+        const response = this.draftId
+          ? await solicitudesCompraBorradoresService.actualizarBorrador(
+            this.draftId,
+            payload as SolicitudCompraBorradorUpdatePayload
+          )
+          : await solicitudesCompraBorradoresService.crearBorrador(
+            payload as SolicitudCompraBorradorCreatePayload
+          );
+
+        this.draftId = response.id;
+        return { id: response.id };
+      } catch (error) {
+        this.error = error instanceof Error
+          ? error.message
+          : 'No se pudo guardar el borrador';
+        throw error;
+      } finally {
+        this.loading = false;
+        this.draftSaving = false;
+      }
     },
 
     async submit(mode: Exclude<SolicitudCompraSubmitMode, null>): Promise<SolicitudCompraCrearResponse> {
@@ -673,19 +740,16 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       this.validationErrors = {};
 
       try {
-        if (mode === 'send' && this.adjuntosLocales.length > 0 && !this.uploadSession) {
+        if (this.adjuntosLocales.length > 0 && !this.uploadSession) {
           this.uploading = true;
           this.uploadSession = await solicitudesCompraCrearService.prepararUploadSession();
           this.adjuntosSubidos = await solicitudesCompraCrearService.subirAdjuntos(
             this.uploadSession,
             this.adjuntosLocales
           );
-        } else if (mode === 'draft') {
-          this.adjuntosSubidos = [];
-          this.uploadSession = null;
         }
 
-        const payload = this.buildPayload(mode);
+        const payload = this.buildPayload();
         const response = await solicitudesCompraCrearService.crearSolicitud(payload);
 
         this.lastCreatedResponse = response;

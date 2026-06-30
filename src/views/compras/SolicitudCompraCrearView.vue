@@ -57,6 +57,7 @@ const {
   onNext,
   onBack,
   onSubmit,
+  onSaveDraft,
   setTipoSolicitud,
   setFechaEntrega,
   setObservacion,
@@ -108,7 +109,19 @@ const resumenDesktopReachedBottom = shallowRef(false);
 const pendingAction = shallowRef<'send' | 'draft' | 'cancel' | null>(null);
 
 const shouldDisableNext = computed(() =>
-  currentStep.value === 1 ? !isCurrentStepValid.value : false
+  {
+    if (currentStep.value === 1) {
+      return !isCurrentStepValid.value;
+    }
+
+    if (currentStep.value === 2) {
+      return tipoSolicitud.value === 'servicio'
+        ? servicios.value.length === 0
+        : productos.value.length === 0;
+    }
+
+    return false;
+  }
 );
 
 const shouldDisableSend = computed(() =>
@@ -117,19 +130,6 @@ const shouldDisableSend = computed(() =>
   && resumenHasDesktopOverflow.value
   && !resumenDesktopReachedBottom.value
 );
-
-const creationContextSnapshot = computed(() => ({
-  currentStep: currentStep.value,
-  tipoSolicitud: tipoSolicitud.value,
-  fechaEntrega: fechaEntrega.value,
-  equipos: [...equipos.value],
-  productos: [...productos.value],
-  servicios: [...servicios.value],
-  observacion: observacion.value,
-  solicitarUrgente: solicitarUrgente.value,
-  motivoUrgencia: motivoUrgencia.value,
-  validationErrors: { ...validationErrors.value },
-}));
 
 const pendingActionConfig = computed(() => {
   if (pendingAction.value === 'send') {
@@ -149,9 +149,13 @@ const pendingActionConfig = computed(() => {
   }
 
   if (pendingAction.value === 'draft') {
+    const draftDescription = adjuntosLocales.value.length > 0
+      ? 'Se conservara el avance actual para que puedas retomarlo mas tarde desde compras. Los adjuntos no se incluyen en el borrador.'
+      : 'Se conservara el avance actual para que puedas retomarlo mas tarde desde compras.';
+
     return {
       title: 'Guardar borrador',
-      description: 'Se conservara el avance actual para que puedas retomarlo mas tarde desde compras.',
+      description: draftDescription,
       confirmLabel: 'Si, guardar borrador',
       closeLabel: 'No, seguir editando',
       palette: {
@@ -196,7 +200,6 @@ const closeActionConfirmModal = (): void => {
 };
 
 const handleNext = (): void => {
-  console.log('Solicitud compra contexto actual', creationContextSnapshot.value);
   onNext();
 };
 
@@ -211,12 +214,22 @@ const handleConfirmedAction = async (): Promise<void> => {
   }
 
   if (action === 'draft' || action === 'send') {
-    await handleSubmit(action);
+    if (action === 'draft') {
+      await handleSaveDraft();
+      return;
+    }
+
+    await handleSubmit();
   }
 };
 
-const handleSubmit = async (mode: 'draft' | 'send'): Promise<void> => {
-  await onSubmit(mode);
+const handleSubmit = async (): Promise<void> => {
+  await onSubmit();
+  void router.push({ name: 'Compras' });
+};
+
+const handleSaveDraft = async (): Promise<void> => {
+  await onSaveDraft();
   void router.push({ name: 'Compras' });
 };
 

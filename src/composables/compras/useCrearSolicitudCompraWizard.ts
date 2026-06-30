@@ -6,7 +6,6 @@ import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_
 import type {
   ProductoTemporalDraft,
   ServicioSolicitudDraft,
-  SolicitudCompraSubmitMode,
 } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 export const useCrearSolicitudCompraWizard = () => {
@@ -41,10 +40,12 @@ export const useCrearSolicitudCompraWizard = () => {
   const onNext = (): boolean => store.goToNextStep();
   const onBack = (): void => store.goToPreviousStep();
 
-  const onSubmit = async (
-    mode: Exclude<SolicitudCompraSubmitMode, null>
-  ): Promise<void> => {
-    await store.submit(mode);
+  const onSubmit = async (): Promise<void> => {
+    await store.submit('send');
+  };
+
+  const onSaveDraft = async (): Promise<void> => {
+    await store.saveDraft();
   };
 
   return {
@@ -75,6 +76,7 @@ export const useCrearSolicitudCompraWizard = () => {
     onNext,
     onBack,
     onSubmit,
+    onSaveDraft,
     setTipoSolicitud: store.setTipoSolicitud,
     setFechaEntrega: store.setFechaEntrega,
     setObservacion: store.setObservacion,
