@@ -196,6 +196,7 @@ export interface SolicitudCompraCrearState extends CrearSolicitudHeaderContext {
   currentStep: SolicitudCompraCreateStep;
   submitMode: SolicitudCompraSubmitMode;
   draftId: string | null;
+  lastSavedDraftSnapshotHash: string | null;
   tipoSolicitud: SolicitudCompraTipoSolicitud | null;
   fechaEntrega: string | null;
   equipos: EquipoSeleccionado[];

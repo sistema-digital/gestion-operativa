@@ -11,6 +11,7 @@ const props = defineProps<{
   disableNext: boolean;
   disableSend?: boolean;
   showDraftButton?: boolean;
+  autoSaveStatusLabel?: string | null;
 }>();
 
 defineEmits<{
@@ -22,6 +23,7 @@ defineEmits<{
 }>();
 
 const shouldShowDraftButton = computed(() => props.showDraftButton ?? false);
+const autoSaveStatusLabel = computed(() => props.autoSaveStatusLabel?.trim() || '');
 </script>
 
 <template>
@@ -30,6 +32,13 @@ const shouldShowDraftButton = computed(() => props.showDraftButton ?? false);
       v-if="currentStep < 4"
       class="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
     >
+      <p
+        v-if="autoSaveStatusLabel"
+        class="order-3 text-center text-xs font-medium text-stone-500/80 lg:order-2 lg:flex-1"
+      >
+        {{ autoSaveStatusLabel }}
+      </p>
+
       <div class="flex flex-col gap-3 lg:order-2 lg:flex-row">
         <button
           type="button"
@@ -74,6 +83,13 @@ const shouldShowDraftButton = computed(() => props.showDraftButton ?? false);
 
     <template v-else>
       <div class="flex shrink-0 flex-col gap-3 lg:hidden">
+        <p
+          v-if="autoSaveStatusLabel"
+          class="text-center text-xs font-medium text-stone-500/80"
+        >
+          {{ autoSaveStatusLabel }}
+        </p>
+
         <div class="group relative flex w-full flex-col items-center">
           <button
             type="button"
@@ -141,6 +157,13 @@ const shouldShowDraftButton = computed(() => props.showDraftButton ?? false);
             Guardar borrador
           </button>
         </div>
+
+        <p
+          v-if="autoSaveStatusLabel"
+          class="px-4 text-center text-xs font-medium text-stone-500/80"
+        >
+          {{ autoSaveStatusLabel }}
+        </p>
 
         <div class="flex flex-col gap-3 lg:flex-row">
           <button

@@ -361,6 +361,130 @@ describe('solicitudesCompraCrear.store', () => {
     );
   });
 
+  it('auto guarda el borrador una sola vez si no hubo cambios desde el ultimo guardado exitoso', async () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    await store.initialize();
+    store.setTipoSolicitud('zafra');
+    store.setFechaEntrega('2026-06-30');
+    store.equipos = [
+      {
+        id: 1,
+        source: 'equipo',
+        codEquipo: 'EQ-001',
+        label: 'EQ-001 · Tractor John Deere 6155M',
+        modelo: '6155M',
+        marca: 'John Deere',
+        tipo: 'Tractor',
+      },
+    ];
+    store.currentStep = 2;
+
+    mockedDraftsService.crearBorrador.mockResolvedValue({
+      id: 'draft-1',
+      creado_por_user_id: 'user-1',
+      creado_por_email: 'juan@cadasa.test',
+      creado_por_nombre: 'Juan Pérez',
+      creado_por_area: 'Operativa',
+      activo: true,
+      schema_version: 1,
+      current_step: 2,
+      tipo_solicitud: 'zafra',
+      fecha_entrega: '2026-06-30',
+      observacion: 'Para uso en: EQ-001',
+      solicitar_urgente: false,
+      motivo_urgencia: null,
+      equipos: store.equipos,
+      productos: [],
+      servicios: [],
+      enviado_at: null,
+      created_at: '2026-06-29T00:00:00.000Z',
+      updated_at: '2026-06-29T00:00:00.000Z',
+    });
+
+    const firstAttempt = await store.autoSaveDraft();
+    const secondAttempt = await store.autoSaveDraft();
+
+    expect(firstAttempt).toBe(true);
+    expect(secondAttempt).toBe(false);
+    expect(mockedDraftsService.crearBorrador).toHaveBeenCalledTimes(1);
+    expect(mockedDraftsService.actualizarBorrador).not.toHaveBeenCalled();
+  });
+
+  it('auto guarda de nuevo si hubo cambios despues del ultimo guardado exitoso', async () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    await store.initialize();
+    store.setTipoSolicitud('zafra');
+    store.setFechaEntrega('2026-06-30');
+    store.equipos = [
+      {
+        id: 1,
+        source: 'equipo',
+        codEquipo: 'EQ-001',
+        label: 'EQ-001 · Tractor John Deere 6155M',
+        modelo: '6155M',
+        marca: 'John Deere',
+        tipo: 'Tractor',
+      },
+    ];
+    store.currentStep = 2;
+
+    mockedDraftsService.crearBorrador.mockResolvedValue({
+      id: 'draft-1',
+      creado_por_user_id: 'user-1',
+      creado_por_email: 'juan@cadasa.test',
+      creado_por_nombre: 'Juan Pérez',
+      creado_por_area: 'Operativa',
+      activo: true,
+      schema_version: 1,
+      current_step: 2,
+      tipo_solicitud: 'zafra',
+      fecha_entrega: '2026-06-30',
+      observacion: 'Para uso en: EQ-001',
+      solicitar_urgente: false,
+      motivo_urgencia: null,
+      equipos: store.equipos,
+      productos: [],
+      servicios: [],
+      enviado_at: null,
+      created_at: '2026-06-29T00:00:00.000Z',
+      updated_at: '2026-06-29T00:00:00.000Z',
+    });
+
+    mockedDraftsService.actualizarBorrador.mockResolvedValue({
+      id: 'draft-1',
+      creado_por_user_id: 'user-1',
+      creado_por_email: 'juan@cadasa.test',
+      creado_por_nombre: 'Juan Pérez',
+      creado_por_area: 'Operativa',
+      activo: true,
+      schema_version: 1,
+      current_step: 3,
+      tipo_solicitud: 'zafra',
+      fecha_entrega: '2026-06-30',
+      observacion: 'Solicitud para mantenimiento preventivo.',
+      solicitar_urgente: false,
+      motivo_urgencia: null,
+      equipos: store.equipos,
+      productos: [],
+      servicios: [],
+      enviado_at: null,
+      created_at: '2026-06-29T00:00:00.000Z',
+      updated_at: '2026-06-29T00:00:00.000Z',
+    });
+
+    const firstAttempt = await store.autoSaveDraft();
+    store.currentStep = 3;
+    store.setObservacion('Solicitud para mantenimiento preventivo.');
+    const secondAttempt = await store.autoSaveDraft();
+
+    expect(firstAttempt).toBe(true);
+    expect(secondAttempt).toBe(true);
+    expect(mockedDraftsService.crearBorrador).toHaveBeenCalledTimes(1);
+    expect(mockedDraftsService.actualizarBorrador).toHaveBeenCalledTimes(1);
+  });
+
   it('actualiza servicios existentes', () => {
     const store = useSolicitudesCompraCrearStore();
 

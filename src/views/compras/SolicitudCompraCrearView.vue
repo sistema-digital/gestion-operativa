@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { shallowRef } from 'vue';
+import Toast from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
 import { useRouter } from 'vue-router';
 
 import { useCrearSolicitudCompraWizard } from '@/composables/compras/useCrearSolicitudCompraWizard';
@@ -28,7 +30,9 @@ import CrearSolicitudCompraStepServicios from '@/components/compras/crear/CrearS
 import CrearSolicitudCompraStepper from '@/components/compras/crear/CrearSolicitudCompraStepper.vue';
 
 const router = useRouter();
+const toast = useToast();
 const createStore = useSolicitudesCompraCrearStore();
+const AUTO_SAVE_INTERVAL_MS = 5 * 60 * 1000;
 
 const {
   currentStep,
@@ -108,6 +112,9 @@ const isDesktop = computed(() => viewportWidth.value >= 1024);
 const resumenHasDesktopOverflow = shallowRef(false);
 const resumenDesktopReachedBottom = shallowRef(false);
 const pendingAction = shallowRef<'send' | 'draft' | 'cancel' | null>(null);
+const postDraftAction = shallowRef<'stay' | 'leave' | null>(null);
+const lastAutoSavedAt = shallowRef<Date | null>(null);
+let autoSaveIntervalId: number | null = null;
 
 const shouldDisableNext = computed(() =>
   {
@@ -131,6 +138,19 @@ const shouldDisableSend = computed(() =>
   && resumenHasDesktopOverflow.value
   && !resumenDesktopReachedBottom.value
 );
+
+const autoSaveStatusLabel = computed(() => {
+  if (!lastAutoSavedAt.value) {
+    return '';
+  }
+
+  const formattedTime = new Intl.DateTimeFormat('es-HN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(lastAutoSavedAt.value);
+
+  return `Ultima vez autoguardado: ${formattedTime}`;
+});
 
 const pendingActionConfig = computed(() => {
   if (pendingAction.value === 'send') {
@@ -188,6 +208,26 @@ const pendingActionConfig = computed(() => {
   return null;
 });
 
+const postDraftActionConfig = computed(() => {
+  if (!postDraftAction.value) {
+    return null;
+  }
+
+  return {
+    title: 'Borrador guardado',
+    description: 'Tu borrador se guardo correctamente. Puedes seguir editando este formulario o salir para volver mas tarde.',
+    confirmLabel: 'Salir del formulario',
+    closeLabel: 'Seguir editando',
+    palette: {
+      badgeClass: 'bg-success/10 text-success',
+      borderClass: 'border-success/20',
+      confirmButtonClass: 'bg-main',
+      confirmButtonHoverClass: 'hover:bg-main-light',
+      confirmButtonTextClass: 'text-white',
+    },
+  };
+});
+
 const closeView = (): void => {
   void router.push({ name: 'Compras' });
 };
@@ -198,6 +238,10 @@ const openActionConfirmModal = (action: 'send' | 'draft' | 'cancel'): void => {
 
 const closeActionConfirmModal = (): void => {
   pendingAction.value = null;
+};
+
+const closePostDraftActionModal = (): void => {
+  postDraftAction.value = null;
 };
 
 const handleNext = (): void => {
@@ -231,7 +275,37 @@ const handleSubmit = async (): Promise<void> => {
 
 const handleSaveDraft = async (): Promise<void> => {
   await onSaveDraft();
+  postDraftAction.value = 'stay';
+};
+
+const handleConfirmedPostDraftAction = (): void => {
+  closePostDraftActionModal();
   void router.push({ name: 'Compras' });
+};
+
+const runAutoSave = async (): Promise<void> => {
+  const saved = await createStore.autoSaveDraft();
+
+  if (!saved) {
+    return;
+  }
+
+  toast.add({
+    severity: 'success',
+    summary: 'Borrador guardado correctamente',
+    life: 2500,
+  });
+  lastAutoSavedAt.value = new Date();
+};
+
+const startAutoSave = (): void => {
+  if (autoSaveIntervalId !== null) {
+    window.clearInterval(autoSaveIntervalId);
+  }
+
+  autoSaveIntervalId = window.setInterval(() => {
+    void runAutoSave();
+  }, AUTO_SAVE_INTERVAL_MS);
 };
 
 const closeProductoTemporalOverlay = (): void => {
@@ -339,17 +413,23 @@ const syncViewportWidth = (): void => {
 onMounted(() => {
   createStore.reset();
   void createStore.initialize();
+  startAutoSave();
   window.addEventListener('resize', syncViewportWidth);
 });
 
 onBeforeUnmount(() => {
   createStore.reset();
+  if (autoSaveIntervalId !== null) {
+    window.clearInterval(autoSaveIntervalId);
+    autoSaveIntervalId = null;
+  }
   window.removeEventListener('resize', syncViewportWidth);
 });
 </script>
 
 <template>
   <section class="min-h-screen overflow-y-auto bg-[#EEECE4] lg:h-screen lg:overflow-hidden">
+    <Toast />
     <div class="mx-auto grid min-h-screen w-full max-w-7xl grid-cols-4 grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-1 px-3 py-1 lg:h-full lg:min-h-0 lg:px-4 lg:py-1">
       <div class="col-span-4 row-start-1">
         <CrearSolicitudCompraHeader
@@ -460,6 +540,7 @@ onBeforeUnmount(() => {
           :disable-next="shouldDisableNext"
           :disable-send="shouldDisableSend"
           :show-draft-button="canSaveDraft"
+          :auto-save-status-label="autoSaveStatusLabel"
           @cancel="openActionConfirmModal('cancel')"
           @back="onBack"
           @next="handleNext"
@@ -479,6 +560,17 @@ onBeforeUnmount(() => {
       :loading="loading"
       @close="closeActionConfirmModal"
       @confirm="handleConfirmedAction"
+    />
+
+    <CrearSolicitudCompraActionConfirmModal
+      v-if="postDraftActionConfig"
+      :title="postDraftActionConfig.title"
+      :description="postDraftActionConfig.description"
+      :confirm-label="postDraftActionConfig.confirmLabel"
+      :close-label="postDraftActionConfig.closeLabel"
+      :palette="postDraftActionConfig.palette"
+      @close="closePostDraftActionModal"
+      @confirm="handleConfirmedPostDraftAction"
     />
 
     <CrearSolicitudCompraProductoTemporalOverlay

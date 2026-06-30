@@ -52,6 +52,7 @@ const createInitialState = (): SolicitudCompraCrearState => ({
   currentStep: 1,
   submitMode: null,
   draftId: null,
+  lastSavedDraftSnapshotHash: null,
   solicitanteNombre: '',
   solicitanteEmail: '',
   areaNombre: '',
@@ -129,6 +130,8 @@ const toEquipoSeleccionado = (
 });
 
 const createLocalId = (): string => crypto.randomUUID();
+const createDraftSnapshotHash = (snapshot: SolicitudCompraBorradorUpdatePayload): string =>
+  JSON.stringify(snapshot);
 
 export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrear', {
   state: (): SolicitudCompraCrearState => createInitialState(),
@@ -662,9 +665,10 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       };
     },
 
-    buildDraftSnapshot():
-      SolicitudCompraBorradorCreatePayload
-      | SolicitudCompraBorradorUpdatePayload {
+    buildDraftUpdateSnapshot(options?: {
+      syncValidationErrors?: boolean;
+    }): SolicitudCompraBorradorUpdatePayload {
+      const syncValidationErrors = options?.syncValidationErrors ?? true;
       const draftStep = (this.currentStep === 1 ? 2 : this.currentStep) as SolicitudCompraBorradorStep;
       const result = solicitudCompraBorradorSchema.safeParse({
         currentStep: draftStep,
@@ -679,12 +683,14 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       });
 
       if (!result.success) {
-        this.validationErrors = formatZodErrors(result.error.issues);
+        if (syncValidationErrors) {
+          this.validationErrors = formatZodErrors(result.error.issues);
+        }
         throw new Error('El borrador no es válido');
       }
 
       const parsed = result.data;
-      const snapshot = {
+      return {
         activo: true,
         schema_version: SOLICITUD_COMPRA_BORRADOR_SCHEMA_VERSION,
         current_step: parsed.currentStep as SolicitudCompraBorradorStep,
@@ -699,6 +705,12 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         productos: parsed.productos,
         servicios: parsed.servicios,
       } satisfies SolicitudCompraBorradorUpdatePayload;
+    },
+
+    buildDraftSnapshot():
+      SolicitudCompraBorradorCreatePayload
+      | SolicitudCompraBorradorUpdatePayload {
+      const snapshot = this.buildDraftUpdateSnapshot();
 
       if (this.draftId) {
         return snapshot;
@@ -712,14 +724,48 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       } satisfies SolicitudCompraBorradorCreatePayload;
     },
 
-    async saveDraft(): Promise<SolicitudCompraGuardarBorradorResponse> {
-      this.loading = true;
+    async persistDraft(options?: {
+      silent?: boolean;
+      skipIfUnchanged?: boolean;
+    }): Promise<SolicitudCompraGuardarBorradorResponse | null> {
+      const silent = options?.silent ?? false;
+      const skipIfUnchanged = options?.skipIfUnchanged ?? false;
+
+      if (this.draftSaving || this.submitMode === 'send') {
+        return null;
+      }
+
+      if (silent && (!this.canSaveDraft || this.loading || this.uploading)) {
+        return null;
+      }
+
+      if (!silent) {
+        this.loading = true;
+        this.error = null;
+        this.validationErrors = {};
+      }
+
       this.draftSaving = true;
-      this.error = null;
-      this.validationErrors = {};
 
       try {
-        const payload = this.buildDraftSnapshot();
+        const updateSnapshot = this.buildDraftUpdateSnapshot({
+          syncValidationErrors: !silent,
+        });
+        const snapshotHash = createDraftSnapshotHash(updateSnapshot);
+
+        if (skipIfUnchanged && snapshotHash === this.lastSavedDraftSnapshotHash) {
+          return null;
+        }
+
+        const payload = this.draftId
+          ? updateSnapshot
+          : {
+            ...updateSnapshot,
+            creado_por_email: this.solicitanteEmail.trim(),
+            creado_por_nombre: this.solicitanteNombre.trim(),
+            creado_por_area: this.areaNombre.trim() || null,
+          } satisfies SolicitudCompraBorradorCreatePayload;
+
         const response = this.draftId
           ? await solicitudesCompraBorradoresService.actualizarBorrador(
             this.draftId,
@@ -730,16 +776,47 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
           );
 
         this.draftId = response.id;
+        this.lastSavedDraftSnapshotHash = snapshotHash;
+
         return { id: response.id };
       } catch (error) {
-        this.error = error instanceof Error
-          ? error.message
-          : 'No se pudo guardar el borrador';
-        throw error;
+        if (!silent) {
+          this.error = error instanceof Error
+            ? error.message
+            : 'No se pudo guardar el borrador';
+        }
+
+        if (!silent) {
+          throw error;
+        }
+
+        return null;
       } finally {
-        this.loading = false;
+        if (!silent) {
+          this.loading = false;
+        }
+
         this.draftSaving = false;
       }
+    },
+
+    async saveDraft(): Promise<SolicitudCompraGuardarBorradorResponse> {
+      const response = await this.persistDraft();
+
+      if (!response) {
+        throw new Error('No se pudo guardar el borrador');
+      }
+
+      return response;
+    },
+
+    async autoSaveDraft(): Promise<boolean> {
+      const response = await this.persistDraft({
+        silent: true,
+        skipIfUnchanged: true,
+      });
+
+      return Boolean(response);
     },
 
     async submit(mode: Exclude<SolicitudCompraSubmitMode, null>): Promise<SolicitudCompraCrearResponse> {
