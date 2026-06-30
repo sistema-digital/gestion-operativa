@@ -149,7 +149,7 @@ const autoSaveStatusLabel = computed(() => {
     minute: '2-digit',
   }).format(lastAutoSavedAt.value);
 
-  return `Ultima vez autoguardado: ${formattedTime}`;
+  return `Ultima vez autoguardado borrador: ${formattedTime}`;
 });
 
 const pendingActionConfig = computed(() => {
