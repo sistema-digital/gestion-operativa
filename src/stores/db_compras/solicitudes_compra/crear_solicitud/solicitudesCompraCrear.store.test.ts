@@ -197,7 +197,9 @@ describe('solicitudesCompraCrear.store', () => {
     expect(store.adjuntosLocales).toHaveLength(1);
     expect(store.adjuntosLocales[0]?.file.name).toBe('foto.jpg');
     expect(store.adjuntosErroresRecientes).toHaveLength(2);
-    expect(store.validationErrors.adjuntos).toBe('Archivo no valido');
+    expect(store.adjuntosErroresRecientes[0]?.message).toBe('Archivo repetido');
+    expect(store.adjuntosErroresRecientes[1]?.message).toBe('Archivo no valido');
+    expect(store.validationErrors.adjuntos).toBe('Archivo repetido');
   });
 
   it('no sube adjuntos al guardar borrador', async () => {

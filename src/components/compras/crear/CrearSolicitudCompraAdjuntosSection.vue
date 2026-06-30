@@ -52,9 +52,7 @@ const openForm = (): void => {
       <p class="text-sm font-semibold text-stone-800">
         Adjuntos
       </p>
-      <p class="text-sm text-stone-500">
-        Puedes agregar imagenes, PDF u otros archivos permitidos.
-      </p>
+      
     </div>
 
     <button
@@ -77,7 +75,7 @@ const openForm = (): void => {
 
     <div
       v-if="adjuntos.length > 0"
-      class="grid gap-3 lg:grid-cols-2"
+      class="flex gap-1"
     >
       <CrearSolicitudAdjuntoCard
         v-for="item in adjuntos"

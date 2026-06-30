@@ -1,4 +1,5 @@
 import {
+  ADJUNTO_DUPLICATE_ERROR_MESSAGE,
   ADJUNTO_ERROR_MESSAGE,
   ADJUNTO_MAX_FILE_SIZE_BYTES,
 } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
@@ -30,6 +31,12 @@ const createIssue = (file: File): CrearSolicitudAdjuntoValidationIssue => ({
   localId: crypto.randomUUID(),
   fileName: file.name,
   message: ADJUNTO_ERROR_MESSAGE,
+});
+
+const createDuplicateIssue = (file: File): CrearSolicitudAdjuntoValidationIssue => ({
+  localId: crypto.randomUUID(),
+  fileName: file.name,
+  message: ADJUNTO_DUPLICATE_ERROR_MESSAGE,
 });
 
 export const getAdjuntoExtension = (fileName: string): string => {
@@ -74,13 +81,14 @@ export const validateAdjuntosSelection = (
 
   files.forEach((file) => {
     const fingerprint = buildAdjuntoFingerprint(file);
+    const isDuplicate = existingFingerprints.has(fingerprint) || queuedFingerprints.has(fingerprint);
 
-    if (
-      !isValidAdjuntoFile(file)
-      || existingFingerprints.has(fingerprint)
-      || queuedFingerprints.has(fingerprint)
-      || !getAdjuntoKind(file)
-    ) {
+    if (isDuplicate) {
+      invalidIssues.push(createDuplicateIssue(file));
+      return;
+    }
+
+    if (!isValidAdjuntoFile(file) || !getAdjuntoKind(file)) {
       invalidIssues.push(createIssue(file));
       return;
     }
@@ -101,4 +109,15 @@ export const formatAdjuntoSize = (bytes: number): string => {
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+};
+
+export const formatAdjuntoDisplayName = (fileName: string): string => {
+  const extension = getAdjuntoExtension(fileName);
+  const normalizedExtension = extension ? `.${extension}` : '';
+  const baseName = normalizedExtension
+    ? fileName.slice(0, -(normalizedExtension.length))
+    : fileName;
+  const trimmedBaseName = baseName.slice(0, 10);
+
+  return `${trimmedBaseName}..... ${normalizedExtension}`.trim();
 };
