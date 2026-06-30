@@ -33,6 +33,8 @@ Incluye:
 - drawer en desktop
 - bottom sheet en mobile y tablet
 - validacion local de archivos al confirmar el formulario
+- limite maximo de cantidad de archivos
+- renombrado opcional por archivo antes de confirmar
 - previas locales antes del submit
 - modal de preview para imagenes
 - modal de preview para PDF con `iframe` y fallback
@@ -163,8 +165,9 @@ Debe incluir:
 
 1. Zona de seleccion de archivos
 2. Previsualizacion inmediata de los archivos seleccionados dentro del formulario
-3. Mensajes de error por archivos invalidos
-4. Acciones `Cancelar` y `Agregar archivo`
+3. Campo opcional de nombre por archivo seleccionado
+4. Mensajes de error por archivos invalidos
+5. Acciones `Cancelar` y `Agregar archivo`
 
 5.5 Seleccion multiple
 
@@ -192,7 +195,9 @@ Cada archivo puede pesar como maximo:
 
 6.3 Límite de cantidad
 
-No debe existir limite maximo de cantidad de archivos en esta version.
+El maximo de archivos locales permitidos en esta version debe ser:
+
+- `5 archivos`
 
 6.4 Duplicados
 
@@ -227,7 +232,25 @@ Cuando exista error de validacion de archivo, el mensaje visible base debe ser:
 
 - `Archivo no valido`
 
-El spec no exige por ahora mensajes diferenciados por causa.
+Para archivos duplicados debe mostrarse especificamente:
+
+- `Archivo repetido`
+
+Para exceder el limite maximo de cantidad debe mostrarse:
+
+- `Maximo 5 archivos`
+
+6.8 Renombrado opcional antes de confirmar
+
+Dentro del formulario aparte, cada archivo seleccionado puede recibir un nombre opcional antes de agregarse al estado local.
+
+Reglas:
+
+- si el usuario no escribe nombre, debe usarse uno por defecto con la forma `archivo[n]-[now()]`
+- si el usuario escribe nombre manual, ese valor debe normalizarse
+- los espacios deben reemplazarse por guion bajo `_`
+- el nombre base debe limitarse a `50 caracteres`
+- la extension real del archivo debe conservarse segun el tipo seleccionado
 
 =====================================================================
 7. REPRESENTACION VISUAL DE ARCHIVOS
@@ -239,12 +262,19 @@ Cada card debe incluir:
 
 - preview o icono
 - nombre visible del archivo
-- truncado cuando el nombre sea demasiado largo
-- indicacion secundaria util si se desea mostrar extension o peso
-- accion `Ver`
-- accion `Eliminar`
+- truncado visual cuando el nombre sea demasiado largo
+- boton iconografico `X` para eliminar
+- apertura de preview al hacer click sobre la card o miniatura
 
 No debe existir accion `Editar`.
+
+7.1 Layout de cards agregadas
+
+La lista de adjuntos agregados debe:
+
+- mantener tamano fijo de preview por item
+- hacer `wrap` cuando no exista espacio horizontal suficiente
+- evitar que las cards se encojan para forzar una sola fila
 
 =====================================================================
 8. PREVIEW DE IMAGENES
@@ -264,7 +294,7 @@ La miniatura debe construirse desde archivo local usando URL temporal en navegad
 
 8.2 Interaccion
 
-Al hacer click sobre la miniatura o la accion `Ver`:
+Al hacer click sobre la miniatura o la card:
 
 - debe abrirse un modal de pantalla completa
 
@@ -290,7 +320,7 @@ En la card del listado:
 
 9.1 Apertura
 
-Al hacer click en `Ver` o sobre la card del PDF:
+Al hacer click sobre la card del PDF:
 
 - debe abrirse un modal de pantalla completa
 
@@ -328,7 +358,7 @@ Para archivos `docx`:
 - no debe existir preview real del contenido
 - debe mostrarse icono `FileText`
 - debe mostrarse nombre truncado
-- la accion `Ver` puede abrir un modal simple de archivo no previsualizable o delegar a apertura del documento segun la implementacion final
+- la card puede abrir un modal simple de archivo no previsualizable o delegar a apertura del documento segun la implementacion final
 
 Este spec solo exige representacion visual simple y consistente.
 
@@ -344,6 +374,7 @@ Ademas de los estados ya definidos en el flujo base, el subflujo de adjuntos deb
 4. tipo de preview abierto
 5. estado del modal de preview
 6. estado del formulario aparte de adjuntos
+7. nombres efectivos finales de archivos locales
 
 Se recomienda separar:
 
@@ -405,17 +436,23 @@ Si no hay adjuntos:
 3. Los adjuntos siguen siendo opcionales para borrador y envio.
 4. El CTA `Agregar archivo` abre drawer en desktop y bottom sheet en mobile/tablet.
 5. El formulario permite seleccionar varios archivos en una sola operacion.
-6. Al confirmar, solo se agregan archivos validos.
-7. Los invalidos muestran mensaje `Archivo no valido`.
-8. No se permiten duplicados.
-9. Ningun archivo se sube al agregarlo.
-10. Solo `Enviar` dispara subida de adjuntos.
-11. `Guardar borrador` no sube adjuntos.
-12. Las imagenes muestran miniatura y modal fullscreen.
-13. Los PDF usan `iframe` en modal y fallback si falla.
-14. Los DOCX se representan sin preview real.
-15. Cada archivo agregado solo puede `Ver` o `Eliminar`.
-16. El paso 4 resume los adjuntos agregados.
+6. El formulario permite renombrar opcionalmente cada archivo antes de confirmarlo.
+7. Si el nombre se deja vacio, se genera uno por defecto con la forma `archivo[n]-[now()]`.
+8. Si el usuario escribe espacios, deben reemplazarse por `_`.
+9. El nombre base no supera `50 caracteres`.
+10. El maximo local permitido es `5 archivos`.
+11. Al confirmar, solo se agregan archivos validos.
+12. Los invalidos muestran mensaje `Archivo no valido`.
+13. Los duplicados muestran mensaje `Archivo repetido`.
+14. Exceder el maximo muestra `Maximo 5 archivos`.
+15. Ningun archivo se sube al agregarlo.
+16. Solo `Enviar` dispara subida de adjuntos.
+17. `Guardar borrador` no sube adjuntos.
+18. Las imagenes muestran miniatura y modal fullscreen.
+19. Los PDF usan `iframe` en modal y fallback si falla.
+20. Los DOCX se representan sin preview real.
+21. Cada archivo agregado se visualiza como card clickeable con `X` para eliminar.
+22. El paso 4 resume los adjuntos agregados con el nombre efectivo final.
 
 =====================================================================
 15. NOTAS DE IMPLEMENTACION
