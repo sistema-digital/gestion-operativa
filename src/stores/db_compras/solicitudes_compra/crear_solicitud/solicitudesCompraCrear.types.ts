@@ -8,6 +8,10 @@ export type EquipoSeleccionadoSource = 'equipo' | 'contexto';
 
 export const OBSERVACION_PREFILL_PREFIX = 'Para uso en: ';
 export const OBSERVACION_MAX_LENGTH = 250;
+export const ADJUNTO_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+export const ADJUNTO_ERROR_MESSAGE = 'Archivo no valido';
+
+export type CrearSolicitudAdjuntoKind = 'image' | 'pdf' | 'docx';
 
 export interface CrearSolicitudHeaderContext {
   solicitanteNombre: string;
@@ -91,6 +95,14 @@ export interface ServicioSolicitudItem {
 export interface CrearSolicitudAdjuntoLocalItem {
   localId: string;
   file: File;
+  kind: CrearSolicitudAdjuntoKind;
+  fingerprint: string;
+}
+
+export interface CrearSolicitudAdjuntoValidationIssue {
+  localId: string;
+  fileName: string;
+  message: string;
 }
 
 export interface CrearSolicitudAdjuntoUploadMetadata {
@@ -162,6 +174,7 @@ export interface CrearSolicitudFieldErrors {
   productos?: string;
   servicios?: string;
   observacion?: string;
+  adjuntos?: string;
   motivoUrgencia?: string;
 }
 
@@ -179,6 +192,7 @@ export interface SolicitudCompraCrearState extends CrearSolicitudHeaderContext {
   solicitarUrgente: boolean;
   motivoUrgencia: string;
   adjuntosLocales: CrearSolicitudAdjuntoLocalItem[];
+  adjuntosErroresRecientes: CrearSolicitudAdjuntoValidationIssue[];
   adjuntosSubidos: CrearSolicitudAdjuntoUploadMetadata[];
   uploadSession: CrearSolicitudUploadSession | null;
   productSearchQuery: string;

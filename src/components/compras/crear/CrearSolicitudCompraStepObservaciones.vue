@@ -9,8 +9,13 @@ import {
   watch,
 } from 'vue';
 
+import CrearSolicitudCompraAdjuntosSection from './CrearSolicitudCompraAdjuntosSection.vue';
 import CrearSolicitudObservacionChip from './CrearSolicitudObservacionChip.vue';
-import type { EquipoSeleccionado } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
+import type {
+  CrearSolicitudAdjuntoLocalItem,
+  CrearSolicitudAdjuntoValidationIssue,
+  EquipoSeleccionado,
+} from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 import { OBSERVACION_MAX_LENGTH } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 interface EquipoObservacionChip {
@@ -31,7 +36,10 @@ const props = defineProps<{
   solicitarUrgente: boolean;
   motivoUrgencia: string;
   equipos: EquipoSeleccionado[];
+  adjuntos: CrearSolicitudAdjuntoLocalItem[];
   observacionError?: string;
+  adjuntosError?: string;
+  adjuntosErroresRecientes: CrearSolicitudAdjuntoValidationIssue[];
   motivoUrgenciaError?: string;
 }>();
 
@@ -39,6 +47,9 @@ const emit = defineEmits<{
   (e: 'update:observacion', value: string): void;
   (e: 'update:solicitarUrgente', value: boolean): void;
   (e: 'update:motivoUrgencia', value: string): void;
+  (e: 'add:adjuntos', value: File[]): void;
+  (e: 'remove:adjunto', value: string): void;
+  (e: 'clear:adjuntos-errors'): void;
   (e: 'desktop-scroll-state-change', value: DesktopScrollState): void;
 }>();
 
@@ -118,8 +129,11 @@ onBeforeUnmount(() => {
 watch(
   () => [
     props.equipos.length,
+    props.adjuntos.length,
+    props.adjuntosErroresRecientes.length,
     props.solicitarUrgente,
     props.observacionError,
+    props.adjuntosError,
     props.motivoUrgenciaError,
   ],
   () => {
@@ -185,6 +199,15 @@ watch(
           {{ observacionError }}
         </p>
       </div>
+
+      <CrearSolicitudCompraAdjuntosSection
+        :adjuntos="adjuntos"
+        :adjuntos-error="adjuntosError"
+        :adjuntos-errores-recientes="adjuntosErroresRecientes"
+        @add:adjuntos="emit('add:adjuntos', $event)"
+        @remove:adjunto="emit('remove:adjunto', $event)"
+        @clear:adjuntos-errors="emit('clear:adjuntos-errors')"
+      />
 
       <label class="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
         <div>

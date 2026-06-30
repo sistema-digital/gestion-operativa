@@ -3,6 +3,11 @@ import { defineStore } from 'pinia';
 import { useUserStore } from '@/stores/userStore';
 import { useEquiposStore } from '@/stores/dbequipos/equipos/equipos.store';
 import type { EquipoOption } from '@/stores/dbequipos/equipos/equipos.types';
+import {
+  buildAdjuntoFingerprint,
+  getAdjuntoKind,
+  validateAdjuntosSelection,
+} from '@/components/compras/crear/crearSolicitudAdjuntos.utils';
 
 import { solicitudesCompraCrearService } from './solicitudesCompraCrear.service';
 import {
@@ -53,6 +58,7 @@ const createInitialState = (): SolicitudCompraCrearState => ({
   solicitarUrgente: false,
   motivoUrgencia: '',
   adjuntosLocales: [],
+  adjuntosErroresRecientes: [],
   adjuntosSubidos: [],
   uploadSession: null,
   productSearchQuery: '',
@@ -257,6 +263,51 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     setMotivoUrgencia(value: string): void {
       this.motivoUrgencia = value;
       delete this.validationErrors.motivoUrgencia;
+    },
+
+    agregarAdjuntos(files: File[]): void {
+      const { acceptedFiles, invalidIssues } = validateAdjuntosSelection(files, this.adjuntosLocales);
+
+      if (acceptedFiles.length > 0) {
+        this.adjuntosLocales = [
+          ...this.adjuntosLocales,
+          ...acceptedFiles.flatMap((file) => {
+            const kind = getAdjuntoKind(file);
+
+            if (!kind) {
+              return [];
+            }
+
+            return [{
+              localId: createLocalId(),
+              file,
+              kind,
+              fingerprint: buildAdjuntoFingerprint(file),
+            }];
+          }),
+        ];
+        delete this.validationErrors.adjuntos;
+      }
+
+      this.adjuntosErroresRecientes = invalidIssues;
+
+      if (invalidIssues.length > 0) {
+        this.validationErrors = {
+          ...this.validationErrors,
+          adjuntos: invalidIssues[0]?.message,
+        };
+      } else {
+        delete this.validationErrors.adjuntos;
+      }
+    },
+
+    removerAdjunto(localId: string): void {
+      this.adjuntosLocales = this.adjuntosLocales.filter((item) => item.localId !== localId);
+    },
+
+    limpiarErroresAdjuntos(): void {
+      this.adjuntosErroresRecientes = [];
+      delete this.validationErrors.adjuntos;
     },
 
     setProductSearchQuery(value: string): void {
@@ -608,8 +659,8 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         p_motivo_urgencia: mode === 'send' && parsed.solicitarUrgente
           ? parsed.motivoUrgencia.trim()
           : null,
-        p_adjuntos: this.adjuntosSubidos,
-        p_requerir_adjuntos_storage: true,
+        p_adjuntos: mode === 'send' ? this.adjuntosSubidos : [],
+        p_requerir_adjuntos_storage: mode === 'send' && this.adjuntosLocales.length > 0,
       };
     },
 
@@ -620,13 +671,16 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       this.validationErrors = {};
 
       try {
-        if (this.adjuntosLocales.length > 0 && !this.uploadSession) {
+        if (mode === 'send' && this.adjuntosLocales.length > 0 && !this.uploadSession) {
           this.uploading = true;
           this.uploadSession = await solicitudesCompraCrearService.prepararUploadSession();
           this.adjuntosSubidos = await solicitudesCompraCrearService.subirAdjuntos(
             this.uploadSession,
             this.adjuntosLocales
           );
+        } else if (mode === 'draft') {
+          this.adjuntosSubidos = [];
+          this.uploadSession = null;
         }
 
         const payload = this.buildPayload(mode);

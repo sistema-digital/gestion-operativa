@@ -20,6 +20,7 @@ describe('CrearSolicitudCompraStepResumen', () => {
         productos: [],
         servicios: [],
         observacion: 'Resumen',
+        adjuntos: [],
         solicitarUrgente: false,
         motivoUrgencia: '',
       },

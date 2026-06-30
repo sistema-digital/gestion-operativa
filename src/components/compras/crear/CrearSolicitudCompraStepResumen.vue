@@ -8,9 +8,12 @@ import {
   useTemplateRef,
   watch,
 } from 'vue';
-import { BadgeInfo, CalendarArrowDown, Hash, Megaphone, MessageSquareText, PackageCheck, Tractor } from 'lucide-vue-next';
+import { BadgeInfo, CalendarArrowDown, FileText, Hash, Megaphone, MessageSquareText, PackageCheck, Paperclip, Tractor } from 'lucide-vue-next';
+
+import { formatAdjuntoSize, getAdjuntoExtension } from './crearSolicitudAdjuntos.utils';
 
 import type {
+  CrearSolicitudAdjuntoLocalItem,
   EquipoSeleccionado,
   ProductoSolicitudItem,
   ServicioSolicitudItem,
@@ -24,6 +27,7 @@ const props = defineProps<{
   productos: ProductoSolicitudItem[];
   servicios: ServicioSolicitudItem[];
   observacion: string;
+  adjuntos: CrearSolicitudAdjuntoLocalItem[];
   solicitarUrgente: boolean;
   motivoUrgencia: string;
 }>();
@@ -116,6 +120,7 @@ watch(
     props.productos.length,
     props.servicios.length,
     props.observacion,
+    props.adjuntos.length,
     props.solicitarUrgente,
     props.motivoUrgencia,
   ],
@@ -323,6 +328,39 @@ watch(
               <p class="whitespace-normal break-words text-sm font-medium text-stone-900">
                 {{ solicitarUrgente ? 'Sí' : 'No' }}
               </p>
+            </div>
+            <div class="grid gap-3 py-3 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+              <div class="flex min-w-0 items-center gap-3">
+                <Paperclip class="mt-0.5 h-4 w-4 shrink-0 text-main-light" />
+                <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Adjuntos</p>
+              </div>
+              <div class="space-y-2">
+                <p class="text-sm font-medium text-stone-900">
+                  {{ adjuntos.length > 0 ? `${adjuntos.length} archivo(s)` : 'Sin adjuntos' }}
+                </p>
+                <div
+                  v-if="adjuntos.length > 0"
+                  class="space-y-2"
+                >
+                  <div
+                    v-for="item in adjuntos"
+                    :key="item.localId"
+                    class="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white px-3 py-2"
+                  >
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-stone-100">
+                      <FileText class="h-4 w-4 text-stone-500" />
+                    </div>
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-semibold text-stone-900">
+                        {{ item.file.name }}
+                      </p>
+                      <p class="text-xs text-stone-500">
+                        {{ getAdjuntoExtension(item.file.name).toUpperCase() }} · {{ formatAdjuntoSize(item.file.size) }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             <div
               v-if="solicitarUrgente"

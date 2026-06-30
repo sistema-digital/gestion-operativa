@@ -40,6 +40,8 @@ describe('CrearSolicitudCompraStepObservaciones', () => {
             tipo: null,
           },
         ],
+        adjuntos: [],
+        adjuntosErroresRecientes: [],
       },
     });
 
@@ -68,6 +70,8 @@ describe('CrearSolicitudCompraStepObservaciones', () => {
         solicitarUrgente: false,
         motivoUrgencia: '',
         equipos: [],
+        adjuntos: [],
+        adjuntosErroresRecientes: [],
       },
     });
 

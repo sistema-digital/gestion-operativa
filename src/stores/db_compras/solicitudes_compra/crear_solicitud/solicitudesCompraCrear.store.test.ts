@@ -37,6 +37,15 @@ import { useSolicitudesCompraCrearStore } from './solicitudesCompraCrear.store';
 import { OBSERVACION_MAX_LENGTH, OBSERVACION_PREFILL_PREFIX } from './solicitudesCompraCrear.types';
 
 const mockedService = vi.mocked(solicitudesCompraCrearService);
+const createFile = (
+  name: string,
+  type: string,
+  sizeInBytes = 1024,
+  lastModified = 1719705600000
+) => new File([new Uint8Array(sizeInBytes)], name, {
+  type,
+  lastModified,
+});
 
 describe('solicitudesCompraCrear.store', () => {
   beforeEach(() => {
@@ -175,6 +184,69 @@ describe('solicitudesCompraCrear.store', () => {
 
     expect(store.validateStep(3)).toBe(false);
     expect(store.validationErrors.motivoUrgencia).toBe('Debe indicar el motivo de urgencia para continuar.');
+  });
+
+  it('agrega adjuntos validos y reporta invalidos o duplicados', () => {
+    const store = useSolicitudesCompraCrearStore();
+    const validImage = createFile('foto.jpg', 'image/jpeg');
+    const duplicateImage = createFile('foto.jpg', 'image/jpeg');
+    const invalidZip = createFile('archivo.zip', 'application/zip');
+
+    store.agregarAdjuntos([validImage, duplicateImage, invalidZip]);
+
+    expect(store.adjuntosLocales).toHaveLength(1);
+    expect(store.adjuntosLocales[0]?.file.name).toBe('foto.jpg');
+    expect(store.adjuntosErroresRecientes).toHaveLength(2);
+    expect(store.validationErrors.adjuntos).toBe('Archivo no valido');
+  });
+
+  it('no sube adjuntos al guardar borrador', async () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.setTipoSolicitud('zafra');
+    store.setFechaEntrega('2026-06-30');
+    store.equipos = [
+      {
+        id: 1,
+        source: 'equipo',
+        codEquipo: 'EQ-001',
+        label: 'EQ-001 · Tractor John Deere 6155M',
+        modelo: '6155M',
+        marca: 'John Deere',
+        tipo: 'Tractor',
+      },
+    ];
+    store.agregarProductoTemporal({
+      descripcion: 'Aceite hidraulico',
+      unidadCodigo: 'gal',
+      unidadLabel: 'Gal',
+    });
+    store.setObservacion('Solicitud para mantenimiento preventivo.');
+    store.agregarAdjuntos([createFile('manual.pdf', 'application/pdf')]);
+
+    mockedService.crearSolicitud.mockResolvedValue({
+      solicitud_id: 'sol-1',
+      folio_sol: null,
+      tipo_codigo: 'zafra',
+      estado_codigo: 'borrador',
+      prioridad_codigo: 'normal',
+      ciclo_estado: 1,
+      productos_total: 1,
+      servicios_total: 0,
+      equipos_total: 1,
+      adjuntos_total: 0,
+      peticion_urgente_creada: false,
+      urgente_ignorado_por_borrador: true,
+    });
+
+    await store.submit('draft');
+
+    expect(mockedService.prepararUploadSession).not.toHaveBeenCalled();
+    expect(mockedService.subirAdjuntos).not.toHaveBeenCalled();
+    expect(mockedService.crearSolicitud).toHaveBeenCalledWith(expect.objectContaining({
+      p_adjuntos: [],
+      p_requerir_adjuntos_storage: false,
+    }));
   });
 
   it('actualiza servicios existentes', () => {

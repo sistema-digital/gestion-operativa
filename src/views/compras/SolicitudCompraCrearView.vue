@@ -39,6 +39,8 @@ const {
   observacion,
   solicitarUrgente,
   motivoUrgencia,
+  adjuntosLocales,
+  adjuntosErroresRecientes,
   productSearchQuery,
   productSearchResults,
   productSearchLoading,
@@ -59,6 +61,9 @@ const {
   setObservacion,
   setSolicitarUrgente,
   setMotivoUrgencia,
+  agregarAdjuntos,
+  removerAdjunto,
+  limpiarErroresAdjuntos,
   setProductSearchQuery,
   buscarEquipos,
   buscarProductos,
@@ -300,6 +305,18 @@ const handleResumenDesktopScrollStateChange = ({
   resumenDesktopReachedBottom.value = reachedBottom;
 };
 
+const handleAddAdjuntos = (files: File[]): void => {
+  agregarAdjuntos(files);
+};
+
+const handleRemoveAdjunto = (localId: string): void => {
+  removerAdjunto(localId);
+};
+
+const handleClearAdjuntosErrors = (): void => {
+  limpiarErroresAdjuntos();
+};
+
 const syncViewportWidth = (): void => {
   viewportWidth.value = window.innerWidth;
 };
@@ -391,11 +408,17 @@ onBeforeUnmount(() => {
           v-else-if="currentStep === 3"
           :observacion="observacion"
           :equipos="equipos"
+          :adjuntos="adjuntosLocales"
           :solicitar-urgente="solicitarUrgente"
           :motivo-urgencia="motivoUrgencia"
           :observacion-error="validationErrors.observacion"
+          :adjuntos-error="validationErrors.adjuntos"
+          :adjuntos-errores-recientes="adjuntosErroresRecientes"
           :motivo-urgencia-error="validationErrors.motivoUrgencia"
           @update:observacion="setObservacion"
+          @add:adjuntos="handleAddAdjuntos"
+          @remove:adjunto="handleRemoveAdjunto"
+          @clear:adjuntos-errors="handleClearAdjuntosErrors"
           @update:solicitar-urgente="setSolicitarUrgente"
           @update:motivo-urgencia="setMotivoUrgencia"
         />
@@ -408,6 +431,7 @@ onBeforeUnmount(() => {
           :productos="productos"
           :servicios="servicios"
           :observacion="observacion"
+          :adjuntos="adjuntosLocales"
           :solicitar-urgente="solicitarUrgente"
           :motivo-urgencia="motivoUrgencia"
           @desktop-scroll-state-change="handleResumenDesktopScrollStateChange"
