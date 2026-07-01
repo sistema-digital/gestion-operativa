@@ -101,16 +101,16 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <div class="fixed inset-0 z-[95] bg-[#d8d1c2]/70 backdrop-blur-[3px]">
-      <div class="flex min-h-full items-center justify-center p-3 lg:p-6">
+      <div class="flex min-h-dvh items-center justify-center p-0 lg:min-h-full lg:p-6">
         <section
           ref="modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="drafts-entry-title"
           aria-describedby="drafts-entry-description"
-          class="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] border border-stone-200 bg-[#fcfbf8] text-xs shadow-[0_28px_90px_rgba(28,25,23,0.24)]"
+          class="flex h-dvh min-h-0 w-full max-w-none flex-col overflow-hidden rounded-none border-0 bg-[#fcfbf8] text-xs shadow-none lg:max-h-[92vh] lg:h-auto lg:min-h-0 lg:max-w-4xl lg:rounded-[2rem] lg:border lg:border-stone-200 lg:shadow-[0_28px_90px_rgba(28,25,23,0.24)]"
         >
-          <header class="border-b border-stone-200 px-5 pb-4 pt-5 lg:px-7 lg:pb-5 lg:pt-6">
+          <header class="shrink-0 border-b border-stone-200 px-5 pb-4 pt-5 lg:px-7 lg:pb-5 lg:pt-6">
             <div class="flex items-start justify-between gap-4">
               <div class="space-y-2">
                 <h2 id="drafts-entry-title" class="text-2xl font-semibold text-stone-900">
@@ -134,7 +134,7 @@ onBeforeUnmount(() => {
 
                       </header>
 
-          <div class="flex-1 overflow-y-auto px-5 py-4 lg:px-7 lg:py-5">
+          <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 pb-24 lg:px-7 lg:py-5 lg:pb-5">
             <section ref="list" class="space-y-4">
               
 
@@ -150,7 +150,7 @@ onBeforeUnmount(() => {
             </section>
           </div>
 
-          <footer class="flex justify-end border-t border-stone-200 px-5 py-4 lg:px-7">
+          <footer class="sticky bottom-0 shrink-0 flex justify-end border-t border-stone-200 bg-[#fcfbf8] px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] lg:px-7 lg:pb-4">
             <button
               type="button"
               class="inline-flex min-h-11 items-center gap-2 rounded-full border border-main/20 px-4 text-xs font-semibold text-main transition hover:bg-main/5"
