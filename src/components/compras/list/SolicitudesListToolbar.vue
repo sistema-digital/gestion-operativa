@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import {
   ChevronDown,
+  Eraser,
   Filter,
   Plus,
   Search,
@@ -35,6 +36,7 @@ const emit = defineEmits<{
   (e: 'update:soloBloqueadas', value: boolean): void;
   (e: 'update:soloDiferenciaOc', value: boolean): void;
   (e: 'create'): void;
+  (e: 'viewDrafts'): void;
 }>();
 
 const desktopSearchPlaceholder = 'Buscar por folio, observación, equipo u orden de compra';
@@ -139,10 +141,25 @@ const toggleMobileFilters = (): void => {
         />
 
         <div
+          id="row_filter_erase"
           class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end"
           :class="isMobile ? '' : 'lg:contents'"
         >
-          <button
+          
+
+          <div 
+            class="flex flex-col gap-3 md:flex-row  md:items-center sm:justify-end"
+            :class="isMobile ? 'w-full' : 'lg:justify-self-end'"
+          >
+            <button
+              type="button"
+              class="inline-flex min-h-8 items-center justify-center gap-2 cursor-pointer rounded-2xl border border-accent bg-white px-5 text-sm font-semibold text-main shadow-sm transition hover:bg-stone-50"
+              @click="emit('viewDrafts')"
+            >
+              <Eraser class="h-4 w-4" />
+              <span>Ver borradores</span>
+            </button>
+            <button
             v-if="isMobile"
             type="button"
             class="inline-flex min-h-8 items-center justify-center gap-2 rounded-2xl border border-stone-300 bg-stone-50 px-4 text-sm font-semibold text-stone-700 shadow-sm transition hover:border-stone-400 hover:bg-white"
@@ -158,15 +175,16 @@ const toggleMobileFilters = (): void => {
             />
           </button>
 
-          <button
-            v-if="!isMobile"
-            type="button"
-            class="inline-flex min-h-8 items-center justify-center gap-2 cursor-pointer rounded-2xl border border-accent bg-accent px-5 text-sm font-semibold text-main-dark shadow-sm transition hover:bg-accent-light"
-            @click="emit('create')"
-          >
-            <Plus class="h-4 w-4" />
-            <span>Crear</span>
-          </button>
+            <button
+              v-if="!isMobile"
+              type="button"
+              class="inline-flex min-h-8 items-center justify-center gap-2 cursor-pointer rounded-2xl border border-accent bg-accent px-5 text-sm font-semibold text-main-dark shadow-sm transition hover:bg-accent-light"
+              @click="emit('create')"
+            >
+              <Plus class="h-4 w-4" />
+              <span>Crear</span>
+            </button>
+          </div>
         </div>
       </div>
 

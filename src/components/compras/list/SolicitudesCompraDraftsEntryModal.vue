@@ -150,14 +150,14 @@ onBeforeUnmount(() => {
             </section>
           </div>
 
-          <footer class="border-t border-stone-200 px-5 py-4 lg:px-7">
+          <footer class="flex justify-end border-t border-stone-200 px-5 py-4 lg:px-7">
             <button
               type="button"
               class="inline-flex min-h-11 items-center gap-2 rounded-full border border-main/20 px-4 text-xs font-semibold text-main transition hover:bg-main/5"
               @click="emit('new')"
             >
               <FilePlus2 class="h-4 w-4" />
-              Empezar nueva de todos modos
+              Crear nueva solicitud
             </button>
           </footer>
         </section>

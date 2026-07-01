@@ -101,7 +101,7 @@ const navigateToCreate = async (): Promise<void> => {
   }, CREATE_VIEW_NAVIGATION_DELAY_MS);
 };
 
-const openCreateOverlay = async (): Promise<void> => {
+const openDraftsOverlay = async (): Promise<void> => {
   if (
     isTransitioningToCreate.value
     || isCreateOverlayOpen.value
@@ -142,7 +142,16 @@ const openCreateOverlay = async (): Promise<void> => {
 };
 
 const handleOpenNewSolicitudCompra = (): void => {
-  void openCreateOverlay();
+  void handleCreateDirect();
+};
+
+const handleCreateDirect = async (): Promise<void> => {
+  if (isTransitioningToCreate.value || isCreateOverlayOpen.value) {
+    return;
+  }
+
+  await createStore.prepareNewEntry();
+  await navigateToCreate();
 };
 
 const handleCreateNewSolicitud = async (): Promise<void> => {
@@ -213,7 +222,8 @@ onBeforeUnmount(() => {
           @update:fecha-hasta="onFilterChange({ fechaHasta: $event })"
           @update:solo-bloqueadas="onFilterChange({ soloBloqueadas: $event })"
           @update:solo-diferencia-oc="onFilterChange({ soloDiferenciaOc: $event })"
-          @create="void openCreateOverlay()"
+          @create="void handleCreateDirect()"
+          @view-drafts="void openDraftsOverlay()"
         />
       </div>
 
@@ -232,7 +242,8 @@ onBeforeUnmount(() => {
           @update:fecha-hasta="onFilterChange({ fechaHasta: $event })"
           @update:solo-bloqueadas="onFilterChange({ soloBloqueadas: $event })"
           @update:solo-diferencia-oc="onFilterChange({ soloDiferenciaOc: $event })"
-          @create="void openCreateOverlay()"
+          @create="void handleCreateDirect()"
+          @view-drafts="void openDraftsOverlay()"
         />
       </div>
 
