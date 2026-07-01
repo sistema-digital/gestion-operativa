@@ -596,7 +596,6 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
 
     async buscarProductos(query: string): Promise<void> {
       const normalizedQuery = query.trim();
-      this.productSearchQuery = normalizedQuery;
       this.productSearchError = null;
 
       if (normalizedQuery.length < 2) {
@@ -1043,6 +1042,20 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       return Boolean(response);
     },
 
+    async deactivateDraftAfterSubmit(): Promise<void> {
+      if (!this.draftId) {
+        return;
+      }
+
+      try {
+        await solicitudesCompraBorradoresService.desactivarBorrador(this.draftId);
+        this.draftId = null;
+        this.lastSavedDraftSnapshotHash = null;
+      } catch (error) {
+        console.error('No se pudo desactivar el borrador despues del envio:', error);
+      }
+    },
+
     async submit(mode: Exclude<SolicitudCompraSubmitMode, null>): Promise<SolicitudCompraCrearResponse> {
       this.submitMode = mode;
       this.loading = true;
@@ -1061,6 +1074,10 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
 
         const payload = this.buildPayload();
         const response = await solicitudesCompraCrearService.crearSolicitud(payload);
+
+        if (mode === 'send') {
+          await this.deactivateDraftAfterSubmit();
+        }
 
         this.lastCreatedResponse = response;
         return response;

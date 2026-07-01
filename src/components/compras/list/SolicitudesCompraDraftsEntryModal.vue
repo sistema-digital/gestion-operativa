@@ -153,7 +153,7 @@ onBeforeUnmount(() => {
           <footer class="sticky bottom-0 shrink-0 flex justify-end border-t border-stone-200 bg-[#fcfbf8] px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] lg:px-7 lg:pb-4">
             <button
               type="button"
-              class="inline-flex min-h-11 items-center gap-2 rounded-full border border-main/20 px-4 text-xs font-semibold text-main transition hover:bg-main/5"
+              class="inline-flex min-h-11 items-center gap-2 cursor-pointer rounded-full border border-main/20 px-4 text-xs font-semibold text-main transition hover:bg-main/5"
               @click="emit('new')"
             >
               <FilePlus2 class="h-4 w-4" />

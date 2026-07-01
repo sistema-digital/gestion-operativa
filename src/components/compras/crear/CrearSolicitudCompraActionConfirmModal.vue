@@ -72,7 +72,7 @@ onBeforeUnmount(() => {
             <div class="flex flex-col-reverse gap-3 pt-2 lg:flex-row lg:justify-end">
               <button
                 type="button"
-                class="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-300 px-4 text-sm font-semibold text-stone-700 transition hover:bg-stone-100 disabled:opacity-60"
+                class="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-stone-300 px-4 text-sm font-semibold text-stone-700 transition hover:bg-stone-100 disabled:opacity-60"
                 :disabled="loading"
                 @click="emit('close')"
               >
@@ -81,7 +81,7 @@ onBeforeUnmount(() => {
 
               <button
                 type="button"
-                class="inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold shadow-sm transition disabled:opacity-60"
+                class="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl px-4 text-sm font-semibold shadow-sm transition disabled:opacity-60"
                 :class="[palette.confirmButtonClass, palette.confirmButtonHoverClass, palette.confirmButtonTextClass]"
                 :disabled="loading"
                 @click="emit('confirm')"

@@ -158,7 +158,7 @@ const progressSteps = computed(() => [2, 3, 4]);
         
         <button
           type="button"
-          class="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#d1b15a] bg-[#d8b24c] px-4 text-sm font-semibold text-[#17302b] transition hover:bg-[#e0bf69]"
+          class="inline-flex min-h-10 items-center cursor-pointer gap-2 rounded-full border border-[#d1b15a] bg-[#d8b24c] px-4 text-sm font-semibold text-[#17302b] transition hover:bg-[#e0bf69]"
           @click="emit('continue', draft)"
         >
           Continuar

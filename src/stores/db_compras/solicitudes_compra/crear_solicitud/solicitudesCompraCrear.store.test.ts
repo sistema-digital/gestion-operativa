@@ -37,6 +37,7 @@ vi.mock('../borradores/solicitudesCompraBorradores.service', () => ({
     obtenerMisBorradores: vi.fn(),
     crearBorrador: vi.fn(),
     actualizarBorrador: vi.fn(),
+    desactivarBorrador: vi.fn(),
   },
 }));
 
@@ -420,6 +421,77 @@ describe('solicitudesCompraCrear.store', () => {
         servicios: expect.any(Array),
       })
     );
+  });
+
+  it('desactiva el borrador existente despues de enviar la solicitud correctamente', async () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    await store.initialize();
+    store.draftId = 'draft-1';
+    store.currentStep = 4;
+    store.setTipoSolicitud('zafra');
+    store.setFechaEntrega('2026-07-02');
+    store.equipos = [
+      {
+        id: 1,
+        source: 'equipo',
+        codEquipo: 'EQ-001',
+        label: 'EQ-001 · Tractor John Deere 6155M',
+        modelo: '6155M',
+        marca: 'John Deere',
+        tipo: 'Tractor',
+      },
+    ];
+    store.agregarProductoTemporal({
+      descripcion: 'Aceite hidraulico',
+      unidadCodigo: 'gal',
+      unidadLabel: 'Gal',
+    });
+    store.setObservacion('Solicitud para mantenimiento preventivo.');
+
+    mockedService.crearSolicitud.mockResolvedValue({
+      solicitud_id: 'sol-1',
+      folio_sol: 'SC-001',
+      tipo_codigo: 'zafra',
+      estado_codigo: 'enviada',
+      prioridad_codigo: 'normal',
+      ciclo_estado: 1,
+      productos_total: 1,
+      servicios_total: 0,
+      equipos_total: 1,
+      adjuntos_total: 0,
+      peticion_urgente_creada: false,
+      urgente_ignorado_por_borrador: false,
+    });
+
+    mockedDraftsService.desactivarBorrador.mockResolvedValue({
+      id: 'draft-1',
+      creado_por_user_id: 'user-1',
+      creado_por_email: 'juan@cadasa.test',
+      creado_por_nombre: 'Juan Pérez',
+      creado_por_area: 'Operativa',
+      activo: false,
+      schema_version: 1,
+      current_step: 4,
+      tipo_solicitud: 'zafra',
+      fecha_entrega: '2026-07-02',
+      observacion: 'Solicitud para mantenimiento preventivo.',
+      solicitar_urgente: false,
+      motivo_urgencia: null,
+      equipos: store.equipos,
+      productos: store.productos,
+      servicios: [],
+      enviado_at: null,
+      created_at: '2026-06-29T00:00:00.000Z',
+      updated_at: '2026-06-29T00:00:00.000Z',
+    });
+
+    await store.submit('send');
+
+    expect(mockedService.crearSolicitud).toHaveBeenCalledTimes(1);
+    expect(mockedDraftsService.desactivarBorrador).toHaveBeenCalledWith('draft-1');
+    expect(mockedDraftsService.actualizarBorrador).not.toHaveBeenCalled();
+    expect(store.draftId).toBeNull();
   });
 
   it('hidrata el store desde un borrador y evita un autoguardado redundante inmediato', async () => {

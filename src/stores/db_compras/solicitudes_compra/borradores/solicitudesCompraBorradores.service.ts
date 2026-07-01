@@ -101,4 +101,19 @@ export const solicitudesCompraBorradoresService = {
 
     return data as SolicitudCompraBorradorRow;
   },
+
+  async desactivarBorrador(draftId: string): Promise<SolicitudCompraBorradorRow> {
+    const { data, error } = await supabaseCompras
+      .from(BORRADORES_TABLE)
+      .update({ activo: false })
+      .eq('id', draftId)
+      .select(BORRADOR_SELECT)
+      .single();
+
+    if (error) {
+      throw new Error(error.message || 'No se pudo desactivar el borrador');
+    }
+
+    return data as SolicitudCompraBorradorRow;
+  },
 };

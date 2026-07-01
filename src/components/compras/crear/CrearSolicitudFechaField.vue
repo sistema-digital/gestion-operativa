@@ -12,7 +12,22 @@ defineProps<{
 
 const minDate = new Date();
 const inputFormats = {
-  input: 'dd MMM yyyy',
+  input: (value: Date | Date[]): string => {
+    const date = Array.isArray(value) ? value[0] : value;
+
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    return new Intl.DateTimeFormat('es', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    })
+      .format(date)
+      .toLowerCase();
+  },
 };
 
 const toDateValue = (value: string | null): Date | null => {
