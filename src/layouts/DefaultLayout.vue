@@ -30,6 +30,7 @@ const userProfile = ref<{ nombre?: string; role?: string; area?: string } | null
 const userEmail = ref('');
 const PANEL_ADMIN_FEATURE = 'panel_admin';
 const MODULE_CATALOG_FEATURE = 'module_catalog'; // Nueva constante para el feature de catálogo
+const CREATE_SOLICITUD_FEATURE = 'crear_solicitud_compra';
 
 const allMenuItems = [
   { name: 'Calificaciones', path: '/calificaciones', icon: BarChart3 },
@@ -80,6 +81,21 @@ const mobileTopBarSpacerClass = computed(() => showDashboardHeaderNav.value ? 'h
 const hideShellForSolicitudCompraCreate = computed(() =>
   isPreparingSolicitudCompraCreate.value || isSolicitudCompraCreateRoute.value
 );
+const canCreateSolicitudCompra = computed(() =>
+  isFeatureAccessLoaded.value
+  && featureAccessStore.tieneFuncionalidad(CREATE_SOLICITUD_FEATURE)
+);
+const canShowMobileFab = computed(() => {
+  if (route.path === '/dashboard') {
+    return false;
+  }
+
+  if (route.path.startsWith('/compras')) {
+    return canCreateSolicitudCompra.value;
+  }
+
+  return ['ALL', 'EVALUADOR'].includes(userProfile.value?.area?.toUpperCase() || '');
+});
 
 const handlePrepareSolicitudCompraCreate = (): void => {
   if (!route.path.startsWith('/compras') || route.name === 'SolicitudCompraCrear') {
@@ -153,6 +169,10 @@ const logout = async () => {
 
 const triggerNew = () => {
   if (route.path.startsWith('/compras')) {
+    if (!canCreateSolicitudCompra.value) {
+      return;
+    }
+
     window.dispatchEvent(new CustomEvent('open-new-solicitud-compra'));
     return;
   } else {
@@ -321,7 +341,7 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
 
       <!-- FAB Mobile -->
       <button 
-        v-if="route.path !== '/dashboard' && (route.path.startsWith('/compras') || ['ALL', 'EVALUADOR'].includes(userProfile?.area?.toUpperCase() || ''))"
+        v-if="canShowMobileFab"
         @click="triggerNew" 
         class="lg:hidden fixed bottom-20 right-6 w-14 h-14 bg-accent text-gray-900 rounded-full shadow-lg flex items-center justify-center z-40 active:scale-90 transition-all duration-300 cursor-pointer"
         :class="hideShellForSolicitudCompraCreate ? '-translate-x-6 opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'"

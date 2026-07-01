@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { storeToRefs } from 'pinia';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { shallowRef } from 'vue';
 import Toast from 'primevue/toast';
@@ -8,6 +9,7 @@ import { useRouter } from 'vue-router';
 import { useCrearSolicitudCompraWizard } from '@/composables/compras/useCrearSolicitudCompraWizard';
 import type { CatalogoServicioContextoOption } from '@/stores/db_compras/catalogo_servicio_contexto/catalogoServicioContexto.types';
 import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
+import { useFeatureAccessStore } from '@/stores/db_mantenimiento/app_feature_access/featureAccess.store';
 import type {
   CrearSolicitudAdjuntoDraftInput,
   ProductoSolicitudTemporalItem,
@@ -32,7 +34,10 @@ import CrearSolicitudCompraStepper from '@/components/compras/crear/CrearSolicit
 const router = useRouter();
 const toast = useToast();
 const createStore = useSolicitudesCompraCrearStore();
+const featureAccessStore = useFeatureAccessStore();
+const { isLoaded: isFeatureAccessLoaded } = storeToRefs(featureAccessStore);
 const AUTO_SAVE_INTERVAL_MS = 5 * 60 * 1000;
+const VIEW_DRAFTS_FEATURE = 'ver_borradores_solicitud_compra';
 
 const {
   currentStep,
@@ -128,9 +133,13 @@ const shouldDisableSend = computed(() =>
   && resumenHasDesktopOverflow.value
   && !resumenDesktopReachedBottom.value
 );
+const canUseDrafts = computed(() =>
+  isFeatureAccessLoaded.value
+  && featureAccessStore.tieneFuncionalidad(VIEW_DRAFTS_FEATURE)
+);
 
 const autoSaveStatusLabel = computed(() => {
-  if (!lastAutoSavedAt.value) {
+  if (!canUseDrafts.value || !lastAutoSavedAt.value) {
     return '';
   }
 
@@ -264,6 +273,16 @@ const handleSubmit = async (): Promise<void> => {
 };
 
 const handleSaveDraft = async (): Promise<void> => {
+  if (!canUseDrafts.value) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Acceso restringido',
+      detail: 'No tienes permiso para guardar borradores.',
+      life: 3000,
+    });
+    return;
+  }
+
   await onSaveDraft();
   postDraftAction.value = 'stay';
 };
@@ -274,6 +293,10 @@ const handleConfirmedPostDraftAction = (): void => {
 };
 
 const runAutoSave = async (): Promise<void> => {
+  if (!canUseDrafts.value) {
+    return;
+  }
+
   const saved = await createStore.autoSaveDraft();
 
   if (!saved) {
@@ -401,6 +424,9 @@ const syncViewportWidth = (): void => {
 };
 
 onMounted(() => {
+  featureAccessStore.cargarFuncionalidadesPermitidas().catch((error) => {
+    console.error('Error cargando funcionalidades en crear solicitud:', error);
+  });
   if (!createStore.entryMode) {
     void createStore.prepareNewEntry();
   }
@@ -548,7 +574,7 @@ onBeforeUnmount(() => {
           :loading="loading"
           :disable-next="shouldDisableNext"
           :disable-send="shouldDisableSend"
-          :show-draft-button="canSaveDraft"
+          :show-draft-button="canSaveDraft && canUseDrafts"
           :auto-save-status-label="autoSaveStatusLabel"
           @cancel="openActionConfirmModal('cancel')"
           @back="onBack"

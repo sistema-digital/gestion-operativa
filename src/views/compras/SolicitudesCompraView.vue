@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { storeToRefs } from 'pinia';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Toast from 'primevue/toast';
 import { useToast } from 'primevue/usetoast';
@@ -16,6 +17,7 @@ import { useSolicitudesCompraList } from '@/components/compras/list/useSolicitud
 import { solicitudesCompraBorradoresService } from '@/stores/db_compras/solicitudes_compra/borradores/solicitudesCompraBorradores.service';
 import type { SolicitudCompraBorradorListadoItem } from '@/stores/db_compras/solicitudes_compra/borradores/solicitudesCompraBorradores.types';
 import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
+import { useFeatureAccessStore } from '@/stores/db_mantenimiento/app_feature_access/featureAccess.store';
 import type {
   SolicitudCompraGrupoListado,
   SolicitudCompraRoleCodigo,
@@ -46,12 +48,16 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const createStore = useSolicitudesCompraCrearStore();
+const featureAccessStore = useFeatureAccessStore();
+const { isLoaded: isFeatureAccessLoaded } = storeToRefs(featureAccessStore);
 const isTransitioningToCreate = ref(false);
 const isCheckingDrafts = ref(false);
 const showDraftsModal = ref(false);
 const availableDrafts = ref<SolicitudCompraBorradorListadoItem[]>([]);
 const lastCreateTriggerElement = ref<HTMLElement | null>(null);
 const CREATE_VIEW_NAVIGATION_DELAY_MS = 320;
+const CREATE_SOLICITUD_FEATURE = 'crear_solicitud_compra';
+const VIEW_DRAFTS_FEATURE = 'ver_borradores_solicitud_compra';
 
 const roleCodigo = computed<SolicitudCompraRoleCodigo>(
   () => items.value[0]?.viewerRoleCodigo ?? baseItems.value[0]?.viewerRoleCodigo ?? 'operativo'
@@ -78,6 +84,23 @@ const isListRefreshing = computed(() =>
 const listRefreshingLabel = computed(() =>
   searching.value ? 'Buscando...' : 'Actualizando...'
 );
+const canCreateSolicitud = computed(() =>
+  isFeatureAccessLoaded.value
+  && featureAccessStore.tieneFuncionalidad(CREATE_SOLICITUD_FEATURE)
+);
+const canViewDrafts = computed(() =>
+  isFeatureAccessLoaded.value
+  && featureAccessStore.tieneFuncionalidad(VIEW_DRAFTS_FEATURE)
+);
+
+const showFeatureDeniedToast = (featureName: string): void => {
+  toast.add({
+    severity: 'warn',
+    summary: 'Acceso restringido',
+    detail: `No tienes permiso para ${featureName}.`,
+    life: 3000,
+  });
+};
 
 const handleGrupoChange = async (
   grupo: SolicitudCompraGrupoListado
@@ -102,6 +125,11 @@ const navigateToCreate = async (): Promise<void> => {
 };
 
 const openDraftsOverlay = async (): Promise<void> => {
+  if (!canCreateSolicitud.value || !canViewDrafts.value) {
+    showFeatureDeniedToast('ver borradores de solicitudes de compra');
+    return;
+  }
+
   if (
     isTransitioningToCreate.value
     || isCreateOverlayOpen.value
@@ -146,6 +174,11 @@ const handleOpenNewSolicitudCompra = (): void => {
 };
 
 const handleCreateDirect = async (): Promise<void> => {
+  if (!canCreateSolicitud.value) {
+    showFeatureDeniedToast('crear solicitudes de compra');
+    return;
+  }
+
   if (isTransitioningToCreate.value || isCreateOverlayOpen.value) {
     return;
   }
@@ -155,12 +188,22 @@ const handleCreateDirect = async (): Promise<void> => {
 };
 
 const handleCreateNewSolicitud = async (): Promise<void> => {
+  if (!canCreateSolicitud.value || !canViewDrafts.value) {
+    showFeatureDeniedToast('continuar con borradores de solicitudes de compra');
+    return;
+  }
+
   showDraftsModal.value = false;
   await createStore.prepareNewEntry();
   await navigateToCreate();
 };
 
 const handleContinueDraft = async (draft: SolicitudCompraBorradorListadoItem): Promise<void> => {
+  if (!canCreateSolicitud.value || !canViewDrafts.value) {
+    showFeatureDeniedToast('continuar con borradores de solicitudes de compra');
+    return;
+  }
+
   try {
     showDraftsModal.value = false;
     await createStore.prepareDraftEntry(draft);
@@ -178,6 +221,9 @@ const handleContinueDraft = async (draft: SolicitudCompraBorradorListadoItem): P
 
 onMounted(() => {
   window.addEventListener('open-new-solicitud-compra', handleOpenNewSolicitudCompra);
+  featureAccessStore.cargarFuncionalidadesPermitidas().catch((error) => {
+    console.error('Error cargando funcionalidades para compras:', error);
+  });
   void loadInitial();
 });
 
@@ -214,6 +260,8 @@ onBeforeUnmount(() => {
           :searching="searching"
           :active-grupo="activeGrupo"
           :is-mobile="false"
+          :can-create="canCreateSolicitud"
+          :can-view-drafts="canViewDrafts"
           @update:search="onSearchChange"
           @update:grupo="handleGrupoChange"
           @update:estado="onFilterChange({ estadoCodigo: $event })"
@@ -234,6 +282,8 @@ onBeforeUnmount(() => {
           :searching="searching"
           :active-grupo="activeGrupo"
           :is-mobile="true"
+          :can-create="canCreateSolicitud"
+          :can-view-drafts="canViewDrafts"
           @update:search="onSearchChange"
           @update:grupo="handleGrupoChange"
           @update:estado="onFilterChange({ estadoCodigo: $event })"

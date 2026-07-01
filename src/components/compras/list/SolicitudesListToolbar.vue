@@ -24,6 +24,8 @@ const props = defineProps<{
   searching: boolean;
   activeGrupo: SolicitudCompraGrupoListado;
   isMobile: boolean;
+  canCreate?: boolean;
+  canViewDrafts?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -79,6 +81,8 @@ const mobileFiltersLabel = computed(() =>
     ? `Filtros (${activeMobileFiltersCount.value})`
     : 'Filtros'
 );
+const shouldShowCreateButton = computed(() => props.canCreate ?? false);
+const shouldShowDraftsButton = computed(() => props.canViewDrafts ?? false);
 
 const onSearchInput = (event: Event): void => {
   emit('update:search', (event.target as HTMLInputElement).value);
@@ -152,6 +156,7 @@ const toggleMobileFilters = (): void => {
             :class="isMobile ? 'w-full' : 'lg:justify-self-end'"
           >
             <button
+              v-if="shouldShowDraftsButton"
               type="button"
               class="inline-flex min-h-8 items-center justify-center gap-2 cursor-pointer rounded-2xl border border-accent bg-white px-5 text-sm font-semibold text-main shadow-sm transition hover:bg-stone-50"
               @click="emit('viewDrafts')"
@@ -176,7 +181,7 @@ const toggleMobileFilters = (): void => {
           </button>
 
             <button
-              v-if="!isMobile"
+              v-if="!isMobile && shouldShowCreateButton"
               type="button"
               class="inline-flex min-h-8 items-center justify-center gap-2 cursor-pointer rounded-2xl border border-accent bg-accent px-5 text-sm font-semibold text-main-dark shadow-sm transition hover:bg-accent-light"
               @click="emit('create')"
