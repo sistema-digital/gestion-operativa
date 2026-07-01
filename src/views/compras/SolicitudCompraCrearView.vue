@@ -37,6 +37,7 @@ const AUTO_SAVE_INTERVAL_MS = 5 * 60 * 1000;
 const {
   currentStep,
   continuedFromDraft,
+  fechaEntregaRequiresReview,
   tipoSolicitud,
   fechaEntrega,
   equipos,
@@ -471,6 +472,7 @@ onBeforeUnmount(() => {
           v-if="currentStep === 1"
           :tipo-solicitud="tipoSolicitud"
           :fecha-entrega="fechaEntrega"
+          :fecha-entrega-requires-review="fechaEntregaRequiresReview"
           :equipos="equipos"
           :validation-errors="validationErrors"
           :search-results="searchResults"

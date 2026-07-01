@@ -51,6 +51,7 @@ export const useCrearSolicitudCompraWizard = () => {
   return {
     currentStep: storeRefs.currentStep,
     continuedFromDraft: storeRefs.continuedFromDraft,
+    fechaEntregaRequiresReview: storeRefs.fechaEntregaRequiresReview,
     tipoSolicitud: storeRefs.tipoSolicitud,
     fechaEntrega: storeRefs.fechaEntrega,
     equipos: storeRefs.equipos,

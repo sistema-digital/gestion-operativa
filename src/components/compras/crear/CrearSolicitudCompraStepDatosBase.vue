@@ -18,6 +18,7 @@ import type {
 const props = defineProps<{
   tipoSolicitud: SolicitudCompraTipoSolicitud | null;
   fechaEntrega: string | null;
+  fechaEntregaRequiresReview: boolean;
   equipos: EquipoSeleccionado[];
   validationErrors: CrearSolicitudFieldErrors;
   searchResults: EquipoOption[];
@@ -67,6 +68,7 @@ const {
         <CrearSolicitudFechaField
           :model-value="fechaEntrega"
           :error="validationErrors.fechaEntrega"
+          :show-review-warning="fechaEntregaRequiresReview"
           @update:model-value="emitFechaEntrega"
         />
       </div>

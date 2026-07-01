@@ -52,6 +52,7 @@ import type {
 const createInitialState = (): SolicitudCompraCrearState => ({
   entryMode: null,
   continuedFromDraft: false,
+  fechaEntregaRequiresReview: false,
   currentStep: 1,
   submitMode: null,
   draftId: null,
@@ -128,6 +129,19 @@ const normalizeDraftFechaEntrega = (value: string, now = new Date()): string => 
   }
 
   return value;
+};
+const draftFechaEntregaRequiresReview = (value: string, now = new Date()): boolean => {
+  const entregaDate = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(entregaDate.getTime())) {
+    return false;
+  }
+
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  entregaDate.setHours(0, 0, 0, 0);
+
+  return entregaDate < today;
 };
 
 const buildObservacionPrefill = (equipos: EquipoSeleccionado[]): string => {
@@ -265,6 +279,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     },
 
     hydrateFromDraft(draft: SolicitudCompraBorradorListadoItem): void {
+      const fechaEntregaRequiresReview = draftFechaEntregaRequiresReview(draft.fechaEntrega);
       const normalizedFechaEntrega = normalizeDraftFechaEntrega(draft.fechaEntrega);
       const result = solicitudCompraBorradorSchema.safeParse({
         currentStep: draft.currentStep,
@@ -308,7 +323,8 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
 
       this.entryMode = 'draft';
       this.continuedFromDraft = true;
-      this.currentStep = parsed.currentStep;
+      this.fechaEntregaRequiresReview = fechaEntregaRequiresReview;
+      this.currentStep = fechaEntregaRequiresReview ? 1 : parsed.currentStep;
       this.submitMode = null;
       this.draftId = draft.id;
       this.lastSavedDraftSnapshotHash = createDraftSnapshotHash(draftSnapshot);
@@ -380,6 +396,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
 
     setFechaEntrega(value: string | null): void {
       this.fechaEntrega = value;
+      this.fechaEntregaRequiresReview = false;
       delete this.validationErrors.fechaEntrega;
     },
 

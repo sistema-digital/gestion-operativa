@@ -455,8 +455,9 @@ describe('solicitudesCompraCrear.store', () => {
     });
 
     expect(store.fechaEntrega).toBe('2026-07-01');
-    expect(store.currentStep).toBe(2);
+    expect(store.currentStep).toBe(1);
     expect(store.entryMode).toBe('draft');
+    expect(store.fechaEntregaRequiresReview).toBe(true);
   });
 
   it('prepara una entrada nueva dejando el wizard listo desde paso 1', async () => {

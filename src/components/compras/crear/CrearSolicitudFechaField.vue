@@ -7,6 +7,7 @@ const model = defineModel<string | null>();
 
 defineProps<{
   error?: string;
+  showReviewWarning?: boolean;
 }>();
 
 const minDate = new Date();
@@ -68,6 +69,13 @@ const displayValue = computed<Date | null>({
       class="text-sm font-medium text-danger"
     >
       {{ error }}
+    </p>
+
+    <p
+      v-if="showReviewWarning"
+      class="text-sm font-medium text-danger"
+    >
+      Actualice fecha si es necesario
     </p>
   </div>
 </template>
