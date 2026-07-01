@@ -9,6 +9,9 @@ const todayAtMidnight = (): Date => {
 };
 
 const tipoSolicitudSchema = z.enum(['zafra', 'cultivo', 'otros', 'servicio']);
+const PRODUCTO_REQUIRED_MESSAGE = 'Debe agregar al menos un producto para continuar.';
+const SERVICIO_REQUIRED_MESSAGE = 'Debe agregar al menos un servicio para continuar.';
+const STEP2_EXCLUSIVITY_MESSAGE = 'No puede mezclar productos y servicios en una misma solicitud.';
 
 const fechaEntregaSchema = z.string()
   .min(1, 'La fecha de entrega es obligatoria.')
@@ -108,11 +111,39 @@ export const stepProductosSchema = z.object({
   productos: z.array(productoSolicitudSchema),
   servicios: z.array(servicioSolicitudSchema),
 }).superRefine((value, ctx) => {
-  if (value.tipoSolicitud === 'servicio' && value.servicios.length === 0) {
+  if (value.tipoSolicitud === 'servicio') {
+    if (value.productos.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['productos'],
+        message: STEP2_EXCLUSIVITY_MESSAGE,
+      });
+    }
+
+    if (value.servicios.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['servicios'],
+        message: SERVICIO_REQUIRED_MESSAGE,
+      });
+    }
+
+    return;
+  }
+
+  if (value.servicios.length > 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['servicios'],
-      message: 'Debe agregar al menos un servicio para continuar.',
+      message: STEP2_EXCLUSIVITY_MESSAGE,
+    });
+  }
+
+  if (value.productos.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['productos'],
+      message: PRODUCTO_REQUIRED_MESSAGE,
     });
   }
 });
@@ -157,11 +188,19 @@ const baseCreateSchema = z.object({
     });
   }
 
-  if (value.tipoSolicitud === 'servicio' && value.servicios.length === 0) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['servicios'],
-      message: 'Debe agregar al menos un servicio para continuar.',
+  const stepProductosResult = stepProductosSchema.safeParse({
+    tipoSolicitud: value.tipoSolicitud,
+    productos: value.productos,
+    servicios: value.servicios,
+  });
+
+  if (!stepProductosResult.success) {
+    stepProductosResult.error.issues.forEach((issue) => {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: issue.path,
+        message: issue.message,
+      });
     });
   }
 });
@@ -172,7 +211,7 @@ export const createSolicitudSendSchema = baseCreateSchema.superRefine((value, ct
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['servicios'],
-        message: 'Debe agregar al menos un servicio para continuar.',
+        message: SERVICIO_REQUIRED_MESSAGE,
       });
     }
   } else if (value.productos.length === 0) {
@@ -191,3 +230,22 @@ export const createSolicitudSendSchema = baseCreateSchema.superRefine((value, ct
     });
   }
 });
+
+export const sanitizeCollectionsForTipoSolicitud = <TProductos, TServicios>(value: {
+  tipoSolicitud: SolicitudCompraTipoSolicitud;
+  productos: TProductos[];
+  servicios: TServicios[];
+}): {
+  productos: TProductos[];
+  servicios: TServicios[];
+} => (
+  value.tipoSolicitud === 'servicio'
+    ? {
+      productos: [],
+      servicios: value.servicios,
+    }
+    : {
+      productos: value.productos,
+      servicios: [],
+    }
+);

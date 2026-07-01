@@ -21,6 +21,7 @@ import {
 import { solicitudesCompraCrearService } from './solicitudesCompraCrear.service';
 import {
   createSolicitudSendSchema,
+  sanitizeCollectionsForTipoSolicitud,
   stepDatosBaseSchema,
   stepObservacionesSchema,
   stepProductosSchema,
@@ -173,37 +174,76 @@ const toEquipoSeleccionado = (
 const createLocalId = (): string => crypto.randomUUID();
 const createDraftSnapshotHash = (snapshot: SolicitudCompraBorradorUpdatePayload): string =>
   JSON.stringify(snapshot);
+const resolveMaxUnlockedStep = (steps: {
+  step1Valid: boolean;
+  step2Valid: boolean;
+  step3Valid: boolean;
+}): SolicitudCompraCreateStep => {
+  if (!steps.step1Valid) {
+    return 1;
+  }
+
+  if (!steps.step2Valid) {
+    return 2;
+  }
+
+  if (!steps.step3Valid) {
+    return 3;
+  }
+
+  return 4;
+};
 
 export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrear', {
   state: (): SolicitudCompraCrearState => createInitialState(),
 
   getters: {
+    stepValidation(state): {
+      step1Valid: boolean;
+      step2Valid: boolean;
+      step3Valid: boolean;
+    } {
+      const step1Valid = stepDatosBaseSchema.safeParse({
+        tipoSolicitud: state.tipoSolicitud,
+        fechaEntrega: state.fechaEntrega,
+        equipos: state.equipos,
+      }).success;
+      const step2Valid = step1Valid && stepProductosSchema.safeParse({
+        tipoSolicitud: state.tipoSolicitud,
+        productos: state.productos,
+        servicios: state.servicios,
+      }).success;
+      const step3Valid = step2Valid && stepObservacionesSchema.safeParse({
+        observacion: state.observacion,
+        solicitarUrgente: state.solicitarUrgente,
+        motivoUrgencia: state.motivoUrgencia,
+      }).success;
+
+      return {
+        step1Valid,
+        step2Valid,
+        step3Valid,
+      };
+    },
+
+    maxUnlockedStep(): SolicitudCompraCreateStep {
+      return resolveMaxUnlockedStep(this.stepValidation);
+    },
+
     isCurrentStepValid(state): boolean {
       if (state.currentStep === 1) {
-        return stepDatosBaseSchema.safeParse({
-          tipoSolicitud: state.tipoSolicitud,
-          fechaEntrega: state.fechaEntrega,
-          equipos: state.equipos,
-        }).success;
+        return this.stepValidation.step1Valid;
       }
 
       if (state.currentStep === 2) {
-        return stepProductosSchema.safeParse({
-          tipoSolicitud: state.tipoSolicitud,
-          productos: state.productos,
-          servicios: state.servicios,
-        }).success;
+        return this.stepValidation.step2Valid;
       }
 
       if (state.currentStep === 3) {
-        return stepObservacionesSchema.safeParse({
-          observacion: state.observacion,
-          solicitarUrgente: state.solicitarUrgente,
-          motivoUrgencia: state.motivoUrgencia,
-        }).success;
+        return this.stepValidation.step3Valid;
       }
 
-      return true;
+      return this.maxUnlockedStep === 4;
     },
 
     canSaveDraft(state): boolean {
@@ -281,13 +321,18 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     hydrateFromDraft(draft: SolicitudCompraBorradorListadoItem): void {
       const fechaEntregaRequiresReview = draftFechaEntregaRequiresReview(draft.fechaEntrega);
       const normalizedFechaEntrega = normalizeDraftFechaEntrega(draft.fechaEntrega);
+      const sanitizedCollections = sanitizeCollectionsForTipoSolicitud({
+        tipoSolicitud: draft.tipoSolicitud,
+        productos: draft.productos,
+        servicios: draft.servicios,
+      });
       const result = solicitudCompraBorradorSchema.safeParse({
         currentStep: draft.currentStep,
         tipoSolicitud: draft.tipoSolicitud,
         fechaEntrega: normalizedFechaEntrega,
         equipos: draft.equipos,
-        productos: draft.productos,
-        servicios: draft.servicios,
+        productos: sanitizedCollections.productos,
+        servicios: sanitizedCollections.servicios,
         observacion: draft.observacion,
         solicitarUrgente: draft.solicitarUrgente,
         motivoUrgencia: draft.motivoUrgencia,
@@ -298,17 +343,33 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       }
 
       const parsed = result.data;
-      const sanitizedProductos = parsed.tipoSolicitud === 'servicio'
-        ? []
-        : parsed.productos;
-      const sanitizedServicios = parsed.tipoSolicitud === 'servicio'
-        ? parsed.servicios
-        : [];
+      const sanitizedProductos = sanitizedCollections.productos;
+      const sanitizedServicios = sanitizedCollections.servicios;
       const observacionPrefill = buildObservacionPrefill(parsed.equipos);
+      const step1Valid = stepDatosBaseSchema.safeParse({
+        tipoSolicitud: parsed.tipoSolicitud,
+        fechaEntrega: normalizedFechaEntrega,
+        equipos: parsed.equipos,
+      }).success;
+      const step2Valid = step1Valid && stepProductosSchema.safeParse({
+        tipoSolicitud: parsed.tipoSolicitud,
+        productos: sanitizedProductos,
+        servicios: sanitizedServicios,
+      }).success;
+      const step3Valid = step2Valid && stepObservacionesSchema.safeParse({
+        observacion: parsed.observacion,
+        solicitarUrgente: parsed.solicitarUrgente,
+        motivoUrgencia: parsed.motivoUrgencia,
+      }).success;
+      const maxUnlockedStep = resolveMaxUnlockedStep({
+        step1Valid,
+        step2Valid,
+        step3Valid,
+      });
       const draftSnapshot = {
         activo: true,
         schema_version: draft.schemaVersion,
-        current_step: parsed.currentStep,
+        current_step: Math.min(parsed.currentStep, maxUnlockedStep) as SolicitudCompraBorradorStep,
         tipo_solicitud: parsed.tipoSolicitud,
         fecha_entrega: normalizedFechaEntrega,
         observacion: parsed.observacion.trim(),
@@ -324,7 +385,9 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       this.entryMode = 'draft';
       this.continuedFromDraft = true;
       this.fechaEntregaRequiresReview = fechaEntregaRequiresReview;
-      this.currentStep = fechaEntregaRequiresReview ? 1 : parsed.currentStep;
+      this.currentStep = fechaEntregaRequiresReview
+        ? 1
+        : Math.min(parsed.currentStep, maxUnlockedStep) as SolicitudCompraCreateStep;
       this.submitMode = null;
       this.draftId = draft.id;
       this.lastSavedDraftSnapshotHash = createDraftSnapshotHash(draftSnapshot);
@@ -730,6 +793,19 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       return true;
     },
 
+    canNavigateToStep(step: SolicitudCompraCreateStep): boolean {
+      return step <= this.maxUnlockedStep;
+    },
+
+    goToStep(step: SolicitudCompraCreateStep): boolean {
+      if (!this.canNavigateToStep(step)) {
+        return false;
+      }
+
+      this.currentStep = step;
+      return true;
+    },
+
     goToNextStep(): boolean {
       if (!this.validateStep()) {
         return false;
@@ -749,12 +825,17 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     },
 
     buildPayload(): SolicitudCompraCrearPayload {
+      const sanitizedCollections = sanitizeCollectionsForTipoSolicitud({
+        tipoSolicitud: this.tipoSolicitud ?? 'zafra',
+        productos: this.productos,
+        servicios: this.servicios,
+      });
       const result = createSolicitudSendSchema.safeParse({
         tipoSolicitud: this.tipoSolicitud,
         fechaEntrega: this.fechaEntrega,
         equipos: this.equipos,
-        productos: this.productos,
-        servicios: this.servicios,
+        productos: sanitizedCollections.productos,
+        servicios: sanitizedCollections.servicios,
         observacion: this.observacion,
         solicitarUrgente: this.solicitarUrgente,
         motivoUrgencia: this.motivoUrgencia,
@@ -803,13 +884,23 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     }): SolicitudCompraBorradorUpdatePayload {
       const syncValidationErrors = options?.syncValidationErrors ?? true;
       const draftStep = (this.currentStep === 1 ? 2 : this.currentStep) as SolicitudCompraBorradorStep;
+      const sanitizedCollections = this.tipoSolicitud
+        ? sanitizeCollectionsForTipoSolicitud({
+          tipoSolicitud: this.tipoSolicitud,
+          productos: this.productos,
+          servicios: this.servicios,
+        })
+        : {
+          productos: this.productos,
+          servicios: this.servicios,
+        };
       const result = solicitudCompraBorradorSchema.safeParse({
         currentStep: draftStep,
         tipoSolicitud: this.tipoSolicitud,
         fechaEntrega: this.fechaEntrega,
         equipos: this.equipos,
-        productos: this.productos,
-        servicios: this.servicios,
+        productos: sanitizedCollections.productos,
+        servicios: sanitizedCollections.servicios,
         observacion: this.observacion,
         solicitarUrgente: this.solicitarUrgente,
         motivoUrgencia: this.motivoUrgencia,

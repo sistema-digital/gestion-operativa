@@ -39,6 +39,7 @@ export const useCrearSolicitudCompraWizard = () => {
 
   const onNext = (): boolean => store.goToNextStep();
   const onBack = (): void => store.goToPreviousStep();
+  const goToStep = (step: 1 | 2 | 3 | 4): boolean => store.goToStep(step);
 
   const onSubmit = async (): Promise<void> => {
     await store.submit('send');
@@ -75,7 +76,9 @@ export const useCrearSolicitudCompraWizard = () => {
     stepTitle,
     headerContext,
     isCurrentStepValid: computed(() => store.isCurrentStepValid),
+    maxUnlockedStep: computed(() => store.maxUnlockedStep),
     canSaveDraft: computed(() => store.canSaveDraft),
+    goToStep,
     onNext,
     onBack,
     onSubmit,

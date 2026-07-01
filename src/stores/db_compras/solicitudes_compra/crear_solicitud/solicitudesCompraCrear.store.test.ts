@@ -78,7 +78,7 @@ describe('solicitudesCompraCrear.store', () => {
     const store = useSolicitudesCompraCrearStore();
 
     store.setTipoSolicitud('zafra');
-    store.setFechaEntrega('2026-06-30');
+    store.setFechaEntrega('2026-07-02');
     store.equipos = [
       {
         id: 1,
@@ -114,7 +114,7 @@ describe('solicitudesCompraCrear.store', () => {
     const store = useSolicitudesCompraCrearStore();
 
     store.setTipoSolicitud('zafra');
-    store.setFechaEntrega('2026-06-30');
+    store.setFechaEntrega('2026-07-02');
     store.equipos = [
       {
         id: 1,
@@ -137,7 +137,7 @@ describe('solicitudesCompraCrear.store', () => {
     const store = useSolicitudesCompraCrearStore();
 
     store.setTipoSolicitud('servicio');
-    store.setFechaEntrega('2026-06-30');
+    store.setFechaEntrega('2026-07-02');
     store.equipos = [
       {
         id: 1,
@@ -173,7 +173,7 @@ describe('solicitudesCompraCrear.store', () => {
     const store = useSolicitudesCompraCrearStore();
 
     store.setTipoSolicitud('servicio');
-    store.setFechaEntrega('2026-06-30');
+    store.setFechaEntrega('2026-07-02');
     store.equipos = [
       {
         id: 1,
@@ -189,6 +189,65 @@ describe('solicitudesCompraCrear.store', () => {
 
     expect(store.validateStep(2)).toBe(false);
     expect(store.validationErrors.servicios).toBe('Debe agregar al menos un servicio para continuar.');
+  });
+
+  it('exige al menos un producto para avanzar en el paso 2 de solicitudes de producto', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.setTipoSolicitud('cultivo');
+    store.setFechaEntrega('2026-07-02');
+    store.equipos = [
+      {
+        id: 1,
+        source: 'equipo',
+        codEquipo: 'EQ-001',
+        label: 'EQ-001 · Tractor John Deere 6155M',
+        modelo: '6155M',
+        marca: 'John Deere',
+        tipo: 'Tractor',
+      },
+    ];
+    store.currentStep = 2;
+
+    expect(store.validateStep(2)).toBe(false);
+    expect(store.validationErrors.productos).toBe('Debe agregar al menos un producto para continuar.');
+  });
+
+  it('considera invalido el paso 2 si conviven productos y servicios', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.setTipoSolicitud('servicio');
+    store.setFechaEntrega('2026-07-02');
+    store.equipos = [
+      {
+        id: 1,
+        source: 'contexto',
+        codEquipo: 'taller',
+        label: 'Instalaciones de taller',
+        modelo: null,
+        marca: null,
+        tipo: null,
+      },
+    ];
+    store.agregarServicio({
+      cantidad: 1,
+      descripcion: 'Servicio de torno',
+      unidadCodigo: 'un',
+      unidadLabel: 'Un',
+    });
+    store.productos = [
+      {
+        localId: 'temp-1',
+        tipo: 'temporal',
+        temporal: true,
+        descripcion: 'PRODUCTO INVALIDO',
+        unidadCodigo: 'un',
+        unidadLabel: 'Un',
+      },
+    ];
+
+    expect(store.validateStep(2)).toBe(false);
+    expect(store.validationErrors.productos).toBe('No puede mezclar productos y servicios en una misma solicitud.');
   });
 
   it('exige motivo de urgencia para avanzar en el paso 3 cuando aplica', () => {
@@ -243,7 +302,7 @@ describe('solicitudesCompraCrear.store', () => {
 
     await store.initialize();
     store.setTipoSolicitud('zafra');
-    store.setFechaEntrega('2026-06-30');
+    store.setFechaEntrega('2026-07-02');
     store.equipos = [
       {
         id: 1,
@@ -274,7 +333,7 @@ describe('solicitudesCompraCrear.store', () => {
       schema_version: 1,
       current_step: 4,
       tipo_solicitud: 'zafra',
-      fecha_entrega: '2026-06-30',
+      fecha_entrega: '2026-07-02',
       observacion: 'Solicitud para mantenimiento preventivo.',
       solicitar_urgente: false,
       motivo_urgencia: null,
@@ -308,7 +367,7 @@ describe('solicitudesCompraCrear.store', () => {
     store.draftId = 'draft-1';
     store.currentStep = 4;
     store.setTipoSolicitud('servicio');
-    store.setFechaEntrega('2026-06-30');
+    store.setFechaEntrega('2026-07-02');
     store.equipos = [
       {
         id: 1,
@@ -338,7 +397,7 @@ describe('solicitudesCompraCrear.store', () => {
       schema_version: 1,
       current_step: 4,
       tipo_solicitud: 'servicio',
-      fecha_entrega: '2026-06-30',
+      fecha_entrega: '2026-07-02',
       observacion: 'Servicio requerido para torno externo.',
       solicitar_urgente: false,
       motivo_urgencia: null,
@@ -460,6 +519,85 @@ describe('solicitudesCompraCrear.store', () => {
     expect(store.fechaEntregaRequiresReview).toBe(true);
   });
 
+  it('recalcula el maximo paso desbloqueado al hidratar un borrador inconsistente', async () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    await store.initialize();
+
+    store.hydrateFromDraft({
+      id: 'draft-invalid-step',
+      schemaVersion: 1,
+      currentStep: 4,
+      tipoSolicitud: 'zafra',
+      fechaEntrega: '2026-07-02',
+      observacion: 'Para uso en: 431011',
+      solicitarUrgente: false,
+      motivoUrgencia: '',
+      equipos: [
+        {
+          id: 1,
+          source: 'equipo',
+          codEquipo: '431011',
+          label: '431011 · GRAP',
+          modelo: null,
+          marca: null,
+          tipo: 'GRAP',
+        },
+      ],
+      productos: [],
+      servicios: [
+        {
+          localId: 'srv-1',
+          cantidad: 1,
+          descripcion: 'SERVICIO HEREDADO',
+          unidadCodigo: 'un',
+          unidadLabel: 'Un',
+        },
+      ],
+      createdAt: '2026-07-01T09:00:00.000Z',
+      updatedAt: '2026-07-01T09:00:00.000Z',
+    });
+
+    expect(store.servicios).toEqual([]);
+    expect(store.currentStep).toBe(2);
+    expect(store.maxUnlockedStep).toBe(2);
+  });
+
+  it('desbloquea pasos de forma secuencial y bloquea navegacion manual fuera del avance valido', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    expect(store.maxUnlockedStep).toBe(1);
+    expect(store.goToStep(2)).toBe(false);
+
+    store.setTipoSolicitud('zafra');
+    store.setFechaEntrega('2026-07-02');
+    store.equipos = [
+      {
+        id: 1,
+        source: 'equipo',
+        codEquipo: 'EQ-001',
+        label: 'EQ-001 · Tractor John Deere 6155M',
+        modelo: '6155M',
+        marca: 'John Deere',
+        tipo: 'Tractor',
+      },
+    ];
+
+    expect(store.maxUnlockedStep).toBe(2);
+    expect(store.goToStep(2)).toBe(true);
+    expect(store.goToStep(3)).toBe(false);
+
+    store.agregarProductoTemporal({
+      descripcion: 'Aceite hidraulico',
+      unidadCodigo: 'gal',
+      unidadLabel: 'Gal',
+    });
+
+    expect(store.maxUnlockedStep).toBe(4);
+    expect(store.goToStep(3)).toBe(true);
+    expect(store.goToStep(4)).toBe(true);
+  });
+
   it('prepara una entrada nueva dejando el wizard listo desde paso 1', async () => {
     const store = useSolicitudesCompraCrearStore();
 
@@ -483,7 +621,7 @@ describe('solicitudesCompraCrear.store', () => {
 
     await store.initialize();
     store.setTipoSolicitud('zafra');
-    store.setFechaEntrega('2026-06-30');
+    store.setFechaEntrega('2026-07-02');
     store.equipos = [
       {
         id: 1,
@@ -507,7 +645,7 @@ describe('solicitudesCompraCrear.store', () => {
       schema_version: 1,
       current_step: 2,
       tipo_solicitud: 'zafra',
-      fecha_entrega: '2026-06-30',
+      fecha_entrega: '2026-07-02',
       observacion: 'Para uso en: EQ-001',
       solicitar_urgente: false,
       motivo_urgencia: null,
@@ -533,7 +671,7 @@ describe('solicitudesCompraCrear.store', () => {
 
     await store.initialize();
     store.setTipoSolicitud('zafra');
-    store.setFechaEntrega('2026-06-30');
+    store.setFechaEntrega('2026-07-02');
     store.equipos = [
       {
         id: 1,
@@ -557,7 +695,7 @@ describe('solicitudesCompraCrear.store', () => {
       schema_version: 1,
       current_step: 2,
       tipo_solicitud: 'zafra',
-      fecha_entrega: '2026-06-30',
+      fecha_entrega: '2026-07-02',
       observacion: 'Para uso en: EQ-001',
       solicitar_urgente: false,
       motivo_urgencia: null,
@@ -579,7 +717,7 @@ describe('solicitudesCompraCrear.store', () => {
       schema_version: 1,
       current_step: 3,
       tipo_solicitud: 'zafra',
-      fecha_entrega: '2026-06-30',
+      fecha_entrega: '2026-07-02',
       observacion: 'Solicitud para mantenimiento preventivo.',
       solicitar_urgente: false,
       motivo_urgencia: null,

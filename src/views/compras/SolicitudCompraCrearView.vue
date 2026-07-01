@@ -60,11 +60,13 @@ const {
   equiposSearchError,
   headerContext,
   isCurrentStepValid,
+  maxUnlockedStep,
   canSaveDraft,
   onNext,
   onBack,
   onSubmit,
   onSaveDraft,
+  goToStep,
   setTipoSolicitud,
   setFechaEntrega,
   setObservacion,
@@ -118,21 +120,7 @@ const postDraftAction = shallowRef<'stay' | 'leave' | null>(null);
 const lastAutoSavedAt = shallowRef<Date | null>(null);
 let autoSaveIntervalId: number | null = null;
 
-const shouldDisableNext = computed(() =>
-  {
-    if (currentStep.value === 1) {
-      return !isCurrentStepValid.value;
-    }
-
-    if (currentStep.value === 2) {
-      return tipoSolicitud.value === 'servicio'
-        ? servicios.value.length === 0
-        : productos.value.length === 0;
-    }
-
-    return false;
-  }
-);
+const shouldDisableNext = computed(() => !isCurrentStepValid.value);
 
 const shouldDisableSend = computed(() =>
   currentStep.value === 4
@@ -443,7 +431,12 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="col-span-4 row-start-2">
-        <CrearSolicitudCompraStepper :current-step="currentStep" />
+        <CrearSolicitudCompraStepper
+          :current-step="currentStep"
+          :max-unlocked-step="maxUnlockedStep"
+          :tipo-solicitud="tipoSolicitud"
+          @navigate="goToStep"
+        />
       </div>
 
       <div
