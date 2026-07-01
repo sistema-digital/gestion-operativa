@@ -105,6 +105,30 @@ const formatZodErrors = (issues: Array<{ path: PropertyKey[]; message: string }>
 
 const truncateObservacion = (value: string): string => value.slice(0, OBSERVACION_MAX_LENGTH);
 const normalizeDescripcion = (value: string): string => value.trim().toUpperCase();
+const formatDateForDb = (value: Date): string => {
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, '0');
+  const day = `${value.getDate()}`.padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+};
+const normalizeDraftFechaEntrega = (value: string, now = new Date()): string => {
+  const entregaDate = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(entregaDate.getTime())) {
+    return value;
+  }
+
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  entregaDate.setHours(0, 0, 0, 0);
+
+  if (entregaDate < today) {
+    return formatDateForDb(today);
+  }
+
+  return value;
+};
 
 const buildObservacionPrefill = (equipos: EquipoSeleccionado[]): string => {
   const equipmentCodes = equipos
@@ -241,10 +265,11 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     },
 
     hydrateFromDraft(draft: SolicitudCompraBorradorListadoItem): void {
+      const normalizedFechaEntrega = normalizeDraftFechaEntrega(draft.fechaEntrega);
       const result = solicitudCompraBorradorSchema.safeParse({
         currentStep: draft.currentStep,
         tipoSolicitud: draft.tipoSolicitud,
-        fechaEntrega: draft.fechaEntrega,
+        fechaEntrega: normalizedFechaEntrega,
         equipos: draft.equipos,
         productos: draft.productos,
         servicios: draft.servicios,
@@ -270,7 +295,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         schema_version: draft.schemaVersion,
         current_step: parsed.currentStep,
         tipo_solicitud: parsed.tipoSolicitud,
-        fecha_entrega: parsed.fechaEntrega,
+        fecha_entrega: normalizedFechaEntrega,
         observacion: parsed.observacion.trim(),
         solicitar_urgente: parsed.solicitarUrgente,
         motivo_urgencia: parsed.solicitarUrgente
@@ -289,7 +314,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       this.lastSavedDraftSnapshotHash = createDraftSnapshotHash(draftSnapshot);
       this.fechaCreacionLocal = new Date(draft.createdAt);
       this.tipoSolicitud = parsed.tipoSolicitud;
-      this.fechaEntrega = parsed.fechaEntrega;
+      this.fechaEntrega = normalizedFechaEntrega;
       this.equipos = parsed.equipos;
       this.productos = sanitizedProductos;
       this.servicios = sanitizedServicios;

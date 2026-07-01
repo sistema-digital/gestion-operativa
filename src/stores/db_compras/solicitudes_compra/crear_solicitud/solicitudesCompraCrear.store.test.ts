@@ -61,6 +61,7 @@ describe('solicitudesCompraCrear.store', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('inicializa datos de encabezado desde userStore', async () => {
@@ -417,6 +418,45 @@ describe('solicitudesCompraCrear.store', () => {
     expect(autoSaveAttempt).toBe(false);
     expect(mockedDraftsService.actualizarBorrador).not.toHaveBeenCalled();
     expect(mockedDraftsService.crearBorrador).not.toHaveBeenCalled();
+  });
+
+  it('normaliza a hoy la fecha de entrega vencida antes de validar el borrador', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T12:00:00.000Z'));
+
+    const store = useSolicitudesCompraCrearStore();
+
+    await store.initialize();
+
+    store.hydrateFromDraft({
+      id: 'draft-expired-date',
+      schemaVersion: 1,
+      currentStep: 2,
+      tipoSolicitud: 'cultivo',
+      fechaEntrega: '2026-06-30',
+      observacion: 'Para uso en: 431011',
+      solicitarUrgente: false,
+      motivoUrgencia: '',
+      equipos: [
+        {
+          id: 1,
+          source: 'equipo',
+          codEquipo: '431011',
+          label: '431011 · GRAP',
+          modelo: null,
+          marca: null,
+          tipo: 'GRAP',
+        },
+      ],
+      productos: [],
+      servicios: [],
+      createdAt: '2026-06-30T19:44:51.985Z',
+      updatedAt: '2026-06-30T19:44:51.985Z',
+    });
+
+    expect(store.fechaEntrega).toBe('2026-07-01');
+    expect(store.currentStep).toBe(2);
+    expect(store.entryMode).toBe('draft');
   });
 
   it('prepara una entrada nueva dejando el wizard listo desde paso 1', async () => {

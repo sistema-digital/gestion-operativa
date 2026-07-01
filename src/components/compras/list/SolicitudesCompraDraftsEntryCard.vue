@@ -3,6 +3,7 @@ import {
   ArrowRight,
   WalletCards,
   CalendarDays,
+  CalendarX2,
   CircleAlert,
   Package,
   Users,
@@ -25,6 +26,18 @@ const emit = defineEmits<{
 const formattedEntrega = computed(() => formatDateDisplay(props.draft.fechaEntrega));
 const formattedCreatedAt = computed(() => formatPanamaDateTime(props.draft.createdAt));
 const formattedUpdatedAt = computed(() => formatPanamaDateTime(props.draft.updatedAt));
+const isEntregaExpired = computed(() => {
+  const entregaDate = new Date(`${props.draft.fechaEntrega}T00:00:00`);
+
+  if (Number.isNaN(entregaDate.getTime())) {
+    return false;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return entregaDate < today;
+});
 
 const equiposSummary = computed(() => {
   const codes = props.draft.equipos
@@ -82,10 +95,20 @@ const progressSteps = computed(() => [2, 3, 4]);
             >
               Mas reciente
             </span>
+            <span
+              v-if="isEntregaExpired"
+              class="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2.5 py-1 text-[11px] font-semibold text-danger"
+            >
+              <CalendarX2 class="h-3.5 w-3.5" />
+              Cambie entrega
+            </span>
           </div>
 
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-stone-600">
-            <span class="inline-flex items-center gap-1.5">
+            <span
+              class="inline-flex items-center gap-1.5"
+              :class="isEntregaExpired ? 'font-semibold text-danger' : ''"
+            >
               <CalendarDays class="h-3.5 w-3.5" />
               Entrega: {{ formattedEntrega }}
             </span>
@@ -132,11 +155,7 @@ const progressSteps = computed(() => [2, 3, 4]);
       </div>
 
       <div class="flex flex-col items-start gap-3 lg:items-end">
-        <div class="inline-flex items-start gap-2 rounded-2xl bg-stone-100 px-3 py-2 text-[11px] leading-4 text-stone-500">
-          <CircleAlert class="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>Los archivos adjuntos no se restauran al continuar un borrador.</span>
-        </div>
-
+        
         <button
           type="button"
           class="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#d1b15a] bg-[#d8b24c] px-4 text-sm font-semibold text-[#17302b] transition hover:bg-[#e0bf69]"
