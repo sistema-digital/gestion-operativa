@@ -354,6 +354,7 @@ describe('solicitudesCompraCrear.store', () => {
     expect(mockedDraftsService.crearBorrador).toHaveBeenCalledWith(expect.objectContaining({
       creado_por_email: 'juan@cadasa.test',
       current_step: 4,
+      observacion: 'SOLICITUD PARA MANTENIMIENTO PREVENTIVO.',
       equipos: expect.any(Array),
       productos: expect.any(Array),
       servicios: [],
@@ -418,6 +419,7 @@ describe('solicitudesCompraCrear.store', () => {
       expect.objectContaining({
         current_step: 4,
         tipo_solicitud: 'servicio',
+        observacion: 'SERVICIO REQUERIDO PARA TORNO EXTERNO.',
         servicios: expect.any(Array),
       })
     );
@@ -542,7 +544,7 @@ describe('solicitudesCompraCrear.store', () => {
     expect(store.continuedFromDraft).toBe(true);
     expect(store.draftId).toBe('draft-77');
     expect(store.currentStep).toBe(3);
-    expect(store.observacion).toBe('Solicitud cargada desde borrador.');
+    expect(store.observacion).toBe('SOLICITUD CARGADA DESDE BORRADOR.');
     expect(store.solicitarUrgente).toBe(true);
     expect(store.motivoUrgencia).toBe('Equipo detenido');
     expect(store.adjuntosLocales).toEqual([]);
@@ -912,7 +914,7 @@ describe('solicitudesCompraCrear.store', () => {
       tipo: 'Cosechadora',
     });
 
-    expect(store.observacion).toBe('Para uso en: 422006, 422018');
+    expect(store.observacion).toBe('PARA USO EN: 422006, 422018');
   });
 
   it('no sobreescribe la observacion cuando el usuario la edito manualmente', () => {
@@ -936,7 +938,15 @@ describe('solicitudesCompraCrear.store', () => {
       tipo: 'Cosechadora',
     });
 
-    expect(store.observacion).toBe('Para uso en: 422006. Equipo detenido por fuga.');
+    expect(store.observacion).toBe('PARA USO EN: 422006. EQUIPO DETENIDO POR FUGA.');
+  });
+
+  it('convierte a mayusculas la observacion manual antes de guardarla en estado', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.setObservacion('Solicitud con texto en minuscula y codigo eq-123.');
+
+    expect(store.observacion).toBe('SOLICITUD CON TEXTO EN MINUSCULA Y CODIGO EQ-123.');
   });
 
   it('mantiene solo el prefijo cuando se agregan contextos de servicio sin equipos reales', () => {

@@ -6,7 +6,7 @@ export type SolicitudCompraTipoSolicitud = 'zafra' | 'cultivo' | 'otros' | 'serv
 
 export type EquipoSeleccionadoSource = 'equipo' | 'contexto';
 
-export const OBSERVACION_PREFILL_PREFIX = 'Para uso en: ';
+export const OBSERVACION_PREFILL_PREFIX = 'PARA USO EN: ';
 export const OBSERVACION_MAX_LENGTH = 250;
 export const ADJUNTO_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 export const ADJUNTO_MAX_FILES = 5;

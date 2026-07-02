@@ -106,6 +106,7 @@ const formatZodErrors = (issues: Array<{ path: PropertyKey[]; message: string }>
 };
 
 const truncateObservacion = (value: string): string => value.slice(0, OBSERVACION_MAX_LENGTH);
+const normalizeObservacion = (value: string): string => truncateObservacion(value.toUpperCase());
 const normalizeDescripcion = (value: string): string => value.trim().toUpperCase();
 const formatDateForDb = (value: Date): string => {
   const year = value.getFullYear();
@@ -333,7 +334,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         equipos: draft.equipos,
         productos: sanitizedCollections.productos,
         servicios: sanitizedCollections.servicios,
-        observacion: draft.observacion,
+        observacion: normalizeObservacion(draft.observacion),
         solicitarUrgente: draft.solicitarUrgente,
         motivoUrgencia: draft.motivoUrgencia,
       });
@@ -397,9 +398,9 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       this.equipos = parsed.equipos;
       this.productos = sanitizedProductos;
       this.servicios = sanitizedServicios;
-      this.observacion = parsed.observacion;
+      this.observacion = normalizeObservacion(parsed.observacion);
       this.ultimoPrefillObservacion = observacionPrefill;
-      this.observacionEditadaManual = parsed.observacion !== observacionPrefill;
+      this.observacionEditadaManual = this.observacion !== observacionPrefill;
       this.solicitarUrgente = parsed.solicitarUrgente;
       this.motivoUrgencia = parsed.motivoUrgencia;
       this.adjuntosLocales = [];
@@ -464,7 +465,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     },
 
     setObservacion(value: string): void {
-      this.observacion = truncateObservacion(value);
+      this.observacion = normalizeObservacion(value);
       this.observacionEditadaManual = this.observacion !== this.ultimoPrefillObservacion;
       delete this.validationErrors.observacion;
     },

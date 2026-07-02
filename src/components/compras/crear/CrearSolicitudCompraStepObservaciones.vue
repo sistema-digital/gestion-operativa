@@ -77,7 +77,7 @@ const characterCount = computed(() => props.observacion.length);
 
 const handleObservacionInput = (event: Event): void => {
   const textarea = event.target as HTMLTextAreaElement;
-  emit('update:observacion', textarea.value.slice(0, OBSERVACION_MAX_LENGTH));
+  emit('update:observacion', textarea.value.toUpperCase().slice(0, OBSERVACION_MAX_LENGTH));
 };
 
 const isDesktopViewport = (): boolean => window.innerWidth >= DESKTOP_BREAKPOINT;
