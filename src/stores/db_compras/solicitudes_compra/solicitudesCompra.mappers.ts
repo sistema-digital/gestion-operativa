@@ -5,7 +5,7 @@ import type {
   SolicitudCompraRoleCodigo,
 } from './solicitudesCompra.types';
 import {
-  crearEquiposMock,
+  calcularEquiposVisibles,
   formatFolioSol,
   normalizarTextoVacio,
   safeArrayText,
@@ -41,6 +41,9 @@ export const mapSolicitudCompraListRowToItem = (
 ): SolicitudCompraListItem => {
   const foliosOc = safeArrayText(row.folios_oc);
   const ordenesCompraResumenParts = safeArrayText(row.ordenes_compra_resumen);
+  const equiposCodigos = safeArrayText(row.equipos);
+  const equiposTotal = Math.max(row.equipos_total, 0);
+  const { visibles, ocultos } = calcularEquiposVisibles(equiposCodigos);
   const estadoCodigo = normalizarTextoVacio(row.estado_codigo) ?? 'sin_estado';
   const estadoNombre = normalizarTextoVacio(row.estado_nombre) ?? 'Sin estado';
   const prioridadCodigo = normalizarTextoVacio(row.prioridad_codigo) ?? 'sin_prioridad';
@@ -48,6 +51,9 @@ export const mapSolicitudCompraListRowToItem = (
   const cantidadAdjuntos = Math.max(row.cantidad_adjuntos, 0);
   const cantidadDiferencias = Math.max(row.cantidad_diferencias, 0);
   const cantidadOc = Math.max(row.cantidad_oc, 0);
+  const productosTotal = Math.max(row.productos_total, 0);
+  const productosActivos = Math.max(row.productos_activos, 0);
+  const serviciosTotal = Math.max(row.servicios_total, 0);
 
   return {
     id: row.id,
@@ -70,7 +76,14 @@ export const mapSolicitudCompraListRowToItem = (
       codigo: prioridadCodigo,
       nombre: prioridadNombre,
     },
-    equipos: crearEquiposMock(),
+    equipos: {
+      loading: false,
+      codigos: equiposCodigos,
+      visibles,
+      ocultos: Math.max(equiposTotal - visibles.length, ocultos, 0),
+      error: null,
+      source: 'equipos',
+    },
     area: {
       codigo: normalizarTextoVacio(row.area_solicitante_codigo),
       nombre: normalizarTextoVacio(row.area_solicitante_nombre),
@@ -103,9 +116,9 @@ export const mapSolicitudCompraListRowToItem = (
     grupoListado: toGrupoListado(row.grupo_listado),
     disponibleDesde: normalizarTextoVacio(row.disponible_desde),
     conteos: {
-      productosTotal: Math.max(row.productos_total, 0),
-      productosActivos: Math.max(row.productos_activos, 0),
-      serviciosTotal: Math.max(row.servicios_total, 0),
+      productosTotal,
+      productosActivos,
+      serviciosTotal,
       cantidadOc,
     },
     ocResumen: {

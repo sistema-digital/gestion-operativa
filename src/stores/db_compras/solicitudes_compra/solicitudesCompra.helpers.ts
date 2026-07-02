@@ -1,13 +1,11 @@
 import type {
   SolicitudCompraListFilters,
   SolicitudCompraListItem,
-  SolicitudCompraEquipoPreview,
   SolicitudCompraPagination,
 } from './solicitudesCompra.types';
 
 const DEFAULT_PAGE_SIZE = 25;
 const DEFAULT_VISIBLE_EQUIPOS = 3;
-const MOCK_EQUIPOS = ['422005', '422009', '422014'] as const;
 
 export const normalizarTextoVacio = (value: string | null | undefined): string | null => {
   if (typeof value !== 'string') {
@@ -42,20 +40,6 @@ export const calcularEquiposVisibles = (
   const ocultos = Math.max(normalizedCodigos.length - visibles.length, 0);
 
   return { visibles, ocultos };
-};
-
-export const crearEquiposMock = (): SolicitudCompraEquipoPreview => {
-  const codigos = [...MOCK_EQUIPOS];
-  const { visibles, ocultos } = calcularEquiposVisibles(codigos);
-
-  return {
-    loading: false,
-    codigos,
-    visibles,
-    ocultos,
-    error: null,
-    source: 'mock',
-  };
 };
 
 export const isSearchMode = (value: string): boolean =>

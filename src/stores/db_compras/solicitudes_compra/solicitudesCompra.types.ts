@@ -68,7 +68,7 @@ export interface SolicitudCompraListRpcRow {
   cantidad_adjuntos: number;
   tiene_adjuntos: boolean;
   cantidad_oc: number;
-  ordenes_compra_resumen: string | null;
+  ordenes_compra_resumen: unknown[] | null;
   estado_oc_principal: string | null;
   evaluacion_principal: string | null;
   recepcion_principal: string | null;
@@ -79,6 +79,8 @@ export interface SolicitudCompraListRpcRow {
   productos_activos: number;
   servicios_total: number;
   total_count: number;
+  equipos: string[] | null;
+  equipos_total: number;
 }
 
 export interface SolicitudCompraFolioUi {
@@ -130,7 +132,7 @@ export interface SolicitudCompraEquipoPreview {
   visibles: string[];
   ocultos: number;
   error: string | null;
-  source: 'mock' | 'batch' | 'none';
+  source: 'equipos';
 }
 
 export interface SolicitudCompraIndicadores {

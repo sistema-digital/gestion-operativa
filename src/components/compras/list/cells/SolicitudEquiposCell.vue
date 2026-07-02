@@ -10,11 +10,9 @@ const props = withDefaults(defineProps<{
   compact: false,
 });
 
-const visibleCodigos = computed(() => props.equipos.codigos.slice(0, 3));
+const visibleCodigos = computed(() => props.equipos.visibles);
 
-const overflowCount = computed(() =>
-  Math.max(props.equipos.codigos.length - visibleCodigos.value.length, 0)
-);
+const overflowCount = computed(() => props.equipos.ocultos);
 
 const hasError = computed(() => Boolean(props.equipos.error));
 </script>

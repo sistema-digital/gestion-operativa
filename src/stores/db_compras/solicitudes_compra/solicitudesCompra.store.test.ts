@@ -96,6 +96,8 @@ const createRows = (
     productos_activos: 1,
     servicios_total: 0,
     total_count: totalCount,
+    equipos: [],
+    equipos_total: 0,
     ...overrides,
   }));
 
@@ -129,7 +131,7 @@ const createItemsFromRows = (
       visibles: [],
       ocultos: 0,
       error: null,
-      source: 'mock',
+      source: 'equipos',
     },
     area: {
       codigo: row.area_solicitante_codigo,
