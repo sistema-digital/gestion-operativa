@@ -5,7 +5,6 @@ import { useCatalogoContextoDestinoOptions } from '@/composables/compras/useCata
 import type { CatalogoContextoDestinoOption } from '@/stores/db_compras/catalogo_contexto_destino/catalogoContextoDestino.types';
 
 import CrearSolicitudContextosServicioSelector from './CrearSolicitudContextosServicioSelector.vue';
-import CrearSolicitudEquiposSelector from './CrearSolicitudEquiposSelector.vue';
 import CrearSolicitudFechaField from './CrearSolicitudFechaField.vue';
 import CrearSolicitudTipoField from './CrearSolicitudTipoField.vue';
 import type { EquipoOption } from '@/stores/dbequipos/equipos/equipos.types';
@@ -45,13 +44,10 @@ const emitFechaEntrega = (value: string | null | undefined): void => {
   emit('update:fechaEntrega', value ?? null);
 };
 
-const isServicio = computed(() => props.tipoSolicitud === 'servicio');
-
 const {
   options: serviceContextOptions,
   loading: serviceContextLoading,
   error: serviceContextError,
-  isAuthorizedForRestricted: isServiceContextAuthorized,
 } = useCatalogoContextoDestinoOptions(computed(() => props.tipoSolicitud));
 </script>
 
@@ -74,7 +70,6 @@ const {
       </div>
 
       <CrearSolicitudContextosServicioSelector
-        v-if="isServicio"
         class="min-h-0 flex-1"
         :selected-items="destinos"
         :context-options="serviceContextOptions"
@@ -84,23 +79,9 @@ const {
         :load-error="serviceContextError"
         :search-error="searchError"
         :field-error="validationErrors.destinos"
-        :is-authorized="isServiceContextAuthorized"
         @search:equipos="emit('search:equipos', $event)"
         @add:equipo="emit('add:equipo', $event)"
         @add="emit('add:destino-contexto', $event)"
-        @remove="emit('remove:destino', $event)"
-      />
-
-      <CrearSolicitudEquiposSelector
-        v-else
-        class="min-h-0 flex-1"
-        :selected-items="destinos"
-        :search-results="searchResults"
-        :is-searching="isSearching"
-        :search-error="searchError"
-        :field-error="validationErrors.destinos"
-        @search="emit('search:equipos', $event)"
-        @add="emit('add:equipo', $event)"
         @remove="emit('remove:destino', $event)"
       />
     </div>

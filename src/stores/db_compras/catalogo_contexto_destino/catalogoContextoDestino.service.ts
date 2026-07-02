@@ -4,14 +4,16 @@ import type {
   CatalogoContextoDestinoOption,
   CatalogoContextoDestinoRow,
 } from './catalogoContextoDestino.types';
+import type { SolicitudCompraTipoSolicitud } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 export const catalogoContextoDestinoService = {
-  async obtenerOpciones(): Promise<CatalogoContextoDestinoOption[]> {
+  async obtenerOpciones(
+    tipoSolicitud: SolicitudCompraTipoSolicitud
+  ): Promise<CatalogoContextoDestinoOption[]> {
     const { data, error } = await supabaseCompras
-      .from('catalogo_contexto_destino')
-      .select('id, codigo, nombre, tipo_origen, restringido_a_servicios, activo')
-      .order('nombre', { ascending: true })
-      .order('id', { ascending: true });
+      .rpc('rpc_obtener_catalogo_contexto_destino_visible', {
+        p_tipo_solicitud: tipoSolicitud,
+      });
 
     if (error) {
       throw new Error(error.message || 'No se pudieron obtener los destinos');

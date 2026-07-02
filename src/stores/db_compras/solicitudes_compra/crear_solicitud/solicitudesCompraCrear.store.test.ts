@@ -161,7 +161,7 @@ describe('solicitudesCompraCrear.store', () => {
 
     expect(store.destinos).toHaveLength(1);
     expect(store.destinos[0]?.tipoOrigen).toBe('equipo');
-    expect(store.validationErrors.destinos).toBe('No se pueden mezclar tipos de destino en una misma solicitud.');
+    expect(store.validationErrors.destinos).toBe('No se puede combinar otro origen de destino en esta solicitud. Si deseas elegir otro origen, elimina primero el destino ya seleccionado.');
   });
 
   it('autocompleta observacion solo con codigos de equipos reales', () => {

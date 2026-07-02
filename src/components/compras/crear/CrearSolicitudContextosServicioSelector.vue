@@ -13,12 +13,18 @@ type NormalizedServiceSourceRow =
     source: 'contexto';
     item: CatalogoContextoDestinoOption;
     label: string;
+    tipoOrigen: CatalogoContextoDestinoOption['tipoOrigen'];
+    selected: boolean;
+    conflict: boolean;
   }
   | {
     key: string;
     source: 'equipo';
     item: EquipoOption;
     label: string;
+    tipoOrigen: 'equipo';
+    selected: boolean;
+    conflict: boolean;
   };
 
 const props = defineProps<{
@@ -30,7 +36,6 @@ const props = defineProps<{
   loadError: string | null;
   searchError: string | null;
   fieldError?: string;
-  isAuthorized: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -46,6 +51,7 @@ let blurTimer: ReturnType<typeof setTimeout> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const selectedCodes = computed(() => new Set(props.selectedItems.map((item) => `${item.tipoOrigen}:${item.codigo}`)));
+const selectedTipoOrigen = computed(() => props.selectedItems[0]?.tipoOrigen ?? null);
 const normalizedQuery = computed(() => query.value.trim().toLocaleLowerCase());
 const hasEquipmentSearchTerm = computed(() => normalizedQuery.value.length >= 3);
 
@@ -62,12 +68,7 @@ watch(query, (value) => {
 });
 
 const contextRows = computed<NormalizedServiceSourceRow[]>(() => {
-  if (!props.isAuthorized) {
-    return [];
-  }
-
   return props.contextOptions
-    .filter((item) => !selectedCodes.value.has(`${item.tipoOrigen}:${item.codigo}`))
     .filter((item) => (
       !normalizedQuery.value
       || item.nombre.toLocaleLowerCase().includes(normalizedQuery.value)
@@ -77,16 +78,21 @@ const contextRows = computed<NormalizedServiceSourceRow[]>(() => {
       source: 'contexto' as const,
       item,
       label: item.nombre,
+      tipoOrigen: item.tipoOrigen,
+      selected: selectedCodes.value.has(`${item.tipoOrigen}:${item.codigo}`),
+      conflict: selectedTipoOrigen.value !== null && selectedTipoOrigen.value !== item.tipoOrigen,
     }));
 });
 
 const equipmentRows = computed<NormalizedServiceSourceRow[]>(() => props.equipmentSearchResults
-  .filter((item) => !selectedCodes.value.has(`equipo:${item.codEquipo}`))
   .map((item) => ({
     key: `equipo-${item.codEquipo}`,
     source: 'equipo' as const,
     item,
     label: item.label,
+    tipoOrigen: 'equipo',
+    selected: selectedCodes.value.has(`equipo:${item.codEquipo}`),
+    conflict: selectedTipoOrigen.value !== null && selectedTipoOrigen.value !== 'equipo',
   })));
 
 const rows = computed<NormalizedServiceSourceRow[]>(() => {
@@ -101,7 +107,7 @@ const rows = computed<NormalizedServiceSourceRow[]>(() => {
 });
 
 const shouldShowResults = computed(() =>
-  isFocused.value && (!props.isLoading || props.isAuthorized)
+  isFocused.value && (!props.isLoading || contextRows.value.length > 0 || hasEquipmentSearchTerm.value)
 );
 
 const clearQuery = (): void => {
@@ -125,6 +131,10 @@ const handleBlur = (): void => {
 };
 
 const handleSelectRow = (row: NormalizedServiceSourceRow): void => {
+  if (row.selected) {
+    return;
+  }
+
   if (row.source === 'contexto') {
     emit('add', row.item);
     return;
@@ -132,16 +142,6 @@ const handleSelectRow = (row: NormalizedServiceSourceRow): void => {
 
   emit('add:equipo', row.item);
 };
-
-watch(() => props.isAuthorized, (authorized) => {
-  if (authorized) {
-    return;
-  }
-
-  if (!hasEquipmentSearchTerm.value) {
-    emit('search:equipos', '');
-  }
-});
 
 onBeforeUnmount(() => {
   if (blurTimer !== null) {
@@ -162,12 +162,32 @@ const searchStateMessage = computed(() => {
     return 'No hay resultados para la búsqueda actual.';
   }
 
-  if (props.isAuthorized) {
-    return 'No hay contextos de servicio disponibles.';
+  return 'No hay destinos disponibles para este tipo de solicitud.';
+});
+
+const getRowClassName = (row: NormalizedServiceSourceRow): string => {
+  if (row.conflict) {
+    return 'bg-danger/8 text-danger hover:bg-danger/10';
   }
 
-  return 'Ingresa al menos 3 caracteres para buscar equipos.';
-});
+  if (row.selected) {
+    return 'bg-main/8 text-main hover:bg-main/10';
+  }
+
+  return 'bg-white hover:bg-white';
+};
+
+const getRowActionLabel = (row: NormalizedServiceSourceRow): string => {
+  if (row.conflict) {
+    return 'Otro origen';
+  }
+
+  if (row.selected) {
+    return 'Seleccionado';
+  }
+
+  return 'Agregar';
+};
 </script>
 
 <template>
@@ -187,7 +207,7 @@ const searchStateMessage = computed(() => {
             <input
               v-model="query"
               type="text"
-              :placeholder="isAuthorized ? 'Buscar destino o equipo' : 'Buscar por número de equipo'"
+              placeholder="Buscar destino o equipo"
               class="w-full bg-transparent text-sm text-stone-900 outline-none placeholder:text-stone-400"
               @focus="handleFocus"
               @blur="handleBlur"
@@ -210,12 +230,7 @@ const searchStateMessage = computed(() => {
             v-if="query.trim().length > 0 && query.trim().length < 3"
             class="mt-2 text-xs text-stone-500"
           >
-            <template v-if="isAuthorized">
-              Puedes filtrar destinos desde el primer carácter. Para equipos, ingresa al menos 3 caracteres.
-            </template>
-            <template v-else>
-              Ingresa al menos 3 caracteres para buscar equipos.
-            </template>
+            Puedes filtrar destinos desde el primer carácter. Para equipos, ingresa al menos 3 caracteres.
           </p>
         </div>
 
@@ -259,12 +274,26 @@ const searchStateMessage = computed(() => {
               v-for="row in rows"
               :key="row.key"
               type="button"
-              class="flex w-full items-center justify-between border-b border-stone-200 px-3 py-2 text-left text-xs transition last:border-b-0 hover:bg-white"
+              class="flex w-full items-center justify-between border-b border-stone-200 px-3 py-2 text-left text-xs transition last:border-b-0"
+              :class="getRowClassName(row)"
               @mousedown.prevent
               @click="handleSelectRow(row)"
             >
-              <span class="min-w-0 text-stone-800">{{ row.label }}</span>
-              <span class="font-semibold text-main">Agregar</span>
+              <div class="min-w-0">
+                <span class="block min-w-0 truncate">{{ row.label }}</span>
+                <span
+                  v-if="row.conflict"
+                  class="mt-1 block text-[11px] font-medium text-danger/80"
+                >
+                  Si deseas elegir este origen, elimina primero el destino seleccionado.
+                </span>
+              </div>
+              <span
+                class="shrink-0 font-semibold"
+                :class="row.conflict ? 'text-danger/80' : row.selected ? 'text-main/80' : 'text-main'"
+              >
+                {{ getRowActionLabel(row) }}
+              </span>
             </button>
           </template>
 

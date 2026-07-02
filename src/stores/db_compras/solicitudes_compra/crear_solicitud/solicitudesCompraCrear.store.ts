@@ -108,6 +108,7 @@ const formatZodErrors = (issues: Array<{ path: PropertyKey[]; message: string }>
 const truncateObservacion = (value: string): string => value.slice(0, OBSERVACION_MAX_LENGTH);
 const normalizeObservacion = (value: string): string => truncateObservacion(value.toUpperCase());
 const normalizeDescripcion = (value: string): string => value.trim().toUpperCase();
+const DESTINO_MIXED_ORIGIN_ERROR_MESSAGE = 'No se puede combinar otro origen de destino en esta solicitud. Si deseas elegir otro origen, elimina primero el destino ya seleccionado.';
 const formatDateForDb = (value: Date): string => {
   const year = value.getFullYear();
   const month = `${value.getMonth() + 1}`.padStart(2, '0');
@@ -563,7 +564,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       if (this.destinos.some((destino) => destino.tipoOrigen !== 'equipo')) {
         this.validationErrors = {
           ...this.validationErrors,
-          destinos: 'No se pueden mezclar tipos de destino en una misma solicitud.',
+          destinos: DESTINO_MIXED_ORIGIN_ERROR_MESSAGE,
         };
         return;
       }
@@ -586,7 +587,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       if (this.destinos.length > 0 && this.destinos[0]?.tipoOrigen !== item.tipoOrigen) {
         this.validationErrors = {
           ...this.validationErrors,
-          destinos: 'No se pueden mezclar tipos de destino en una misma solicitud.',
+          destinos: DESTINO_MIXED_ORIGIN_ERROR_MESSAGE,
         };
         return;
       }
