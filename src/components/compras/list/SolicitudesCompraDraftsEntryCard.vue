@@ -39,9 +39,13 @@ const isEntregaExpired = computed(() => {
   return entregaDate < today;
 });
 
-const equiposSummary = computed(() => {
-  const codes = props.draft.equipos
-    .map((item) => item.codEquipo.trim())
+const destinosSummary = computed(() => {
+  const codes = props.draft.destinos
+    .map((item) => (
+      item.tipoOrigen === 'equipo'
+        ? item.codigo.trim()
+        : (item.label.trim() || item.codigo.trim())
+    ))
     .filter(Boolean);
 
   if (codes.length === 0) {
@@ -87,7 +91,7 @@ const progressSteps = computed(() => [2, 3, 4]);
         <div class="min-w-0 space-y-2">
           <div class="flex flex-wrap items-center gap-2">
             <h3 class="text-sm font-semibold text-stone-900">
-              Para uso en: {{ equiposSummary }}
+              Para uso en: {{ destinosSummary }}
             </h3>
             <span
               v-if="isMostRecent"
@@ -140,7 +144,7 @@ const progressSteps = computed(() => [2, 3, 4]);
           <div class="flex flex-wrap items-center gap-2 text-[11px] text-stone-600">
             <span class="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1">
               <Users class="h-3.5 w-3.5" />
-              {{ draft.equipos.length }}
+              {{ draft.destinos.length }}
             </span>
             <span class="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1">
               <Package class="h-3.5 w-3.5" />

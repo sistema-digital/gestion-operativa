@@ -14,7 +14,7 @@ import { formatAdjuntoSize, getAdjuntoExtension } from './crearSolicitudAdjuntos
 
 import type {
   CrearSolicitudAdjuntoLocalItem,
-  EquipoSeleccionado,
+  DestinoSeleccionado,
   ProductoSolicitudItem,
   ServicioSolicitudItem,
   SolicitudCompraTipoSolicitud,
@@ -23,7 +23,7 @@ import type {
 const props = defineProps<{
   tipoSolicitud: SolicitudCompraTipoSolicitud | null;
   fechaEntrega: string | null;
-  equipos: EquipoSeleccionado[];
+  destinos: DestinoSeleccionado[];
   productos: ProductoSolicitudItem[];
   servicios: ServicioSolicitudItem[];
   observacion: string;
@@ -116,7 +116,7 @@ watch(
   () => [
     props.tipoSolicitud,
     props.fechaEntrega,
-    props.equipos.length,
+    props.destinos.length,
     props.productos.length,
     props.servicios.length,
     props.observacion,
@@ -190,12 +190,12 @@ watch(
           <div class="flex h-8 items-center" aria-hidden="true">
             <div class="h-[80%] w-px bg-stone-300" />
           </div>
-          <dt class="text-xs font-semibold uppercase tracking-wide text-stone-600">Equipos Selecionados</dt>
+          <dt class="text-xs font-semibold uppercase tracking-wide text-stone-600">Destino</dt>
         </div>
         <dd class="flex flex-wrap gap-2 px-3 py-3">
-          <template v-if="equipos.length > 0">
+          <template v-if="destinos.length > 0">
             <span
-              v-for="item in equipos"
+              v-for="item in destinos"
               :key="item.id"
               class="rounded-full bg-main/10 px-3 py-1 text-sm font-medium text-main"
             >
@@ -203,7 +203,7 @@ watch(
             </span>
           </template>
           <span v-else class="text-base font-medium text-stone-900">
-            {{ tipoSolicitud === 'servicio' ? 'Sin contextos asociados' : 'Sin equipos' }}
+            Sin destinos
           </span>
         </dd>
       </div>
@@ -213,7 +213,7 @@ watch(
           <div class="flex h-8 items-center" aria-hidden="true">
             <div class="h-[80%] w-px bg-stone-300" />
           </div>
-          <dt class="text-xs font-semibold uppercase tracking-wide text-stone-600">Servicios Selecionados</dt>
+          <dt class="text-xs font-semibold uppercase tracking-wide text-stone-600">Servicios seleccionados</dt>
         </div>
         <dd class="px-3 py-3">
           <div v-if="servicios.length > 0" class="divide-y divide-stone-200">
@@ -258,7 +258,7 @@ watch(
           <div class="flex h-8 items-center" aria-hidden="true">
             <div class="h-[80%] w-px bg-stone-300" />
           </div>
-          <dt class="text-xs font-semibold uppercase tracking-wide text-stone-600">Productos Selecionados</dt>
+          <dt class="text-xs font-semibold uppercase tracking-wide text-stone-600">Productos Seleccionados</dt>
         </div>
         <dd class="px-3 py-3">
           <div v-if="productos.length > 0" class="divide-y divide-stone-200">
@@ -267,7 +267,7 @@ watch(
                 <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Cod Almacen</p>
               </div>
               <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Unidad</p>
-              <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Descripcion</p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Nombre</p>
             </div>
             <div
               v-for="item in productos"
@@ -280,7 +280,7 @@ watch(
                   <span class="px-1 text-stone-400">·</span>
                   <span>{{ item.unidadLabel }}</span>
                   <span class="px-1 text-stone-400">·</span>
-                  <span>{{ item.descripcion }}</span>
+                  <span>{{ item.nombre }}</span>
                 </p>
               </div>
               <div class="hidden gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)] lg:items-start">
@@ -293,7 +293,7 @@ watch(
                   <p class="mt-1 text-sm font-medium text-stone-900">{{ item.unidadLabel }}</p>
                 </div>
                 <div class="min-w-0">
-                  <p class="mt-1 whitespace-normal break-words text-sm font-medium text-stone-900">{{ item.descripcion }}</p>
+                  <p class="mt-1 whitespace-normal break-words text-sm font-medium text-stone-900">{{ item.nombre }}</p>
                 </div>
               </div>
             </div>

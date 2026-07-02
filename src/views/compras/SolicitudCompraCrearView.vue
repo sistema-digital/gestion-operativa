@@ -7,7 +7,7 @@ import { useToast } from 'primevue/usetoast';
 import { useRouter } from 'vue-router';
 
 import { useCrearSolicitudCompraWizard } from '@/composables/compras/useCrearSolicitudCompraWizard';
-import type { CatalogoServicioContextoOption } from '@/stores/db_compras/catalogo_servicio_contexto/catalogoServicioContexto.types';
+import type { CatalogoContextoDestinoOption } from '@/stores/db_compras/catalogo_contexto_destino/catalogoContextoDestino.types';
 import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
 import { useFeatureAccessStore } from '@/stores/db_mantenimiento/app_feature_access/featureAccess.store';
 import type {
@@ -45,7 +45,7 @@ const {
   fechaEntregaRequiresReview,
   tipoSolicitud,
   fechaEntrega,
-  equipos,
+  destinos,
   productos,
   servicios,
   observacion,
@@ -84,8 +84,8 @@ const {
   buscarEquipos,
   buscarProductos,
   agregarEquipo,
-  agregarContextoServicio,
-  removerEquipo,
+  agregarDestinoContexto,
+  removerDestino,
   agregarProductoExistente,
   agregarProductoTemporal,
   actualizarProductoTemporal,
@@ -95,8 +95,9 @@ const {
   removerServicio,
 } = useCrearSolicitudCompraWizard();
 
-const createEmptyTemporalDraft = (descripcion = ''): ProductoTemporalDraft => ({
-  descripcion,
+const createEmptyTemporalDraft = (nombre = ''): ProductoTemporalDraft => ({
+  nombre,
+  descripcion: null,
   unidadCodigo: '',
   unidadLabel: '',
 });
@@ -335,10 +336,10 @@ const closeServicioOverlay = (): void => {
   servicioDraft.value = createEmptyServicioDraft();
 };
 
-const handleManualRequest = (initialDescripcion: string): void => {
+const handleManualRequest = (initialNombre: string): void => {
   productoTemporalOverlayMode.value = 'create';
   editingTemporalLocalId.value = null;
-  productoTemporalDraft.value = createEmptyTemporalDraft(initialDescripcion);
+  productoTemporalDraft.value = createEmptyTemporalDraft(initialNombre);
   isProductoTemporalOverlayOpen.value = true;
 };
 
@@ -346,6 +347,7 @@ const handleEditProductoTemporal = (item: ProductoSolicitudTemporalItem): void =
   productoTemporalOverlayMode.value = 'edit';
   editingTemporalLocalId.value = item.localId;
   productoTemporalDraft.value = {
+    nombre: item.nombre,
     descripcion: item.descripcion,
     unidadCodigo: item.unidadCodigo,
     unidadLabel: item.unidadLabel,
@@ -392,8 +394,8 @@ const handleSubmitServicio = (draft: ServicioSolicitudDraft): void => {
   closeServicioOverlay();
 };
 
-const handleAddContextoServicio = (item: CatalogoServicioContextoOption): void => {
-  agregarContextoServicio(item);
+const handleAddDestinoContexto = (item: CatalogoContextoDestinoOption): void => {
+  agregarDestinoContexto(item);
 };
 
 const handleResumenDesktopScrollStateChange = ({
@@ -489,7 +491,7 @@ onBeforeUnmount(() => {
           :tipo-solicitud="tipoSolicitud"
           :fecha-entrega="fechaEntrega"
           :fecha-entrega-requires-review="fechaEntregaRequiresReview"
-          :equipos="equipos"
+          :destinos="destinos"
           :validation-errors="validationErrors"
           :search-results="searchResults"
           :is-searching="isSearching"
@@ -498,8 +500,8 @@ onBeforeUnmount(() => {
           @update:fecha-entrega="setFechaEntrega"
           @search:equipos="buscarEquipos"
           @add:equipo="agregarEquipo"
-          @add:contexto-servicio="handleAddContextoServicio"
-          @remove:equipo="removerEquipo"
+          @add:destino-contexto="handleAddDestinoContexto"
+          @remove:destino="removerDestino"
         />
 
         <CrearSolicitudCompraStepProductos
@@ -534,7 +536,7 @@ onBeforeUnmount(() => {
         <CrearSolicitudCompraStepObservaciones
           v-else-if="currentStep === 3"
           :observacion="observacion"
-          :equipos="equipos"
+          :destinos="destinos"
           :adjuntos="adjuntosLocales"
           :solicitar-urgente="solicitarUrgente"
           :motivo-urgencia="motivoUrgencia"
@@ -554,7 +556,7 @@ onBeforeUnmount(() => {
           v-else
           :tipo-solicitud="tipoSolicitud"
           :fecha-entrega="fechaEntrega"
-          :equipos="equipos"
+          :destinos="destinos"
           :productos="productos"
           :servicios="servicios"
           :observacion="observacion"

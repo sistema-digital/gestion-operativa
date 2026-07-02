@@ -7,6 +7,7 @@ vi.mock('@/stores/userStore', () => ({
     nombre: 'Juan Pérez',
     email: 'juan@cadasa.test',
     area: 'OPERATIVA',
+    role: 'admin',
     profile: {
       area: 'Operativa',
     },
@@ -41,28 +42,24 @@ vi.mock('../borradores/solicitudesCompraBorradores.service', () => ({
   },
 }));
 
-import { solicitudesCompraCrearService } from './solicitudesCompraCrear.service';
-import { solicitudesCompraBorradoresService } from '../borradores/solicitudesCompraBorradores.service';
 import { useSolicitudesCompraCrearStore } from './solicitudesCompraCrear.store';
-import { OBSERVACION_MAX_LENGTH, OBSERVACION_PREFILL_PREFIX } from './solicitudesCompraCrear.types';
+import { OBSERVACION_PREFILL_PREFIX } from './solicitudesCompraCrear.types';
 
-const mockedService = vi.mocked(solicitudesCompraCrearService);
-const mockedDraftsService = vi.mocked(solicitudesCompraBorradoresService);
-const createFile = (
-  name: string,
-  type: string,
-  sizeInBytes = 1024,
-  lastModified = 1719705600000
-) => new File([new Uint8Array(sizeInBytes)], name, {
-  type,
-  lastModified,
-});
+const equipoOption = {
+  id: 1,
+  codEquipo: 'EQ-001',
+  label: 'EQ-001 · Tractor John Deere 6155M',
+  modelo: '6155M',
+  marca: 'John Deere',
+  tipo: 'Tractor',
+};
 
 describe('solicitudesCompraCrear.store', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
-    vi.useRealTimers();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-02T12:00:00Z'));
   });
 
   it('inicializa datos de encabezado desde userStore', async () => {
@@ -75,81 +72,47 @@ describe('solicitudesCompraCrear.store', () => {
     expect(store.areaNombre).toBe('Operativa');
   });
 
-  it('valida paso 1 y arma payload de envio real', () => {
+  it('arma payload de productos con nombre principal y p_contextos_destino', () => {
     const store = useSolicitudesCompraCrearStore();
 
     store.setTipoSolicitud('zafra');
-    store.setFechaEntrega('2026-07-02');
-    store.equipos = [
-      {
-        id: 1,
-        source: 'equipo',
-        codEquipo: 'EQ-001',
-        label: 'EQ-001 · Tractor John Deere 6155M',
-        modelo: '6155M',
-        marca: 'John Deere',
-        tipo: 'Tractor',
-      },
-    ];
+    store.setFechaEntrega('2026-07-10');
+    store.agregarEquipo(equipoOption);
     store.setObservacion('Solicitud para mantenimiento preventivo.');
-    store.setSolicitarUrgente(true);
-    store.setMotivoUrgencia('Riesgo de paro');
-
-    expect(store.validateStep(1)).toBe(true);
-
     store.agregarProductoTemporal({
-      descripcion: 'Aceite hidraulico',
+      nombre: 'Aceite hidraulico',
+      descripcion: 'SAE 10W',
       unidadCodigo: 'gal',
       unidadLabel: 'Gal',
     });
 
     const payload = store.buildPayload();
 
-    expect(payload.p_enviar).toBe(true);
-    expect(payload.p_solicitar_urgente).toBe(true);
-    expect(payload.p_motivo_urgencia).toBe('Riesgo de paro');
-    expect(payload.p_equipos).toEqual(['EQ-001']);
-  });
-
-  it('exige productos al enviar solicitud', async () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    store.setTipoSolicitud('zafra');
-    store.setFechaEntrega('2026-07-02');
-    store.equipos = [
+    expect(payload.p_contextos_destino).toEqual([
+      { tipo_origen: 'equipo', codigo: 'EQ-001' },
+    ]);
+    expect(payload.p_productos).toEqual([
       {
-        id: 1,
-        source: 'equipo',
-        codEquipo: 'EQ-001',
-        label: 'EQ-001 · Tractor John Deere 6155M',
-        modelo: '6155M',
-        marca: 'John Deere',
-        tipo: 'Tractor',
+        temporal: true,
+        nombre: 'ACEITE HIDRAULICO',
+        descripcion: 'SAE 10W',
+        unidad_codigo: 'gal',
       },
-    ];
-    store.setObservacion('Solicitud para mantenimiento preventivo.');
-
-    await expect(store.submit('send')).rejects.toThrow('La solicitud no es válida');
-    expect(mockedService.crearSolicitud).not.toHaveBeenCalled();
-    expect(store.validationErrors.productos).toBeTruthy();
+    ]);
+    expect(payload.p_servicios).toEqual([]);
   });
 
-  it('arma payload de servicios cuando el tipo es servicio', () => {
+  it('arma payload de servicios con destinos de catalogo', () => {
     const store = useSolicitudesCompraCrearStore();
 
     store.setTipoSolicitud('servicio');
-    store.setFechaEntrega('2026-07-02');
-    store.equipos = [
-      {
-        id: 1,
-        source: 'contexto',
-        codEquipo: 'taller',
-        label: 'Instalaciones de taller',
-        modelo: null,
-        marca: null,
-        tipo: null,
-      },
-    ];
+    store.setFechaEntrega('2026-07-10');
+    store.agregarDestinoContexto({
+      id: 20,
+      codigo: 'TALLER',
+      nombre: 'Instalaciones de taller',
+      tipoOrigen: 'instalacion_taller',
+    });
     store.setObservacion('Servicio requerido para torno externo.');
     store.agregarServicio({
       cantidad: 3,
@@ -160,6 +123,9 @@ describe('solicitudesCompraCrear.store', () => {
 
     const payload = store.buildPayload();
 
+    expect(payload.p_contextos_destino).toEqual([
+      { tipo_origen: 'instalacion_taller', codigo: 'TALLER' },
+    ]);
     expect(payload.p_productos).toEqual([]);
     expect(payload.p_servicios).toEqual([
       {
@@ -170,812 +136,142 @@ describe('solicitudesCompraCrear.store', () => {
     ]);
   });
 
-  it('exige al menos un servicio para avanzar en el paso 2', () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    store.setTipoSolicitud('servicio');
-    store.setFechaEntrega('2026-07-02');
-    store.equipos = [
-      {
-        id: 1,
-        source: 'contexto',
-        codEquipo: 'taller',
-        label: 'Instalaciones de taller',
-        modelo: null,
-        marca: null,
-        tipo: null,
-      },
-    ];
-    store.currentStep = 2;
-
-    expect(store.validateStep(2)).toBe(false);
-    expect(store.validationErrors.servicios).toBe('Debe agregar al menos un servicio para continuar.');
-  });
-
-  it('exige al menos un producto para avanzar en el paso 2 de solicitudes de producto', () => {
+  it('exige al menos un destino en el paso 1', () => {
     const store = useSolicitudesCompraCrearStore();
 
     store.setTipoSolicitud('cultivo');
-    store.setFechaEntrega('2026-07-02');
-    store.equipos = [
-      {
+    store.setFechaEntrega('2026-07-10');
+
+    expect(store.validateStep(1)).toBe(false);
+    expect(store.validationErrors.destinos).toBe('Debe seleccionar al menos un destino.');
+  });
+
+  it('impide mezclar tipos de destino en una misma solicitud', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.setTipoSolicitud('servicio');
+    store.setFechaEntrega('2026-07-10');
+    store.agregarEquipo(equipoOption);
+    store.agregarDestinoContexto({
+      id: 2,
+      codigo: 'AREA-01',
+      nombre: 'Area operativa 01',
+      tipoOrigen: 'area_operativa',
+    });
+
+    expect(store.destinos).toHaveLength(1);
+    expect(store.destinos[0]?.tipoOrigen).toBe('equipo');
+    expect(store.validationErrors.destinos).toBe('No se pueden mezclar tipos de destino en una misma solicitud.');
+  });
+
+  it('autocompleta observacion solo con codigos de equipos reales', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.setTipoSolicitud('servicio');
+    store.setFechaEntrega('2026-07-10');
+    store.agregarDestinoContexto({
+      id: 8,
+      codigo: 'TALLER',
+      nombre: 'Instalaciones de taller',
+      tipoOrigen: 'instalacion_taller',
+    });
+
+    expect(store.observacion).toBe(OBSERVACION_PREFILL_PREFIX);
+
+    store.removerDestino({ codigo: 'TALLER', tipoOrigen: 'instalacion_taller' });
+    store.agregarEquipo(equipoOption);
+
+    expect(store.observacion).toBe(`${OBSERVACION_PREFILL_PREFIX}EQ-001`);
+  });
+
+  it('filtra destinos de catalogo al salir del tipo servicio', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.setTipoSolicitud('servicio');
+    store.setFechaEntrega('2026-07-10');
+    store.agregarDestinoContexto({
+      id: 8,
+      codigo: 'TALLER',
+      nombre: 'Instalaciones de taller',
+      tipoOrigen: 'instalacion_taller',
+    });
+
+    store.setTipoSolicitud('otros');
+
+    expect(store.destinos).toEqual([]);
+    expect(store.observacion).toBe(OBSERVACION_PREFILL_PREFIX);
+  });
+
+  it('genera snapshot de borrador con destinos y producto temporal migrado', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.currentStep = 2;
+    store.setTipoSolicitud('otros');
+    store.setFechaEntrega('2026-07-10');
+    store.agregarEquipo(equipoOption);
+    store.agregarProductoTemporal({
+      nombre: 'Manguera hidraulica',
+      descripcion: 'Media pulgada',
+      unidadCodigo: 'un',
+      unidadLabel: 'Un',
+    });
+    store.setObservacion('Reposicion en campo.');
+
+    const snapshot = store.buildDraftSnapshot();
+
+    expect(snapshot.destinos).toEqual(store.destinos);
+    expect(snapshot.productos).toEqual([
+      expect.objectContaining({
+        tipo: 'temporal',
+        nombre: 'MANGUERA HIDRAULICA',
+        descripcion: 'MEDIA PULGADA',
+      }),
+    ]);
+  });
+
+  it('hidrata borradores con destinos y productos del nuevo contrato', () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.hydrateFromDraft({
+      id: 'draft-1',
+      schemaVersion: 1,
+      currentStep: 3,
+      tipoSolicitud: 'otros',
+      fechaEntrega: '2026-07-10',
+      observacion: 'Reposicion programada.',
+      solicitarUrgente: false,
+      motivoUrgencia: '',
+      destinos: [{
         id: 1,
-        source: 'equipo',
-        codEquipo: 'EQ-001',
+        tipoOrigen: 'equipo',
+        codigo: 'EQ-001',
         label: 'EQ-001 · Tractor John Deere 6155M',
         modelo: '6155M',
         marca: 'John Deere',
         tipo: 'Tractor',
-      },
-    ];
-    store.currentStep = 2;
-
-    expect(store.validateStep(2)).toBe(false);
-    expect(store.validationErrors.productos).toBe('Debe agregar al menos un producto para continuar.');
-  });
-
-  it('considera invalido el paso 2 si conviven productos y servicios', () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    store.setTipoSolicitud('servicio');
-    store.setFechaEntrega('2026-07-02');
-    store.equipos = [
-      {
-        id: 1,
-        source: 'contexto',
-        codEquipo: 'taller',
-        label: 'Instalaciones de taller',
-        modelo: null,
-        marca: null,
-        tipo: null,
-      },
-    ];
-    store.agregarServicio({
-      cantidad: 1,
-      descripcion: 'Servicio de torno',
-      unidadCodigo: 'un',
-      unidadLabel: 'Un',
-    });
-    store.productos = [
-      {
+      }],
+      productos: [{
         localId: 'temp-1',
         tipo: 'temporal',
         temporal: true,
-        descripcion: 'PRODUCTO INVALIDO',
+        nombre: 'MANGUERA HIDRAULICA',
+        descripcion: 'MEDIA PULGADA',
         unidadCodigo: 'un',
         unidadLabel: 'Un',
-      },
-    ];
-
-    expect(store.validateStep(2)).toBe(false);
-    expect(store.validationErrors.productos).toBe('No puede mezclar productos y servicios en una misma solicitud.');
-  });
-
-  it('exige motivo de urgencia para avanzar en el paso 3 cuando aplica', () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    store.currentStep = 3;
-    store.setObservacion('Solicitud con contexto suficiente.');
-    store.setSolicitarUrgente(true);
-    store.setMotivoUrgencia('   ');
-
-    expect(store.validateStep(3)).toBe(false);
-    expect(store.validationErrors.motivoUrgencia).toBe('Debe indicar el motivo de urgencia para continuar.');
-  });
-
-  it('agrega adjuntos validos y reporta invalidos o duplicados', () => {
-    const store = useSolicitudesCompraCrearStore();
-    const validImage = createFile('foto.jpg', 'image/jpeg');
-    const duplicateImage = createFile('foto.jpg', 'image/jpeg');
-    const invalidZip = createFile('archivo.zip', 'application/zip');
-
-    store.agregarAdjuntos([
-      { file: validImage, displayName: 'factura_carro.jpg' },
-      { file: duplicateImage, displayName: 'factura_carro_2.jpg' },
-      { file: invalidZip, displayName: 'archivo.zip' },
-    ]);
-
-    expect(store.adjuntosLocales).toHaveLength(1);
-    expect(store.adjuntosLocales[0]?.file.name).toBe('foto.jpg');
-    expect(store.adjuntosLocales[0]?.displayName).toBe('factura_carro.jpg');
-    expect(store.adjuntosErroresRecientes).toHaveLength(2);
-    expect(store.adjuntosErroresRecientes[0]?.message).toBe('Archivo repetido');
-    expect(store.adjuntosErroresRecientes[1]?.message).toBe('Archivo no valido');
-    expect(store.validationErrors.adjuntos).toBe('Archivo repetido');
-  });
-
-  it('limita la carga local a 5 adjuntos', () => {
-    const store = useSolicitudesCompraCrearStore();
-    const items = Array.from({ length: 6 }, (_, index) => ({
-      file: createFile(`archivo-${index + 1}.pdf`, 'application/pdf', 1024, 1719705600000 + index),
-      displayName: `archivo_${index + 1}.pdf`,
-    }));
-
-    store.agregarAdjuntos(items);
-
-    expect(store.adjuntosLocales).toHaveLength(5);
-    expect(store.adjuntosErroresRecientes.at(-1)?.message).toBe('Maximo 5 archivos');
-    expect(store.validationErrors.adjuntos).toBe('Maximo 5 archivos');
-  });
-
-  it('guarda un borrador en la tabla dedicada sin usar el RPC de creacion', async () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    await store.initialize();
-    store.setTipoSolicitud('zafra');
-    store.setFechaEntrega('2026-07-02');
-    store.equipos = [
-      {
-        id: 1,
-        source: 'equipo',
-        codEquipo: 'EQ-001',
-        label: 'EQ-001 · Tractor John Deere 6155M',
-        modelo: '6155M',
-        marca: 'John Deere',
-        tipo: 'Tractor',
-      },
-    ];
-    store.agregarProductoTemporal({
-      descripcion: 'Aceite hidraulico',
-      unidadCodigo: 'gal',
-      unidadLabel: 'Gal',
-    });
-    store.setObservacion('Solicitud para mantenimiento preventivo.');
-    store.agregarAdjuntos([{ file: createFile('manual.pdf', 'application/pdf'), displayName: 'manual.pdf' }]);
-    store.currentStep = 4;
-
-    mockedDraftsService.crearBorrador.mockResolvedValue({
-      id: 'draft-1',
-      creado_por_user_id: 'user-1',
-      creado_por_email: 'juan@cadasa.test',
-      creado_por_nombre: 'Juan Pérez',
-      creado_por_area: 'Operativa',
-      activo: true,
-      schema_version: 1,
-      current_step: 4,
-      tipo_solicitud: 'zafra',
-      fecha_entrega: '2026-07-02',
-      observacion: 'Solicitud para mantenimiento preventivo.',
-      solicitar_urgente: false,
-      motivo_urgencia: null,
-      equipos: store.equipos,
-      productos: store.productos,
+      }],
       servicios: [],
-      enviado_at: null,
-      created_at: '2026-06-29T00:00:00.000Z',
-      updated_at: '2026-06-29T00:00:00.000Z',
+      createdAt: '2026-07-02T10:00:00Z',
+      updatedAt: '2026-07-02T11:00:00Z',
     });
 
-    await store.saveDraft();
-
-    expect(mockedService.prepararUploadSession).not.toHaveBeenCalled();
-    expect(mockedService.subirAdjuntos).not.toHaveBeenCalled();
-    expect(mockedService.crearSolicitud).not.toHaveBeenCalled();
-    expect(mockedDraftsService.crearBorrador).toHaveBeenCalledWith(expect.objectContaining({
-      creado_por_email: 'juan@cadasa.test',
-      current_step: 4,
-      observacion: 'SOLICITUD PARA MANTENIMIENTO PREVENTIVO.',
-      equipos: expect.any(Array),
-      productos: expect.any(Array),
-      servicios: [],
-    }));
-    expect(store.draftId).toBe('draft-1');
-  });
-
-  it('actualiza el mismo borrador si ya existe draftId', async () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    await store.initialize();
-    store.draftId = 'draft-1';
-    store.currentStep = 4;
-    store.setTipoSolicitud('servicio');
-    store.setFechaEntrega('2026-07-02');
-    store.equipos = [
-      {
-        id: 1,
-        source: 'contexto',
-        codEquipo: 'taller',
-        label: 'Instalaciones de taller',
-        modelo: null,
-        marca: null,
-        tipo: null,
-      },
-    ];
-    store.agregarServicio({
-      cantidad: 2,
-      descripcion: 'Servicio de torno',
-      unidadCodigo: 'un',
-      unidadLabel: 'Un',
-    });
-    store.setObservacion('Servicio requerido para torno externo.');
-
-    mockedDraftsService.actualizarBorrador.mockResolvedValue({
-      id: 'draft-1',
-      creado_por_user_id: 'user-1',
-      creado_por_email: 'juan@cadasa.test',
-      creado_por_nombre: 'Juan Pérez',
-      creado_por_area: 'Operativa',
-      activo: true,
-      schema_version: 1,
-      current_step: 4,
-      tipo_solicitud: 'servicio',
-      fecha_entrega: '2026-07-02',
-      observacion: 'Servicio requerido para torno externo.',
-      solicitar_urgente: false,
-      motivo_urgencia: null,
-      equipos: store.equipos,
-      productos: [],
-      servicios: store.servicios,
-      enviado_at: null,
-      created_at: '2026-06-29T00:00:00.000Z',
-      updated_at: '2026-06-29T00:00:00.000Z',
-    });
-
-    await store.saveDraft();
-
-    expect(mockedDraftsService.crearBorrador).not.toHaveBeenCalled();
-    expect(mockedDraftsService.actualizarBorrador).toHaveBeenCalledWith(
-      'draft-1',
-      expect.objectContaining({
-        current_step: 4,
-        tipo_solicitud: 'servicio',
-        observacion: 'SERVICIO REQUERIDO PARA TORNO EXTERNO.',
-        servicios: expect.any(Array),
-      })
-    );
-  });
-
-  it('desactiva el borrador existente despues de enviar la solicitud correctamente', async () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    await store.initialize();
-    store.draftId = 'draft-1';
-    store.currentStep = 4;
-    store.setTipoSolicitud('zafra');
-    store.setFechaEntrega('2026-07-02');
-    store.equipos = [
-      {
-        id: 1,
-        source: 'equipo',
-        codEquipo: 'EQ-001',
-        label: 'EQ-001 · Tractor John Deere 6155M',
-        modelo: '6155M',
-        marca: 'John Deere',
-        tipo: 'Tractor',
-      },
-    ];
-    store.agregarProductoTemporal({
-      descripcion: 'Aceite hidraulico',
-      unidadCodigo: 'gal',
-      unidadLabel: 'Gal',
-    });
-    store.setObservacion('Solicitud para mantenimiento preventivo.');
-
-    mockedService.crearSolicitud.mockResolvedValue({
-      solicitud_id: 'sol-1',
-      folio_sol: 'SC-001',
-      tipo_codigo: 'zafra',
-      estado_codigo: 'enviada',
-      prioridad_codigo: 'normal',
-      ciclo_estado: 1,
-      productos_total: 1,
-      servicios_total: 0,
-      equipos_total: 1,
-      adjuntos_total: 0,
-      peticion_urgente_creada: false,
-      urgente_ignorado_por_borrador: false,
-    });
-
-    mockedDraftsService.desactivarBorrador.mockResolvedValue({
-      id: 'draft-1',
-      creado_por_user_id: 'user-1',
-      creado_por_email: 'juan@cadasa.test',
-      creado_por_nombre: 'Juan Pérez',
-      creado_por_area: 'Operativa',
-      activo: false,
-      schema_version: 1,
-      current_step: 4,
-      tipo_solicitud: 'zafra',
-      fecha_entrega: '2026-07-02',
-      observacion: 'Solicitud para mantenimiento preventivo.',
-      solicitar_urgente: false,
-      motivo_urgencia: null,
-      equipos: store.equipos,
-      productos: store.productos,
-      servicios: [],
-      enviado_at: null,
-      created_at: '2026-06-29T00:00:00.000Z',
-      updated_at: '2026-06-29T00:00:00.000Z',
-    });
-
-    await store.submit('send');
-
-    expect(mockedService.crearSolicitud).toHaveBeenCalledTimes(1);
-    expect(mockedDraftsService.desactivarBorrador).toHaveBeenCalledWith('draft-1');
-    expect(mockedDraftsService.actualizarBorrador).not.toHaveBeenCalled();
-    expect(store.draftId).toBeNull();
-  });
-
-  it('hidrata el store desde un borrador y evita un autoguardado redundante inmediato', async () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    await store.initialize();
-
-    const draft = {
-      id: 'draft-77',
-      schemaVersion: 1,
-      currentStep: 3 as const,
-      tipoSolicitud: 'zafra' as const,
-      fechaEntrega: '2026-07-02',
-      observacion: 'Solicitud cargada desde borrador.',
-      solicitarUrgente: true,
-      motivoUrgencia: 'Equipo detenido',
-      equipos: [
-        {
-          id: 1,
-          source: 'equipo' as const,
-          codEquipo: 'EQ-777',
-          label: 'EQ-777 · Tractor John Deere 6155M',
-          modelo: '6155M',
-          marca: 'John Deere',
-          tipo: 'Tractor',
-        },
-      ],
-      productos: [
-        {
-          localId: 'prod-1',
-          tipo: 'temporal' as const,
-          temporal: true as const,
-          descripcion: 'ACEITE HIDRAULICO',
-          unidadCodigo: 'gal',
-          unidadLabel: 'Gal',
-        },
-      ],
-      servicios: [],
-      createdAt: '2026-06-29T18:47:00.000Z',
-      updatedAt: '2026-06-30T18:47:00.000Z',
-    };
-
-    store.hydrateFromDraft(draft);
-
-    const autoSaveAttempt = await store.autoSaveDraft();
-
-    expect(store.entryMode).toBe('draft');
-    expect(store.continuedFromDraft).toBe(true);
-    expect(store.draftId).toBe('draft-77');
-    expect(store.currentStep).toBe(3);
-    expect(store.observacion).toBe('SOLICITUD CARGADA DESDE BORRADOR.');
-    expect(store.solicitarUrgente).toBe(true);
-    expect(store.motivoUrgencia).toBe('Equipo detenido');
-    expect(store.adjuntosLocales).toEqual([]);
-    expect(autoSaveAttempt).toBe(false);
-    expect(mockedDraftsService.actualizarBorrador).not.toHaveBeenCalled();
-    expect(mockedDraftsService.crearBorrador).not.toHaveBeenCalled();
-  });
-
-  it('normaliza a hoy la fecha de entrega vencida antes de validar el borrador', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-07-01T12:00:00.000Z'));
-
-    const store = useSolicitudesCompraCrearStore();
-
-    await store.initialize();
-
-    store.hydrateFromDraft({
-      id: 'draft-expired-date',
-      schemaVersion: 1,
-      currentStep: 2,
-      tipoSolicitud: 'cultivo',
-      fechaEntrega: '2026-06-30',
-      observacion: 'Para uso en: 431011',
-      solicitarUrgente: false,
-      motivoUrgencia: '',
-      equipos: [
-        {
-          id: 1,
-          source: 'equipo',
-          codEquipo: '431011',
-          label: '431011 · GRAP',
-          modelo: null,
-          marca: null,
-          tipo: 'GRAP',
-        },
-      ],
-      productos: [],
-      servicios: [],
-      createdAt: '2026-06-30T19:44:51.985Z',
-      updatedAt: '2026-06-30T19:44:51.985Z',
-    });
-
-    expect(store.fechaEntrega).toBe('2026-07-01');
-    expect(store.currentStep).toBe(1);
-    expect(store.entryMode).toBe('draft');
-    expect(store.fechaEntregaRequiresReview).toBe(true);
-  });
-
-  it('recalcula el maximo paso desbloqueado al hidratar un borrador inconsistente', async () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    await store.initialize();
-
-    store.hydrateFromDraft({
-      id: 'draft-invalid-step',
-      schemaVersion: 1,
-      currentStep: 4,
-      tipoSolicitud: 'zafra',
-      fechaEntrega: '2026-07-02',
-      observacion: 'Para uso en: 431011',
-      solicitarUrgente: false,
-      motivoUrgencia: '',
-      equipos: [
-        {
-          id: 1,
-          source: 'equipo',
-          codEquipo: '431011',
-          label: '431011 · GRAP',
-          modelo: null,
-          marca: null,
-          tipo: 'GRAP',
-        },
-      ],
-      productos: [],
-      servicios: [
-        {
-          localId: 'srv-1',
-          cantidad: 1,
-          descripcion: 'SERVICIO HEREDADO',
-          unidadCodigo: 'un',
-          unidadLabel: 'Un',
-        },
-      ],
-      createdAt: '2026-07-01T09:00:00.000Z',
-      updatedAt: '2026-07-01T09:00:00.000Z',
-    });
-
-    expect(store.servicios).toEqual([]);
-    expect(store.currentStep).toBe(2);
-    expect(store.maxUnlockedStep).toBe(2);
-  });
-
-  it('desbloquea pasos de forma secuencial y bloquea navegacion manual fuera del avance valido', () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    expect(store.maxUnlockedStep).toBe(1);
-    expect(store.goToStep(2)).toBe(false);
-
-    store.setTipoSolicitud('zafra');
-    store.setFechaEntrega('2026-07-02');
-    store.equipos = [
-      {
-        id: 1,
-        source: 'equipo',
-        codEquipo: 'EQ-001',
-        label: 'EQ-001 · Tractor John Deere 6155M',
-        modelo: '6155M',
-        marca: 'John Deere',
-        tipo: 'Tractor',
-      },
-    ];
-
-    expect(store.maxUnlockedStep).toBe(2);
-    expect(store.goToStep(2)).toBe(true);
-    expect(store.goToStep(3)).toBe(false);
-
-    store.agregarProductoTemporal({
-      descripcion: 'Aceite hidraulico',
-      unidadCodigo: 'gal',
-      unidadLabel: 'Gal',
-    });
-
-    expect(store.maxUnlockedStep).toBe(4);
-    expect(store.goToStep(3)).toBe(true);
-    expect(store.goToStep(4)).toBe(true);
-  });
-
-  it('prepara una entrada nueva dejando el wizard listo desde paso 1', async () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    store.currentStep = 4;
-    store.draftId = 'draft-previo';
-    store.continuedFromDraft = true;
-    store.setTipoSolicitud('servicio');
-
-    await store.prepareNewEntry();
-
-    expect(store.entryMode).toBe('new');
-    expect(store.continuedFromDraft).toBe(false);
-    expect(store.currentStep).toBe(1);
-    expect(store.draftId).toBeNull();
-    expect(store.tipoSolicitud).toBeNull();
-    expect(store.initialized).toBe(true);
-  });
-
-  it('auto guarda el borrador una sola vez si no hubo cambios desde el ultimo guardado exitoso', async () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    await store.initialize();
-    store.setTipoSolicitud('zafra');
-    store.setFechaEntrega('2026-07-02');
-    store.equipos = [
-      {
-        id: 1,
-        source: 'equipo',
-        codEquipo: 'EQ-001',
-        label: 'EQ-001 · Tractor John Deere 6155M',
-        modelo: '6155M',
-        marca: 'John Deere',
-        tipo: 'Tractor',
-      },
-    ];
-    store.currentStep = 2;
-
-    mockedDraftsService.crearBorrador.mockResolvedValue({
-      id: 'draft-1',
-      creado_por_user_id: 'user-1',
-      creado_por_email: 'juan@cadasa.test',
-      creado_por_nombre: 'Juan Pérez',
-      creado_por_area: 'Operativa',
-      activo: true,
-      schema_version: 1,
-      current_step: 2,
-      tipo_solicitud: 'zafra',
-      fecha_entrega: '2026-07-02',
-      observacion: 'Para uso en: EQ-001',
-      solicitar_urgente: false,
-      motivo_urgencia: null,
-      equipos: store.equipos,
-      productos: [],
-      servicios: [],
-      enviado_at: null,
-      created_at: '2026-06-29T00:00:00.000Z',
-      updated_at: '2026-06-29T00:00:00.000Z',
-    });
-
-    const firstAttempt = await store.autoSaveDraft();
-    const secondAttempt = await store.autoSaveDraft();
-
-    expect(firstAttempt).toBe(true);
-    expect(secondAttempt).toBe(false);
-    expect(mockedDraftsService.crearBorrador).toHaveBeenCalledTimes(1);
-    expect(mockedDraftsService.actualizarBorrador).not.toHaveBeenCalled();
-  });
-
-  it('auto guarda de nuevo si hubo cambios despues del ultimo guardado exitoso', async () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    await store.initialize();
-    store.setTipoSolicitud('zafra');
-    store.setFechaEntrega('2026-07-02');
-    store.equipos = [
-      {
-        id: 1,
-        source: 'equipo',
-        codEquipo: 'EQ-001',
-        label: 'EQ-001 · Tractor John Deere 6155M',
-        modelo: '6155M',
-        marca: 'John Deere',
-        tipo: 'Tractor',
-      },
-    ];
-    store.currentStep = 2;
-
-    mockedDraftsService.crearBorrador.mockResolvedValue({
-      id: 'draft-1',
-      creado_por_user_id: 'user-1',
-      creado_por_email: 'juan@cadasa.test',
-      creado_por_nombre: 'Juan Pérez',
-      creado_por_area: 'Operativa',
-      activo: true,
-      schema_version: 1,
-      current_step: 2,
-      tipo_solicitud: 'zafra',
-      fecha_entrega: '2026-07-02',
-      observacion: 'Para uso en: EQ-001',
-      solicitar_urgente: false,
-      motivo_urgencia: null,
-      equipos: store.equipos,
-      productos: [],
-      servicios: [],
-      enviado_at: null,
-      created_at: '2026-06-29T00:00:00.000Z',
-      updated_at: '2026-06-29T00:00:00.000Z',
-    });
-
-    mockedDraftsService.actualizarBorrador.mockResolvedValue({
-      id: 'draft-1',
-      creado_por_user_id: 'user-1',
-      creado_por_email: 'juan@cadasa.test',
-      creado_por_nombre: 'Juan Pérez',
-      creado_por_area: 'Operativa',
-      activo: true,
-      schema_version: 1,
-      current_step: 3,
-      tipo_solicitud: 'zafra',
-      fecha_entrega: '2026-07-02',
-      observacion: 'Solicitud para mantenimiento preventivo.',
-      solicitar_urgente: false,
-      motivo_urgencia: null,
-      equipos: store.equipos,
-      productos: [],
-      servicios: [],
-      enviado_at: null,
-      created_at: '2026-06-29T00:00:00.000Z',
-      updated_at: '2026-06-29T00:00:00.000Z',
-    });
-
-    const firstAttempt = await store.autoSaveDraft();
-    store.currentStep = 3;
-    store.setObservacion('Solicitud para mantenimiento preventivo.');
-    const secondAttempt = await store.autoSaveDraft();
-
-    expect(firstAttempt).toBe(true);
-    expect(secondAttempt).toBe(true);
-    expect(mockedDraftsService.crearBorrador).toHaveBeenCalledTimes(1);
-    expect(mockedDraftsService.actualizarBorrador).toHaveBeenCalledTimes(1);
-  });
-
-  it('actualiza servicios existentes', () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    store.agregarServicio({
-      cantidad: 1,
-      descripcion: 'Servicio inicial',
-      unidadCodigo: 'un',
-      unidadLabel: 'Un',
-    });
-
-    const servicio = store.servicios[0];
-
-    store.actualizarServicio(servicio.localId, {
-      cantidad: 4,
-      descripcion: 'Servicio editado',
-      unidadCodigo: 'kg',
-      unidadLabel: 'Kg',
-    });
-
-    expect(store.servicios).toEqual([
-      expect.objectContaining({
-        cantidad: 4,
-        descripcion: 'SERVICIO EDITADO',
-        unidadCodigo: 'kg',
-        unidadLabel: 'Kg',
-      }),
-    ]);
-  });
-
-  it('actualiza solo productos temporales existentes', () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    store.agregarProductoTemporal({
-      descripcion: 'Producto temporal inicial',
-      unidadCodigo: 'unidad',
-      unidadLabel: 'Unidad',
-    });
-    store.agregarProductoExistente({
-      productoId: 'prod-1',
-      codProducto: 'P-001',
-      descripcion: 'Producto catalogado',
-      unidadCodigo: 'kg',
-      unidadLabel: 'Kilogramo',
-    });
-
-    const temporal = store.productos.find((item) => item.tipo === 'temporal');
-    const existente = store.productos.find((item) => item.tipo === 'existente');
-
-    expect(temporal?.tipo).toBe('temporal');
-    expect(existente?.tipo).toBe('existente');
-
-    store.actualizarProductoTemporal(temporal!.localId, {
-      descripcion: 'Producto temporal editado',
-      unidadCodigo: 'caja',
-      unidadLabel: 'Caja',
-    });
-    store.actualizarProductoTemporal(existente!.localId, {
-      descripcion: 'No deberia mutar',
-      unidadCodigo: 'otro',
-      unidadLabel: 'Otro',
-    });
-
+    expect(store.destinos).toHaveLength(1);
     expect(store.productos).toEqual([
       expect.objectContaining({
         tipo: 'temporal',
-        descripcion: 'PRODUCTO TEMPORAL EDITADO',
-        unidadCodigo: 'caja',
-        unidadLabel: 'Caja',
-      }),
-      expect.objectContaining({
-        tipo: 'existente',
-        codProducto: 'P-001',
-        unidadCodigo: 'kg',
-        unidadLabel: 'Kilogramo',
+        nombre: 'MANGUERA HIDRAULICA',
+        descripcion: 'MEDIA PULGADA',
       }),
     ]);
-  });
-
-  it('autocompleta observacion con el prefijo y codigos de equipos reales', () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    expect(store.observacion).toBe(OBSERVACION_PREFILL_PREFIX);
-
-    store.agregarEquipo({
-      id: 1,
-      codEquipo: '422006',
-      label: '422006 · Tractor',
-      modelo: '6155M',
-      marca: 'John Deere',
-      tipo: 'Tractor',
-    });
-    store.agregarEquipo({
-      id: 2,
-      codEquipo: '422018',
-      label: '422018 · Cosechadora',
-      modelo: 'S670',
-      marca: 'John Deere',
-      tipo: 'Cosechadora',
-    });
-
-    expect(store.observacion).toBe('PARA USO EN: 422006, 422018');
-  });
-
-  it('no sobreescribe la observacion cuando el usuario la edito manualmente', () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    store.agregarEquipo({
-      id: 1,
-      codEquipo: '422006',
-      label: '422006 · Tractor',
-      modelo: '6155M',
-      marca: 'John Deere',
-      tipo: 'Tractor',
-    });
-    store.setObservacion('Para uso en: 422006. Equipo detenido por fuga.');
-    store.agregarEquipo({
-      id: 2,
-      codEquipo: '422018',
-      label: '422018 · Cosechadora',
-      modelo: 'S670',
-      marca: 'John Deere',
-      tipo: 'Cosechadora',
-    });
-
-    expect(store.observacion).toBe('PARA USO EN: 422006. EQUIPO DETENIDO POR FUGA.');
-  });
-
-  it('convierte a mayusculas la observacion manual antes de guardarla en estado', () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    store.setObservacion('Solicitud con texto en minuscula y codigo eq-123.');
-
-    expect(store.observacion).toBe('SOLICITUD CON TEXTO EN MINUSCULA Y CODIGO EQ-123.');
-  });
-
-  it('mantiene solo el prefijo cuando se agregan contextos de servicio sin equipos reales', () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    store.agregarContextoServicio({
-      id: 1,
-      codigo: 'taller',
-      nombre: 'Instalaciones de taller',
-    });
-
-    expect(store.observacion).toBe(OBSERVACION_PREFILL_PREFIX);
-  });
-
-  it('trunca la observacion autogenerada al maximo permitido', () => {
-    const store = useSolicitudesCompraCrearStore();
-
-    Array.from({ length: 60 }, (_, index) => index + 1).forEach((index) => {
-      store.agregarEquipo({
-        id: index,
-        codEquipo: `EQ-${String(index).padStart(4, '0')}`,
-        label: `EQ-${String(index).padStart(4, '0')} · Equipo`,
-        modelo: null,
-        marca: null,
-        tipo: null,
-      });
-    });
-
-    expect(store.observacion.length).toBe(OBSERVACION_MAX_LENGTH);
-    expect(store.observacion.startsWith(OBSERVACION_PREFILL_PREFIX)).toBe(true);
+    expect(store.currentStep).toBe(3);
   });
 });

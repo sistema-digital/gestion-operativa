@@ -62,7 +62,7 @@ type SearchRow =
     key: string;
     localId: string;
     codProducto: string;
-    descripcion: string;
+    nombre: string;
     unidadLabel: string;
     selected: true;
   };
@@ -98,7 +98,7 @@ const selectedProducts = computed(() => props.productos.map((item) => ({
   item,
   localId: item.localId,
   codProducto: item.tipo === 'existente' ? item.codProducto : 'MANUAL',
-  descripcion: item.descripcion,
+  nombre: item.nombre,
   unidadLabel: item.unidadLabel,
   isTemporal: item.tipo === 'temporal',
 })));
@@ -120,7 +120,7 @@ const searchRows = computed<SearchRow[]>(() => {
       key: `selected-${item.localId}`,
       localId: item.localId,
       codProducto: item.codProducto,
-      descripcion: item.descripcion,
+      nombre: item.nombre,
       unidadLabel: item.unidadLabel,
       selected: true,
     }));
@@ -226,7 +226,7 @@ const onSelectRow = (
                 v-model="localQuery"
                 type="text"
                 class="w-full bg-transparent text-sm text-stone-900 outline-none placeholder:text-stone-400"
-                placeholder="Buscar por codigo, descripcion o unidad"
+                placeholder="Buscar por codigo, nombre o unidad"
                 @focus="isSearchFocused = true"
               >
               <button
@@ -285,7 +285,7 @@ const onSelectRow = (
                         {{ row.unidadLabel }}
                       </p>
                       <p class="break-words text-stone-700">
-                        {{ row.descripcion }}
+                        {{ row.nombre }}
                       </p>
                     </template>
 
@@ -297,7 +297,7 @@ const onSelectRow = (
                         {{ row.item.unidadLabel }}
                       </p>
                       <p class="break-words text-stone-700">
-                        {{ row.item.descripcion }}
+                        {{ row.item.nombre }}
                       </p>
                     </template>
 
@@ -337,14 +337,14 @@ const onSelectRow = (
                         <span class="font-semibold text-stone-900">{{ row.codProducto }}</span>
                         {{ ' ' }}·{{ ' ' }}
                         <span class="text-xs text-stone-500">{{ row.unidadLabel }}</span>
-                        {{ ' ' }}·{{ ' ' }}{{ row.descripcion }}
+                        {{ ' ' }}·{{ ' ' }}{{ row.nombre }}
                       </template>
 
                       <template v-else>
                         <span class="font-semibold text-stone-900">{{ row.item.codProducto }}</span>
                         {{ ' ' }}·{{ ' ' }}
                         <span class="text-xs text-stone-500">{{ row.item.unidadLabel }}</span>
-                        {{ ' ' }}·{{ ' ' }}{{ row.item.descripcion }}
+                        {{ ' ' }}·{{ ' ' }}{{ row.item.nombre }}
                       </template>
                     </div>
 
@@ -400,7 +400,7 @@ const onSelectRow = (
               Manual
             </span>
             <span class="hidden md:inline">
-              ProductoManual
+              Producto manual
             </span>
           </button>
         </div>
@@ -438,7 +438,7 @@ const onSelectRow = (
                 {{ item.unidadLabel }}
               </p>
               <p class="break-words text-stone-700">
-                {{ item.descripcion }}
+                {{ item.nombre }}
               </p>
               <div class="flex justify-center gap-1">
                 <button
@@ -464,7 +464,7 @@ const onSelectRow = (
                 <span class="font-semibold text-stone-900">{{ item.codProducto }}</span>
                 {{ ' ' }}·{{ ' ' }}
                 <span class="text-xs text-stone-500">{{ item.unidadLabel }}</span>
-                {{ ' ' }}·{{ ' ' }}{{ item.descripcion }}
+                {{ ' ' }}·{{ ' ' }}{{ item.nombre }}
               </p>
 
               <div class="flex shrink-0 items-center gap-2">

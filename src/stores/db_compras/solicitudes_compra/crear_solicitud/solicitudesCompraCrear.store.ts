@@ -32,9 +32,9 @@ import {
 } from './solicitudesCompraCrear.types';
 import type {
   CrearSolicitudAdjuntoDraftInput,
-  EquipoSeleccionadoSource,
   CrearSolicitudFieldErrors,
-  EquipoSeleccionado,
+  DestinoSeleccionado,
+  ContextoDestinoTipoOrigen,
   ProductoCatalogoOption,
   ProductoSolicitudItem,
   ProductoTemporalDraft,
@@ -64,7 +64,7 @@ const createInitialState = (): SolicitudCompraCrearState => ({
   fechaCreacionLocal: new Date(),
   tipoSolicitud: null,
   fechaEntrega: null,
-  equipos: [],
+  destinos: [],
   productos: [],
   servicios: [],
   observacion: OBSERVACION_PREFILL_PREFIX,
@@ -146,10 +146,10 @@ const draftFechaEntregaRequiresReview = (value: string, now = new Date()): boole
   return entregaDate < today;
 };
 
-const buildObservacionPrefill = (equipos: EquipoSeleccionado[]): string => {
-  const equipmentCodes = equipos
-    .filter((item) => item.source === 'equipo')
-    .map((item) => item.codEquipo.trim())
+const buildObservacionPrefill = (destinos: DestinoSeleccionado[]): string => {
+  const equipmentCodes = destinos
+    .filter((item) => item.tipoOrigen === 'equipo')
+    .map((item) => item.codigo.trim())
     .filter(Boolean);
 
   const generated = equipmentCodes.length > 0
@@ -159,13 +159,13 @@ const buildObservacionPrefill = (equipos: EquipoSeleccionado[]): string => {
   return truncateObservacion(generated);
 };
 
-const toEquipoSeleccionado = (
+const toDestinoEquipoSeleccionado = (
   item: EquipoOption,
-  source: EquipoSeleccionadoSource = 'equipo'
-): EquipoSeleccionado => ({
+  tipoOrigen: ContextoDestinoTipoOrigen = 'equipo'
+): DestinoSeleccionado => ({
   id: item.id,
-  source,
-  codEquipo: item.codEquipo,
+  tipoOrigen,
+  codigo: item.codEquipo,
   label: item.label,
   modelo: item.modelo,
   marca: item.marca,
@@ -207,7 +207,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       const step1Valid = stepDatosBaseSchema.safeParse({
         tipoSolicitud: state.tipoSolicitud,
         fechaEntrega: state.fechaEntrega,
-        equipos: state.equipos,
+        destinos: state.destinos,
       }).success;
       const step2Valid = step1Valid && stepProductosSchema.safeParse({
         tipoSolicitud: state.tipoSolicitud,
@@ -251,7 +251,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       return stepDatosBaseSchema.safeParse({
         tipoSolicitud: state.tipoSolicitud,
         fechaEntrega: state.fechaEntrega,
-        equipos: state.equipos,
+        destinos: state.destinos,
       }).success;
     },
 
@@ -263,7 +263,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
 
   actions: {
     syncObservacionPrefill(): void {
-      const generated = buildObservacionPrefill(this.equipos);
+      const generated = buildObservacionPrefill(this.destinos);
       const shouldOverwrite = !this.observacionEditadaManual
         || this.observacion === this.ultimoPrefillObservacion
         || this.observacion.trim().length === 0;
@@ -331,7 +331,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         currentStep: draft.currentStep,
         tipoSolicitud: draft.tipoSolicitud,
         fechaEntrega: normalizedFechaEntrega,
-        equipos: draft.equipos,
+        destinos: draft.destinos,
         productos: sanitizedCollections.productos,
         servicios: sanitizedCollections.servicios,
         observacion: normalizeObservacion(draft.observacion),
@@ -346,11 +346,11 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       const parsed = result.data;
       const sanitizedProductos = sanitizedCollections.productos;
       const sanitizedServicios = sanitizedCollections.servicios;
-      const observacionPrefill = buildObservacionPrefill(parsed.equipos);
+      const observacionPrefill = buildObservacionPrefill(parsed.destinos);
       const step1Valid = stepDatosBaseSchema.safeParse({
         tipoSolicitud: parsed.tipoSolicitud,
         fechaEntrega: normalizedFechaEntrega,
-        equipos: parsed.equipos,
+        destinos: parsed.destinos,
       }).success;
       const step2Valid = step1Valid && stepProductosSchema.safeParse({
         tipoSolicitud: parsed.tipoSolicitud,
@@ -378,7 +378,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         motivo_urgencia: parsed.solicitarUrgente
           ? parsed.motivoUrgencia.trim()
           : null,
-        equipos: parsed.equipos,
+        destinos: parsed.destinos,
         productos: sanitizedProductos,
         servicios: sanitizedServicios,
       } satisfies SolicitudCompraBorradorUpdatePayload;
@@ -395,7 +395,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       this.fechaCreacionLocal = new Date(draft.createdAt);
       this.tipoSolicitud = parsed.tipoSolicitud;
       this.fechaEntrega = normalizedFechaEntrega;
-      this.equipos = parsed.equipos;
+      this.destinos = parsed.destinos;
       this.productos = sanitizedProductos;
       this.servicios = sanitizedServicios;
       this.observacion = normalizeObservacion(parsed.observacion);
@@ -429,8 +429,6 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
     setTipoSolicitud(value: SolicitudCompraTipoSolicitud | null): void {
       const previousValue = this.tipoSolicitud;
       this.tipoSolicitud = value;
-      const isSwitchingServicioMode = (previousValue === 'servicio') !== (value === 'servicio');
-
       if (value === 'servicio' && previousValue !== 'servicio') {
         this.productos = [];
         this.productSearchResults = [];
@@ -443,15 +441,23 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         delete this.validationErrors.servicios;
       }
 
-      if (isSwitchingServicioMode) {
-        this.equipos = [];
-        delete this.validationErrors.equipos;
-        useEquiposStore().reset();
-      }
+      this.destinos = this.destinos.filter((item) => {
+        if (item.tipoOrigen === 'equipo') {
+          return true;
+        }
 
-      if (value !== 'servicio') {
-        this.equipos = this.equipos.filter((item) => item.source === 'equipo');
-      }
+        if (value !== 'servicio') {
+          return false;
+        }
+
+        return item.tipoOrigen === 'area_operativa'
+          || item.tipoOrigen === 'instalacion_taller'
+          || item.tipoOrigen === 'grupo_equipo'
+          || item.tipoOrigen === 'otros';
+      });
+
+      delete this.validationErrors.destinos;
+      useEquiposStore().reset();
 
       this.syncObservacionPrefill();
 
@@ -554,30 +560,47 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       const equiposStore = useEquiposStore();
       equiposStore.agregarEquipo(item);
 
-      if (this.equipos.some((equipo) => equipo.codEquipo === item.codEquipo)) {
+      if (this.destinos.some((destino) => destino.tipoOrigen !== 'equipo')) {
+        this.validationErrors = {
+          ...this.validationErrors,
+          destinos: 'No se pueden mezclar tipos de destino en una misma solicitud.',
+        };
         return;
       }
 
-      this.equipos = [...this.equipos, toEquipoSeleccionado(item)];
+      if (this.destinos.some((destino) => destino.codigo === item.codEquipo && destino.tipoOrigen === 'equipo')) {
+        return;
+      }
+
+      this.destinos = [...this.destinos, toDestinoEquipoSeleccionado(item)];
       this.syncObservacionPrefill();
-      delete this.validationErrors.equipos;
+      delete this.validationErrors.destinos;
     },
 
-    agregarContextoServicio(item: {
+    agregarDestinoContexto(item: {
       id: number;
       codigo: string;
       nombre: string;
+      tipoOrigen: ContextoDestinoTipoOrigen;
     }): void {
-      if (this.equipos.some((equipo) => equipo.codEquipo === item.codigo)) {
+      if (this.destinos.length > 0 && this.destinos[0]?.tipoOrigen !== item.tipoOrigen) {
+        this.validationErrors = {
+          ...this.validationErrors,
+          destinos: 'No se pueden mezclar tipos de destino en una misma solicitud.',
+        };
         return;
       }
 
-      this.equipos = [
-        ...this.equipos,
+      if (this.destinos.some((destino) => destino.codigo === item.codigo && destino.tipoOrigen === item.tipoOrigen)) {
+        return;
+      }
+
+      this.destinos = [
+        ...this.destinos,
         {
           id: item.id,
-          source: 'contexto',
-          codEquipo: item.codigo,
+          tipoOrigen: item.tipoOrigen,
+          codigo: item.codigo,
           label: item.nombre,
           modelo: null,
           marca: null,
@@ -585,13 +608,24 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         },
       ];
       this.syncObservacionPrefill();
-      delete this.validationErrors.equipos;
+      delete this.validationErrors.destinos;
     },
 
-    removerEquipo(codEquipo: string): void {
+    removerDestino(
+      payload: string | { codigo: string; tipoOrigen?: string }
+    ): void {
+      const codigo = typeof payload === 'string' ? payload : payload.codigo;
+      const tipoOrigen = (
+        typeof payload === 'string'
+          ? undefined
+          : payload.tipoOrigen
+      ) as ContextoDestinoTipoOrigen | undefined;
       const equiposStore = useEquiposStore();
-      equiposStore.removerEquipo(codEquipo);
-      this.equipos = this.equipos.filter((item) => item.codEquipo !== codEquipo);
+      if (!tipoOrigen || tipoOrigen === 'equipo') {
+        equiposStore.removerEquipo(codigo);
+      }
+
+      this.destinos = this.destinos.filter((item) => !(item.codigo === codigo && (!tipoOrigen || item.tipoOrigen === tipoOrigen)));
       this.syncObservacionPrefill();
     },
 
@@ -613,7 +647,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
           .map<ProductoCatalogoOption>((row) => ({
             productoId: row.producto_id,
             codProducto: row.cod_producto,
-            descripcion: row.descripcion,
+            nombre: row.nombre,
             unidadCodigo: row.unidad_codigo,
             unidadLabel: row.unidad_mostrar || row.unidad_abreviatura || row.unidad_codigo,
           }));
@@ -641,7 +675,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
           tipo: 'existente',
           productoId: item.productoId,
           codProducto: item.codProducto,
-          descripcion: item.descripcion,
+          nombre: item.nombre,
           unidadCodigo: item.unidadCodigo,
           unidadLabel: item.unidadLabel,
         },
@@ -658,8 +692,10 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
           localId: createLocalId(),
           tipo: 'temporal',
           temporal: true,
-          ...item,
-          descripcion: normalizeDescripcion(item.descripcion),
+          nombre: normalizeDescripcion(item.nombre),
+          descripcion: item.descripcion ? normalizeDescripcion(item.descripcion) : null,
+          unidadCodigo: item.unidadCodigo,
+          unidadLabel: item.unidadLabel,
         },
       ];
       delete this.validationErrors.productos;
@@ -673,7 +709,8 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
 
         return {
           ...product,
-          descripcion: normalizeDescripcion(item.descripcion),
+          nombre: normalizeDescripcion(item.nombre),
+          descripcion: item.descripcion ? normalizeDescripcion(item.descripcion) : null,
           unidadCodigo: item.unidadCodigo,
           unidadLabel: item.unidadLabel,
         };
@@ -729,7 +766,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         const result = stepDatosBaseSchema.safeParse({
           tipoSolicitud: this.tipoSolicitud,
           fechaEntrega: this.fechaEntrega,
-          equipos: this.equipos,
+          destinos: this.destinos,
         });
 
         if (!result.success) {
@@ -744,7 +781,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
           ...this.validationErrors,
           tipoSolicitud: undefined,
           fechaEntrega: undefined,
-          equipos: undefined,
+          destinos: undefined,
         };
         return true;
       }
@@ -833,7 +870,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
       const result = createSolicitudSendSchema.safeParse({
         tipoSolicitud: this.tipoSolicitud,
         fechaEntrega: this.fechaEntrega,
-        equipos: this.equipos,
+        destinos: this.destinos,
         productos: sanitizedCollections.productos,
         servicios: sanitizedCollections.servicios,
         observacion: this.observacion,
@@ -852,14 +889,18 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         p_tipo_codigo: parsed.tipoSolicitud,
         p_fecha_entrega: parsed.fechaEntrega,
         p_observacion: parsed.observacion.trim(),
-        p_equipos: parsed.equipos.map((item) => item.codEquipo),
+        p_contextos_destino: parsed.destinos.map((item) => ({
+          tipo_origen: item.tipoOrigen,
+          codigo: item.codigo,
+        })),
         p_productos: parsed.tipoSolicitud === 'servicio'
           ? []
           : parsed.productos.map((item) => item.tipo === 'existente'
             ? { cod_producto: item.codProducto }
             : {
               temporal: true,
-              descripcion: item.descripcion.trim(),
+              nombre: item.nombre.trim(),
+              descripcion: item.descripcion?.trim() || null,
               unidad_codigo: item.unidadCodigo.trim(),
             }),
         p_servicios: parsed.tipoSolicitud === 'servicio'
@@ -898,7 +939,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         currentStep: draftStep,
         tipoSolicitud: this.tipoSolicitud,
         fechaEntrega: this.fechaEntrega,
-        equipos: this.equipos,
+        destinos: this.destinos,
         productos: sanitizedCollections.productos,
         servicios: sanitizedCollections.servicios,
         observacion: this.observacion,
@@ -925,7 +966,7 @@ export const useSolicitudesCompraCrearStore = defineStore('solicitudesCompraCrea
         motivo_urgencia: parsed.solicitarUrgente
           ? parsed.motivoUrgencia.trim()
           : null,
-        equipos: parsed.equipos,
+        destinos: parsed.destinos,
         productos: parsed.productos,
         servicios: parsed.servicios,
       } satisfies SolicitudCompraBorradorUpdatePayload;

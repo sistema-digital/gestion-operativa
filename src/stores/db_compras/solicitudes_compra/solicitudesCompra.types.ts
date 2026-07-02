@@ -15,7 +15,7 @@ export type SolicitudCompraColumnKey =
   | 'observacion'
   | 'estado'
   | 'prioridad'
-  | 'equipos'
+  | 'destinos'
   | 'area'
   | 'solicitante'
   | 'fechaEntrega'
@@ -79,8 +79,8 @@ export interface SolicitudCompraListRpcRow {
   productos_activos: number;
   servicios_total: number;
   total_count: number;
-  equipos: string[] | null;
-  equipos_total: number;
+  destinos: string[] | null;
+  destinos_total: number;
 }
 
 export interface SolicitudCompraFolioUi {
@@ -126,13 +126,13 @@ export interface SolicitudCompraFechaEntregaUi {
   origen: SolicitudCompraFechaEntregaOrigen | null;
 }
 
-export interface SolicitudCompraEquipoPreview {
+export interface SolicitudCompraDestinoPreview {
   loading: boolean;
-  codigos: string[];
+  items: string[];
   visibles: string[];
   ocultos: number;
   error: string | null;
-  source: 'equipos';
+  source: 'destinos';
 }
 
 export interface SolicitudCompraIndicadores {
@@ -174,7 +174,7 @@ export interface SolicitudCompraListItem {
   observacion: string | null;
   estado: SolicitudCompraEstadoUi;
   prioridad: SolicitudCompraPrioridadUi;
-  equipos: SolicitudCompraEquipoPreview;
+  destinos: SolicitudCompraDestinoPreview;
   area: SolicitudCompraAreaUi;
   solicitante: SolicitudCompraSolicitanteUi;
   fechaEntrega: SolicitudCompraFechaEntregaUi;

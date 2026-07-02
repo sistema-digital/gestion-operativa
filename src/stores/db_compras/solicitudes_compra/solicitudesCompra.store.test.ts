@@ -96,8 +96,8 @@ const createRows = (
     productos_activos: 1,
     servicios_total: 0,
     total_count: totalCount,
-    equipos: [],
-    equipos_total: 0,
+    destinos: [],
+    destinos_total: 0,
     ...overrides,
   }));
 
@@ -125,13 +125,13 @@ const createItemsFromRows = (
       codigo: row.prioridad_codigo ?? 'alta',
       nombre: row.prioridad_nombre ?? 'Alta',
     },
-    equipos: {
+    destinos: {
       loading: false,
-      codigos: [],
+      items: [],
       visibles: [],
       ocultos: 0,
       error: null,
-      source: 'equipos',
+      source: 'destinos',
     },
     area: {
       codigo: row.area_solicitante_codigo,
@@ -172,7 +172,7 @@ const createItemsFromRows = (
       evaluacionPrincipal: row.evaluacion_principal,
       recepcionPrincipal: row.recepcion_principal,
       proveedorPrincipal: row.proveedor_principal,
-      ordenesCompraResumen: row.ordenes_compra_resumen,
+      ordenesCompraResumen: null,
     },
   }));
 

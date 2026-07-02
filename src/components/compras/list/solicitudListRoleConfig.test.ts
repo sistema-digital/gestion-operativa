@@ -29,13 +29,13 @@ describe('solicitudListRoleConfig', () => {
     expect(canShowSolicitudListField(unknownRole, 'canSeeFolioOc')).toBe(true);
   });
 
-  it('configura operativo con folio, OC, observacion, estado, prioridad, equipos, fecha, adjuntos y diferencia OC', () => {
+  it('configura operativo con folio, OC, observacion, estado, prioridad, destinos, fecha, adjuntos y diferencia OC', () => {
     expect(getSolicitudDesktopColumnsByRole('operativo')).toEqual([
       'folio',
       'observacion',
       'estado',
       'prioridad',
-      'equipos',
+      'destinos',
       'fechaEntrega',
       'indicadores',
     ]);
@@ -44,7 +44,7 @@ describe('solicitudListRoleConfig', () => {
       'estado',
       'observacion',
       'prioridad',
-      'equipos',
+      'destinos',
       'fechaEntrega',
       'indicadores',
     ]);
@@ -62,7 +62,7 @@ describe('solicitudListRoleConfig', () => {
       'observacion',
       'estado',
       'prioridad',
-      'equipos',
+      'destinos',
       'area',
       'solicitante',
       'fechaEntrega',
@@ -73,7 +73,7 @@ describe('solicitudListRoleConfig', () => {
       'estado',
       'observacion',
       'prioridad',
-      'equipos',
+      'destinos',
       'area',
       'solicitante',
       'fechaEntrega',
@@ -85,7 +85,7 @@ describe('solicitudListRoleConfig', () => {
       'canSeeFolioOc',
       'canSeeArea',
       'canSeeSolicitante',
-      'canSeeEquipos',
+      'canSeeDestinos',
       'canSeeFechaEntrega',
       'canSeeAdjuntos',
       'canSeeDiferenciaOc',
@@ -104,7 +104,7 @@ describe('solicitudListRoleConfig', () => {
       'observacion',
       'estado',
       'prioridad',
-      'equipos',
+      'destinos',
       'area',
       'fechaEntrega',
       'indicadores',
@@ -114,7 +114,7 @@ describe('solicitudListRoleConfig', () => {
       'estado',
       'observacion',
       'prioridad',
-      'equipos',
+      'destinos',
       'area',
       'fechaEntrega',
       'indicadores',
@@ -131,13 +131,13 @@ describe('solicitudListRoleConfig', () => {
     expect(getSolicitudMobileFieldsByRole('almacen')).toEqual(expectedFields);
     expect(canShowSolicitudListField('almacen', 'canSeeFolio')).toBe(false);
     expect(canShowSolicitudListField('almacen', 'canSeeFolioOc')).toBe(false);
-    expect(canShowSolicitudListField('almacen', 'canSeeEquipos')).toBe(false);
+    expect(canShowSolicitudListField('almacen', 'canSeeDestinos')).toBe(false);
     expect(canShowSolicitudListField('almacen', 'canSeeAdjuntos')).toBe(false);
     expect(canShowSolicitudListField('almacen', 'canSeeDiferenciaOc')).toBe(false);
     expect(canShowSolicitudListField('almacen', 'canSeeBloqueado')).toBe(true);
   });
 
-  it('configura secretaria sin OC, equipos, adjuntos ni diferencia OC', () => {
+  it('configura secretaria sin OC, destinos, adjuntos ni diferencia OC', () => {
     const expectedFields = [
       'folio',
       'observacion',
@@ -154,7 +154,7 @@ describe('solicitudListRoleConfig', () => {
     expect(canShowSolicitudListField('secretaria', 'canSeeFolio')).toBe(true);
     expect(canShowSolicitudListField('secretaria', 'canSeeSolicitante')).toBe(true);
     expect(canShowSolicitudListField('secretaria', 'canSeeFolioOc')).toBe(false);
-    expect(canShowSolicitudListField('secretaria', 'canSeeEquipos')).toBe(false);
+    expect(canShowSolicitudListField('secretaria', 'canSeeDestinos')).toBe(false);
     expect(canShowSolicitudListField('secretaria', 'canSeeAdjuntos')).toBe(false);
     expect(canShowSolicitudListField('secretaria', 'canSeeDiferenciaOc')).toBe(false);
   });

@@ -41,8 +41,8 @@ const emit = defineEmits<{
   (e: 'viewDrafts'): void;
 }>();
 
-const desktopSearchPlaceholder = 'Buscar por folio, observación, equipo u orden de compra';
-const mobileSearchPlaceholder = 'Buscar folio, observación o equipo';
+const desktopSearchPlaceholder = 'Buscar por folio, observación, destino u orden de compra';
+const mobileSearchPlaceholder = 'Buscar folio, observación o destino';
 
 const normalizedEstadoValue = computed(() => props.filters.estadoCodigo ?? '');
 const normalizedPrioridadValue = computed(() => props.filters.prioridadCodigo ?? '');

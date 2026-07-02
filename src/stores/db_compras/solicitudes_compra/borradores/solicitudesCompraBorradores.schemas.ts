@@ -23,10 +23,10 @@ const fechaEntregaSchema = z.string()
     message: 'La fecha de entrega no puede ser menor a la fecha actual.',
   });
 
-const equipoSchema = z.object({
+const destinoSchema = z.object({
   id: z.number(),
-  source: z.enum(['equipo', 'contexto']),
-  codEquipo: z.string().min(1),
+  tipoOrigen: z.enum(['equipo', 'area_operativa', 'instalacion_taller', 'grupo_equipo', 'otros']),
+  codigo: z.string().min(1),
   label: z.string().min(1),
   modelo: z.string().nullable(),
   marca: z.string().nullable(),
@@ -38,7 +38,7 @@ const productoExistenteSchema = z.object({
   tipo: z.literal('existente'),
   productoId: z.string().min(1),
   codProducto: z.string().min(1),
-  descripcion: z.string().min(1),
+  nombre: z.string().min(1),
   unidadCodigo: z.string().min(1),
   unidadLabel: z.string().min(1),
 });
@@ -47,7 +47,8 @@ const productoTemporalSchema = z.object({
   localId: z.string().min(1),
   tipo: z.literal('temporal'),
   temporal: z.literal(true),
-  descripcion: z.string().trim().min(1),
+  nombre: z.string().trim().min(1).max(56),
+  descripcion: z.string().trim().optional().nullable(),
   unidadCodigo: z.string().trim().min(1),
   unidadLabel: z.string().min(1),
 });
@@ -62,7 +63,7 @@ const servicioSolicitudSchema = z.object({
   cantidad: z.number()
     .finite('La cantidad del servicio debe ser un numero valido.')
     .refine((value) => value >= 0, 'La cantidad del servicio no puede ser negativa.'),
-  descripcion: z.string().trim().min(1, 'La descripcion del servicio es obligatoria.'),
+  descripcion: z.string().trim().min(5, 'La descripcion del servicio debe tener al menos 5 caracteres.'),
   unidadCodigo: z.string().trim().min(1, 'La unidad del servicio es obligatoria.'),
   unidadLabel: z.string().min(1),
 });
@@ -73,21 +74,37 @@ const currentStepSchema = z.union([
   z.literal(4),
 ]);
 
-const equiposArraySchema = z.array(equipoSchema)
+const destinosArraySchema = z.array(destinoSchema)
   .superRefine((items, ctx) => {
     const seen = new Set<string>();
+    let tipoOrigenDetectado: string | null = null;
 
     items.forEach((item, index) => {
-      if (seen.has(item.codEquipo)) {
+      const uniqueKey = `${item.tipoOrigen}:${item.codigo}`;
+
+      if (seen.has(uniqueKey)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: [index, 'codEquipo'],
-          message: 'No se permiten equipos duplicados.',
+          path: [index, 'codigo'],
+          message: 'No se permiten destinos duplicados.',
         });
         return;
       }
 
-      seen.add(item.codEquipo);
+      seen.add(uniqueKey);
+
+      if (!tipoOrigenDetectado) {
+        tipoOrigenDetectado = item.tipoOrigen;
+        return;
+      }
+
+      if (tipoOrigenDetectado !== item.tipoOrigen) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'tipoOrigen'],
+          message: 'No se pueden mezclar tipos de destino en una misma solicitud.',
+        });
+      }
     });
   });
 
@@ -95,7 +112,7 @@ export const solicitudCompraBorradorSchema = z.object({
   currentStep: currentStepSchema,
   tipoSolicitud: tipoSolicitudSchema,
   fechaEntrega: fechaEntregaSchema,
-  equipos: equiposArraySchema,
+  destinos: destinosArraySchema,
   productos: z.array(productoSolicitudSchema),
   servicios: z.array(servicioSolicitudSchema),
   observacion: z.string()
@@ -105,13 +122,11 @@ export const solicitudCompraBorradorSchema = z.object({
   solicitarUrgente: z.boolean(),
   motivoUrgencia: z.string(),
 }).superRefine((value, ctx) => {
-  if (value.equipos.length === 0) {
+  if (value.destinos.length === 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ['equipos'],
-      message: value.tipoSolicitud === 'servicio'
-        ? 'Debe seleccionar al menos un contexto de servicio.'
-        : 'Debe seleccionar al menos un equipo.',
+      path: ['destinos'],
+      message: 'Debe seleccionar al menos un destino.',
     });
   }
 

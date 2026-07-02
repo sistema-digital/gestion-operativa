@@ -16,7 +16,7 @@ describe('CrearSolicitudCompraStepResumen', () => {
       props: {
         tipoSolicitud: 'otros',
         fechaEntrega: '2026-06-29',
-        equipos: [],
+        destinos: [],
         productos: [],
         servicios: [],
         observacion: 'Resumen',

@@ -41,7 +41,7 @@ const columnLabels: Record<SolicitudCompraColumnKey, string> = {
   observacion: 'Observación',
   estado: 'Estado',
   prioridad: 'Prioridad',
-  equipos: 'Equipos',
+  destinos: 'Destino',
   area: 'Área',
   solicitante: 'Solicitante',
   fechaEntrega: 'Fecha Entrega',
@@ -66,7 +66,7 @@ const tableGridClass = computed(() => {
     observacion: 'minmax(20rem,2.3fr)',
     estado: 'minmax(8rem,0.9fr)',
     prioridad: 'minmax(7rem,0.8fr)',
-    equipos: 'minmax(10rem,1fr)',
+    destinos: 'minmax(10rem,1fr)',
     area: 'minmax(9rem,0.95fr)',
     solicitante: 'minmax(9rem,0.95fr)',
     fechaEntrega: 'minmax(9rem,0.9fr)',
@@ -224,8 +224,8 @@ const onRowClick = (item: SolicitudCompraListItem): void => {
             </div>
           </template>
 
-          <template v-else-if="column === 'equipos'">
-            <SolicitudEquiposCell :equipos="item.equipos" compact />
+          <template v-else-if="column === 'destinos'">
+            <SolicitudEquiposCell :destinos="item.destinos" compact />
           </template>
 
           <template v-else-if="column === 'area'">

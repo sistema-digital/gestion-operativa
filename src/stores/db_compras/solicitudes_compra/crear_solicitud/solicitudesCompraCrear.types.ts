@@ -4,7 +4,12 @@ export type SolicitudCompraSubmitMode = 'send' | null;
 
 export type SolicitudCompraTipoSolicitud = 'zafra' | 'cultivo' | 'otros' | 'servicio';
 
-export type EquipoSeleccionadoSource = 'equipo' | 'contexto';
+export type ContextoDestinoTipoOrigen =
+  | 'equipo'
+  | 'area_operativa'
+  | 'instalacion_taller'
+  | 'grupo_equipo'
+  | 'otros';
 
 export const OBSERVACION_PREFILL_PREFIX = 'PARA USO EN: ';
 export const OBSERVACION_MAX_LENGTH = 250;
@@ -24,10 +29,10 @@ export interface CrearSolicitudHeaderContext {
   fechaCreacionLocal: Date;
 }
 
-export interface EquipoSeleccionado {
+export interface DestinoSeleccionado {
   id: number;
-  source: EquipoSeleccionadoSource;
-  codEquipo: string;
+  tipoOrigen: ContextoDestinoTipoOrigen;
+  codigo: string;
   label: string;
   modelo: string | null;
   marca: string | null;
@@ -37,7 +42,7 @@ export interface EquipoSeleccionado {
 export interface ProductoCatalogoRow {
   producto_id: string;
   cod_producto: string;
-  descripcion: string;
+  nombre: string;
   unidad_mostrar: string;
   unidad_medida_id: number;
   unidad_codigo: string;
@@ -47,7 +52,7 @@ export interface ProductoCatalogoRow {
 export interface ProductoCatalogoOption {
   productoId: string;
   codProducto: string;
-  descripcion: string;
+  nombre: string;
   unidadCodigo: string;
   unidadLabel: string;
 }
@@ -57,7 +62,7 @@ export interface ProductoSolicitudExistenteItem {
   tipo: 'existente';
   productoId: string;
   codProducto: string;
-  descripcion: string;
+  nombre: string;
   unidadCodigo: string;
   unidadLabel: string;
 }
@@ -66,13 +71,15 @@ export interface ProductoSolicitudTemporalItem {
   localId: string;
   tipo: 'temporal';
   temporal: true;
-  descripcion: string;
+  nombre: string;
+  descripcion?: string | null;
   unidadCodigo: string;
   unidadLabel: string;
 }
 
 export interface ProductoTemporalDraft {
-  descripcion: string;
+  nombre: string;
+  descripcion?: string | null;
   unidadCodigo: string;
   unidadLabel: string;
 }
@@ -141,12 +148,16 @@ export interface SolicitudCompraCrearPayload {
   p_tipo_codigo: SolicitudCompraTipoSolicitud;
   p_fecha_entrega: string;
   p_observacion: string;
-  p_equipos: string[];
+  p_contextos_destino: Array<{
+    tipo_origen: ContextoDestinoTipoOrigen;
+    codigo: string;
+  }>;
   p_productos: Array<
     | { cod_producto: string }
     | {
       temporal: true;
-      descripcion: string;
+      nombre: string;
+      descripcion?: string | null;
       unidad_codigo: string;
     }
   >;
@@ -171,7 +182,7 @@ export interface SolicitudCompraCrearResponse {
   ciclo_estado: number;
   productos_total: number;
   servicios_total: number;
-  equipos_total: number;
+  destinos_total: number;
   adjuntos_total: number;
   peticion_urgente_creada: boolean;
   urgente_ignorado_por_borrador: boolean;
@@ -184,7 +195,7 @@ export interface SolicitudCompraGuardarBorradorResponse {
 export interface CrearSolicitudFieldErrors {
   tipoSolicitud?: string;
   fechaEntrega?: string;
-  equipos?: string;
+  destinos?: string;
   productos?: string;
   servicios?: string;
   observacion?: string;
@@ -202,7 +213,7 @@ export interface SolicitudCompraCrearState extends CrearSolicitudHeaderContext {
   lastSavedDraftSnapshotHash: string | null;
   tipoSolicitud: SolicitudCompraTipoSolicitud | null;
   fechaEntrega: string | null;
-  equipos: EquipoSeleccionado[];
+  destinos: DestinoSeleccionado[];
   productos: ProductoSolicitudItem[];
   servicios: ServicioSolicitudItem[];
   observacion: string;

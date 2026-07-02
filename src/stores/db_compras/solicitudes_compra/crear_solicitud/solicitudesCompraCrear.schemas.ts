@@ -26,10 +26,10 @@ const fechaEntregaSchema = z.string()
     message: 'La fecha de entrega no puede ser menor a la fecha actual.',
   });
 
-const equipoSchema = z.object({
+const destinoSchema = z.object({
   id: z.number(),
-  source: z.enum(['equipo', 'contexto']),
-  codEquipo: z.string().min(1),
+  tipoOrigen: z.enum(['equipo', 'area_operativa', 'instalacion_taller', 'grupo_equipo', 'otros']),
+  codigo: z.string().min(1),
   label: z.string().min(1),
   modelo: z.string().nullable(),
   marca: z.string().nullable(),
@@ -40,7 +40,7 @@ const productoExistenteSchema = z.object({
   localId: z.string().min(1),
   tipo: z.literal('existente'),
   codProducto: z.string().min(1, 'El código del producto es obligatorio.'),
-  descripcion: z.string().min(1),
+  nombre: z.string().min(1),
   unidadCodigo: z.string().min(1),
   unidadLabel: z.string().min(1),
 });
@@ -49,7 +49,11 @@ const productoTemporalSchema = z.object({
   localId: z.string().min(1),
   tipo: z.literal('temporal'),
   temporal: z.literal(true),
-  descripcion: z.string().trim().min(1, 'La descripción del producto temporal es obligatoria.'),
+  nombre: z.string()
+    .trim()
+    .min(1, 'El nombre del producto temporal es obligatorio.')
+    .max(56, 'El nombre del producto temporal no puede superar los 56 caracteres.'),
+  descripcion: z.string().trim().optional().nullable(),
   unidadCodigo: z.string().trim().min(1, 'La unidad del producto temporal es obligatoria.'),
   unidadLabel: z.string().min(1),
 });
@@ -59,21 +63,37 @@ export const productoSolicitudSchema = z.union([
   productoTemporalSchema,
 ]);
 
-const equiposArraySchema = z.array(equipoSchema)
+const destinosArraySchema = z.array(destinoSchema)
   .superRefine((items, ctx) => {
     const seen = new Set<string>();
+    let tipoOrigenDetectado: string | null = null;
 
     items.forEach((item, index) => {
-      if (seen.has(item.codEquipo)) {
+      const uniqueKey = `${item.tipoOrigen}:${item.codigo}`;
+
+      if (seen.has(uniqueKey)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: [index, 'codEquipo'],
-          message: 'No se permiten equipos duplicados.',
+          path: [index, 'codigo'],
+          message: 'No se permiten destinos duplicados.',
         });
         return;
       }
 
-      seen.add(item.codEquipo);
+      seen.add(uniqueKey);
+
+      if (!tipoOrigenDetectado) {
+        tipoOrigenDetectado = item.tipoOrigen;
+        return;
+      }
+
+      if (tipoOrigenDetectado !== item.tipoOrigen) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'tipoOrigen'],
+          message: 'No se pueden mezclar tipos de destino en una misma solicitud.',
+        });
+      }
     });
   });
 
@@ -83,7 +103,9 @@ export const servicioSolicitudSchema = z.object({
     .finite('La cantidad del servicio debe ser un numero valido.')
     .refine((value) => value >= 0, 'La cantidad del servicio no puede ser negativa.')
     .transform((value) => (value === 0 ? 1 : value)),
-  descripcion: z.string().trim().min(1, 'La descripcion del servicio es obligatoria.'),
+  descripcion: z.string()
+    .trim()
+    .min(5, 'La descripcion del servicio debe tener al menos 5 caracteres.'),
   unidadCodigo: z.string().trim().min(1, 'La unidad del servicio es obligatoria.'),
   unidadLabel: z.string().min(1),
 });
@@ -91,18 +113,16 @@ export const servicioSolicitudSchema = z.object({
 export const stepDatosBaseSchema = z.object({
   tipoSolicitud: tipoSolicitudSchema,
   fechaEntrega: fechaEntregaSchema,
-  equipos: equiposArraySchema,
+  destinos: destinosArraySchema,
 }).superRefine((value, ctx) => {
-  if (value.equipos.length > 0) {
+  if (value.destinos.length > 0) {
     return;
   }
 
   ctx.addIssue({
     code: z.ZodIssueCode.custom,
-    path: ['equipos'],
-    message: value.tipoSolicitud === 'servicio'
-      ? 'Debe seleccionar al menos un contexto de servicio.'
-      : 'Debe seleccionar al menos un equipo.',
+    path: ['destinos'],
+    message: 'Debe seleccionar al menos un destino.',
   });
 });
 
@@ -120,7 +140,7 @@ export const stepProductosSchema = z.object({
       });
     }
 
-    if (value.servicios.length === 0) {
+  if (value.servicios.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['servicios'],
@@ -168,7 +188,7 @@ export const stepObservacionesSchema = z.object({
 const baseCreateSchema = z.object({
   tipoSolicitud: tipoSolicitudSchema,
   fechaEntrega: fechaEntregaSchema,
-  equipos: equiposArraySchema,
+  destinos: destinosArraySchema,
   productos: z.array(productoSolicitudSchema),
   servicios: z.array(servicioSolicitudSchema),
   observacion: z.string()
@@ -178,13 +198,11 @@ const baseCreateSchema = z.object({
   solicitarUrgente: z.boolean(),
   motivoUrgencia: z.string(),
 }).superRefine((value, ctx) => {
-  if (value.equipos.length === 0) {
+  if (value.destinos.length === 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ['equipos'],
-      message: value.tipoSolicitud === 'servicio'
-        ? 'Debe seleccionar al menos un contexto de servicio.'
-        : 'Debe seleccionar al menos un equipo.',
+      path: ['destinos'],
+      message: 'Debe seleccionar al menos un destino.',
     });
   }
 

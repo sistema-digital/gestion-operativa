@@ -1,5 +1,5 @@
 import type {
-  EquipoSeleccionado,
+  DestinoSeleccionado,
   ProductoSolicitudItem,
   ServicioSolicitudItem,
   SolicitudCompraCreateStep,
@@ -14,7 +14,7 @@ export interface SolicitudCompraBorradorSnapshot {
   currentStep: SolicitudCompraBorradorStep;
   tipoSolicitud: SolicitudCompraTipoSolicitud;
   fechaEntrega: string;
-  equipos: EquipoSeleccionado[];
+  destinos: DestinoSeleccionado[];
   productos: ProductoSolicitudItem[];
   servicios: ServicioSolicitudItem[];
   observacion: string;
@@ -36,7 +36,7 @@ export interface SolicitudCompraBorradorRow {
   observacion: string;
   solicitar_urgente: boolean;
   motivo_urgencia: string | null;
-  equipos: EquipoSeleccionado[];
+  destinos: DestinoSeleccionado[];
   productos: ProductoSolicitudItem[];
   servicios: ServicioSolicitudItem[];
   enviado_at: string | null;
@@ -53,7 +53,7 @@ export interface SolicitudCompraBorradorListadoItem {
   observacion: string;
   solicitarUrgente: boolean;
   motivoUrgencia: string;
-  equipos: EquipoSeleccionado[];
+  destinos: DestinoSeleccionado[];
   productos: ProductoSolicitudItem[];
   servicios: ServicioSolicitudItem[];
   createdAt: string;
@@ -72,7 +72,7 @@ export interface SolicitudCompraBorradorCreatePayload {
   observacion: string;
   solicitar_urgente: boolean;
   motivo_urgencia: string | null;
-  equipos: EquipoSeleccionado[];
+  destinos: DestinoSeleccionado[];
   productos: ProductoSolicitudItem[];
   servicios: ServicioSolicitudItem[];
 }
@@ -86,7 +86,7 @@ export interface SolicitudCompraBorradorUpdatePayload {
   observacion: string;
   solicitar_urgente: boolean;
   motivo_urgencia: string | null;
-  equipos: EquipoSeleccionado[];
+  destinos: DestinoSeleccionado[];
   productos: ProductoSolicitudItem[];
   servicios: ServicioSolicitudItem[];
 }

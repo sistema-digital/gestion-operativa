@@ -93,14 +93,14 @@ const hasFechaEntrega = computed(
   () => roleConfig.value.canSeeFechaEntrega && Boolean(props.item.fechaEntrega.fecha)
 );
 
-const hasEquipos = computed(() => {
-  if (!roleConfig.value.canSeeEquipos) {
+const hasDestinos = computed(() => {
+  if (!roleConfig.value.canSeeDestinos) {
     return false;
   }
 
-  return props.item.equipos.loading
-    || props.item.equipos.codigos.length > 0
-    || Boolean(props.item.equipos.error);
+  return props.item.destinos.loading
+    || props.item.destinos.items.length > 0
+    || Boolean(props.item.destinos.error);
 });
 
 const visibleIndicadores = computed<SolicitudCompraIndicadores>(() => ({
@@ -223,15 +223,15 @@ const onClick = (): void => {
     </div>
 
     <div
-      v-if="isOperacionFamily && (hasEquipos || hasFechaEntrega)"
+      v-if="isOperacionFamily && (hasDestinos || hasFechaEntrega)"
       class="mt-3 flex flex-wrap gap-2"
     >
       <div v-if="hasFechaEntrega" class="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1">
         <SolicitudFechaEntregaCell :fecha-entrega="props.item.fechaEntrega" compact :show-label="false" />
       </div>
 
-      <div v-if="hasEquipos" class="rounded-2xl border border-stone-200 bg-stone-50 px-2.5 py-1">
-        <SolicitudEquiposCell :equipos="props.item.equipos" compact />
+      <div v-if="hasDestinos" class="rounded-2xl border border-stone-200 bg-stone-50 px-2.5 py-1">
+        <SolicitudEquiposCell :destinos="props.item.destinos" compact />
       </div>
     </div>
 

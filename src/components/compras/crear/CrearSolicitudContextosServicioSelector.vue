@@ -3,15 +3,15 @@ import { LoaderCircle, Search, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, shallowRef, watch } from 'vue';
 
 import CrearSolicitudEquipoChip from './CrearSolicitudEquipoChip.vue';
-import type { CatalogoServicioContextoOption } from '@/stores/db_compras/catalogo_servicio_contexto/catalogoServicioContexto.types';
+import type { CatalogoContextoDestinoOption } from '@/stores/db_compras/catalogo_contexto_destino/catalogoContextoDestino.types';
 import type { EquipoOption } from '@/stores/dbequipos/equipos/equipos.types';
-import type { EquipoSeleccionado } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
+import type { DestinoSeleccionado } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 type NormalizedServiceSourceRow =
   | {
     key: string;
     source: 'contexto';
-    item: CatalogoServicioContextoOption;
+    item: CatalogoContextoDestinoOption;
     label: string;
   }
   | {
@@ -22,8 +22,8 @@ type NormalizedServiceSourceRow =
   };
 
 const props = defineProps<{
-  selectedItems: EquipoSeleccionado[];
-  contextOptions: CatalogoServicioContextoOption[];
+  selectedItems: DestinoSeleccionado[];
+  contextOptions: CatalogoContextoDestinoOption[];
   equipmentSearchResults: EquipoOption[];
   isLoading: boolean;
   isSearchingEquipment: boolean;
@@ -34,9 +34,9 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'add', item: CatalogoServicioContextoOption): void;
+  (e: 'add', item: CatalogoContextoDestinoOption): void;
   (e: 'add:equipo', item: EquipoOption): void;
-  (e: 'remove', codigo: string): void;
+  (e: 'remove', payload: { codigo: string; tipoOrigen?: string }): void;
   (e: 'search:equipos', value: string): void;
 }>();
 
@@ -45,7 +45,7 @@ const isFocused = shallowRef(false);
 let blurTimer: ReturnType<typeof setTimeout> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-const selectedCodes = computed(() => new Set(props.selectedItems.map((item) => item.codEquipo)));
+const selectedCodes = computed(() => new Set(props.selectedItems.map((item) => `${item.tipoOrigen}:${item.codigo}`)));
 const normalizedQuery = computed(() => query.value.trim().toLocaleLowerCase());
 const hasEquipmentSearchTerm = computed(() => normalizedQuery.value.length >= 3);
 
@@ -67,7 +67,7 @@ const contextRows = computed<NormalizedServiceSourceRow[]>(() => {
   }
 
   return props.contextOptions
-    .filter((item) => !selectedCodes.value.has(item.codigo))
+    .filter((item) => !selectedCodes.value.has(`${item.tipoOrigen}:${item.codigo}`))
     .filter((item) => (
       !normalizedQuery.value
       || item.nombre.toLocaleLowerCase().includes(normalizedQuery.value)
@@ -81,7 +81,7 @@ const contextRows = computed<NormalizedServiceSourceRow[]>(() => {
 });
 
 const equipmentRows = computed<NormalizedServiceSourceRow[]>(() => props.equipmentSearchResults
-  .filter((item) => !selectedCodes.value.has(item.codEquipo))
+  .filter((item) => !selectedCodes.value.has(`equipo:${item.codEquipo}`))
   .map((item) => ({
     key: `equipo-${item.codEquipo}`,
     source: 'equipo' as const,
@@ -173,7 +173,7 @@ const searchStateMessage = computed(() => {
 <template>
   <div class="flex h-full min-h-0 flex-col gap-3 overflow-y-auto lg:overflow-hidden">
     <label class="block text-xs font-semibold text-stone-800">
-      Equipos / contextos de servicio <span class="text-danger">*</span>
+      Destino <span class="text-danger">*</span>
     </label>
 
     <div class="grid min-h-0 flex-1 gap-4 lg:grid-cols-2 lg:overflow-hidden">
@@ -187,7 +187,7 @@ const searchStateMessage = computed(() => {
             <input
               v-model="query"
               type="text"
-              :placeholder="isAuthorized ? 'Buscar equipo o contexto de servicio' : 'Buscar por número de equipo'"
+              :placeholder="isAuthorized ? 'Buscar destino o equipo' : 'Buscar por número de equipo'"
               class="w-full bg-transparent text-sm text-stone-900 outline-none placeholder:text-stone-400"
               @focus="handleFocus"
               @blur="handleBlur"
@@ -211,7 +211,7 @@ const searchStateMessage = computed(() => {
             class="mt-2 text-xs text-stone-500"
           >
             <template v-if="isAuthorized">
-              Puedes filtrar contextos desde el primer carácter. Para equipos, ingresa al menos 3 caracteres.
+              Puedes filtrar destinos desde el primer carácter. Para equipos, ingresa al menos 3 caracteres.
             </template>
             <template v-else>
               Ingresa al menos 3 caracteres para buscar equipos.
@@ -226,10 +226,10 @@ const searchStateMessage = computed(() => {
           <div class="flex flex-wrap items-start gap-2">
             <CrearSolicitudEquipoChip
               v-for="item in selectedItems"
-              :key="item.codEquipo"
+              :key="`${item.tipoOrigen}-${item.codigo}`"
               :label="item.label"
               full-width-mobile
-              @remove="emit('remove', item.codEquipo)"
+              @remove="emit('remove', { codigo: item.codigo, tipoOrigen: item.tipoOrigen })"
             />
           </div>
         </div>
@@ -238,7 +238,7 @@ const searchStateMessage = computed(() => {
           v-else
           class="sticky top-0 z-40 -mt-1 rounded-lg border border-dashed border-stone-300 bg-white/95 px-3 py-2 text-xs text-stone-500 shadow-sm backdrop-blur md:text-sm lg:hidden"
         >
-          Aún no has seleccionado equipos o contextos de servicio.
+          Aún no has seleccionado destinos.
         </div>
 
         <div
@@ -284,9 +284,9 @@ const searchStateMessage = computed(() => {
         >
           <CrearSolicitudEquipoChip
             v-for="item in selectedItems"
-            :key="item.codEquipo"
+            :key="`${item.tipoOrigen}-${item.codigo}`"
             :label="item.label"
-            @remove="emit('remove', item.codEquipo)"
+            @remove="emit('remove', { codigo: item.codigo, tipoOrigen: item.tipoOrigen })"
           />
         </div>
 
@@ -294,7 +294,7 @@ const searchStateMessage = computed(() => {
           v-else
           class="rounded-lg border border-dashed border-stone-300 bg-white px-3 py-2 text-xs text-stone-500 md:text-sm"
         >
-          Aún no has seleccionado equipos o contextos de servicio.
+          Aún no has seleccionado destinos.
         </div>
       </div>
     </div>

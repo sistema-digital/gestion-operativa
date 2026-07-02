@@ -5,7 +5,7 @@ import type {
   SolicitudCompraRoleCodigo,
 } from './solicitudesCompra.types';
 import {
-  calcularEquiposVisibles,
+  calcularDestinosVisibles,
   formatFolioSol,
   normalizarTextoVacio,
   safeArrayText,
@@ -41,9 +41,9 @@ export const mapSolicitudCompraListRowToItem = (
 ): SolicitudCompraListItem => {
   const foliosOc = safeArrayText(row.folios_oc);
   const ordenesCompraResumenParts = safeArrayText(row.ordenes_compra_resumen);
-  const equiposCodigos = safeArrayText(row.equipos);
-  const equiposTotal = Math.max(row.equipos_total, 0);
-  const { visibles, ocultos } = calcularEquiposVisibles(equiposCodigos);
+  const destinosItems = safeArrayText(row.destinos);
+  const destinosTotal = Math.max(row.destinos_total, 0);
+  const { visibles, ocultos } = calcularDestinosVisibles(destinosItems);
   const estadoCodigo = normalizarTextoVacio(row.estado_codigo) ?? 'sin_estado';
   const estadoNombre = normalizarTextoVacio(row.estado_nombre) ?? 'Sin estado';
   const prioridadCodigo = normalizarTextoVacio(row.prioridad_codigo) ?? 'sin_prioridad';
@@ -76,13 +76,13 @@ export const mapSolicitudCompraListRowToItem = (
       codigo: prioridadCodigo,
       nombre: prioridadNombre,
     },
-    equipos: {
+    destinos: {
       loading: false,
-      codigos: equiposCodigos,
+      items: destinosItems,
       visibles,
-      ocultos: Math.max(equiposTotal - visibles.length, ocultos, 0),
+      ocultos: Math.max(destinosTotal - visibles.length, ocultos, 0),
       error: null,
-      source: 'equipos',
+      source: 'destinos',
     },
     area: {
       codigo: normalizarTextoVacio(row.area_solicitante_codigo),

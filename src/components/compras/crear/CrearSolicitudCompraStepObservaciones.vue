@@ -16,12 +16,12 @@ import type {
   CrearSolicitudAdjuntoDraftInput,
   CrearSolicitudAdjuntoLocalItem,
   CrearSolicitudAdjuntoValidationIssue,
-  EquipoSeleccionado,
+  DestinoSeleccionado,
 } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 import { OBSERVACION_MAX_LENGTH } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
 
 interface EquipoObservacionChip {
-  codEquipo: string;
+  codigo: string;
   present: boolean;
 }
 
@@ -37,7 +37,7 @@ const props = defineProps<{
   observacion: string;
   solicitarUrgente: boolean;
   motivoUrgencia: string;
-  equipos: EquipoSeleccionado[];
+  destinos: DestinoSeleccionado[];
   adjuntos: CrearSolicitudAdjuntoLocalItem[];
   observacionError?: string;
   adjuntosError?: string;
@@ -59,17 +59,17 @@ const scrollContainer = useTemplateRef<HTMLElement>('scrollContainer');
 const urgentSection = useTemplateRef<HTMLElement>('urgentSection');
 const hasReachedBottom = shallowRef(false);
 
-const equipmentChips = computed<EquipoObservacionChip[]>(() => props.equipos
-  .filter((item) => item.source === 'equipo')
+const equipmentChips = computed<EquipoObservacionChip[]>(() => props.destinos
+  .filter((item) => item.tipoOrigen === 'equipo')
   .map((item) => ({
-    codEquipo: item.codEquipo,
-    present: props.observacion.includes(item.codEquipo),
+    codigo: item.codigo,
+    present: props.observacion.includes(item.codigo),
   })));
 
-const serviceContextChips = computed(() => props.equipos
-  .filter((item) => item.source === 'contexto')
+const serviceContextChips = computed(() => props.destinos
+  .filter((item) => item.tipoOrigen !== 'equipo')
   .map((item) => ({
-    codigo: item.codEquipo,
+    codigo: item.codigo,
     nombre: item.label,
   })));
 
@@ -154,7 +154,7 @@ onBeforeUnmount(() => {
 
 watch(
   () => [
-    props.equipos.length,
+    props.destinos.length,
     props.adjuntos.length,
     props.adjuntosErroresRecientes.length,
     props.solicitarUrgente,
@@ -202,8 +202,8 @@ watch(
           <div class="flex flex-wrap gap-2">
             <CrearSolicitudObservacionChip
               v-for="chip in equipmentChips"
-              :key="chip.codEquipo"
-              :label="chip.codEquipo"
+              :key="chip.codigo"
+              :label="chip.codigo"
               :tone="chip.present ? 'success' : 'danger'"
             />
             <CrearSolicitudObservacionChip
