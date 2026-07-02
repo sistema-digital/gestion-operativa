@@ -316,7 +316,7 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
       <div id="app-main-content-area" class="flex-1 overflow-y-auto w-full">
         <router-view v-slot="{ Component, route: childRoute }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" :key="childRoute.path" />
+            <component :is="Component" :key="childRoute.matched[1]?.path ?? childRoute.path" />
           </transition>
         </router-view>
       </div>
