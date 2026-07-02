@@ -609,9 +609,8 @@ grant execute on function public.rpc_crear_solicitud_compra_go(
 -- 2. RPC DE LISTADO
 -- ------------------------------------------------
 -- Estrategia:
--- - se mantiene como fuente base `vw_solicitudes_lista`
--- - ya no se usa el arreglo `equipos` que expone la vista
--- - se resuelve `destinos` desde la nueva tabla transaccional
+-- - `vw_solicitudes_lista` se actualiza para exponer `destinos`
+-- - el RPC consume `destinos` y `destinos_total` directo desde la vista
 -- - el label visible se arma asi:
 --   * equipo -> codigo
 --   * catalogo_contexto_destino -> nombre actual, incluso si esta inactivo
@@ -628,6 +627,277 @@ drop function if exists public.rpc_obtener_solicitudes_lista_usuario(
   integer,
   integer
 );
+
+DROP VIEW IF EXISTS public.vw_solicitudes_lista;
+
+create or replace view public.vw_solicitudes_lista as
+select
+  sc.id,
+  sc.folio_sol,
+  sc.solicitante_email,
+  coalesce(
+    nullif(trim(both from au.nombre), ''),
+    sc.solicitante_email
+  ) as solicitante_nombre,
+  sc.fecha_entrega,
+  sc.fecha_entrega_sistema,
+  oc.fecha_entrega_proveedor,
+  coalesce(
+    oc.fecha_entrega_proveedor,
+    sc.fecha_entrega_sistema,
+    sc.fecha_entrega
+  ) as fecha_entrega_mostrada,
+  case
+    when oc.fecha_entrega_proveedor is not null then 'proveedor'::text
+    when sc.fecha_entrega_sistema is not null then 'sistema'::text
+    else 'solicitud'::text
+  end as fecha_entrega_origen,
+  sc.fecha_subida_sistema,
+  sc.observacion,
+  sc.ciclo_estado,
+  sc.created_at,
+  sc.updated_at,
+  ts.codigo as tipo_codigo,
+  ts.nombre as tipo_nombre,
+  e.codigo as estado_codigo,
+  e.nombre as estado_nombre,
+  p.codigo as prioridad_codigo,
+  p.nombre as prioridad_nombre,
+  ar.codigo as area_solicitante_codigo,
+  ar.nombre as area_solicitante_nombre,
+  rr.codigo as role_solicitante_codigo,
+  rr.nombre as role_solicitante_nombre,
+  case
+    when e.codigo = any (
+      array[
+        'solicitud_con_oc_fecha_entrega'::text,
+        'solicitud_cerrada'::text
+      ]
+    ) then 'completadas'::text
+    when e.codigo = any (
+      array[
+        'rechazado'::text,
+        'descartado_por_supervisor'::text,
+        'rechazado_comprador'::text,
+        'cancelado'::text
+      ]
+    ) then 'descartadas'::text
+    else 'en_proceso'::text
+  end as grupo_listado,
+  h.fecha_inicio as disponible_desde,
+  l.locked_by_email,
+  l.locked_at,
+  coalesce(l.activo, false) as bloqueada,
+  case
+    when l.activo = true then 'bloqueada'::text
+    when e.codigo = any (
+      array[
+        'para_revision_almacen'::text,
+        'para_revision_supervisor'::text,
+        'para_revision_gerencia'::text,
+        'aprobado_gerencia'::text,
+        'subido_sistema_compra'::text
+      ]
+    ) then 'pendiente'::text
+    when e.codigo = any (
+      array[
+        'rechazado'::text,
+        'descartado_por_supervisor'::text,
+        'rechazado_comprador'::text,
+        'cancelado'::text
+      ]
+    ) then 'cerrada'::text
+    else e.codigo
+  end as badge_codigo,
+  case
+    when l.activo = true then 'Bloqueada'::text
+    when e.codigo = any (
+      array[
+        'para_revision_almacen'::text,
+        'para_revision_supervisor'::text,
+        'para_revision_gerencia'::text,
+        'aprobado_gerencia'::text,
+        'subido_sistema_compra'::text
+      ]
+    ) then 'Pendiente'::text
+    when e.codigo = any (
+      array[
+        'rechazado'::text,
+        'descartado_por_supervisor'::text,
+        'rechazado_comprador'::text,
+        'cancelado'::text
+      ]
+    ) then 'Cerrada'::text
+    else e.nombre
+  end as badge_label,
+  coalesce(prod.productos_total, 0::bigint) as productos_total,
+  coalesce(prod.productos_activos, 0::bigint) as productos_activos,
+  coalesce(serv.servicios_total, 0::bigint) as servicios_total,
+  coalesce(adj.cantidad_adjuntos, 0::bigint) as cantidad_adjuntos,
+  coalesce(adj.cantidad_adjuntos, 0::bigint) > 0 as tiene_adjuntos,
+  coalesce(oc.cantidad_oc, 0::bigint) as cantidad_oc,
+  oc.folio_oc_principal,
+  coalesce(oc.folios_oc, array[]::text[]) as folios_oc,
+  coalesce(oc.ordenes_compra_resumen, '[]'::jsonb) as ordenes_compra_resumen,
+  oc.estado_oc_principal,
+  oc.evaluacion_principal,
+  oc.recepcion_principal,
+  oc.proveedor_principal,
+  coalesce(dif.cantidad_diferencias, 0::bigint) as cantidad_diferencias,
+  coalesce(dif.cantidad_diferencias, 0::bigint) > 0 as tiene_diferencia_oc,
+  coalesce(dif.cantidad_diferencias, 0::bigint) > 0 as tiene_alerta_oc,
+  coalesce(dest.destinos, array[]::text[]) as equipos,
+  coalesce(dest.destinos_total, 0::bigint) as equipos_total,
+  coalesce(dest.destinos, array[]::text[]) as destinos,
+  coalesce(dest.destinos_total, 0::bigint) as destinos_total
+from solicitud_compra sc
+join tipo_solicitud ts on ts.id = sc.tipo_solicitud_id
+join estado e on e.id = sc.estado_id
+join prioridad p on p.id = sc.prioridad_id
+left join app_area ar on ar.id = sc.area_solicitante_id
+left join app_role rr on rr.id = sc.role_solicitante_id
+left join app_usuario au on lower(au.email) = lower(sc.solicitante_email)
+left join lateral (
+  select hh.fecha_inicio
+  from solicitud_estado_historial hh
+  where
+    hh.solicitud_id = sc.id
+    and hh.estado_id = sc.estado_id
+    and hh.ciclo = sc.ciclo_estado
+    and hh.fecha_fin is null
+    and hh.invalidado = false
+  order by hh.fecha_inicio desc
+  limit 1
+) h on true
+left join lateral (
+  select
+    ll.id,
+    ll.solicitud_id,
+    ll.locked_by_email,
+    ll.locked_by_area_id,
+    ll.locked_by_role_id,
+    ll.locked_at,
+    ll.released_at,
+    ll.activo
+  from solicitud_compra_lock ll
+  where
+    ll.solicitud_id = sc.id
+    and ll.activo = true
+    and ll.released_at is null
+  order by ll.locked_at desc
+  limit 1
+) l on true
+left join lateral (
+  select
+    count(*) as productos_total,
+    count(*) filter (
+      where d.activo = true
+    ) as productos_activos
+  from solicitud_producto_detalle d
+  where d.solicitud_id = sc.id
+) prod on true
+left join lateral (
+  select count(*) as servicios_total
+  from solicitud_servicio_detalle s
+  where s.solicitud_id = sc.id
+) serv on true
+left join lateral (
+  select count(*) as cantidad_adjuntos
+  from solicitud_adjunto a
+  where
+    a.solicitud_id = sc.id
+    and a.eliminado = false
+) adj on true
+left join lateral (
+  select
+    array_agg(
+      case
+        when scd.tipo_origen = 'equipo' then scd.codigo
+        else coalesce(nullif(trim(ccd.nombre), ''), scd.codigo)
+      end
+      order by
+        case
+          when scd.tipo_origen = 'equipo' then scd.codigo
+          else coalesce(nullif(trim(ccd.nombre), ''), scd.codigo)
+        end
+    ) as destinos,
+    count(*) as destinos_total
+  from solicitud_contexto_destino scd
+  left join catalogo_contexto_destino ccd
+    on ccd.codigo = scd.codigo
+   and ccd.tipo_origen = scd.tipo_origen
+  where scd.solicitud_id = sc.id
+) dest on true
+left join lateral (
+  select count(*) as cantidad_diferencias
+  from solicitud_compra_diferencia d
+  where
+    d.solicitud_id = sc.id
+    and d.activo = true
+) dif on true
+left join lateral (
+  select
+    count(*) as cantidad_oc,
+    (array_agg(
+      x.folio_oc
+      order by
+        x.imported_at desc nulls last,
+        x.created_at desc
+    ))[1] as folio_oc_principal,
+    array_agg(
+      x.folio_oc
+      order by
+        x.imported_at desc nulls last,
+        x.created_at desc
+    ) as folios_oc,
+    min(x.fecha_entrega) filter (
+      where x.fecha_entrega is not null
+    ) as fecha_entrega_proveedor,
+    (array_agg(
+      x.estado
+      order by
+        x.imported_at desc nulls last,
+        x.created_at desc
+    ))[1] as estado_oc_principal,
+    (array_agg(
+      x.evaluacion
+      order by
+        x.imported_at desc nulls last,
+        x.created_at desc
+    ))[1] as evaluacion_principal,
+    (array_agg(
+      x.recepcion
+      order by
+        x.imported_at desc nulls last,
+        x.created_at desc
+    ))[1] as recepcion_principal,
+    (array_agg(
+      x.proveedor
+      order by
+        x.imported_at desc nulls last,
+        x.created_at desc
+    ))[1] as proveedor_principal,
+    jsonb_agg(
+      jsonb_build_object(
+        'id', x.id,
+        'folio_oc', x.folio_oc,
+        'estado', x.estado,
+        'evaluacion', x.evaluacion,
+        'recepcion', x.recepcion,
+        'proveedor', x.proveedor,
+        'fecha_entrega', x.fecha_entrega,
+        'fecha_compromiso', x.fecha_compromiso,
+        'fecha_oc', x.fecha_oc
+      )
+      order by
+        x.imported_at desc nulls last,
+        x.created_at desc
+    ) as ordenes_compra_resumen
+  from orden_compra x
+  where
+    x.solicitud_id = sc.id
+    or x.folio_sol = sc.folio_sol
+) oc on true;
 
 create or replace function public.rpc_obtener_solicitudes_lista_usuario(
   p_busqueda text default null,
@@ -790,36 +1060,9 @@ begin
       s.created_at >= (v_fecha_desde::timestamp at time zone 'America/Panama')
       and s.created_at < ((v_fecha_hasta + 1)::timestamp at time zone 'America/Panama')
   ),
-  base_con_destinos as (
-    select
-      s.*,
-      coalesce(destinos.destinos, array[]::text[]) as destinos,
-      coalesce(destinos.destinos_total, 0)::bigint as destinos_total
-    from base_fecha s
-    left join lateral (
-      select
-        array_agg(
-          case
-            when scd.tipo_origen = 'equipo' then scd.codigo
-            else coalesce(nullif(trim(ccd.nombre), ''), scd.codigo)
-          end
-          order by
-            case
-              when scd.tipo_origen = 'equipo' then scd.codigo
-              else coalesce(nullif(trim(ccd.nombre), ''), scd.codigo)
-            end
-        ) as destinos,
-        count(*) as destinos_total
-      from public.solicitud_contexto_destino scd
-      left join public.catalogo_contexto_destino ccd
-        on ccd.codigo = scd.codigo
-       and ccd.tipo_origen = scd.tipo_origen
-      where scd.solicitud_id = s.id
-    ) destinos on true
-  ),
   base as (
     select s.*
-    from base_con_destinos s
+    from base_fecha s
     where
       (
         v_role = 'admin'
