@@ -10,7 +10,7 @@ const props = withDefaults(defineProps<{
   compact: false,
 });
 
-const label = computed(() => props.estado.badgeLabel || props.estado.nombre);
+const label = computed(() =>  props.estado.nombre || props.estado.badgeLabel);
 
 const badgeClass = computed(() => {
   switch (props.estado.codigo) {
