@@ -41,6 +41,7 @@ Este documento no contiene cambios ya aplicados. Es un mapa de implementacion.
 
 - el concepto deja de llamarse `equipos` a nivel funcional visible
 - pasa a llamarse `destino` o `contexto destino`
+- en frontend el destino sigue siendo obligatorio para todos los tipos
 - una solicitud puede tener varios destinos solo si todos son del mismo
   `tipo_origen`
 - no se pueden mezclar:
@@ -237,17 +238,34 @@ Cambios:
   - `descripcion` min 5
   - sin max en form
 - destinos:
-  - quitar obligatoriedad global de al menos un item
+  - mantener obligatoriedad global de al menos un item en frontend
   - agregar regla de no mezclar `tipo_origen`
+
+Regla final:
+
+- `stepDatosBaseSchema` debe seguir fallando si no hay destinos
+- `createSolicitudSendSchema` debe seguir fallando si no hay destinos
+- el mensaje visible debe seguir dejando claro que el destino es requerido
+- esto aplica a:
+  - `zafra`
+  - `cultivo`
+  - `otros`
+  - `servicio`
 
 7.2 Borradores
 
 - replicar la misma semantica en
   `solicitudesCompraBorradores.schemas.ts`
 
+Para borradores:
+
+- tambien debe exigirse al menos un destino
+- no basta con relajar el registro en backend
+- el store debe seguir frenando el guardado de borrador si no hay destinos
+
 Importante:
 
-No basta con quitar la obligatoriedad del Zod.
+No basta con cambiar solo Zod.
 
 Tambien debe revisarse:
 
@@ -257,6 +275,13 @@ Tambien debe revisarse:
 - copy de errores
 - resumen
 - autocompletado de observacion
+
+Importante adicional:
+
+- aunque frontend lo trate como obligatorio, el RPC seguira aceptando
+  `p_contextos_destino = []`
+- por eso el contrato de app y el contrato SQL ya no son identicos, y eso debe
+  estar explicitamente documentado en implementacion y pruebas
 
 =====================================================================
 8. IMPACTO EN LISTADO DE SOLICITUDES
@@ -329,12 +354,18 @@ Cambios esperados:
    - el RPC fallara o guardara datos en columnas incorrectas
 
 2. Si se cambia solo el schema Zod de destinos:
-   - el store seguira mezclando tipos
-   - la UI seguira hablando de equipos
-   - el RPC antiguo seguira esperando `p_equipos`
+  - el store seguira mezclando tipos
+  - la UI seguira hablando de equipos
+  - el RPC antiguo seguira esperando `p_equipos`
+  - o el frontend dejara pasar casos que el store aun deberia bloquear
 
 3. Si se cambia solo el listado:
-   - la busqueda y labels quedaran inconsistentes con crear solicitud
+  - la busqueda y labels quedaran inconsistentes con crear solicitud
 
 4. Si no se actualizan borradores:
-   - un borrador previo o nuevo puede hidratar shapes viejos y romper el wizard
+  - un borrador previo o nuevo puede hidratar shapes viejos y romper el wizard
+
+5. Si no se actualiza el payload frontend:
+   - la app seguira enviando `p_equipos`
+   - el nuevo RPC esperara `p_contextos_destino`
+   - la creacion o guardado de borrador fallaran por contrato incompatible

@@ -58,7 +58,7 @@ PROYECTO: gestion operativa / solicitudes compras
 3.1 Paso 1
 
 - el copy visible ya dice `Destino`
-- no obliga seleccionar destino para continuar
+- si obliga seleccionar destino para continuar
 - si el usuario elige un equipo:
   - puede agregar varios equipos
   - no puede mezclar con contexto catalogo
@@ -96,6 +96,7 @@ PROYECTO: gestion operativa / solicitudes compras
 
 - un borrador nuevo guarda el nuevo shape de destinos y productos
 - un borrador se puede restaurar sin romper el wizard
+- no se puede guardar borrador sin destino
 
 3.7 Listado
 
@@ -107,6 +108,17 @@ PROYECTO: gestion operativa / solicitudes compras
 =====================================================================
 4. RECOMENDACION DE IMPLEMENTACION EN CODIGO
 =====================================================================
+
+El spec si incluye el cambio de contrato hacia la BD.
+
+Esto abarca:
+
+- payload frontend -> RPC
+- schemas Zod de creacion y borradores
+- shape transaccional de destinos
+- shape de productos temporales y existentes
+- cambio de `p_equipos` a `p_contextos_destino`
+- cambio de producto temporal de `descripcion` principal a `nombre` principal
 
 Orden sugerido:
 

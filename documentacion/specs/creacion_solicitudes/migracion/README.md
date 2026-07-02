@@ -20,6 +20,10 @@ necesarios para soportar estas decisiones ya confirmadas:
   `catalogo_contexto_destino`.
 - una solicitud puede tener varios destinos solo si todos pertenecen al mismo
   `tipo_origen`.
+- en frontend, el destino sigue siendo obligatorio para:
+  - enviar
+  - guardar borrador
+  - avanzar en el flujo cuando aplique validacion del paso 1
 - los destinos con `restringido_a_servicios = true` solo aparecen para
   `admin`, `gerencia` y `secretaria`, y solo cuando la solicitud es de tipo
   `servicio`.
@@ -96,3 +100,15 @@ La nueva tabla transaccional debe impedir que una misma solicitud mezcle:
 
 Si una solicitud tiene varios destinos, todos deben compartir el mismo
 `tipo_origen`.
+
+4.5 Regla dual de obligatoriedad
+
+La obligatoriedad del destino queda separada en dos niveles:
+
+- frontend:
+  - si exige al menos un destino para guardar borrador o enviar
+- backend:
+  - permite registrar solicitudes aun si `p_contextos_destino` llega vacio
+
+Esto es intencional y debe mantenerse reflejado en schemas, store, mensajes de
+error y RPC.
