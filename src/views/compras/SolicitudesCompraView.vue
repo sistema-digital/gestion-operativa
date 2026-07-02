@@ -221,9 +221,6 @@ const handleContinueDraft = async (draft: SolicitudCompraBorradorListadoItem): P
 
 onMounted(() => {
   window.addEventListener('open-new-solicitud-compra', handleOpenNewSolicitudCompra);
-  featureAccessStore.cargarFuncionalidadesPermitidas().catch((error) => {
-    console.error('Error cargando funcionalidades para compras:', error);
-  });
   void loadInitial();
 });
 

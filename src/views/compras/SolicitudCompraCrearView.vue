@@ -424,9 +424,6 @@ const syncViewportWidth = (): void => {
 };
 
 onMounted(() => {
-  featureAccessStore.cargarFuncionalidadesPermitidas().catch((error) => {
-    console.error('Error cargando funcionalidades en crear solicitud:', error);
-  });
   if (!createStore.entryMode) {
     void createStore.prepareNewEntry();
   }
