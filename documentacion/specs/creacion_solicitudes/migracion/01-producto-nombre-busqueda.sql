@@ -18,6 +18,9 @@ alter table public.producto
 comment on column public.producto.nombre is
 'Nombre principal del producto para UI, busqueda y seleccion en solicitudes.';
 
+alter table public.producto
+  alter column descripcion drop not null;
+
 -- ------------------------------------------------
 -- 2. REGLAS DE CALIDAD MINIMAS
 -- ------------------------------------------------
