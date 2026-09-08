@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { Power, PowerOff } from "lucide-vue-next";
 import { formatOperationalNumber } from "@/utils/formatOperationalNumber";
 import type {
   EquipmentContext,
@@ -16,27 +17,27 @@ const props = defineProps<{
 const clampPercentage = (value: number): number =>
   Math.min(100, Math.max(0, value));
 
-const effectivenessPercentage = computed(() =>
-  clampPercentage(props.summary.effectiveness),
-);
-const stoppedPercentage = computed(() => {
-  if (props.summary.totalSeconds > 0) {
-    return clampPercentage(
-      (props.summary.stoppedSeconds / props.summary.totalSeconds) * 100,
-    );
-  }
-
-  return clampPercentage(100 - effectivenessPercentage.value);
-});
 const percentageFormatter = new Intl.NumberFormat("es", {
   maximumFractionDigits: 1,
 });
-const effectivenessLabel = computed(
-  () => `${percentageFormatter.format(effectivenessPercentage.value)}%`,
-);
-const stoppedLabel = computed(
-  () => `${percentageFormatter.format(stoppedPercentage.value)}%`,
-);
+const engineMetrics = computed(() => [
+  {
+    label: "Motor encendido",
+    time: props.summary.engineOnTime,
+    percentage: clampPercentage(props.summary.engineOnPercentage),
+    icon: Power,
+    tone: "text-main-dark",
+    bar: "bg-main",
+  },
+  {
+    label: "Motor apagado",
+    time: props.summary.engineOffTime,
+    percentage: clampPercentage(props.summary.engineOffPercentage),
+    icon: PowerOff,
+    tone: "text-accent-dark",
+    bar: "bg-accent-dark",
+  },
+]);
 </script>
 
 <template>
@@ -85,68 +86,51 @@ const stoppedLabel = computed(
         </div>
       </section>
       <section
-        id="summary-effectiveness-stops-card"
-        class="grid min-w-0 border-y border-gray-200 sm:grid-rows-[minmax(0,1fr)_auto] lg:border-l lg:border-y-0"
-        aria-label="Comparación entre efectividad y paradas"
+        id="summary-engine-usage-card"
+        class="min-w-0 border-y border-gray-200 lg:border-l lg:border-y-0"
+        aria-label="Uso del motor"
       >
-        <div class="grid grid-cols-2 divide-x divide-gray-200">
+        <div
+          class="grid grid-cols-1 divide-y divide-gray-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0"
+        >
           <section
-            id="summary-effectiveness-card"
-            class="flex min-h-[70px] min-w-0 flex-col justify-center px-4 py-1"
+            v-for="metric in engineMetrics"
+            :key="metric.label"
+            class="flex min-h-[70px] min-w-0 flex-col justify-center px-3 py-2"
           >
             <div class="flex items-baseline justify-between gap-2">
               <span
-                class="text-[10px] font-bold uppercase tracking-wide text-main"
-                >Efectividad</span
+                class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide"
+                :class="metric.tone"
               >
+                <component
+                  :is="metric.icon"
+                  class="size-3"
+                  aria-hidden="true"
+                />{{ metric.label }}
+              </span>
               <strong
-                class="text-right text-2xl font-extrabold tabular-nums text-main-dark sm:text-3xl"
-                >{{ effectivenessLabel }}</strong
+                class="text-right text-xl font-extrabold tabular-nums sm:text-2xl"
+                :class="metric.tone"
+                >{{ percentageFormatter.format(metric.percentage) }}%</strong
               >
             </div>
             <p class="mt-1 text-[11px] text-gray-600">
               <span class="font-bold tabular-nums text-gray-900">{{
-                summary.workingTime
+                metric.time
               }}</span>
-              horas efectivas
-            </p>
-          </section>
-          <section
-            id="summary-stopped-card"
-            class="flex min-h-[70px] min-w-0 flex-col justify-center px-4 py-1"
-          >
-            <div class="flex items-baseline justify-between gap-2">
-              <span
-                class="text-[10px] font-bold uppercase tracking-wide text-accent-dark"
-                >Paradas</span
-              >
-              <strong
-                class="text-right text-2xl font-extrabold tabular-nums text-accent-dark sm:text-3xl"
-                >{{ stoppedLabel }}</strong
-              >
-            </div>
-            <p class="mt-1 text-[11px] text-gray-600">
-              <span class="font-bold tabular-nums text-gray-900">{{
-                summary.stoppedTime
-              }}</span>
-              horas paradas
+              del tiempo registrado
             </p>
           </section>
         </div>
-        <div class="px-4 pb-4">
+        <div class="flex h-2 overflow-hidden bg-gray-100">
           <div
-            class="flex h-3 overflow-hidden rounded-full bg-gray-100"
-            aria-label="Proporción de efectividad y paradas"
-          >
-            <div
-              class="bg-main transition-[width] duration-300"
-              :style="{ width: `${effectivenessPercentage}%` }"
-            ></div>
-            <div
-              class="bg-accent transition-[width] duration-300"
-              :style="{ width: `${stoppedPercentage}%` }"
-            ></div>
-          </div>
+            v-for="metric in engineMetrics"
+            :key="`${metric.label}-bar`"
+            class="transition-[width] duration-300"
+            :class="metric.bar"
+            :style="{ width: `${metric.percentage}%` }"
+          />
         </div>
       </section>
       <section

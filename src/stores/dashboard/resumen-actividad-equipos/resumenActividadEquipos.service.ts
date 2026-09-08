@@ -21,31 +21,32 @@ function dayFromResponse(day: {
   dia_semana: string;
   equipos: number;
   jornadas: number;
-  tiempo_efectivo: string;
-  tiempo_parado: string;
-  efectividad: number;
-  porcentaje_parado: number;
+  tiempo_motor_encendido: string;
+  porcentaje_motor_encendido: number;
+  tiempo_motor_apagado: string;
+  porcentaje_motor_apagado: number;
+  tiempo_motor_sin_definir: string;
+  porcentaje_motor_sin_definir: number;
 }) {
   return {
     date: day.fecha,
     weekday: day.dia_semana,
     equipment: day.equipos,
     journeys: day.jornadas,
-    effectiveTime: day.tiempo_efectivo,
-    stoppedTime: day.tiempo_parado,
-    effectiveness: day.efectividad,
-    stoppedPercentage: day.porcentaje_parado,
+    engineOnTime: day.tiempo_motor_encendido,
+    engineOnPercentage: day.porcentaje_motor_encendido,
+    engineOffTime: day.tiempo_motor_apagado,
+    engineOffPercentage: day.porcentaje_motor_apagado,
+    engineUndefinedTime: day.tiempo_motor_sin_definir,
+    engineUndefinedPercentage: day.porcentaje_motor_sin_definir,
   };
 }
 
 function rankingSecondary(item: {
-  tiempo_efectivo: string;
-  tiempo_parado: string;
-  tiempo_total?: string;
+  tiempo_motor_encendido: string;
+  tiempo_motor_apagado: string;
 }): string {
-  const totalTime = item.tiempo_total ? ` · ${item.tiempo_total} total` : "";
-
-  return `${item.tiempo_efectivo} efectivo · ${item.tiempo_parado} parado${totalTime}`;
+  return `${item.tiempo_motor_encendido} encendido · ${item.tiempo_motor_apagado} apagado`;
 }
 
 export const activityTeamsSummaryService = {
@@ -90,19 +91,22 @@ export const activityTeamsSummaryService = {
         journeys: resumen.jornadas,
         totalSeconds: resumen.tiempo_total_segundos,
         totalTime: resumen.tiempo_total,
-        effectiveSeconds: resumen.tiempo_efectivo_segundos,
-        effectiveTime: resumen.tiempo_efectivo,
-        effectiveness: resumen.efectividad,
-        stoppedSeconds: resumen.tiempo_parado_segundos,
-        stoppedTime: resumen.tiempo_parado,
-        stoppedPercentage: resumen.porcentaje_parado,
+        engineOnSeconds: resumen.tiempo_motor_encendido_segundos,
+        engineOnTime: resumen.tiempo_motor_encendido,
+        engineOnPercentage: resumen.porcentaje_motor_encendido,
+        engineOffSeconds: resumen.tiempo_motor_apagado_segundos,
+        engineOffTime: resumen.tiempo_motor_apagado,
+        engineOffPercentage: resumen.porcentaje_motor_apagado,
+        engineUndefinedSeconds: resumen.tiempo_motor_sin_definir_segundos,
+        engineUndefinedTime: resumen.tiempo_motor_sin_definir,
+        engineUndefinedPercentage: resumen.porcentaje_motor_sin_definir,
       },
       bestDay: mejor_dia ? dayFromResponse(mejor_dia) : null,
       worstDay: peor_dia ? dayFromResponse(peor_dia) : null,
       topJobs: top_labores.map((item) => ({
         label: item.labor,
-        value: `${item.porcentaje_tiempo_efectivo.toFixed(1)}%`,
-        percentage: item.porcentaje_tiempo_efectivo,
+        value: `${item.porcentaje_tiempo_motor_encendido.toFixed(1)}%`,
+        percentage: item.porcentaje_tiempo_motor_encendido,
         secondary: `${item.tiempo} · ${item.jornadas} jornadas`,
         supportingMetric: null,
       })),
@@ -116,33 +120,31 @@ export const activityTeamsSummaryService = {
       equipmentPerformance: rendimiento_equipos.map((item) => ({
         code: item.equipo_numero,
         type: null,
-        effectiveSeconds: item.tiempo_efectivo_segundos,
-        stoppedSeconds: item.tiempo_parado_segundos,
+        engineOnSeconds: item.tiempo_motor_encendido_segundos,
+        engineOffSeconds: item.tiempo_motor_apagado_segundos,
+        engineUndefinedSeconds: item.tiempo_motor_sin_definir_segundos,
         totalSeconds: item.tiempo_total_segundos,
       })),
       dailyActivity: actividad_diaria.map(dayFromResponse),
       bestEquipment: mejores_equipos.map((item) => ({
         label: item.equipo_numero,
-        value: `${item.efectividad.toFixed(1)}%`,
-        percentage: item.efectividad,
+        value: `${item.porcentaje_motor_encendido.toFixed(1)}%`,
+        percentage: item.porcentaje_motor_encendido,
         secondary: rankingSecondary(item),
         supportingMetric: null,
       })),
       worstEquipment: peores_equipos.map((item) => ({
         label: item.equipo_numero,
-        value: `${item.efectividad.toFixed(1)}%`,
-        percentage: item.efectividad,
+        value: `${item.porcentaje_motor_encendido.toFixed(1)}%`,
+        percentage: item.porcentaje_motor_encendido,
         secondary: rankingSecondary(item),
-        supportingMetric:
-          item.porcentaje_parado === undefined
-            ? null
-            : `${item.porcentaje_parado.toFixed(1)}% tiempo perdido`,
+        supportingMetric: `${item.porcentaje_motor_apagado.toFixed(1)}% motor apagado`,
       })),
       topOperators: top_operadores.map((item) => ({
         label: item.operador,
-        value: item.tiempo_efectivo,
-        percentage: item.efectividad,
-        secondary: `${item.efectividad.toFixed(1)}% efectividad · ${item.tiempo_parado} parado`,
+        value: item.tiempo_motor_encendido,
+        percentage: item.porcentaje_motor_encendido,
+        secondary: `${item.porcentaje_motor_encendido.toFixed(1)}% encendido · ${item.tiempo_motor_apagado} apagado`,
         supportingMetric: null,
       })),
     };

@@ -16,21 +16,26 @@ export interface ActivityTeamsTotals {
   journeys: number;
   totalSeconds: number;
   totalTime: string;
-  effectiveSeconds: number;
-  effectiveTime: string;
-  effectiveness: number;
-  stoppedSeconds: number;
-  stoppedTime: string;
-  stoppedPercentage: number;
+  engineOnSeconds: number;
+  engineOnTime: string;
+  engineOnPercentage: number;
+  engineOffSeconds: number;
+  engineOffTime: string;
+  engineOffPercentage: number;
+  engineUndefinedSeconds: number;
+  engineUndefinedTime: string;
+  engineUndefinedPercentage: number;
 }
 
 export interface ActivityTeamsDay {
   date: string;
   weekday: string;
-  effectiveness: number;
-  stoppedPercentage: number;
-  effectiveTime: string;
-  stoppedTime: string;
+  engineOnPercentage: number;
+  engineOffPercentage: number;
+  engineUndefinedPercentage: number;
+  engineOnTime: string;
+  engineOffTime: string;
+  engineUndefinedTime: string;
   equipment: number;
   journeys: number;
 }
@@ -46,8 +51,9 @@ export interface ActivityTeamsRankingItem {
 export interface ActivityTeamsEquipmentPerformance {
   code: string;
   type: string | null;
-  effectiveSeconds: number;
-  stoppedSeconds: number;
+  engineOnSeconds: number;
+  engineOffSeconds: number;
+  engineUndefinedSeconds: number;
   totalSeconds: number;
 }
 

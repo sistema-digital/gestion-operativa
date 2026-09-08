@@ -4,6 +4,8 @@ import {
   CircleOff,
   LoaderCircle,
   MapPin,
+  Power,
+  PowerOff,
   TriangleAlert,
 } from "lucide-vue-next";
 import EquipmentSummaryImplementsCard from "./EquipmentSummaryImplementsCard.vue";
@@ -30,6 +32,10 @@ interface Props {
 const props = defineProps<Props>();
 const hasSelection = computed(
   () => props.detailState !== "idle" || props.contextState !== "idle",
+);
+const visibleEngine = computed(
+  () =>
+    props.context?.engine.filter((row) => row.state !== "sin_definir") ?? [],
 );
 
 function displayDate(value: string | null): string {
@@ -164,15 +170,20 @@ function displayDate(value: string | null): string {
           </thead>
           <tbody>
             <tr
-              v-for="row in context.engine"
+              v-for="row in visibleEngine"
               :key="`${row.state}-${row.time}-${row.percentage}-${row.periods}`"
               class="border-b border-gray-100"
             >
               <td class="py-1.5">
                 <span class="inline-flex items-center gap-1.5"
-                  ><i
-                    class="size-1.5 rounded-full"
-                    :class="row.engineOn ? 'bg-success' : 'bg-gray-400'"
+                  ><Power
+                    v-if="row.state === 'encendido'"
+                    class="size-3 text-success"
+                    aria-hidden="true"
+                  /><PowerOff
+                    v-else-if="row.state === 'apagado'"
+                    class="size-3 text-accent-dark"
+                    aria-hidden="true"
                   />{{ row.state }}</span
                 >
               </td>

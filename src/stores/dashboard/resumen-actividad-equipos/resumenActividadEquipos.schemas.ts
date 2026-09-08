@@ -8,10 +8,12 @@ const activityDaySchema = z.object({
   equipos: z.number(),
   jornadas: z.number(),
   tiempo_total: z.string(),
-  tiempo_efectivo: z.string(),
-  efectividad: z.number(),
-  tiempo_parado: z.string(),
-  porcentaje_parado: z.number(),
+  tiempo_motor_encendido: z.string(),
+  porcentaje_motor_encendido: z.number(),
+  tiempo_motor_apagado: z.string(),
+  porcentaje_motor_apagado: z.number(),
+  tiempo_motor_sin_definir: z.string().default("00:00"),
+  porcentaje_motor_sin_definir: z.number().default(0),
 });
 
 const highlightedDaySchema = z.object({
@@ -19,23 +21,26 @@ const highlightedDaySchema = z.object({
   dia_semana: z.string(),
   equipos: z.number(),
   jornadas: z.number(),
-  tiempo_efectivo: z.string(),
-  efectividad: z.number(),
-  tiempo_parado: z.string(),
-  porcentaje_parado: z.number(),
+  tiempo_motor_encendido: z.string(),
+  porcentaje_motor_encendido: z.number(),
+  tiempo_motor_apagado: z.string(),
+  porcentaje_motor_apagado: z.number(),
+  tiempo_motor_sin_definir: z.string().default("00:00"),
+  porcentaje_motor_sin_definir: z.number().default(0),
 });
 
 const performanceSchema = z.object({
   equipo_numero: z.string(),
-  tiempo_efectivo_segundos: z.number(),
-  tiempo_parado_segundos: z.number(),
+  tiempo_motor_encendido_segundos: z.number(),
+  tiempo_motor_apagado_segundos: z.number(),
+  tiempo_motor_sin_definir_segundos: z.number().default(0),
   tiempo_total_segundos: z.number(),
 });
 
 const jobSchema = z.object({
   labor: z.string(),
   tiempo: z.string(),
-  porcentaje_tiempo_efectivo: z.number(),
+  porcentaje_tiempo_motor_encendido: z.number(),
   jornadas: z.number(),
 });
 
@@ -48,14 +53,17 @@ const stopReasonSchema = z.object({
 
 const equipmentRankingSchema = z.object({
   equipo_numero: z.string(),
-  efectividad: z.number(),
-  porcentaje_parado: z.number().optional(),
-  tiempo_efectivo_segundos: z.number().optional(),
-  tiempo_efectivo: z.string(),
-  tiempo_parado_segundos: z.number().optional(),
-  tiempo_parado: z.string(),
-  tiempo_total_segundos: z.number().optional(),
-  tiempo_total: z.string().optional(),
+  porcentaje_motor_encendido: z.number(),
+  porcentaje_motor_apagado: z.number(),
+  porcentaje_motor_sin_definir: z.number().default(0),
+  tiempo_motor_encendido_segundos: z.number(),
+  tiempo_motor_encendido: z.string(),
+  tiempo_motor_apagado_segundos: z.number(),
+  tiempo_motor_apagado: z.string(),
+  tiempo_motor_sin_definir_segundos: z.number().default(0),
+  tiempo_motor_sin_definir: z.string().default("00:00"),
+  tiempo_total_segundos: z.number(),
+  tiempo_total: z.string(),
   jornadas: z.number().optional(),
   cumple_minimo_horas: z.boolean().optional(),
   indice_ranking: z.number().optional(),
@@ -63,9 +71,13 @@ const equipmentRankingSchema = z.object({
 
 const operatorSchema = z.object({
   operador: z.string(),
-  efectividad: z.number(),
-  tiempo_efectivo: z.string(),
-  tiempo_parado: z.string(),
+  porcentaje_motor_encendido: z.number(),
+  porcentaje_motor_apagado: z.number(),
+  porcentaje_motor_sin_definir: z.number().default(0),
+  tiempo_motor_encendido: z.string(),
+  tiempo_motor_apagado: z.string(),
+  tiempo_motor_sin_definir: z.string().default("00:00"),
+  tiempo_total: z.string(),
 });
 
 export const activityTeamsReportSchema = z.object({
@@ -80,12 +92,15 @@ export const activityTeamsReportSchema = z.object({
       jornadas: z.number(),
       tiempo_total_segundos: z.number(),
       tiempo_total: z.string(),
-      tiempo_efectivo_segundos: z.number(),
-      tiempo_efectivo: z.string(),
-      efectividad: z.number(),
-      tiempo_parado_segundos: z.number(),
-      tiempo_parado: z.string(),
-      porcentaje_parado: z.number(),
+      tiempo_motor_encendido_segundos: z.number(),
+      tiempo_motor_encendido: z.string(),
+      porcentaje_motor_encendido: z.number(),
+      tiempo_motor_apagado_segundos: z.number(),
+      tiempo_motor_apagado: z.string(),
+      porcentaje_motor_apagado: z.number(),
+      tiempo_motor_sin_definir_segundos: z.number(),
+      tiempo_motor_sin_definir: z.string(),
+      porcentaje_motor_sin_definir: z.number(),
     }),
     mejor_dia: highlightedDaySchema.nullable(),
     peor_dia: highlightedDaySchema.nullable(),

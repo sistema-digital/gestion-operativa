@@ -36,30 +36,35 @@ export const useActivityTeamsSummaryStore = defineStore(
       const grouped = new Map<
         string,
         {
-          effectiveSeconds: number;
-          stoppedSeconds: number;
+          engineOnSeconds: number;
+          engineOffSeconds: number;
+          engineUndefinedSeconds: number;
           totalSeconds: number;
         }
       >();
       report.value.equipmentPerformance.forEach((performance) => {
         const type = performance.type ?? "Sin tipo";
         const current = grouped.get(type) ?? {
-          effectiveSeconds: 0,
-          stoppedSeconds: 0,
+          engineOnSeconds: 0,
+          engineOffSeconds: 0,
+          engineUndefinedSeconds: 0,
           totalSeconds: 0,
         };
         grouped.set(type, {
-          effectiveSeconds:
-            current.effectiveSeconds + performance.effectiveSeconds,
-          stoppedSeconds: current.stoppedSeconds + performance.stoppedSeconds,
+          engineOnSeconds:
+            current.engineOnSeconds + performance.engineOnSeconds,
+          engineOffSeconds:
+            current.engineOffSeconds + performance.engineOffSeconds,
+          engineUndefinedSeconds:
+            current.engineUndefinedSeconds + performance.engineUndefinedSeconds,
           totalSeconds: current.totalSeconds + performance.totalSeconds,
         });
       });
       return [...grouped.entries()].map(([label, metrics]) => ({
         label,
-        value: `${metrics.totalSeconds ? ((metrics.effectiveSeconds / metrics.totalSeconds) * 100).toFixed(1) : "0.0"}%`,
+        value: `${metrics.totalSeconds ? ((metrics.engineOnSeconds / metrics.totalSeconds) * 100).toFixed(1) : "0.0"}%`,
         percentage: metrics.totalSeconds
-          ? (metrics.effectiveSeconds / metrics.totalSeconds) * 100
+          ? (metrics.engineOnSeconds / metrics.totalSeconds) * 100
           : 0,
         secondary: null,
       }));

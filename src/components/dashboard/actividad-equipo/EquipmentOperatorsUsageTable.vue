@@ -44,12 +44,12 @@ function select(operatorId: string): void {
               <th
                 class="w-[78px] border-b border-gray-100 p-1.5 text-right font-bold"
               >
-                Trabajando
+                Encendido
               </th>
               <th
                 class="w-[68px] border-b border-gray-100 p-1.5 text-right font-bold"
               >
-                Parado
+                Apagado
               </th>
               <th class="w-[145px] border-b border-gray-100 p-1.5 font-bold">
                 % uso
@@ -82,10 +82,10 @@ function select(operatorId: string): void {
               </td>
               <td class="p-1.5 text-right tabular-nums">{{ row.totalTime }}</td>
               <td class="p-1.5 text-right tabular-nums">
-                {{ row.workingTime ?? "—" }}
+                {{ row.engineOnTime }}
               </td>
               <td class="p-1.5 text-right tabular-nums">
-                {{ row.stoppedTime ?? "—" }}
+                {{ row.engineOffTime }}
               </td>
               <td class="p-1.5">
                 <EquipmentSummaryPercentBar

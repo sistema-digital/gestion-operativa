@@ -173,7 +173,7 @@ describe("reporteEquipos schemas", () => {
     expect(result.success).toBe(false);
   });
 
-  it("mapea operadores y mantiene los campos nulos de la tabla", () => {
+  it("mapea los tres estados del motor de cada operador", () => {
     const operators = mapEquipmentOperators(
       equipmentOperatorsSchema.parse({
         equipo_numero: "484091",
@@ -191,10 +191,15 @@ describe("reporteEquipos schemas", () => {
             jornadas: null,
             tiempo_total_segundos: 600,
             tiempo_total: "00:10",
-            tiempo_trabajando_segundos: null,
-            tiempo_trabajando: null,
-            tiempo_parado_segundos: null,
-            tiempo_parado: null,
+            tiempo_motor_encendido_segundos: 360,
+            tiempo_motor_encendido: "00:06",
+            porcentaje_motor_encendido: 60,
+            tiempo_motor_apagado_segundos: 180,
+            tiempo_motor_apagado: "00:03",
+            porcentaje_motor_apagado: 30,
+            tiempo_motor_sin_definir_segundos: 60,
+            tiempo_motor_sin_definir: "00:01",
+            porcentaje_motor_sin_definir: 10,
             porcentaje_uso: 100,
             primera_actividad: null,
             ultima_actividad: null,
@@ -205,8 +210,9 @@ describe("reporteEquipos schemas", () => {
     expect(operators.metrics.topParticipation).toBeNull();
     expect(operators.operators[0]).toMatchObject({
       journeys: null,
-      workingTime: null,
-      stoppedTime: null,
+      engineOnTime: "00:06",
+      engineOffTime: "00:03",
+      engineUndefinedTime: "00:01",
     });
   });
 
@@ -219,10 +225,15 @@ describe("reporteEquipos schemas", () => {
           jornadas: 1,
           tiempo_total_segundos: 600,
           tiempo_total: "00:10",
-          tiempo_trabajando_segundos: 480,
-          tiempo_trabajando: "00:08",
-          tiempo_parado_segundos: 120,
-          tiempo_parado: "00:02",
+          tiempo_motor_encendido_segundos: 480,
+          tiempo_motor_encendido: "00:08",
+          porcentaje_motor_encendido: 80,
+          tiempo_motor_apagado_segundos: 120,
+          tiempo_motor_apagado: "00:02",
+          porcentaje_motor_apagado: 20,
+          tiempo_motor_sin_definir_segundos: 0,
+          tiempo_motor_sin_definir: "00:00",
+          porcentaje_motor_sin_definir: 0,
         },
         distribucion_clasificacion: [
           {

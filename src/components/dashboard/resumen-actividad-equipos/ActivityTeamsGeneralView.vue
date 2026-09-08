@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Trophy, Wrench, CircleAlert, Tractor } from "lucide-vue-next";
+import { Power, PowerOff, Tractor, Wrench } from "lucide-vue-next";
 import ActivityTeamsRanking from "./ActivityTeamsRanking.vue";
 import type {
   ActivityTeamsDay,
@@ -25,19 +25,20 @@ defineProps<{
         <p
           class="text-[10px] font-bold uppercase tracking-[0.16em] text-main-dark"
         >
-          Efectividad
+          Motor encendido
         </p>
         <div class="mt-2 flex items-end justify-between gap-3">
-          <strong class="font-mono text-3xl font-black text-main-dark sm:text-4xl"
-            >{{ totals.effectiveness.toFixed(1) }}%</strong
+          <strong
+            class="font-mono text-3xl font-black text-main-dark sm:text-4xl"
+            >{{ totals.engineOnPercentage.toFixed(1) }}%</strong
           ><span class="pb-1 font-mono text-xs text-main-dark"
-            >{{ totals.effectiveTime }} h efectivo</span
+            >{{ totals.engineOnTime }} h</span
           >
         </div>
         <div class="mt-3 h-2 overflow-hidden rounded-full bg-main/10">
           <div
             class="h-full rounded-full bg-main-dark"
-            :style="{ width: `${totals.effectiveness}%` }"
+            :style="{ width: `${totals.engineOnPercentage}%` }"
           />
         </div>
       </article>
@@ -47,19 +48,20 @@ defineProps<{
         <p
           class="text-[10px] font-bold uppercase tracking-[0.16em] text-accent-dark"
         >
-          Tiempo parado
+          Motor apagado
         </p>
         <div class="mt-2 flex items-end justify-between gap-3">
-          <strong class="font-mono text-3xl font-black text-accent-dark sm:text-4xl"
-            >{{ totals.stoppedPercentage.toFixed(1) }}%</strong
+          <strong
+            class="font-mono text-3xl font-black text-accent-dark sm:text-4xl"
+            >{{ totals.engineOffPercentage.toFixed(1) }}%</strong
           ><span class="pb-1 font-mono text-xs text-accent-dark"
-            >{{ totals.stoppedTime }} h</span
+            >{{ totals.engineOffTime }} h</span
           >
         </div>
         <div class="mt-3 h-2 overflow-hidden rounded-full bg-accent/20">
           <div
             class="h-full rounded-full bg-accent-dark"
-            :style="{ width: `${totals.stoppedPercentage}%` }"
+            :style="{ width: `${totals.engineOffPercentage}%` }"
           />
         </div>
       </article>
@@ -85,9 +87,9 @@ defineProps<{
         >
       </article>
       <article class="rounded-lg border border-main/20 bg-main/5 p-3 shadow-sm">
-        <Trophy class="size-4 text-main" aria-hidden="true" /><strong
+        <Power class="size-4 text-main" aria-hidden="true" /><strong
           class="mt-3 block font-mono text-2xl text-main"
-          >{{ bestDay?.effectiveness.toFixed(1) ?? "—" }}%</strong
+          >{{ bestDay?.engineOnPercentage.toFixed(1) ?? "—" }}%</strong
         ><span
           class="mt-1 block text-[10px] font-bold uppercase tracking-wider text-gray-500"
           >Mejor día</span
@@ -98,9 +100,9 @@ defineProps<{
       <article
         class="rounded-lg border border-danger/20 bg-danger/5 p-3 shadow-sm"
       >
-        <CircleAlert class="size-4 text-danger" aria-hidden="true" /><strong
+        <PowerOff class="size-4 text-danger" aria-hidden="true" /><strong
           class="mt-3 block font-mono text-2xl text-danger"
-          >{{ worstDay?.effectiveness.toFixed(1) ?? "—" }}%</strong
+          >{{ worstDay?.engineOnPercentage.toFixed(1) ?? "—" }}%</strong
         ><span
           class="mt-1 block text-[10px] font-bold uppercase tracking-wider text-gray-500"
           >Peor día</span
@@ -112,7 +114,7 @@ defineProps<{
 
     <section class="grid gap-3 lg:grid-cols-2">
       <ActivityTeamsRanking
-        title="Top labores realizadas"
+        title="Top labores"
         :items="topJobs"
         tone="main"
       /><ActivityTeamsRanking
@@ -122,7 +124,7 @@ defineProps<{
       />
     </section>
     <ActivityTeamsRanking
-      title="Rendimiento por tipo de equipo"
+      title="Motor encendido por tipo de equipo"
       :items="typePerformance"
       tone="main"
     />

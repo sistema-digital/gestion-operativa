@@ -24,7 +24,7 @@ function segmentStyle(percentage: number): { flex: string } {
       <h2
         class="mb-3 text-[10px] font-black uppercase tracking-[0.15em] text-main"
       >
-        Actividad diaria · efectivo vs parado
+        Actividad diaria · motor encendido y apagado
       </h2>
       <div v-if="dailyActivity.length" class="space-y-2.5">
         <article
@@ -37,12 +37,15 @@ function segmentStyle(percentage: number): { flex: string } {
             ><span class="text-[10px] text-gray-500">{{ day.date }}</span>
           </div>
           <div class="flex h-5 overflow-hidden rounded-sm bg-main/10">
-            <div class="bg-main" :style="segmentStyle(day.effectiveness)" />
+            <div
+              class="bg-main"
+              :style="segmentStyle(day.engineOnPercentage)"
+            />
           </div>
           <span class="text-right font-mono text-[10px] font-bold text-main"
-            >{{ day.effectiveness.toFixed(1) }}%
+            >{{ day.engineOnPercentage.toFixed(1) }}%
             <span class="text-gray-500"
-              >/ {{ day.stoppedPercentage.toFixed(1) }}%</span
+              >/ {{ day.engineOffPercentage.toFixed(1) }}%</span
             ></span
           >
         </article>
@@ -53,14 +56,14 @@ function segmentStyle(percentage: number): { flex: string } {
     </section>
     <section class="grid gap-3 lg:grid-cols-3">
       <ActivityTeamsRanking
-        title="Mejores equipos"
+        title="Mayor actividad de motor"
         :items="bestEquipment"
       /><ActivityTeamsRanking
-        title="Equipos a revisar"
+        title="Menor actividad de motor"
         :items="worstEquipment"
         tone="danger"
       /><ActivityTeamsRanking
-        title="Operadores por tiempo efectivo"
+        title="Operadores por motor encendido"
         :items="topOperators"
       />
     </section>
