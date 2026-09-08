@@ -38,14 +38,14 @@ const metric = computed(() =>
     ? {
         label: "Efectividad",
         value: effectivenessLabel.value,
-        detail: "Del tiempo registrado",
+        detail: "",
         className:
           "bg-[linear-gradient(135deg,var(--color-main),#004643)] text-white",
       }
     : {
         label: "Paradas",
         value: stoppedLabel.value,
-        detail: "Del tiempo registrado",
+        detail: "",
         className:
           "bg-[linear-gradient(135deg,var(--color-accent),var(--color-accent-dark))] text-white",
       },

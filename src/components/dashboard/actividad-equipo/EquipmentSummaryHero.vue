@@ -43,10 +43,10 @@ const engineMetrics = computed(() => [
 <template>
   <article
     id="equipment-summary-main-card"
-    class="border border-gray-200 bg-white shadow-sm"
+    class="overflow-hidden border border-gray-200 bg-white shadow-sm"
   >
     <div
-      class="grid min-w-0 items-stretch lg:grid-cols-[minmax(0,1.3fr)_minmax(0,2fr)_minmax(0,.8fr)]"
+      class="grid min-w-0 items-stretch lg:grid-cols-[minmax(200px,1fr)_minmax(330px,1.65fr)_minmax(150px,.7fr)]"
     >
       <section
         id="equipment-summary-identity"
@@ -90,13 +90,11 @@ const engineMetrics = computed(() => [
         class="min-w-0 border-y border-gray-200 lg:border-l lg:border-y-0"
         aria-label="Uso del motor"
       >
-        <div
-          class="grid grid-cols-1 divide-y divide-gray-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0"
-        >
+        <div class="grid grid-cols-2 divide-x divide-gray-200">
           <section
             v-for="metric in engineMetrics"
             :key="metric.label"
-            class="flex min-h-[70px] min-w-0 flex-col justify-center px-3 py-2"
+            class="flex min-h-[76px] min-w-0 flex-col justify-center px-3 py-2"
           >
             <div class="flex items-baseline justify-between gap-2">
               <span
