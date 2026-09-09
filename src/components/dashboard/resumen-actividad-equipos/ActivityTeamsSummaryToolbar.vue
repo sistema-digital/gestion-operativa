@@ -33,13 +33,6 @@ function toIsoDate(value: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function getDefaultWeekRange(): DateRange {
-  const endDate = new Date();
-  const startDate = new Date(endDate);
-  startDate.setDate(startDate.getDate() - 6);
-  return [startDate, endDate];
-}
-
 const selectedRange = shallowRef<DateRange>([
   fromIsoDate(props.filters.startDate),
   fromIsoDate(props.filters.endDate),
@@ -59,24 +52,10 @@ function formatRange(value: Date | Date[]): string {
 }
 
 function updateRange(value: Date | Date[] | null): void {
-  if (!Array.isArray(value) || value.length !== 2) {
-    const [startDate, endDate] = getDefaultWeekRange();
-    selectedRange.value = [startDate, endDate];
-    emit("updateDateRange", toIsoDate(startDate), toIsoDate(endDate));
-    return;
-  }
+  if (!Array.isArray(value) || value.length !== 2) return;
 
   const [startDate, endDate] = value;
-  if (!startDate || !endDate) {
-    const [defaultStartDate, defaultEndDate] = getDefaultWeekRange();
-    selectedRange.value = [defaultStartDate, defaultEndDate];
-    emit(
-      "updateDateRange",
-      toIsoDate(defaultStartDate),
-      toIsoDate(defaultEndDate),
-    );
-    return;
-  }
+  if (!startDate || !endDate) return;
 
   selectedRange.value = [startDate, endDate];
   emit("updateDateRange", toIsoDate(startDate), toIsoDate(endDate));
@@ -105,7 +84,7 @@ function updateRange(value: Date | Date[] | null): void {
           <VueDatePicker
             class="min-w-0 flex-1"
             :model-value="selectedRange"
-            range
+            :range="{ partialRange: false }"
             auto-apply
             :enable-time-picker="false"
             :config="{ closeOnAutoApply: false }"
