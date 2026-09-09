@@ -428,20 +428,43 @@ const showSeguimientoReportsHeaderNav = computed(
   () =>
     isSeguimientoReportesRoute.value && seguimientoReportTabs.value.length > 0,
 );
+const DASHBOARD_DESKTOP_OVERFLOW_THRESHOLD = 8;
+const DASHBOARD_DESKTOP_PRIMARY_LIMIT = 6;
+const DASHBOARD_MOBILE_OVERFLOW_THRESHOLD = 5;
+const DASHBOARD_MOBILE_PRIMARY_LIMIT = 3;
 const dashboardPrimarySlides = computed(() => {
   const { slides } = dashboardHeaderNavState;
 
-  return slides.length >= 8 ? slides.slice(0, 6) : slides;
+  return slides.length >= DASHBOARD_DESKTOP_OVERFLOW_THRESHOLD
+    ? slides.slice(0, DASHBOARD_DESKTOP_PRIMARY_LIMIT)
+    : slides;
 });
 const dashboardOverflowSlides = computed(() =>
-  dashboardHeaderNavState.slides.length >= 8
-    ? dashboardHeaderNavState.slides.slice(6)
+  dashboardHeaderNavState.slides.length >= DASHBOARD_DESKTOP_OVERFLOW_THRESHOLD
+    ? dashboardHeaderNavState.slides.slice(DASHBOARD_DESKTOP_PRIMARY_LIMIT)
     : [],
 );
 const isDashboardOverflowSlideActive = computed(
   () =>
     dashboardHeaderNavState.currentSlideIndex >=
     dashboardPrimarySlides.value.length,
+);
+const dashboardMobilePrimarySlides = computed(() => {
+  const { slides } = dashboardHeaderNavState;
+
+  return slides.length >= DASHBOARD_MOBILE_OVERFLOW_THRESHOLD
+    ? slides.slice(0, DASHBOARD_MOBILE_PRIMARY_LIMIT)
+    : slides;
+});
+const dashboardMobileOverflowSlides = computed(() =>
+  dashboardHeaderNavState.slides.length >= DASHBOARD_MOBILE_OVERFLOW_THRESHOLD
+    ? dashboardHeaderNavState.slides.slice(DASHBOARD_MOBILE_PRIMARY_LIMIT)
+    : [],
+);
+const isDashboardMobileOverflowSlideActive = computed(
+  () =>
+    dashboardHeaderNavState.currentSlideIndex >=
+    dashboardMobilePrimarySlides.value.length,
 );
 const mobileTopBarSpacerClass = computed(() =>
   showDashboardHeaderNav.value || showSeguimientoReportsHeaderNav.value
@@ -1283,13 +1306,13 @@ const isActive = (path: string) =>
 
         <div v-if="showDashboardHeaderNav" class="px-4 pb-3">
           <div
-            class="flex items-center gap-1 bg-gray-100 p-1 rounded-xl shadow-inner border border-gray-200/20 overflow-x-auto hide-scrollbar"
+            class="flex items-center justify-center gap-1 overflow-x-auto rounded-xl border border-gray-200/20 bg-gray-100 p-1 shadow-inner hide-scrollbar"
           >
             <button
-              v-for="(slide, index) in dashboardPrimarySlides"
+              v-for="(slide, index) in dashboardMobilePrimarySlides"
               :key="slide.id"
               @click="selectDashboardSlide(index)"
-              class="px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center text-center whitespace-nowrap flex-shrink-0"
+              class="flex flex-shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg px-3 py-1.5 text-center text-[10px] font-bold transition-all"
               :class="
                 index === dashboardHeaderNavState.currentSlideIndex
                   ? 'bg-white text-main shadow-md'
@@ -1299,14 +1322,14 @@ const isActive = (path: string) =>
               {{ slide.label }}
             </button>
             <div
-              v-if="dashboardOverflowSlides.length > 0"
+              v-if="dashboardMobileOverflowSlides.length > 0"
               class="dashboard-overflow-menu relative flex-shrink-0"
             >
               <button
                 type="button"
-                class="flex items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-bold transition-all"
+                class="flex cursor-pointer items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-bold transition-all"
                 :class="
-                  isDashboardOverflowSlideActive
+                  isDashboardMobileOverflowSlideActive
                     ? 'bg-white text-main shadow-md'
                     : 'text-gray-400 hover:text-gray-600'
                 "
@@ -1328,25 +1351,27 @@ const isActive = (path: string) =>
                 class="fixed right-4 top-[112px] z-50 w-52 overflow-hidden rounded-xl border border-gray-100 bg-white py-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-100"
               >
                 <button
-                  v-for="(slide, index) in dashboardOverflowSlides"
+                  v-for="(slide, index) in dashboardMobileOverflowSlides"
                   :key="slide.id"
                   type="button"
                   role="menuitem"
-                  class="flex w-full items-center justify-between px-4 py-2.5 text-left text-xs font-bold transition-colors"
+                  class="flex w-full cursor-pointer items-center justify-between px-4 py-2.5 text-left text-xs font-bold transition-colors"
                   :class="
-                    index + dashboardPrimarySlides.length ===
+                    index + dashboardMobilePrimarySlides.length ===
                     dashboardHeaderNavState.currentSlideIndex
                       ? 'bg-main/5 text-main'
                       : 'text-gray-500 hover:bg-gray-50'
                   "
                   @click="
-                    selectDashboardSlide(index + dashboardPrimarySlides.length)
+                    selectDashboardSlide(
+                      index + dashboardMobilePrimarySlides.length,
+                    )
                   "
                 >
                   {{ slide.label }}
                   <Check
                     v-if="
-                      index + dashboardPrimarySlides.length ===
+                      index + dashboardMobilePrimarySlides.length ===
                       dashboardHeaderNavState.currentSlideIndex
                     "
                     class="size-3.5"
