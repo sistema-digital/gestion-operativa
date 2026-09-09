@@ -65,7 +65,13 @@ const equipmentRankingSchema = z.object({
   tiempo_total_segundos: z.number(),
   tiempo_total: z.string(),
   jornadas: z.number().optional(),
-  cumple_minimo_horas: z.boolean().optional(),
+  tiempo_motor_productivo_segundos: z.number().nonnegative(),
+  tiempo_motor_productivo: z.string(),
+  indice_uso_motor_productivo: z.number().min(0).max(100),
+  dias_activos: z.number().int().nonnegative(),
+  cumple_minimo_horas: z.boolean(),
+  cumple_minimo_dias: z.boolean(),
+  datos_suficientes: z.boolean(),
   indice_ranking: z.number().optional(),
 });
 

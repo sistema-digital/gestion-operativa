@@ -42,11 +42,12 @@ function dayFromResponse(day: {
   };
 }
 
-function rankingSecondary(item: {
-  tiempo_motor_encendido: string;
-  tiempo_motor_apagado: string;
+function productiveRankingSecondary(item: {
+  tiempo_motor_productivo: string;
+  tiempo_total: string;
+  dias_activos: number;
 }): string {
-  return `${item.tiempo_motor_encendido} encendido · ${item.tiempo_motor_apagado} apagado`;
+  return `${item.tiempo_motor_productivo} motor efectivo · ${item.tiempo_total} horas totales · ${item.dias_activos} días activos`;
 }
 
 export const activityTeamsSummaryService = {
@@ -126,25 +127,29 @@ export const activityTeamsSummaryService = {
         totalSeconds: item.tiempo_total_segundos,
       })),
       dailyActivity: actividad_diaria.map(dayFromResponse),
-      bestEquipment: mejores_equipos.map((item) => ({
-        label: item.equipo_numero,
-        value: `${item.porcentaje_motor_encendido.toFixed(1)}%`,
-        percentage: item.porcentaje_motor_encendido,
-        secondary: rankingSecondary(item),
-        supportingMetric: null,
-      })),
-      worstEquipment: peores_equipos.map((item) => ({
-        label: item.equipo_numero,
-        value: `${item.porcentaje_motor_encendido.toFixed(1)}%`,
-        percentage: item.porcentaje_motor_encendido,
-        secondary: rankingSecondary(item),
-        supportingMetric: `${item.porcentaje_motor_apagado.toFixed(1)}% motor apagado`,
-      })),
+      bestEquipment: mejores_equipos
+        .filter((item) => item.datos_suficientes)
+        .map((item) => ({
+          label: item.equipo_numero,
+          value: `${item.indice_uso_motor_productivo.toFixed(1)}%`,
+          percentage: item.indice_uso_motor_productivo,
+          secondary: productiveRankingSecondary(item),
+          supportingMetric: null,
+        })),
+      worstEquipment: peores_equipos
+        .filter((item) => item.datos_suficientes)
+        .map((item) => ({
+          label: item.equipo_numero,
+          value: `${item.indice_uso_motor_productivo.toFixed(1)}%`,
+          percentage: item.indice_uso_motor_productivo,
+          secondary: productiveRankingSecondary(item),
+          supportingMetric: null,
+        })),
       topOperators: top_operadores.map((item) => ({
         label: item.operador,
-        value: item.tiempo_motor_encendido,
+        value: `${item.porcentaje_motor_encendido.toFixed(1)}%`,
         percentage: item.porcentaje_motor_encendido,
-        secondary: `${item.porcentaje_motor_encendido.toFixed(1)}% encendido · ${item.tiempo_motor_apagado} apagado`,
+        secondary: `${item.tiempo_motor_encendido} motor encendido`,
         supportingMetric: null,
       })),
     };

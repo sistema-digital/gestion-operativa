@@ -56,10 +56,10 @@ function segmentStyle(percentage: number): { flex: string } {
     </section>
     <section class="grid gap-3 lg:grid-cols-3">
       <ActivityTeamsRanking
-        title="Mayor actividad de motor"
+        title="Mayor uso productivo del motor"
         :items="bestEquipment"
       /><ActivityTeamsRanking
-        title="Menor actividad de motor"
+        title="Menor uso productivo del motor"
         :items="worstEquipment"
         tone="danger"
       /><ActivityTeamsRanking
