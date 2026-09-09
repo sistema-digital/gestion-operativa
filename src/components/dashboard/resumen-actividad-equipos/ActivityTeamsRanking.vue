@@ -16,7 +16,9 @@ function barWidth(percentage: number): string {
 </script>
 
 <template>
-  <section class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+  <section
+    class="min-w-0 rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+  >
     <h2
       class="mb-3 text-[10px] font-black uppercase tracking-[0.15em] text-main"
     >
@@ -60,16 +62,15 @@ function barWidth(percentage: number): string {
             :style="{ width: barWidth(item.percentage) }"
           />
         </div>
-        <p v-if="item.secondary" class="ml-5 mt-1 text-[10px] text-gray-500">
-          {{ item.secondary }} 
-          <strong
-          v-if="item.supportingMetric"
-          class="uppercase tracking-wide "
+        <p
+          v-if="item.secondary"
+          class="ml-5 mt-1 break-words text-[10px] text-gray-500"
         >
-          {{ item.supportingMetric }}
-        </strong>
+          {{ item.secondary }}
+          <strong v-if="item.supportingMetric" class="uppercase tracking-wide">
+            {{ item.supportingMetric }}
+          </strong>
         </p>
-        
       </li>
     </ol>
     <p v-else class="py-4 text-center text-xs text-gray-500">
