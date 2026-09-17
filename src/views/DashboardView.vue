@@ -13,6 +13,7 @@ import SlideResumenActividadEquipos from "@/components/dashboard/SlideResumenAct
 import SlideCalificaciones from "@/components/dashboard/SlideCalificaciones.vue";
 import SlideProductividadSemanal from "@/components/dashboard/SlideProductividadSemanal.vue";
 import SlideActividadEquipo from "@/components/dashboard/SlideActividadEquipo.vue";
+import ModuleAccessFallback from "@/components/ModuleAccessFallback.vue";
 import { useDashboardHeaderNav } from "@/composables/useDashboardHeaderNav";
 import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 
@@ -245,5 +246,6 @@ onUnmounted(() => {
         class="h-10 w-full flex-shrink-0 lg:hidden"
       ></div>
     </div>
+    <ModuleAccessFallback v-else-if="!isLoading" />
   </div>
 </template>
