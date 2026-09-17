@@ -3,8 +3,9 @@ import {
   createWebHashHistory,
   type RouteLocationNormalized,
 } from "vue-router";
-import { supabase } from "@/lib/supabase";
 import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
+import { useNavigationLoaderStore } from "@/stores/navigationLoader.store";
+import { useSessionValidationStore } from "@/stores/sessionValidation.store";
 import {
   SEGUIMIENTO_FEATURES,
   SEGUIMIENTO_TASK_ROUTE_FEATURES,
@@ -295,31 +296,34 @@ const router = createRouter({
 });
 
 // Navigation guard for Supabase auth and feature-based module access.
-router.beforeEach(async (to) => {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const isAuthenticated = !!session;
+router.beforeEach(async (to, from) => {
+  const navigationLoaderStore = useNavigationLoaderStore();
+  const sessionValidationStore = useSessionValidationStore();
+  const isModuleNavigation =
+    to.name !== "Login" && to.fullPath !== from.fullPath;
 
-  if (to.name !== "Login" && !isAuthenticated) {
-    return { name: "Login" };
+  if (isModuleNavigation) {
+    navigationLoaderStore.start();
   }
 
-  if (to.name === "Login" && isAuthenticated) {
-    return { name: "HomeRedirect" };
-  }
-
-  if (!isAuthenticated) {
+  if (to.name === "Login") {
+    sessionValidationStore.clearPendingProtectedPath();
     return true;
   }
 
-  const featureAccessStore = useFeatureAccessStore();
+  sessionValidationStore.setPendingProtectedPath(to.fullPath);
+  const sessionStatus = await sessionValidationStore.validateSession();
 
-  try {
-    await featureAccessStore.cargarFuncionalidadesPermitidas();
-  } catch {
-    return to.name === "Profile" ? true : { name: "Profile" };
+  if (sessionStatus === "sin_sesion") {
+    sessionValidationStore.clearPendingProtectedPath();
+    return { name: "Login" };
   }
+
+  if (sessionStatus !== "autorizado") {
+    return false;
+  }
+
+  const featureAccessStore = useFeatureAccessStore();
 
   const firstAllowedModule = moduleHomeRoutes.find((route) => {
     const hasRequiredFeatures = (route.requiredFeatures ?? []).every(
@@ -355,6 +359,14 @@ router.beforeEach(async (to) => {
   }
 
   return true;
+});
+
+router.afterEach(() => {
+  useNavigationLoaderStore().finish();
+});
+
+router.onError(() => {
+  useNavigationLoaderStore().reportLoadError();
 });
 
 export default router;
