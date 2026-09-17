@@ -2,8 +2,7 @@ export type MaintenanceTabDefinition = {
   id: string;
   label: string;
   mobileLabel?: string;
-  adminOnly?: boolean;
-  requiredFeature?: string;
+  requiredFeature: string;
 };
 
 export const maintenanceTabDefinitions: readonly MaintenanceTabDefinition[] = [
@@ -11,30 +10,34 @@ export const maintenanceTabDefinitions: readonly MaintenanceTabDefinition[] = [
     id: "ordenes",
     label: "Ordenes De Mantenimiento",
     mobileLabel: "Orden Man.",
+    requiredFeature: "module_mantenimiento",
   },
   {
     id: "servicios_generales",
     label: "Servicios Generales",
     mobileLabel: "S. Generales",
+    requiredFeature: "mantenimiento.ver_servicios_generales",
   },
   {
     id: "horas_asignadas",
     label: "Horas Asignadas",
     mobileLabel: "Hrs. Asignadas",
+    requiredFeature: "mantenimiento.ver_horas_asignadas",
   },
   {
     id: "definiciones_etapas",
     label: "Definiciones de Etapas",
+    requiredFeature: "mantenimiento.ver_definiciones_etapas",
   },
   {
     id: "metricas",
     label: "Métricas",
-    adminOnly: true,
+    requiredFeature: "mantenimiento.ver_metricas",
   },
   {
     id: "actualizaciones",
     label: "Actualizaciones",
-    adminOnly: true,
+    requiredFeature: "mantenimiento.ver_actualizaciones",
   },
   {
     id: "indicadores",
@@ -60,27 +63,16 @@ export const maintenanceTabDefinitions: readonly MaintenanceTabDefinition[] = [
 ];
 
 type FilterMaintenanceTabsOptions = {
-  area: string;
   isFeatureAccessLoaded: boolean;
   hasFeatureAccess: (feature: string) => boolean;
 };
 
 export const filterMaintenanceTabs = ({
-  area,
   isFeatureAccessLoaded,
   hasFeatureAccess,
 }: FilterMaintenanceTabsOptions): MaintenanceTabDefinition[] =>
-  maintenanceTabDefinitions.filter((tab) => {
-    if (area === "SERVICIOS GENERALES" && tab.id === "ordenes") {
-      return false;
-    }
-
-    if (area !== "ALL" && tab.adminOnly) {
-      return false;
-    }
-
-    return (
-      !tab.requiredFeature ||
-      (isFeatureAccessLoaded && hasFeatureAccess(tab.requiredFeature))
-    );
-  });
+  isFeatureAccessLoaded
+    ? maintenanceTabDefinitions.filter((tab) =>
+        hasFeatureAccess(tab.requiredFeature),
+      )
+    : [];

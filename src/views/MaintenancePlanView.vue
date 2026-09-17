@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from "vue";
+import { computed, shallowRef, watch } from "vue";
 import type { Component } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Loader2 } from "lucide-vue-next";
-import { supabase } from "@/lib/supabase";
 
 // Maintenance Slides
 import MaintSlideOrders from "@/components/maintenance/MaintSlideOrders.vue";
@@ -43,13 +42,11 @@ const slideComponents: Record<string, Component> = {
   servicios_generales_analitica: SlideServiciosGenerales,
 };
 
-const isLoading = ref(true);
-const userArea = ref("");
-const activeSlideId = ref("");
+const isLoading = computed(() => !isFeatureAccessLoaded.value);
+const activeSlideId = shallowRef("");
 
 const filteredSlides = computed(() => {
   const tabs = filterMaintenanceTabs({
-    area: userArea.value,
     isFeatureAccessLoaded: isFeatureAccessLoaded.value,
     hasFeatureAccess: featureAccessStore.tieneFuncionalidad,
   });
@@ -107,28 +104,6 @@ const setInitialSlide = () => {
   activeSlideId.value = firstAvailableSlide;
 };
 
-onMounted(async () => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user && user.email) {
-    const { data } = await supabase
-      .from("PROFILE")
-      .select("area")
-      .eq("email", user.email)
-      .maybeSingle();
-    userArea.value = data?.area?.toUpperCase() || "";
-  }
-
-  isLoading.value = false;
-  setInitialSlide();
-  if (activeSlideId.value) {
-    syncRouteWithSlide(activeSlideId.value).catch((error) => {
-      console.error("Error sincronizando tab de mantenimiento:", error);
-    });
-  }
-});
-
 watch(
   filteredSlides,
   (slides) => {
@@ -139,6 +114,11 @@ watch(
 
     if (!slides.some((slide) => slide.id === activeSlideId.value)) {
       setInitialSlide();
+      if (activeSlideId.value) {
+        void syncRouteWithSlide(activeSlideId.value).catch((error) => {
+          console.error("Error sincronizando tab de mantenimiento:", error);
+        });
+      }
     }
   },
   { immediate: true },

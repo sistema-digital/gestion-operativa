@@ -438,7 +438,6 @@ const DASHBOARD_MOBILE_OVERFLOW_THRESHOLD = 5;
 const DASHBOARD_MOBILE_PRIMARY_LIMIT = 3;
 const maintenanceTabs = computed(() =>
   filterMaintenanceTabs({
-    area: userProfile.value?.area?.toUpperCase() || "",
     isFeatureAccessLoaded: isFeatureAccessLoaded.value,
     hasFeatureAccess: featureAccessStore.tieneFuncionalidad,
   }),
