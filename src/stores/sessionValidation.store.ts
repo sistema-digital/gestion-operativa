@@ -51,6 +51,11 @@ export const useSessionValidationStore = defineStore("sessionValidation", {
       this.pendingProtectedPath = null;
     },
 
+    reset(): void {
+      this.pendingProtectedPath = null;
+      this.status = "idle";
+    },
+
     setPendingProtectedPath(path: string): void {
       this.pendingProtectedPath = path;
     },

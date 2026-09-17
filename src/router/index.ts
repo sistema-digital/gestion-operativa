@@ -307,7 +307,7 @@ router.beforeEach(async (to, from) => {
   }
 
   if (to.name === "Login") {
-    sessionValidationStore.clearPendingProtectedPath();
+    sessionValidationStore.reset();
     return true;
   }
 
