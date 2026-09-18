@@ -25,6 +25,10 @@ import { useAceitesCatalogoStore } from "@/stores/dbequipos/engrase/catalogo/ace
 import { useSistemasCatalogoStore } from "@/stores/dbequipos/engrase/catalogo/sistemasCatalogo.store";
 import { useDashboardHeaderNav } from "@/composables/useDashboardHeaderNav";
 import { useCatalogoEngrasePermissions } from "@/composables/engrase/catalogo/useCatalogoEngrasePermissions";
+import {
+  filterMaintenanceTabs,
+  type MaintenanceTabDefinition,
+} from "@/maintenance/maintenanceTabs";
 import { SEGUIMIENTO_FEATURES } from "@/seguimiento/shared/seguimiento.permissions";
 import {
   BarChart3,
@@ -65,6 +69,7 @@ const sidebarTooltipLabel = shallowRef<string | null>(null);
 const sidebarTooltipTop = shallowRef(0);
 const isPreparingSolicitudCompraCreate = ref(false);
 const isDashboardOverflowMenuOpen = shallowRef(false);
+const isMaintenanceOverflowMenuOpen = shallowRef(false);
 const isProfileMenuOpen = shallowRef(false);
 const { dashboardHeaderNavState, selectDashboardHeaderSlide } =
   useDashboardHeaderNav();
@@ -416,6 +421,9 @@ const isSolicitudCompraCreateRoute = computed(
   () => route.name === "SolicitudCompraCrear",
 );
 const isDashboardRoute = computed(() => route.path.startsWith("/dashboard"));
+const isMaintenanceRoute = computed(() =>
+  route.path.startsWith("/mantenimiento"),
+);
 const isCalificacionesRoute = computed(() =>
   route.path.startsWith("/calificaciones"),
 );
@@ -424,14 +432,61 @@ const showDashboardHeaderNav = computed(
     (isDashboardRoute.value || isCalificacionesRoute.value) &&
     dashboardHeaderNavState.isVisible,
 );
-const showSeguimientoReportsHeaderNav = computed(
-  () =>
-    isSeguimientoReportesRoute.value && seguimientoReportTabs.value.length > 0,
-);
 const DASHBOARD_DESKTOP_OVERFLOW_THRESHOLD = 8;
 const DASHBOARD_DESKTOP_PRIMARY_LIMIT = 6;
 const DASHBOARD_MOBILE_OVERFLOW_THRESHOLD = 5;
 const DASHBOARD_MOBILE_PRIMARY_LIMIT = 3;
+const maintenanceTabs = computed(() =>
+  filterMaintenanceTabs({
+    isFeatureAccessLoaded: isFeatureAccessLoaded.value,
+    hasFeatureAccess: featureAccessStore.tieneFuncionalidad,
+  }),
+);
+const showMaintenanceHeaderNav = computed(
+  () => isMaintenanceRoute.value && maintenanceTabs.value.length > 0,
+);
+const maintenancePrimaryTabs = computed(() =>
+  maintenanceTabs.value.length >= DASHBOARD_DESKTOP_OVERFLOW_THRESHOLD
+    ? maintenanceTabs.value.slice(0, DASHBOARD_DESKTOP_PRIMARY_LIMIT)
+    : maintenanceTabs.value,
+);
+const maintenanceOverflowTabs = computed(() =>
+  maintenanceTabs.value.length >= DASHBOARD_DESKTOP_OVERFLOW_THRESHOLD
+    ? maintenanceTabs.value.slice(DASHBOARD_DESKTOP_PRIMARY_LIMIT)
+    : [],
+);
+const maintenanceMobilePrimaryTabs = computed(() =>
+  maintenanceTabs.value.length >= DASHBOARD_MOBILE_OVERFLOW_THRESHOLD
+    ? maintenanceTabs.value.slice(0, DASHBOARD_MOBILE_PRIMARY_LIMIT)
+    : maintenanceTabs.value,
+);
+const maintenanceMobileOverflowTabs = computed(() =>
+  maintenanceTabs.value.length >= DASHBOARD_MOBILE_OVERFLOW_THRESHOLD
+    ? maintenanceTabs.value.slice(DASHBOARD_MOBILE_PRIMARY_LIMIT)
+    : [],
+);
+const activeMaintenanceTabId = computed(() => {
+  const requestedTab = route.query.maint_slide;
+  const requestedTabId = typeof requestedTab === "string" ? requestedTab : "";
+
+  return maintenanceTabs.value.some((tab) => tab.id === requestedTabId)
+    ? requestedTabId
+    : maintenanceTabs.value[0]?.id || "";
+});
+const isMaintenanceOverflowTabActive = computed(() =>
+  maintenanceOverflowTabs.value.some(
+    (tab) => tab.id === activeMaintenanceTabId.value,
+  ),
+);
+const isMaintenanceMobileOverflowTabActive = computed(() =>
+  maintenanceMobileOverflowTabs.value.some(
+    (tab) => tab.id === activeMaintenanceTabId.value,
+  ),
+);
+const showSeguimientoReportsHeaderNav = computed(
+  () =>
+    isSeguimientoReportesRoute.value && seguimientoReportTabs.value.length > 0,
+);
 const dashboardPrimarySlides = computed(() => {
   const { slides } = dashboardHeaderNavState;
 
@@ -467,7 +522,9 @@ const isDashboardMobileOverflowSlideActive = computed(
     dashboardMobilePrimarySlides.value.length,
 );
 const mobileTopBarSpacerClass = computed(() =>
-  showDashboardHeaderNav.value || showSeguimientoReportsHeaderNav.value
+  showDashboardHeaderNav.value ||
+  showMaintenanceHeaderNav.value ||
+  showSeguimientoReportsHeaderNav.value
     ? "h-[124px]"
     : "h-[68px]",
 );
@@ -521,6 +578,19 @@ const selectDashboardSlide = (index: number): void => {
   selectDashboardHeaderSlide(index);
 };
 
+const selectMaintenanceTab = (tab: MaintenanceTabDefinition): void => {
+  isMaintenanceOverflowMenuOpen.value = false;
+
+  if (tab.id === activeMaintenanceTabId.value) return;
+
+  void router.replace({
+    query: {
+      ...route.query,
+      maint_slide: tab.id,
+    },
+  });
+};
+
 const closeDashboardOverflowMenu = (event: MouseEvent): void => {
   const target = event.target;
 
@@ -529,6 +599,13 @@ const closeDashboardOverflowMenu = (event: MouseEvent): void => {
     !target.closest(".dashboard-overflow-menu")
   ) {
     isDashboardOverflowMenuOpen.value = false;
+  }
+
+  if (
+    target instanceof Element &&
+    !target.closest(".maintenance-overflow-menu")
+  ) {
+    isMaintenanceOverflowMenuOpen.value = false;
   }
 };
 
@@ -688,7 +765,7 @@ const isActive = (path: string) =>
     <aside
       v-if="!hideDefaultLayout"
       id="desktop-sidebar-container"
-      class="hidden lg:flex flex-col bg-main-dark text-white transition-[width,padding] duration-300 relative z-20 overflow-visible"
+      class="hidden lg:flex flex-col bg-main-dark text-white transition-[width,padding] duration-300 relative z-[60] overflow-visible"
       :class="isSidebarOpen ? 'w-56 p-5' : 'w-14 p-2'"
     >
       <div
@@ -797,7 +874,7 @@ const isActive = (path: string) =>
                     ? 'bg-main text-accent'
                     : 'text-gray-400 hover:bg-main hover:text-white',
                 ]"
-                @click="toggleDesktopNavigationGroup('engrase', $event)"
+                @click.stop="toggleDesktopNavigationGroup('engrase', $event)"
                 :aria-expanded="engraseDesktopOpen"
               >
                 <Droplets class="w-5 h-5 flex-shrink-0" /><span
@@ -858,7 +935,9 @@ const isActive = (path: string) =>
                     ? 'bg-main text-accent'
                     : 'text-gray-400 hover:bg-main hover:text-white',
                 ]"
-                @click="toggleDesktopNavigationGroup('seguimiento', $event)"
+                @click.stop="
+                  toggleDesktopNavigationGroup('seguimiento', $event)
+                "
                 :aria-expanded="seguimientoDesktopOpen"
               >
                 <MapPinned class="w-5 h-5 flex-shrink-0" /><span
@@ -986,6 +1065,7 @@ const isActive = (path: string) =>
         v-if="!isSidebarOpen && desktopFloatingGroup"
         class="desktop-navigation-group absolute left-full z-50 ml-3 w-52 rounded-xl border border-white/10 bg-main-dark p-2 shadow-2xl"
         :style="{ top: `${desktopFloatingPanelTop}px` }"
+        @click.stop
       >
         <p
           class="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-second-deep"
@@ -1138,6 +1218,78 @@ const isActive = (path: string) =>
             </div>
           </div>
         </div>
+
+        <nav
+          v-else-if="showMaintenanceHeaderNav"
+          class="flex min-w-0 max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-gray-200/20 bg-gray-100 p-1 shadow-inner hide-scrollbar"
+          aria-label="Pestañas de mantenimiento"
+        >
+          <button
+            v-for="tab in maintenancePrimaryTabs"
+            :key="tab.id"
+            type="button"
+            class="cursor-pointer whitespace-nowrap rounded-lg px-4 py-1.5 text-center text-[11px] font-bold transition-all"
+            :class="
+              tab.id === activeMaintenanceTabId
+                ? 'bg-white text-main shadow-md'
+                : 'text-gray-400 hover:text-gray-600'
+            "
+            :aria-pressed="tab.id === activeMaintenanceTabId"
+            @click="selectMaintenanceTab(tab)"
+          >
+            {{ tab.label }}
+          </button>
+          <div
+            v-if="maintenanceOverflowTabs.length > 0"
+            class="maintenance-overflow-menu relative"
+          >
+            <button
+              type="button"
+              class="flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg px-4 py-1.5 text-center text-[11px] font-bold transition-all"
+              :class="
+                isMaintenanceOverflowTabActive
+                  ? 'bg-white text-main shadow-md'
+                  : 'text-gray-400 hover:text-gray-600'
+              "
+              :aria-expanded="isMaintenanceOverflowMenuOpen"
+              aria-haspopup="menu"
+              @click.stop="
+                isMaintenanceOverflowMenuOpen = !isMaintenanceOverflowMenuOpen
+              "
+            >
+              Ver más
+              <ChevronDown
+                class="size-3 transition-transform"
+                :class="isMaintenanceOverflowMenuOpen ? 'rotate-180' : ''"
+              />
+            </button>
+            <div
+              v-if="isMaintenanceOverflowMenuOpen"
+              role="menu"
+              class="fixed right-38 top-11 z-50 w-56 overflow-hidden rounded-xl border border-gray-100 bg-white py-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-100"
+            >
+              <button
+                v-for="tab in maintenanceOverflowTabs"
+                :key="tab.id"
+                type="button"
+                role="menuitem"
+                class="flex w-full cursor-pointer items-center justify-between px-4 py-2.5 text-left text-xs font-bold transition-colors"
+                :class="
+                  tab.id === activeMaintenanceTabId
+                    ? 'bg-main/5 text-main'
+                    : 'text-gray-500 hover:bg-gray-50'
+                "
+                @click="selectMaintenanceTab(tab)"
+              >
+                {{ tab.label }}
+                <Check
+                  v-if="tab.id === activeMaintenanceTabId"
+                  class="size-3.5"
+                />
+              </button>
+            </div>
+          </div>
+        </nav>
 
         <nav
           v-else-if="showSeguimientoReportsHeaderNav"
@@ -1374,6 +1526,77 @@ const isActive = (path: string) =>
                       index + dashboardMobilePrimarySlides.length ===
                       dashboardHeaderNavState.currentSlideIndex
                     "
+                    class="size-3.5"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else-if="showMaintenanceHeaderNav" class="px-4 pb-3">
+          <div
+            class="flex items-center justify-center gap-1 overflow-x-auto rounded-xl border border-gray-200/20 bg-gray-100 p-1 shadow-inner hide-scrollbar"
+          >
+            <button
+              v-for="tab in maintenanceMobilePrimaryTabs"
+              :key="tab.id"
+              type="button"
+              class="flex flex-shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg px-3 py-1.5 text-center text-[10px] font-bold transition-all"
+              :class="
+                tab.id === activeMaintenanceTabId
+                  ? 'bg-white text-main shadow-md'
+                  : 'text-gray-400 hover:text-gray-600'
+              "
+              :aria-pressed="tab.id === activeMaintenanceTabId"
+              @click="selectMaintenanceTab(tab)"
+            >
+              {{ tab.mobileLabel || tab.label }}
+            </button>
+            <div
+              v-if="maintenanceMobileOverflowTabs.length > 0"
+              class="maintenance-overflow-menu relative flex-shrink-0"
+            >
+              <button
+                type="button"
+                class="flex cursor-pointer items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-bold transition-all"
+                :class="
+                  isMaintenanceMobileOverflowTabActive
+                    ? 'bg-white text-main shadow-md'
+                    : 'text-gray-400 hover:text-gray-600'
+                "
+                :aria-expanded="isMaintenanceOverflowMenuOpen"
+                aria-haspopup="menu"
+                @click.stop="
+                  isMaintenanceOverflowMenuOpen = !isMaintenanceOverflowMenuOpen
+                "
+              >
+                Ver más
+                <ChevronDown
+                  class="size-3 transition-transform"
+                  :class="isMaintenanceOverflowMenuOpen ? 'rotate-180' : ''"
+                />
+              </button>
+              <div
+                v-if="isMaintenanceOverflowMenuOpen"
+                role="menu"
+                class="fixed right-4 top-[112px] z-50 w-52 overflow-hidden rounded-xl border border-gray-100 bg-white py-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-100"
+              >
+                <button
+                  v-for="tab in maintenanceMobileOverflowTabs"
+                  :key="tab.id"
+                  type="button"
+                  role="menuitem"
+                  class="flex w-full cursor-pointer items-center justify-between px-4 py-2.5 text-left text-xs font-bold transition-colors"
+                  :class="
+                    tab.id === activeMaintenanceTabId
+                      ? 'bg-main/5 text-main'
+                      : 'text-gray-500 hover:bg-gray-50'
+                  "
+                  @click="selectMaintenanceTab(tab)"
+                >
+                  {{ tab.label }}
+                  <Check
+                    v-if="tab.id === activeMaintenanceTabId"
                     class="size-3.5"
                   />
                 </button>

@@ -32,6 +32,7 @@ import BaseToggle from "@/components/BaseToggle.vue";
 import BaseRow from "@/components/BaseRow.vue";
 import BaseButton from "@/components/BaseButton.vue";
 import SlideCalificaciones from "@/components/dashboard/SlideCalificaciones.vue";
+import ModuleAccessFallback from "@/components/ModuleAccessFallback.vue";
 import { useDashboardHeaderNav } from "@/composables/useDashboardHeaderNav";
 import MeetingBatchPanel from "@/components/ratings/MeetingBatchPanel.vue";
 import SupervisorOtCompliancePanel from "@/components/ratings/SupervisorOtCompliancePanel.vue";
@@ -169,19 +170,30 @@ const { syncDashboardHeaderNav, clearDashboardHeaderNav } =
 
 type RatingsTab = "formulario" | "dashboard";
 
-const canViewRatingsForm = computed(
+const canAccessRatingsModule = computed(
   () =>
     isFeatureAccessLoaded.value &&
     featureAccessStore.tieneFuncionalidad("module_calificaciones"),
+);
+const canViewRatingsForm = computed(
+  () =>
+    isFeatureAccessLoaded.value &&
+    featureAccessStore.tieneFuncionalidad("calificaciones.calificar"),
 );
 const canViewRatingsDashboard = computed(
   () =>
     isFeatureAccessLoaded.value &&
     featureAccessStore.tieneFuncionalidad("ver_dashboard_calificaciones"),
 );
-const activeRatingsTab = shallowRef<RatingsTab>("formulario");
+const activeRatingsTab = shallowRef<RatingsTab | null>(null);
 const isDashboardTabActive = computed(
   () => activeRatingsTab.value === "dashboard",
+);
+const shouldShowModuleAccessMessage = computed(
+  () =>
+    canAccessRatingsModule.value &&
+    !canViewRatingsForm.value &&
+    !canViewRatingsDashboard.value,
 );
 const ratingsHeaderTabs = computed(() => {
   const tabs: { id: RatingsTab; label: string }[] = [];
@@ -197,7 +209,7 @@ const ratingsHeaderTabs = computed(() => {
   return tabs;
 });
 
-const resolveRatingsTab = (): RatingsTab => {
+const resolveRatingsTab = (): RatingsTab | null => {
   const requestedTab = route.query.calificaciones_tab;
 
   if (requestedTab === "dashboard" && canViewRatingsDashboard.value) {
@@ -209,7 +221,8 @@ const resolveRatingsTab = (): RatingsTab => {
   }
 
   if (canViewRatingsForm.value) return "formulario";
-  return "dashboard";
+  if (canViewRatingsDashboard.value) return "dashboard";
+  return null;
 };
 
 const syncRatingsTab = (): void => {
@@ -2263,7 +2276,7 @@ const canUsePreviousRatingsFilter = computed(() => {
 
 onMounted(() => {
   syncRatingsTab();
-  if (!isDashboardTabActive.value) {
+  if (canViewRatingsForm.value && !isDashboardTabActive.value) {
     void loadData();
   }
   window.addEventListener("open-new-record", openNewModal);
@@ -2310,10 +2323,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="p-4 md:p-8 space-y-8 pb-32 md:pb-8">
+  <div class="min-h-full p-4 pb-32 md:p-8 md:pb-8">
     <SlideCalificaciones v-if="isDashboardTabActive" />
 
-    <template v-else>
+    <ModuleAccessFallback v-else-if="shouldShowModuleAccessMessage" />
+
+    <template v-else-if="canViewRatingsForm">
       <!-- Header/Title -->
       <div
         class="flex flex-col md:flex-row md:items-start justify-between gap-4"

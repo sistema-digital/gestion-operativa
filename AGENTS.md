@@ -8,6 +8,11 @@ Antes de crear o modificar cualquier archivo, valida Prettier usando el gestor d
 4. Si falla, verifica que `prettier` exista en `devDependencies` o `dependencies` de `package.json`.
 5. Si está declarado pero no funciona, pide al usuario ejecutar `pnpm install`.
 6. Solo detente y solicita instalar Prettier con `pnpm add -D prettier` cuando no esté declarado en `package.json`.
+2. Si el comando se bloquea o falla por restricciones del entorno de Codex, usa:
+   `node_modules/.bin/prettier --version`
+3. Si devuelve una versión, Prettier está disponible y puedes continuar.
+4. Después de cada cambio, formatea con:
+   `node_modules/.bin/prettier --write <ruta-del-archivo>`
 
 Después de crear o modificar cualquier documento o archivo de código, formatéalo con:
 `pnpm exec prettier --write <ruta-del-archivo>`.
