@@ -765,7 +765,7 @@ const isActive = (path: string) =>
     <aside
       v-if="!hideDefaultLayout"
       id="desktop-sidebar-container"
-      class="hidden lg:flex flex-col bg-main-dark text-white transition-[width,padding] duration-300 relative z-20 overflow-visible"
+      class="hidden lg:flex flex-col bg-main-dark text-white transition-[width,padding] duration-300 relative z-[60] overflow-visible"
       :class="isSidebarOpen ? 'w-56 p-5' : 'w-14 p-2'"
     >
       <div
@@ -874,7 +874,7 @@ const isActive = (path: string) =>
                     ? 'bg-main text-accent'
                     : 'text-gray-400 hover:bg-main hover:text-white',
                 ]"
-                @click="toggleDesktopNavigationGroup('engrase', $event)"
+                @click.stop="toggleDesktopNavigationGroup('engrase', $event)"
                 :aria-expanded="engraseDesktopOpen"
               >
                 <Droplets class="w-5 h-5 flex-shrink-0" /><span
@@ -935,7 +935,9 @@ const isActive = (path: string) =>
                     ? 'bg-main text-accent'
                     : 'text-gray-400 hover:bg-main hover:text-white',
                 ]"
-                @click="toggleDesktopNavigationGroup('seguimiento', $event)"
+                @click.stop="
+                  toggleDesktopNavigationGroup('seguimiento', $event)
+                "
                 :aria-expanded="seguimientoDesktopOpen"
               >
                 <MapPinned class="w-5 h-5 flex-shrink-0" /><span
@@ -1063,6 +1065,7 @@ const isActive = (path: string) =>
         v-if="!isSidebarOpen && desktopFloatingGroup"
         class="desktop-navigation-group absolute left-full z-50 ml-3 w-52 rounded-xl border border-white/10 bg-main-dark p-2 shadow-2xl"
         :style="{ top: `${desktopFloatingPanelTop}px` }"
+        @click.stop
       >
         <p
           class="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-second-deep"
