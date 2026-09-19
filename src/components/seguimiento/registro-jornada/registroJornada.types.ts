@@ -82,3 +82,11 @@ export interface ImplementoCrearPayload {
   tipoImplementoId: string;
   nombre?: string | null;
 }
+
+/**
+ * Forma que la interfaz puede consumir tras registrar un implemento.
+ * La respuesta real del RPC sigue pendiente de verificación en Supabase.
+ */
+export interface RegistroImplementoResponse {
+  implemento?: ImplementoOption;
+}

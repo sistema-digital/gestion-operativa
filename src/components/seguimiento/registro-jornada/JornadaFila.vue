@@ -2,6 +2,7 @@
 import { computed, watch } from "vue";
 import { Trash2 } from "lucide-vue-next";
 import ImplementoSelect from "./ImplementoSelect.vue";
+import { resolverCodigo } from "./composables/useJornadaAdmin";
 import type {
   CatalogosJornada,
   JornadaFilaModel,
@@ -24,41 +25,14 @@ function actualizarCodigo(evento: Event): void {
   model.value.codigo = valor === "" ? null : Number(valor);
 }
 
-function resolverCodigo(): void {
-  const codigo = model.value.codigo;
-  if (codigo === null) {
-    model.value.tipoActividad = null;
-    model.value.actividadId = null;
-    model.value.actividadNombre = "";
-    return;
-  }
-
-  const labor = props.catalogos.labores.find(
-    (item) => item.orden === codigo && item.activo,
-  );
-  if (labor) {
-    model.value.tipoActividad = "labor";
-    model.value.actividadId = labor.id;
-    model.value.actividadNombre = labor.nombre;
-    return;
-  }
-
-  const parada = props.catalogos.tiposParada.find(
-    (item) => item.orden === codigo && item.activo,
-  );
-  if (parada) {
-    model.value.tipoActividad = "parada";
-    model.value.actividadId = parada.id;
-    model.value.actividadNombre = parada.nombre;
-    return;
-  }
-
-  model.value.tipoActividad = null;
-  model.value.actividadId = null;
-  model.value.actividadNombre = "Código no reconocido";
+function aplicarCodigoResuelto(): void {
+  const resultado = resolverCodigo(model.value.codigo, props.catalogos);
+  model.value.tipoActividad = resultado.tipoActividad;
+  model.value.actividadId = resultado.actividadId;
+  model.value.actividadNombre = resultado.actividadNombre;
 }
 
-watch(() => model.value.codigo, resolverCodigo, { immediate: true });
+watch(() => model.value.codigo, aplicarCodigoResuelto, { immediate: true });
 
 const duracion = computed(() => {
   if (!model.value.inicio || !model.value.fin) return "--:--";

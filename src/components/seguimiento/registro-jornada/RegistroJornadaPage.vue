@@ -1,17 +1,31 @@
 <script setup lang="ts">
-import { computed, reactive } from "vue";
+import { computed, reactive, shallowRef } from "vue";
 import { ClipboardPenLine, LockKeyhole, ShieldCheck } from "lucide-vue-next";
+import { z } from "zod";
 import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 import { SEGUIMIENTO_FEATURES } from "@/seguimiento/shared/seguimiento.permissions";
 import JornadaDatosGenerales from "./JornadaDatosGenerales.vue";
 import JornadaDetalle from "./JornadaDetalle.vue";
+import ImplementoCrearPanel from "./ImplementoCrearPanel.vue";
 import { useJornadaAdmin } from "./composables/useJornadaAdmin";
 import type {
   CatalogosJornada,
   EquipoOption,
+  ImplementoCrearPayload,
+  ImplementoOption,
   JornadaState,
   OperadorOption,
 } from "./registroJornada.types";
+
+const implementoResponseSchema = z.object({
+  implemento: z.object({
+    id: z.string().min(1),
+    numero: z.string(),
+    nombre: z.string().nullable(),
+    tipo_implemento_id: z.string().min(1),
+    activo: z.boolean(),
+  }),
+});
 
 const featureAccessStore = useFeatureAccessStore();
 
@@ -33,12 +47,35 @@ const catalogos = reactive<CatalogosJornada>({
   implementoTipos: [],
 });
 
-const { validarContinuidad } = useJornadaAdmin();
+const { registrarImplemento, validarContinuidad } = useJornadaAdmin();
 const validacionFilas = computed(() => validarContinuidad(jornada.filas));
+const filaImplementoActiva = shallowRef<number | null>(null);
+const implementoPanelOpen = shallowRef(false);
 
 function solicitarCrearImplemento(index: number): void {
-  // El flujo de creación se integra en la especificación de implementos.
-  void index;
+  filaImplementoActiva.value = index;
+  implementoPanelOpen.value = true;
+}
+
+async function registrarYAsignarImplemento(
+  payload: ImplementoCrearPayload,
+): Promise<void> {
+  const response = await registrarImplemento(payload);
+  const resultado = implementoResponseSchema.safeParse(response);
+  const filaActiva = filaImplementoActiva.value;
+
+  if (!resultado.success || filaActiva === null || !jornada.filas[filaActiva]) {
+    return;
+  }
+
+  const implemento: ImplementoOption = resultado.data.implemento;
+  if (!catalogos.implementos.some((item) => item.id === implemento.id)) {
+    catalogos.implementos.push(implemento);
+  }
+
+  jornada.filas[filaActiva].implementoId = implemento.id;
+  implementoPanelOpen.value = false;
+  filaImplementoActiva.value = null;
 }
 
 const canCreate = computed(() =>
@@ -157,6 +194,15 @@ const canCreateImplement = computed(() =>
         v-model:filas="jornada.filas"
         :catalogos="catalogos"
         @crear-implemento="solicitarCrearImplemento"
+      />
+
+      <ImplementoCrearPanel
+        v-model:open="implementoPanelOpen"
+        :fila-numero="
+          filaImplementoActiva === null ? null : filaImplementoActiva + 1
+        "
+        :tipos-implemento="catalogos.implementoTipos"
+        @crear="registrarYAsignarImplemento"
       />
 
       <p

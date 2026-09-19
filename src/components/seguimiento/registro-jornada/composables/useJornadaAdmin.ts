@@ -1,10 +1,23 @@
 import { shallowRef } from "vue";
 import { z } from "zod";
-import type { JornadaFilaModel } from "../registroJornada.types";
+import { registroJornadaService } from "../services/registroJornada.service";
+import type {
+  ActividadTipo,
+  CatalogosJornada,
+  ImplementoCrearPayload,
+  JornadaFilaModel,
+  RegistroImplementoResponse,
+} from "../registroJornada.types";
 
 export interface ValidacionContinuidad {
   ok: boolean;
   mensaje: string;
+}
+
+export interface CodigoResuelto {
+  tipoActividad: ActividadTipo | null;
+  actividadId: string | null;
+  actividadNombre: string;
 }
 
 const filaRequeridaSchema = z.object({
@@ -13,6 +26,51 @@ const filaRequeridaSchema = z.object({
   codigo: z.number().int(),
   actividadId: z.string().min(1),
 });
+
+/**
+ * Resuelve un código únicamente contra los catálogos ya disponibles.
+ * La labor activa tiene prioridad sobre la parada activa con el mismo orden.
+ */
+export function resolverCodigo(
+  codigo: number | null,
+  catalogos: CatalogosJornada,
+): CodigoResuelto {
+  if (codigo === null) {
+    return {
+      tipoActividad: null,
+      actividadId: null,
+      actividadNombre: "",
+    };
+  }
+
+  const labor = catalogos.labores.find(
+    (item) => item.orden === codigo && item.activo,
+  );
+  if (labor) {
+    return {
+      tipoActividad: "labor",
+      actividadId: labor.id,
+      actividadNombre: labor.nombre,
+    };
+  }
+
+  const parada = catalogos.tiposParada.find(
+    (item) => item.orden === codigo && item.activo,
+  );
+  if (parada) {
+    return {
+      tipoActividad: "parada",
+      actividadId: parada.id,
+      actividadNombre: parada.nombre,
+    };
+  }
+
+  return {
+    tipoActividad: null,
+    actividadId: null,
+    actividadNombre: "Código no reconocido",
+  };
+}
 
 /**
  * Reglas locales de la captura. No realiza llamadas RPC ni persiste filas.
@@ -52,5 +110,20 @@ export function useJornadaAdmin() {
     return { ok: true, mensaje: "La secuencia de horas es continua." };
   }
 
-  return { error, guardando, validarContinuidad };
+  async function registrarImplemento(
+    payload: ImplementoCrearPayload,
+  ): Promise<RegistroImplementoResponse | null> {
+    const { data, error: rpcError } =
+      await registroJornadaService.registrarImplemento(payload);
+    if (rpcError) throw rpcError;
+    return data;
+  }
+
+  return {
+    error,
+    guardando,
+    registrarImplemento,
+    resolverCodigo,
+    validarContinuidad,
+  };
 }
