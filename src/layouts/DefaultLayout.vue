@@ -47,6 +47,7 @@ import {
   Check,
   X,
   MapPinned,
+  ClipboardPenLine,
   MoreHorizontal,
   UserRound,
 } from "lucide-vue-next";
@@ -168,6 +169,13 @@ const canSeeSeguimientoTareas = computed(
   () =>
     canSeeSeguimiento.value &&
     featureAccessStore.tieneFuncionalidad(SEGUIMIENTO_FEATURES.viewTasks),
+);
+const canSeeRegistroJornadas = computed(
+  () =>
+    canSeeSeguimiento.value &&
+    featureAccessStore.tieneFuncionalidad(
+      SEGUIMIENTO_FEATURES.viewAdministrativeJornadas,
+    ),
 );
 const canSeeSeguimientoActividadEquipo = computed(
   () =>
@@ -330,12 +338,18 @@ const mobilePrimaryItems = computed(() => {
     primaryPaths.includes(item.path),
   );
 
-  if (canSeeSeguimientoTareas.value || canSeeSeguimientoReportes.value) {
+  if (
+    canSeeSeguimientoTareas.value ||
+    canSeeSeguimientoReportes.value ||
+    canSeeRegistroJornadas.value
+  ) {
     primaryItems.splice(2, 0, {
       name: "Seguimiento",
       path: canSeeSeguimientoTareas.value
         ? "/seguimiento/tareas"
-        : "/seguimiento/reportes",
+        : canSeeSeguimientoReportes.value
+          ? "/seguimiento/reportes"
+          : "/seguimiento/registro-jornadas",
       icon: MapPinned,
       requiredFeature: SEGUIMIENTO_FEATURES.module,
     });
@@ -365,6 +379,15 @@ const mobileSeguimientoItems = computed(() => [
           name: "Reportes",
           path: "/seguimiento/reportes",
           icon: BarChart3,
+        },
+      ]
+    : []),
+  ...(canSeeRegistroJornadas.value
+    ? [
+        {
+          name: "Registro de jornadas",
+          path: "/seguimiento/registro-jornadas",
+          icon: ClipboardPenLine,
         },
       ]
     : []),
@@ -980,6 +1003,18 @@ const isActive = (path: string) =>
                   "
                   @click="seguimientoDesktopOpen = false"
                   >Reportes</router-link
+                >
+                <router-link
+                  v-if="canSeeRegistroJornadas"
+                  to="/seguimiento/registro-jornadas"
+                  class="flex items-center rounded-lg px-4 py-2.5 text-sm"
+                  :class="
+                    isActive('/seguimiento/registro-jornadas')
+                      ? 'bg-white/10 text-white'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                  "
+                  @click="seguimientoDesktopOpen = false"
+                  >Registro de jornadas</router-link
                 >
               </div>
             </div>

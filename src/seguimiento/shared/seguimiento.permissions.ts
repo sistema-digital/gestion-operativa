@@ -6,6 +6,12 @@ export const SEGUIMIENTO_FEATURES = {
   viewTaskHistory: "ver_historial_tarea_seguimiento",
   viewTaskTracker: "ver_tracker_tarea_seguimiento",
   viewReports: "ver_reportes_seguimiento",
+  viewAdministrativeJornadas: "jornadas_admin_ver",
+  createAdministrativeJornadas: "jornadas_admin_crear",
+  finalizeAdministrativeJornadas: "jornadas_admin_finalizar",
+  discardAdministrativeJornadas: "jornadas_admin_descartar",
+  undoAdministrativeJornadas: "jornadas_admin_deshacer",
+  createAdministrativeJornadaImplement: "jornadas_admin_crear_implemento",
   viewActivityTeamsSummary: "ver_resumen_actividad_equipos",
   viewMap: "ver_mapa_seguimiento",
   createTasks: "crear_tareas_seguimiento",
@@ -29,6 +35,11 @@ export const ALL_SEGUIMIENTO_FEATURES = Object.values(SEGUIMIENTO_FEATURES);
 export const SEGUIMIENTO_TASK_ROUTE_FEATURES = [
   SEGUIMIENTO_FEATURES.module,
   SEGUIMIENTO_FEATURES.viewTasks,
+] as const;
+
+export const SEGUIMIENTO_ADMINISTRATIVE_JORNADAS_ROUTE_FEATURES = [
+  SEGUIMIENTO_FEATURES.module,
+  SEGUIMIENTO_FEATURES.viewAdministrativeJornadas,
 ] as const;
 
 /** Permisos que abren la superficie de creación; lectura por sí sola no basta. */

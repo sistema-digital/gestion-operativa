@@ -7,6 +7,7 @@ import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_acc
 import { useNavigationLoaderStore } from "@/stores/navigationLoader.store";
 import { useSessionValidationStore } from "@/stores/sessionValidation.store";
 import {
+  SEGUIMIENTO_ADMINISTRATIVE_JORNADAS_ROUTE_FEATURES,
   SEGUIMIENTO_FEATURES,
   SEGUIMIENTO_TASK_ROUTE_FEATURES,
 } from "@/seguimiento/shared/seguimiento.permissions";
@@ -42,6 +43,10 @@ const moduleHomeRoutes: readonly ModuleHomeRoute[] = [
       SEGUIMIENTO_FEATURES.module,
       SEGUIMIENTO_FEATURES.viewReports,
     ],
+  },
+  {
+    path: "/seguimiento/registro-jornadas",
+    requiredFeatures: SEGUIMIENTO_ADMINISTRATIVE_JORNADAS_ROUTE_FEATURES,
   },
   {
     path: "/engrase/filtros",
@@ -183,6 +188,16 @@ const router = createRouter({
               },
             },
           ],
+        },
+        {
+          path: "seguimiento/registro-jornadas",
+          name: "RegistroJornadaAdministrativa",
+          component: () =>
+            import("@/views/seguimiento/RegistroJornadaAdministrativaView.vue"),
+          meta: {
+            requiredFeatures:
+              SEGUIMIENTO_ADMINISTRATIVE_JORNADAS_ROUTE_FEATURES,
+          },
         },
         {
           path: "catalogo",

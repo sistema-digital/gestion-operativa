@@ -1,0 +1,116 @@
+<script setup lang="ts">
+import { computed } from "vue";
+import { ClipboardPenLine, LockKeyhole, ShieldCheck } from "lucide-vue-next";
+import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
+import { SEGUIMIENTO_FEATURES } from "@/seguimiento/shared/seguimiento.permissions";
+
+const featureAccessStore = useFeatureAccessStore();
+
+const canCreate = computed(() =>
+  featureAccessStore.tieneFuncionalidad(
+    SEGUIMIENTO_FEATURES.createAdministrativeJornadas,
+  ),
+);
+const canFinalize = computed(() =>
+  featureAccessStore.tieneFuncionalidad(
+    SEGUIMIENTO_FEATURES.finalizeAdministrativeJornadas,
+  ),
+);
+const canCreateImplement = computed(() =>
+  featureAccessStore.tieneFuncionalidad(
+    SEGUIMIENTO_FEATURES.createAdministrativeJornadaImplement,
+  ),
+);
+</script>
+
+<template>
+  <main
+    class="mx-auto min-h-full max-w-5xl bg-second px-3 py-4 sm:px-5 sm:py-6"
+  >
+    <section
+      class="rounded-xl border border-main/10 bg-white p-4 shadow-sm sm:p-6"
+    >
+      <div class="flex items-start gap-3">
+        <div
+          class="grid size-10 shrink-0 place-items-center rounded-lg bg-main text-accent"
+        >
+          <ClipboardPenLine class="size-5" aria-hidden="true" />
+        </div>
+        <div class="min-w-0">
+          <p
+            class="text-[10px] font-bold uppercase tracking-[0.16em] text-main"
+          >
+            Seguimiento / captura manual
+          </p>
+          <h1 class="mt-1 text-base font-bold text-main-dark sm:text-lg">
+            Registro de jornadas
+          </h1>
+          <p class="mt-1 text-xs leading-5 text-gray-500">
+            Transcribe jornadas registradas en papel al flujo administrativo.
+          </p>
+        </div>
+      </div>
+
+      <div
+        class="mt-5 rounded-lg border border-main/10 bg-second/60 p-3 text-xs leading-5 text-gray-600"
+      >
+        <div class="flex items-center gap-2 font-semibold text-main-dark">
+          <ShieldCheck class="size-4 shrink-0" aria-hidden="true" />
+          Base del módulo habilitada
+        </div>
+        <p class="mt-1">
+          La captura, los catálogos, las validaciones y la persistencia se
+          incorporarán con sus especificaciones funcionales; esta pantalla no
+          infiere contratos ni ejecuta RPC directamente.
+        </p>
+      </div>
+
+      <div class="mt-5 grid gap-2 sm:grid-cols-3">
+        <div class="rounded-lg border border-gray-200 p-3">
+          <p
+            class="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-500"
+          >
+            Edición y borrador
+          </p>
+          <p class="mt-1 text-xs font-semibold text-main-dark">
+            {{ canCreate ? "Autorizada" : "Solo lectura" }}
+          </p>
+        </div>
+        <div class="rounded-lg border border-gray-200 p-3">
+          <p
+            class="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-500"
+          >
+            Finalización
+          </p>
+          <p class="mt-1 text-xs font-semibold text-main-dark">
+            {{ canFinalize ? "Autorizada" : "No autorizada" }}
+          </p>
+        </div>
+        <div class="rounded-lg border border-gray-200 p-3">
+          <p
+            class="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-500"
+          >
+            Nuevo implemento
+          </p>
+          <p class="mt-1 text-xs font-semibold text-main-dark">
+            {{ canCreateImplement ? "Autorizado" : "No autorizado" }}
+          </p>
+        </div>
+      </div>
+
+      <div
+        v-if="!canCreate"
+        class="mt-5 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-gray-600"
+      >
+        <LockKeyhole
+          class="mt-0.5 size-4 shrink-0 text-warning"
+          aria-hidden="true"
+        />
+        <p>
+          Tu acceso actual permite consultar esta vista. La edición requiere el
+          permiso de creación de jornadas administrativas.
+        </p>
+      </div>
+    </section>
+  </main>
+</template>
