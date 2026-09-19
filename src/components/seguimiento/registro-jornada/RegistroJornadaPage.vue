@@ -1,10 +1,45 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, reactive } from "vue";
 import { ClipboardPenLine, LockKeyhole, ShieldCheck } from "lucide-vue-next";
 import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 import { SEGUIMIENTO_FEATURES } from "@/seguimiento/shared/seguimiento.permissions";
+import JornadaDatosGenerales from "./JornadaDatosGenerales.vue";
+import JornadaDetalle from "./JornadaDetalle.vue";
+import { useJornadaAdmin } from "./composables/useJornadaAdmin";
+import type {
+  CatalogosJornada,
+  EquipoOption,
+  JornadaState,
+  OperadorOption,
+} from "./registroJornada.types";
 
 const featureAccessStore = useFeatureAccessStore();
+
+const jornada = reactive<JornadaState>({
+  fecha: "2026-09-12",
+  operadorId: null,
+  equipoNumero: null,
+  area: "Campo",
+  observaciones: "",
+  filas: [],
+});
+
+const operadores = reactive<OperadorOption[]>([]);
+const equipos = reactive<EquipoOption[]>([]);
+const catalogos = reactive<CatalogosJornada>({
+  labores: [],
+  tiposParada: [],
+  implementos: [],
+  implementoTipos: [],
+});
+
+const { validarContinuidad } = useJornadaAdmin();
+const validacionFilas = computed(() => validarContinuidad(jornada.filas));
+
+function solicitarCrearImplemento(index: number): void {
+  // El flujo de creación se integra en la especificación de implementos.
+  void index;
+}
 
 const canCreate = computed(() =>
   featureAccessStore.tieneFuncionalidad(
@@ -111,6 +146,30 @@ const canCreateImplement = computed(() =>
           permiso de creación de jornadas administrativas.
         </p>
       </div>
+
+      <JornadaDatosGenerales
+        v-model="jornada"
+        :operadores="operadores"
+        :equipos="equipos"
+      />
+
+      <JornadaDetalle
+        v-model:filas="jornada.filas"
+        :catalogos="catalogos"
+        @crear-implemento="solicitarCrearImplemento"
+      />
+
+      <p
+        class="mt-3 rounded-md border px-3 py-2 text-xs"
+        :class="
+          validacionFilas.ok
+            ? 'border-success/30 bg-success/10 text-success'
+            : 'border-warning/30 bg-warning/10 text-gray-600'
+        "
+        role="status"
+      >
+        {{ validacionFilas.mensaje }}
+      </p>
     </section>
   </main>
 </template>
