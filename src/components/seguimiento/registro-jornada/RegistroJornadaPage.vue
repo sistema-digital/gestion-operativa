@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive, shallowRef } from "vue";
-import { ClipboardPenLine, LockKeyhole, ShieldCheck } from "lucide-vue-next";
+import {
+  CircleAlert,
+  ClipboardPenLine,
+  LockKeyhole,
+  ShieldCheck,
+} from "lucide-vue-next";
 import { z } from "zod";
 import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 import { SEGUIMIENTO_FEATURES } from "@/seguimiento/shared/seguimiento.permissions";
@@ -53,12 +58,16 @@ const {
   guardando,
   registrarImplemento,
   validarContinuidad,
+  error,
 } = useJornadaAdmin();
 const validacionFilas = computed(() => validarContinuidad(jornada.filas));
 const filaImplementoActiva = shallowRef<number | null>(null);
 const implementoPanelOpen = shallowRef(false);
+const guardandoImplemento = shallowRef(false);
+const errorImplemento = shallowRef<string | null>(null);
 
 function solicitarCrearImplemento(index: number): void {
+  errorImplemento.value = null;
   filaImplementoActiva.value = index;
   implementoPanelOpen.value = true;
 }
@@ -66,22 +75,48 @@ function solicitarCrearImplemento(index: number): void {
 async function registrarYAsignarImplemento(
   payload: ImplementoCrearPayload,
 ): Promise<void> {
-  const response = await registrarImplemento(payload);
-  const resultado = implementoResponseSchema.safeParse(response);
-  const filaActiva = filaImplementoActiva.value;
+  guardandoImplemento.value = true;
+  errorImplemento.value = null;
 
-  if (!resultado.success || filaActiva === null || !jornada.filas[filaActiva]) {
-    return;
+  try {
+    const response = await registrarImplemento(payload);
+    const resultado = implementoResponseSchema.safeParse(response);
+    const filaActiva = filaImplementoActiva.value;
+
+    if (
+      !resultado.success ||
+      filaActiva === null ||
+      !jornada.filas[filaActiva]
+    ) {
+      errorImplemento.value =
+        "No se recibió un implemento válido para asignar a la fila.";
+      return;
+    }
+
+    const implemento: ImplementoOption = resultado.data.implemento;
+    if (!catalogos.implementos.some((item) => item.id === implemento.id)) {
+      catalogos.implementos.push(implemento);
+    }
+
+    jornada.filas[filaActiva].implementoId = implemento.id;
+    implementoPanelOpen.value = false;
+    filaImplementoActiva.value = null;
+  } catch (capturado) {
+    errorImplemento.value =
+      capturado instanceof Error
+        ? capturado.message
+        : "No se pudo registrar el implemento. Inténtalo nuevamente.";
+  } finally {
+    guardandoImplemento.value = false;
   }
+}
 
-  const implemento: ImplementoOption = resultado.data.implemento;
-  if (!catalogos.implementos.some((item) => item.id === implemento.id)) {
-    catalogos.implementos.push(implemento);
+async function finalizarJornada(): Promise<void> {
+  try {
+    await finalizarDesdeFilas(jornada);
+  } catch {
+    // El composable conserva el error para presentarlo en esta pantalla.
   }
-
-  jornada.filas[filaActiva].implementoId = implemento.id;
-  implementoPanelOpen.value = false;
-  filaImplementoActiva.value = null;
 }
 
 const canCreate = computed(() =>
@@ -208,8 +243,19 @@ const canCreateImplement = computed(() =>
           filaImplementoActiva === null ? null : filaImplementoActiva + 1
         "
         :tipos-implemento="catalogos.implementoTipos"
+        :guardando="guardandoImplemento"
+        :error="errorImplemento"
         @crear="registrarYAsignarImplemento"
       />
+
+      <p
+        v-if="error"
+        class="mt-3 flex items-start gap-2 rounded-md border border-danger/30 bg-danger-bg px-3 py-2 text-xs text-danger"
+        role="alert"
+      >
+        <CircleAlert class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        {{ error }}
+      </p>
 
       <p
         class="mt-3 rounded-md border px-3 py-2 text-xs"
@@ -227,7 +273,7 @@ const canCreateImplement = computed(() =>
         :valido="validacionFilas.ok"
         :guardando="guardando"
         @guardar="() => {}"
-        @finalizar="finalizarDesdeFilas(jornada)"
+        @finalizar="finalizarJornada"
       />
     </section>
   </main>

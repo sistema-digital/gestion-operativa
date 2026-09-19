@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, shallowRef } from "vue";
-import { Info, X } from "lucide-vue-next";
+import { CircleAlert, Info, LoaderCircle, X } from "lucide-vue-next";
 import Multiselect from "vue-multiselect";
 import { z } from "zod";
 import type {
@@ -19,6 +19,8 @@ const open = defineModel<boolean>("open", { required: true });
 const props = defineProps<{
   filaNumero: number | null;
   tiposImplemento: ImplementoTipoOption[];
+  guardando: boolean;
+  error: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -111,6 +113,7 @@ function submit(): void {
             type="button"
             class="grid size-8 cursor-pointer place-items-center rounded-md text-gray-500 hover:bg-gray-100"
             aria-label="Cerrar panel"
+            :disabled="guardando"
             @click="cerrar"
           >
             <X class="size-4" aria-hidden="true" />
@@ -118,6 +121,14 @@ function submit(): void {
         </header>
 
         <form class="grid gap-3 overflow-y-auto p-3" @submit.prevent="submit">
+          <p
+            v-if="error"
+            class="flex items-start gap-2 rounded-md border border-danger/30 bg-danger-bg px-2 py-2 text-[11px] text-danger"
+            role="alert"
+          >
+            <CircleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+            {{ error }}
+          </p>
           <div
             class="flex gap-2 rounded-md border border-info/30 bg-info-bg p-2 text-[11px] text-gray-700"
           >
@@ -199,16 +210,23 @@ function submit(): void {
           >
             <button
               type="button"
-              class="h-9 cursor-pointer rounded-md border border-gray-200 bg-white text-xs font-semibold hover:bg-gray-100"
+              class="h-9 cursor-pointer rounded-md border border-gray-200 bg-white text-xs font-semibold hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="guardando"
               @click="cerrar"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              class="h-9 cursor-pointer rounded-md bg-main px-3 text-xs font-semibold text-white hover:bg-main-dark"
+              class="flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-main px-3 text-xs font-semibold text-white hover:bg-main-dark disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="guardando"
             >
-              Registrar y usar
+              <LoaderCircle
+                v-if="guardando"
+                class="size-3.5 animate-spin"
+                aria-hidden="true"
+              />
+              {{ guardando ? "Registrando…" : "Registrar y usar" }}
             </button>
           </footer>
         </form>

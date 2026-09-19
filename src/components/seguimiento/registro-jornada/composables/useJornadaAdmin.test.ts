@@ -220,4 +220,50 @@ describe("finalizarDesdeFilas", () => {
     });
     expect(registroJornadaService.reanudarTrabajo).toHaveBeenCalledTimes(1);
   });
+
+  it("expone el error y libera el estado de guardado cuando falla un RPC", async () => {
+    vi.mocked(registroJornadaService.finalizarJornada).mockResolvedValue({
+      data: null,
+      error: new Error("No fue posible finalizar la jornada."),
+    });
+    const { error, finalizarDesdeFilas, guardando } = useJornadaAdmin();
+
+    await expect(
+      finalizarDesdeFilas(
+        crearJornada([fila("06:00", "07:00", "labor", "labor-1")]),
+      ),
+    ).rejects.toThrow("No fue posible finalizar la jornada.");
+
+    expect(error.value).toBe("No fue posible finalizar la jornada.");
+    expect(guardando.value).toBe(false);
+  });
+});
+
+describe("validarContinuidad", () => {
+  it("rechaza filas incompletas, horarios inválidos y discontinuidades", () => {
+    const { validarContinuidad } = useJornadaAdmin();
+
+    expect(validarContinuidad([])).toEqual({
+      ok: false,
+      mensaje: "Agrega al menos un registro.",
+    });
+    expect(validarContinuidad([fila("06:00", "", "labor", "labor-1")])).toEqual(
+      { ok: false, mensaje: "Completa la fila 1." },
+    );
+    expect(
+      validarContinuidad([fila("07:00", "06:00", "labor", "labor-1")]),
+    ).toEqual({
+      ok: false,
+      mensaje: "La hora fin de la fila 1 debe ser posterior al inicio.",
+    });
+    expect(
+      validarContinuidad([
+        fila("06:00", "07:00", "labor", "labor-1"),
+        fila("08:00", "09:00", "labor", "labor-2"),
+      ]),
+    ).toEqual({
+      ok: false,
+      mensaje: "Existe un espacio o solapamiento entre las filas 1 y 2.",
+    });
+  });
 });

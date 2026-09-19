@@ -4,6 +4,7 @@ import { Check, Save } from "lucide-vue-next";
 defineProps<{
   valido: boolean;
   guardando: boolean;
+  guardarDisponible?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -23,11 +24,16 @@ const emit = defineEmits<{
       <button
         type="button"
         class="flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-xs font-semibold text-main-dark transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
-        :disabled="guardando"
+        :disabled="guardando || !guardarDisponible"
+        :title="
+          guardarDisponible
+            ? undefined
+            : 'El guardado de borradores está pendiente de integración.'
+        "
         @click="emit('guardar')"
       >
         <Save class="size-3.5" aria-hidden="true" />
-        Guardar borrador
+        {{ guardarDisponible ? "Guardar borrador" : "Borrador pendiente" }}
       </button>
 
       <button
