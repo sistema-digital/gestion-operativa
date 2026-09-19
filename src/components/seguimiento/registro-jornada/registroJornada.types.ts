@@ -90,3 +90,53 @@ export interface ImplementoCrearPayload {
 export interface RegistroImplementoResponse {
   implemento?: ImplementoOption;
 }
+
+export interface JornadaInicioRpcPayload {
+  p_operador_id: string;
+  p_fecha_operativa: string;
+  p_equipo_numero: string;
+  p_labor_id: string | null;
+  p_ocurrio_en: string;
+  p_implemento_id: string | null;
+  p_latitud: number | null;
+  p_longitud: number | null;
+}
+
+export interface JornadaEventoRpcPayload {
+  p_jornada_id: string;
+  p_ocurrio_en: string;
+  p_latitud: number | null;
+  p_longitud: number | null;
+}
+
+export interface CambiarLaborRpcPayload extends JornadaEventoRpcPayload {
+  p_nueva_labor_id: string;
+}
+
+export interface RegistrarParadaRpcPayload extends JornadaEventoRpcPayload {
+  p_tipo_parada_id: string;
+  p_observacion: string | null;
+}
+
+export interface CambiarTipoParadaRpcPayload extends RegistrarParadaRpcPayload {
+  p_modo: "cambio_real" | "correccion";
+}
+
+export interface ReanudarTrabajoRpcPayload extends JornadaEventoRpcPayload {
+  p_labor_id: string;
+}
+
+export interface CambiarImplementoRpcPayload extends JornadaEventoRpcPayload {
+  p_nuevo_implemento_id: string | null;
+  p_labor_id: string | null;
+}
+
+export interface JornadaRpcResponse {
+  ok: boolean;
+  jornada_id: string;
+  estado: "trabajando" | "parado" | "sin_labor" | "finalizada";
+  secuencia?: number;
+  requiere_parada_inicial?: boolean;
+  requiere_labor_al_reanudar?: boolean;
+  ya_finalizada?: boolean;
+}

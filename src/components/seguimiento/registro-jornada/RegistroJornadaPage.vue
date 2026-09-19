@@ -6,6 +6,7 @@ import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_acc
 import { SEGUIMIENTO_FEATURES } from "@/seguimiento/shared/seguimiento.permissions";
 import JornadaDatosGenerales from "./JornadaDatosGenerales.vue";
 import JornadaDetalle from "./JornadaDetalle.vue";
+import JornadaAcciones from "./JornadaAcciones.vue";
 import ImplementoCrearPanel from "./ImplementoCrearPanel.vue";
 import { useJornadaAdmin } from "./composables/useJornadaAdmin";
 import type {
@@ -47,7 +48,12 @@ const catalogos = reactive<CatalogosJornada>({
   implementoTipos: [],
 });
 
-const { registrarImplemento, validarContinuidad } = useJornadaAdmin();
+const {
+  finalizarDesdeFilas,
+  guardando,
+  registrarImplemento,
+  validarContinuidad,
+} = useJornadaAdmin();
 const validacionFilas = computed(() => validarContinuidad(jornada.filas));
 const filaImplementoActiva = shallowRef<number | null>(null);
 const implementoPanelOpen = shallowRef(false);
@@ -216,6 +222,13 @@ const canCreateImplement = computed(() =>
       >
         {{ validacionFilas.mensaje }}
       </p>
+
+      <JornadaAcciones
+        :valido="validacionFilas.ok"
+        :guardando="guardando"
+        @guardar="() => {}"
+        @finalizar="finalizarDesdeFilas(jornada)"
+      />
     </section>
   </main>
 </template>
