@@ -59,7 +59,7 @@ const equipoSeleccionado = computed<EquipoOption | null>({
 
 <template>
   <section
-    class="mt-5 grid gap-3 rounded-lg border border-gray-200 bg-second/40 p-3 sm:grid-cols-2 xl:grid-cols-[150px_minmax(220px,1.25fr)_minmax(160px,.85fr)_minmax(130px,.65fr)]"
+    class="grid gap-3 rounded-2xl border border-[#d8d2c8] bg-white px-3 py-3 shadow-sm sm:grid-cols-2 sm:px-3.5 xl:grid-cols-[187px_minmax(360px,1.45fr)_minmax(280px,1fr)_minmax(210px,.75fr)]"
     aria-labelledby="datos-generales-title"
   >
     <h2 id="datos-generales-title" class="sr-only">Datos generales</h2>
@@ -78,7 +78,7 @@ const equipoSeleccionado = computed<EquipoOption | null>({
         model-type="date"
         placeholder="Seleccionar fecha…"
         input-class-name="jornada-date-input"
-        class="jornada-datepicker [&_.jornada-date-input]:h-9 [&_.jornada-date-input]:w-full [&_.jornada-date-input]:cursor-pointer [&_.jornada-date-input]:rounded-md [&_.jornada-date-input]:border-gray-300 [&_.jornada-date-input]:px-2 [&_.jornada-date-input]:font-mono [&_.jornada-date-input]:text-xs"
+        class="jornada-datepicker [&_.jornada-date-input]:h-11 [&_.jornada-date-input]:w-full [&_.jornada-date-input]:cursor-pointer [&_.jornada-date-input]:rounded-lg [&_.jornada-date-input]:border-[#bdb5aa] [&_.jornada-date-input]:px-3 [&_.jornada-date-input]:font-mono [&_.jornada-date-input]:text-xs"
       />
     </label>
 
@@ -95,7 +95,7 @@ const equipoSeleccionado = computed<EquipoOption | null>({
         label="nombre"
         track-by="id"
         placeholder="Seleccionar operador…"
-        class="jornada-multiselect [&_.multiselect]:min-h-9 [&_.multiselect__input]:mb-0 [&_.multiselect__input]:cursor-text [&_.multiselect__input]:text-xs [&_.multiselect__select]:h-9 [&_.multiselect__select]:cursor-pointer [&_.multiselect__single]:mb-0 [&_.multiselect__single]:pt-2 [&_.multiselect__single]:text-xs [&_.multiselect__tags]:min-h-9 [&_.multiselect__tags]:border-gray-300 [&_.multiselect__tags]:px-2 [&_.multiselect__tags]:py-1"
+        class="jornada-multiselect [&_.multiselect]:min-h-11 [&_.multiselect__input]:mb-0 [&_.multiselect__input]:cursor-text [&_.multiselect__input]:text-xs [&_.multiselect__select]:h-11 [&_.multiselect__select]:cursor-pointer [&_.multiselect__single]:mb-0 [&_.multiselect__single]:pt-3 [&_.multiselect__single]:text-xs [&_.multiselect__tags]:min-h-11 [&_.multiselect__tags]:rounded-lg [&_.multiselect__tags]:border-[#bdb5aa] [&_.multiselect__tags]:px-3 [&_.multiselect__tags]:py-1"
       />
     </label>
 
@@ -112,7 +112,7 @@ const equipoSeleccionado = computed<EquipoOption | null>({
         label="etiqueta"
         track-by="numero"
         placeholder="Seleccionar equipo…"
-        class="jornada-multiselect [&_.multiselect]:min-h-9 [&_.multiselect__input]:mb-0 [&_.multiselect__input]:cursor-text [&_.multiselect__input]:font-mono [&_.multiselect__input]:text-xs [&_.multiselect__select]:h-9 [&_.multiselect__select]:cursor-pointer [&_.multiselect__single]:mb-0 [&_.multiselect__single]:pt-2 [&_.multiselect__single]:font-mono [&_.multiselect__single]:text-xs [&_.multiselect__tags]:min-h-9 [&_.multiselect__tags]:border-gray-300 [&_.multiselect__tags]:px-2 [&_.multiselect__tags]:py-1"
+        class="jornada-multiselect [&_.multiselect]:min-h-11 [&_.multiselect__input]:mb-0 [&_.multiselect__input]:cursor-text [&_.multiselect__input]:font-mono [&_.multiselect__input]:text-xs [&_.multiselect__select]:h-11 [&_.multiselect__select]:cursor-pointer [&_.multiselect__single]:mb-0 [&_.multiselect__single]:pt-3 [&_.multiselect__single]:font-mono [&_.multiselect__single]:text-xs [&_.multiselect__tags]:min-h-11 [&_.multiselect__tags]:rounded-lg [&_.multiselect__tags]:border-[#bdb5aa] [&_.multiselect__tags]:px-3 [&_.multiselect__tags]:py-1"
       />
     </label>
 
@@ -124,7 +124,7 @@ const equipoSeleccionado = computed<EquipoOption | null>({
       <input
         :value="model.area ?? ''"
         readonly
-        class="h-9 w-full rounded-md border border-gray-300 bg-gray-50 px-2 text-xs text-gray-700"
+        class="h-11 w-full rounded-lg border border-[#bdb5aa] bg-[#fbfaf8] px-3 text-xs text-gray-700"
       />
     </label>
   </section>

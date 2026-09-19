@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { computed, reactive, shallowRef } from "vue";
 import {
+  ArrowLeft,
   CircleAlert,
-  ClipboardPenLine,
-  LockKeyhole,
-  ShieldCheck,
+  CheckCircle2,
+  PencilLine,
 } from "lucide-vue-next";
 import { z } from "zod";
+import { useRouter } from "vue-router";
 import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 import { SEGUIMIENTO_FEATURES } from "@/seguimiento/shared/seguimiento.permissions";
 import JornadaDatosGenerales from "./JornadaDatosGenerales.vue";
 import JornadaDetalle from "./JornadaDetalle.vue";
 import JornadaAcciones from "./JornadaAcciones.vue";
+import JornadaResumen from "./JornadaResumen.vue";
 import ImplementoCrearPanel from "./ImplementoCrearPanel.vue";
 import { useJornadaAdmin } from "./composables/useJornadaAdmin";
 import type {
@@ -34,6 +36,7 @@ const implementoResponseSchema = z.object({
 });
 
 const featureAccessStore = useFeatureAccessStore();
+const router = useRouter();
 
 const jornada = reactive<JornadaState>({
   fecha: "2026-09-12",
@@ -70,6 +73,11 @@ function solicitarCrearImplemento(index: number): void {
   errorImplemento.value = null;
   filaImplementoActiva.value = index;
   implementoPanelOpen.value = true;
+}
+
+function limpiarDetalle(): void {
+  jornada.filas.splice(0);
+  errorImplemento.value = null;
 }
 
 async function registrarYAsignarImplemento(
@@ -129,101 +137,43 @@ const canFinalize = computed(() =>
     SEGUIMIENTO_FEATURES.finalizeAdministrativeJornadas,
   ),
 );
-const canCreateImplement = computed(() =>
-  featureAccessStore.tieneFuncionalidad(
-    SEGUIMIENTO_FEATURES.createAdministrativeJornadaImplement,
-  ),
-);
 </script>
 
 <template>
-  <main
-    class="mx-auto min-h-full max-w-5xl bg-second px-3 py-4 sm:px-5 sm:py-6"
-  >
-    <section
-      class="rounded-xl border border-main/10 bg-white p-4 shadow-sm sm:p-6"
-    >
-      <div class="flex items-start gap-3">
-        <div
-          class="grid size-10 shrink-0 place-items-center rounded-lg bg-main text-accent"
-        >
-          <ClipboardPenLine class="size-5" aria-hidden="true" />
-        </div>
+  <main class="min-h-full bg-second px-3 py-3 sm:px-5 sm:py-4">
+    <div class="mx-auto w-full max-w-[1680px]">
+      <header class="flex flex-wrap items-start justify-between gap-4 py-1">
         <div class="min-w-0">
           <p
             class="text-[10px] font-bold uppercase tracking-[0.16em] text-main"
           >
             Seguimiento / captura manual
           </p>
-          <h1 class="mt-1 text-base font-bold text-main-dark sm:text-lg">
-            Registro de jornadas
+          <h1
+            class="mt-1 text-[26px] font-black uppercase leading-none tracking-tight text-main-dark sm:text-[30px]"
+          >
+            Registro de jornada
           </h1>
           <p class="mt-1 text-xs leading-5 text-gray-500">
-            Transcribe jornadas registradas en papel al flujo administrativo.
+            Transcribe el informe diario de horas máquina manteniendo el flujo
+            de la jornada.
           </p>
         </div>
-      </div>
-
-      <div
-        class="mt-5 rounded-lg border border-main/10 bg-second/60 p-3 text-xs leading-5 text-gray-600"
-      >
-        <div class="flex items-center gap-2 font-semibold text-main-dark">
-          <ShieldCheck class="size-4 shrink-0" aria-hidden="true" />
-          Base del módulo habilitada
-        </div>
-        <p class="mt-1">
-          La captura, los catálogos, las validaciones y la persistencia se
-          incorporarán con sus especificaciones funcionales; esta pantalla no
-          infiere contratos ni ejecuta RPC directamente.
-        </p>
-      </div>
-
-      <div class="mt-5 grid gap-2 sm:grid-cols-3">
-        <div class="rounded-lg border border-gray-200 p-3">
-          <p
-            class="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-500"
+        <div class="flex items-center gap-2">
+          <span
+            class="flex h-11 items-center gap-2 rounded-full bg-[#fff4df] px-4 text-xs font-semibold text-[#c77919]"
           >
-            Edición y borrador
-          </p>
-          <p class="mt-1 text-xs font-semibold text-main-dark">
-            {{ canCreate ? "Autorizada" : "Solo lectura" }}
-          </p>
-        </div>
-        <div class="rounded-lg border border-gray-200 p-3">
-          <p
-            class="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-500"
+            <PencilLine class="size-4" aria-hidden="true" /> Borrador
+          </span>
+          <button
+            type="button"
+            class="flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-[#d8d2c8] bg-white px-4 text-sm font-semibold text-main-dark shadow-sm transition-colors hover:bg-[#faf9f6]"
+            @click="router.back()"
           >
-            Finalización
-          </p>
-          <p class="mt-1 text-xs font-semibold text-main-dark">
-            {{ canFinalize ? "Autorizada" : "No autorizada" }}
-          </p>
+            <ArrowLeft class="size-4" aria-hidden="true" /> Volver
+          </button>
         </div>
-        <div class="rounded-lg border border-gray-200 p-3">
-          <p
-            class="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-500"
-          >
-            Nuevo implemento
-          </p>
-          <p class="mt-1 text-xs font-semibold text-main-dark">
-            {{ canCreateImplement ? "Autorizado" : "No autorizado" }}
-          </p>
-        </div>
-      </div>
-
-      <div
-        v-if="!canCreate"
-        class="mt-5 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-gray-600"
-      >
-        <LockKeyhole
-          class="mt-0.5 size-4 shrink-0 text-warning"
-          aria-hidden="true"
-        />
-        <p>
-          Tu acceso actual permite consultar esta vista. La edición requiere el
-          permiso de creación de jornadas administrativas.
-        </p>
-      </div>
+      </header>
 
       <JornadaDatosGenerales
         v-model="jornada"
@@ -235,7 +185,48 @@ const canCreateImplement = computed(() =>
         v-model:filas="jornada.filas"
         :catalogos="catalogos"
         @crear-implemento="solicitarCrearImplemento"
-      />
+        @limpiar="limpiarDetalle"
+      >
+        <template #footer>
+          <div
+            class="grid gap-3 border-t border-[#ddd8d0] bg-white px-3.5 py-3 sm:px-4 lg:grid-cols-[minmax(0,1fr)_438px]"
+          >
+            <label class="min-w-0">
+              <span
+                class="mb-1 block text-[10px] font-bold uppercase tracking-[0.07em] text-gray-600"
+                >Observaciones generales</span
+              >
+              <textarea
+                v-model="jornada.observaciones"
+                class="min-h-[72px] w-full resize-y rounded-xl border border-[#bdb5aa] bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-main"
+                placeholder="Opcional. Ej.: Jornada transcrita desde informe físico..."
+              />
+            </label>
+            <JornadaResumen :filas="jornada.filas" />
+          </div>
+
+          <div
+            class="flex flex-col gap-3 border-t border-[#ddd8d0] bg-[#fcfbf9] px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
+          >
+            <p
+              class="flex items-center gap-2 text-xs font-medium"
+              :class="validacionFilas.ok ? 'text-success' : 'text-gray-600'"
+              role="status"
+            >
+              <CheckCircle2 class="size-4 shrink-0" aria-hidden="true" />
+              {{ validacionFilas.mensaje }}
+            </p>
+            <JornadaAcciones
+              :valido="validacionFilas.ok"
+              :guardando="guardando"
+              :guardar-disponible="canCreate"
+              :finalizar-disponible="canFinalize"
+              @guardar="() => {}"
+              @finalizar="finalizarJornada"
+            />
+          </div>
+        </template>
+      </JornadaDetalle>
 
       <ImplementoCrearPanel
         v-model:open="implementoPanelOpen"
@@ -256,25 +247,6 @@ const canCreateImplement = computed(() =>
         <CircleAlert class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
         {{ error }}
       </p>
-
-      <p
-        class="mt-3 rounded-md border px-3 py-2 text-xs"
-        :class="
-          validacionFilas.ok
-            ? 'border-success/30 bg-success/10 text-success'
-            : 'border-warning/30 bg-warning/10 text-gray-600'
-        "
-        role="status"
-      >
-        {{ validacionFilas.mensaje }}
-      </p>
-
-      <JornadaAcciones
-        :valido="validacionFilas.ok"
-        :guardando="guardando"
-        @guardar="() => {}"
-        @finalizar="finalizarJornada"
-      />
-    </section>
+    </div>
   </main>
 </template>
