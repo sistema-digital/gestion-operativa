@@ -7,6 +7,9 @@ import type {
   ImplementoCrearPayload,
   JornadaEventoRpcPayload,
   JornadaInicioRpcPayload,
+  JornadaAdministrativaDetalle,
+  JornadaAdministrativaFiltros,
+  JornadaAdministrativaListaItem,
   JornadaRpcResponse,
   RegistroEventosLotePayload,
   RegistroEventosLoteResponse,
@@ -73,6 +76,12 @@ const registroEventosLoteResponseSchema = z.object({
   rollback: z.boolean(),
   jornada_id: z.string().uuid(),
   procesados: z.number().int().nonnegative(),
+  modo: z.string().min(1).optional(),
+  borrador: z.boolean().optional(),
+  borrador_reemplazado: z.boolean().optional(),
+  borrador_previo_conservado: z.boolean().optional(),
+  estado_captura: z.enum(["en_edicion", "finalizada", "descartada"]).optional(),
+  publicada_jornada_id: z.string().uuid().nullable().optional(),
   error: z
     .object({
       codigo: z.string().min(1),
@@ -99,8 +108,232 @@ const registroEventosLoteResponseSchema = z.object({
     .optional(),
 });
 
+const jornadaEstadoCapturaSchema = z.enum([
+  "en_edicion",
+  "finalizada",
+  "descartada",
+]);
+
+const jornadaAdministrativaListadoSchema = z.object({
+  ok: z.boolean(),
+  limit: z.number().int().positive(),
+  items: z.array(
+    z.object({
+      jornada_id: z.string().uuid(),
+      operador_id: z.string().uuid(),
+      operador: z.string().min(1),
+      fecha_operativa: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      iniciada_en: z.string().nullable(),
+      finalizada_en: z.string().nullable(),
+      estado_captura: jornadaEstadoCapturaSchema,
+      publicada_jornada_id: z.string().uuid().nullable(),
+      actualizado_en: z.string().nullable(),
+      eventos_activos: z.number().int().nonnegative(),
+    }),
+  ),
+});
+
+const jornadaAdministrativaFilaActividadSchema = z.object({
+  uuid: z.string().uuid(),
+  codigo: z.string().min(1),
+  descripcion: z.string().min(1),
+  requiere_implemento: z.boolean().optional(),
+});
+
+const jornadaAdministrativaFilaSchema = z.object({
+  fila: z.number().int().positive(),
+  inicio: z.string().min(1),
+  fin: z.string().min(1).nullable(),
+  inicio_local: z.string().regex(/^\d{2}:\d{2}$/),
+  fin_local: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .nullable(),
+  tipo: z.enum(["labor", "parada"]),
+  equipo_numero: z.string().min(1),
+  labor: jornadaAdministrativaFilaActividadSchema.nullable(),
+  parada: jornadaAdministrativaFilaActividadSchema.nullable(),
+  implemento: z
+    .object({
+      uuid: z.string().uuid(),
+      codigo: z.string().min(1),
+      descripcion: z.string().nullable(),
+    })
+    .nullable(),
+  observacion: z.string().nullable(),
+  duracion: z.string().nullable(),
+});
+
+const jornadaAdministrativaDetalleSchema = z.object({
+  ok: z.boolean(),
+  jornada: z.object({
+    id: z.string().uuid(),
+    operador_id: z.string().uuid(),
+    operador: z.string().min(1),
+    fecha_operativa: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    iniciada_en: z.string().nullable(),
+    finalizada_en: z.string().nullable(),
+    estado_captura: jornadaEstadoCapturaSchema,
+  }),
+  estado_actual: z.object({
+    equipo_numero: z.string().nullable(),
+    eventos_activos: z.number().int().nonnegative(),
+  }),
+  filas: z.array(jornadaAdministrativaFilaSchema),
+  eventos: z.array(
+    z.object({
+      id: z.string().uuid(),
+      client_event_id: z.string().uuid().nullable(),
+      public_evento_id: z.string().uuid().nullable(),
+      secuencia: z.number().int().positive(),
+      tipo_evento: z.enum([
+        "inicio_jornada",
+        "cambiar_labor",
+        "inicio_parada",
+        "cambio_causa",
+        "reanudar",
+        "confirmar_cambio_implemento",
+        "finalizar_jornada",
+      ]),
+      ocurrio_en: z.string().min(1),
+      ocurrio_en_local: z.string().nullable(),
+      anulado: z.boolean(),
+      payload: z.object({
+        operador_id: z.string().uuid().optional(),
+        fecha_operativa: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+        equipo_numero: z.string().min(1).optional(),
+        labor_id: z.string().uuid().nullable().optional(),
+        implemento_id: z.string().uuid().nullable().optional(),
+        nueva_labor_id: z.string().uuid().optional(),
+        tipo_parada_id: z.string().uuid().optional(),
+        modo: z.literal("cambio_real").optional(),
+        observacion: z.string().nullable().optional(),
+        nuevo_implemento_id: z.string().uuid().nullable().optional(),
+      }),
+    }),
+  ),
+});
+
+function mapJornadaListado(
+  item: z.infer<typeof jornadaAdministrativaListadoSchema>["items"][number],
+): JornadaAdministrativaListaItem {
+  return {
+    jornadaId: item.jornada_id,
+    operadorId: item.operador_id,
+    operador: item.operador,
+    fechaOperativa: item.fecha_operativa,
+    iniciadaEn: item.iniciada_en,
+    finalizadaEn: item.finalizada_en,
+    estadoCaptura: item.estado_captura,
+    publicadoJornadaId: item.publicada_jornada_id,
+    actualizadoEn: item.actualizado_en,
+    eventosActivos: item.eventos_activos,
+  };
+}
+
+function mapJornadaDetalle(
+  data: z.infer<typeof jornadaAdministrativaDetalleSchema>,
+): JornadaAdministrativaDetalle {
+  return {
+    id: data.jornada.id,
+    operadorId: data.jornada.operador_id,
+    operador: data.jornada.operador,
+    fechaOperativa: data.jornada.fecha_operativa,
+    iniciadaEn: data.jornada.iniciada_en,
+    finalizadaEn: data.jornada.finalizada_en,
+    estadoCaptura: data.jornada.estado_captura,
+    equipoNumero: data.estado_actual.equipo_numero,
+    eventosActivos: data.estado_actual.eventos_activos,
+    filas: data.filas.map((fila) => ({
+      numero: fila.fila,
+      inicio: fila.inicio,
+      fin: fila.fin,
+      inicioLocal: fila.inicio_local,
+      finLocal: fila.fin_local,
+      tipo: fila.tipo,
+      equipoNumero: fila.equipo_numero,
+      labor: fila.labor
+        ? {
+            id: fila.labor.uuid,
+            codigo: fila.labor.codigo,
+            nombre: fila.labor.descripcion,
+          }
+        : null,
+      parada: fila.parada
+        ? {
+            id: fila.parada.uuid,
+            codigo: fila.parada.codigo,
+            nombre: fila.parada.descripcion,
+            requiereImplemento: fila.parada.requiere_implemento,
+          }
+        : null,
+      implemento: fila.implemento
+        ? {
+            id: fila.implemento.uuid,
+            numero: fila.implemento.codigo,
+            nombre: fila.implemento.descripcion,
+          }
+        : null,
+      observacion: fila.observacion,
+      duracion: fila.duracion,
+    })),
+    eventos: data.eventos.map((evento) => ({
+      id: evento.id,
+      clientEventId: evento.client_event_id,
+      publicEventoId: evento.public_evento_id,
+      secuencia: evento.secuencia,
+      tipoEvento: evento.tipo_evento,
+      ocurrioEn: evento.ocurrio_en,
+      ocurrioEnLocal: evento.ocurrio_en_local,
+      anulado: evento.anulado,
+      payload: evento.payload,
+    })),
+  };
+}
+
 /** Este servicio conserva el único acceso directo al cliente para este flujo. */
 export const registroJornadaService = {
+  async listarJornadasAdministrativas(
+    filtros: JornadaAdministrativaFiltros,
+  ): Promise<JornadaAdministrativaListaItem[]> {
+    const { data, error } = await supabaseCapturaOperador
+      .rpc("rpc_admin_listar_jornadas", {
+        p_operador_id: null,
+        p_desde: filtros.desde,
+        p_hasta: filtros.hasta,
+        p_estado: filtros.estado,
+        p_limit: 100,
+      })
+      .overrideTypes<z.infer<typeof jornadaAdministrativaListadoSchema>>();
+    if (error) throw error;
+
+    const resultado = jornadaAdministrativaListadoSchema.safeParse(data);
+    if (!resultado.success) {
+      throw new Error("La respuesta del listado de jornadas no es válida.");
+    }
+
+    return resultado.data.items.map(mapJornadaListado);
+  },
+
+  async obtenerJornadaAdministrativa(
+    jornadaId: string,
+  ): Promise<JornadaAdministrativaDetalle> {
+    const { data, error } = await supabaseCapturaOperador
+      .rpc("rpc_admin_obtener_jornada", { p_jornada_id: jornadaId })
+      .overrideTypes<z.infer<typeof jornadaAdministrativaDetalleSchema>>();
+    if (error) throw error;
+
+    const resultado = jornadaAdministrativaDetalleSchema.safeParse(data);
+    if (!resultado.success) {
+      throw new Error("La respuesta del detalle de jornada no es válida.");
+    }
+
+    return mapJornadaDetalle(resultado.data);
+  },
+
   async registrarEventosLote(
     payload: RegistroEventosLotePayload,
   ): Promise<RegistroEventosLoteResponse> {

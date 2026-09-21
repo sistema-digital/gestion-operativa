@@ -91,6 +91,81 @@ export interface RegistroImplementoResponse {
   implemento?: ImplementoOption;
 }
 
+export type JornadaEstadoCaptura = "en_edicion" | "finalizada" | "descartada";
+
+export interface JornadaAdministrativaListaItem {
+  jornadaId: string;
+  operadorId: string;
+  operador: string;
+  fechaOperativa: string;
+  iniciadaEn: string | null;
+  finalizadaEn: string | null;
+  estadoCaptura: JornadaEstadoCaptura;
+  publicadoJornadaId: string | null;
+  actualizadoEn: string | null;
+  eventosActivos: number;
+}
+
+export interface JornadaAdministrativaFiltros {
+  desde: string | null;
+  hasta: string | null;
+  estado: JornadaEstadoCaptura | null;
+}
+
+export interface JornadaAdministrativaDetalle {
+  id: string;
+  operadorId: string;
+  operador: string;
+  fechaOperativa: string;
+  iniciadaEn: string | null;
+  finalizadaEn: string | null;
+  estadoCaptura: JornadaEstadoCaptura;
+  equipoNumero: string | null;
+  eventosActivos: number;
+  filas: JornadaAdministrativaFila[];
+  eventos: JornadaAdministrativaEvento[];
+}
+
+export interface JornadaAdministrativaFilaActividad {
+  id: string;
+  codigo: string;
+  nombre: string;
+  requiereImplemento?: boolean;
+}
+
+export interface JornadaAdministrativaFilaImplemento {
+  id: string;
+  numero: string;
+  nombre: string | null;
+}
+
+export interface JornadaAdministrativaFila {
+  numero: number;
+  inicio: string;
+  fin: string | null;
+  inicioLocal: string;
+  finLocal: string | null;
+  tipo: ActividadTipo;
+  equipoNumero: string;
+  labor: JornadaAdministrativaFilaActividad | null;
+  parada: JornadaAdministrativaFilaActividad | null;
+  implemento: JornadaAdministrativaFilaImplemento | null;
+  observacion: string | null;
+  duracion: string | null;
+}
+
+export interface JornadaAdministrativaEvento {
+  id: string;
+  clientEventId: string | null;
+  publicEventoId: string | null;
+  secuencia: number;
+  tipoEvento: EventoLoteTipo;
+  ocurrioEn: string;
+  ocurrioEnLocal: string | null;
+  anulado: boolean;
+  payload: EventoLotePayload;
+}
+
 export interface JornadaInicioRpcPayload {
   p_operador_id: string;
   p_fecha_operativa: string;
@@ -176,6 +251,7 @@ export interface EventoLote {
 export interface RegistroEventosLotePayload {
   p_jornada_id: string;
   p_eventos: EventoLote[];
+  p_finalizar: boolean;
 }
 
 export interface RegistroEventosLoteError {
@@ -197,6 +273,23 @@ export interface RegistroEventosLoteResponse {
   rollback: boolean;
   jornada_id: string;
   procesados: number;
+  modo?: string;
+  borrador?: boolean;
+  borrador_reemplazado?: boolean;
+  borrador_previo_conservado?: boolean;
+  estado_captura?: JornadaEstadoCaptura;
+  publicada_jornada_id?: string | null;
   error?: RegistroEventosLoteError;
   evento_fallido?: RegistroEventosLoteEventoFallido;
+}
+
+export interface RegistroJornadaFeedback {
+  estado: "exito" | "error";
+  modo: "borrador" | "finalizada";
+  procesados?: number;
+  borradorReemplazado?: boolean;
+  borradorPrevioConservado?: boolean;
+  codigo?: string;
+  mensaje: string;
+  eventoFallido?: RegistroEventosLoteEventoFallido;
 }

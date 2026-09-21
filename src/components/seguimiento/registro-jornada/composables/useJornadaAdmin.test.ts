@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resolverCodigo, useJornadaAdmin } from "./useJornadaAdmin";
+import {
+  mapearFilasDeJornadaAdministrativa,
+  resolverCodigo,
+  useJornadaAdmin,
+} from "./useJornadaAdmin";
 import { registroJornadaService } from "../services/registroJornada.service";
 import type {
   CatalogosJornada,
+  JornadaAdministrativaFila,
   JornadaFilaModel,
   JornadaState,
 } from "../registroJornada.types";
@@ -74,6 +79,73 @@ describe("resolverCodigo", () => {
 
   it("queda disponible desde el composable", () => {
     expect(useJornadaAdmin().resolverCodigo).toBe(resolverCodigo);
+  });
+});
+
+describe("mapearFilasDeJornadaAdministrativa", () => {
+  it("usa las filas listas para edición sin reconstruir eventos", () => {
+    const filas: JornadaAdministrativaFila[] = [
+      {
+        numero: 1,
+        inicio: "2026-09-03T11:00:00+00:00",
+        fin: "2026-09-03T11:25:00+00:00",
+        inicioLocal: "06:00",
+        finLocal: "06:25",
+        tipo: "parada",
+        equipoNumero: "484090",
+        labor: null,
+        parada: {
+          id: "parada-1",
+          codigo: "100",
+          nombre: "Máquina parada",
+          requiereImplemento: false,
+        },
+        implemento: {
+          id: "implemento-1",
+          numero: "433001",
+          nombre: "Hoja niveladora",
+        },
+        observacion: null,
+        duracion: "00:25",
+      },
+      {
+        numero: 2,
+        inicio: "2026-09-03T11:25:00+00:00",
+        fin: null,
+        inicioLocal: "06:25",
+        finLocal: null,
+        tipo: "labor",
+        equipoNumero: "484090",
+        labor: {
+          id: "labor-1",
+          codigo: "029",
+          nombre: "Construcción de canales",
+        },
+        parada: null,
+        implemento: null,
+        observacion: null,
+        duracion: null,
+      },
+    ];
+
+    expect(mapearFilasDeJornadaAdministrativa(filas)).toEqual([
+      expect.objectContaining({
+        inicio: "06:00",
+        fin: "06:25",
+        codigo: 100,
+        tipoActividad: "parada",
+        actividadId: "parada-1",
+        implementoId: "implemento-1",
+      }),
+      expect.objectContaining({
+        inicio: "06:25",
+        fin: "",
+        codigo: 29,
+        tipoActividad: "labor",
+        actividadId: "labor-1",
+        implementoId: null,
+      }),
+    ]);
   });
 });
 
@@ -149,6 +221,25 @@ describe("finalizarDesdeFilas", () => {
       "reanudar",
       "finalizar_jornada",
     ]);
+    expect(lote?.p_finalizar).toBe(true);
+  });
+
+  it("guarda el borrador sin finalizar y conserva el id para el cierre", async () => {
+    const { guardarBorradorDesdeFilas, finalizarDesdeFilas } =
+      useJornadaAdmin();
+    const jornada = crearJornada([fila("06:00", "07:00", "labor", "labor-1")]);
+
+    await guardarBorradorDesdeFilas(jornada);
+    await finalizarDesdeFilas(jornada);
+
+    const llamadas = vi.mocked(registroJornadaService.registrarEventosLote).mock
+      .calls;
+    expect(llamadas[0]?.[0].p_finalizar).toBe(false);
+    expect(llamadas[0]?.[0].p_eventos.at(-1)?.tipo_evento).not.toBe(
+      "finalizar_jornada",
+    );
+    expect(llamadas[1]?.[0].p_finalizar).toBe(true);
+    expect(llamadas[1]?.[0].p_jornada_id).toBe(llamadas[0]?.[0].p_jornada_id);
   });
 
   it("inicia sin labor y registra la primera parada", async () => {

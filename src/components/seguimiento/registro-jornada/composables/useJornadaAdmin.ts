@@ -8,6 +8,8 @@ import type {
   EventoLotePayload,
   ImplementoCrearPayload,
   JornadaFilaModel,
+  JornadaAdministrativaFila,
+  JornadaAdministrativaEvento,
   RegistroImplementoResponse,
   JornadaState,
   RegistroEventosLoteResponse,
@@ -22,6 +24,197 @@ export interface CodigoResuelto {
   tipoActividad: ActividadTipo | null;
   actividadId: string | null;
   actividadNombre: string;
+}
+
+function horaLocalEvento(evento: JornadaAdministrativaEvento): string {
+  const coincidencia = evento.ocurrioEnLocal?.match(
+    /\s(\d{2}:\d{2})(?::\d{2})?$/,
+  );
+  if (!coincidencia?.[1]) {
+    throw new Error(
+      `El evento ${evento.secuencia} no incluye una hora local válida.`,
+    );
+  }
+
+  return coincidencia[1];
+}
+
+function actividadDesdeEvento(
+  tipoActividad: ActividadTipo,
+  actividadId: string | null | undefined,
+  catalogos: CatalogosJornada,
+): Pick<
+  JornadaFilaModel,
+  "codigo" | "tipoActividad" | "actividadId" | "actividadNombre"
+> {
+  if (!actividadId) {
+    throw new Error("El evento no incluye la actividad necesaria para editar.");
+  }
+
+  const actividad =
+    tipoActividad === "labor"
+      ? catalogos.labores.find((labor) => labor.id === actividadId)
+      : catalogos.tiposParada.find((parada) => parada.id === actividadId);
+  if (!actividad || actividad.orden === null) {
+    throw new Error("No se pudo resolver la labor o causa del borrador.");
+  }
+
+  return {
+    codigo: actividad.orden,
+    tipoActividad,
+    actividadId: actividad.id,
+    actividadNombre: actividad.nombre,
+  };
+}
+
+function crearFilaReconstruida(
+  inicio: string,
+  actividad: Pick<
+    JornadaFilaModel,
+    "codigo" | "tipoActividad" | "actividadId" | "actividadNombre"
+  >,
+  implementoId: string | null,
+): JornadaFilaModel {
+  return {
+    idLocal: crypto.randomUUID(),
+    inicio,
+    fin: "",
+    ...actividad,
+    implementoId,
+  };
+}
+
+export function mapearFilasDeJornadaAdministrativa(
+  filas: JornadaAdministrativaFila[],
+): JornadaFilaModel[] {
+  return filas.map((fila) => {
+    const actividad = fila.tipo === "labor" ? fila.labor : fila.parada;
+    if (!actividad) {
+      throw new Error(
+        `La fila ${fila.numero} no incluye la ${fila.tipo} seleccionada.`,
+      );
+    }
+
+    const codigo = Number(actividad.codigo);
+    if (!Number.isInteger(codigo)) {
+      throw new Error(`La fila ${fila.numero} incluye un código no válido.`);
+    }
+
+    return {
+      idLocal: `jornada-${fila.numero}`,
+      inicio: fila.inicioLocal,
+      fin: fila.finLocal ?? "",
+      codigo,
+      tipoActividad: fila.tipo,
+      actividadId: actividad.id,
+      actividadNombre: actividad.nombre,
+      implementoId: fila.implemento?.id ?? null,
+    };
+  });
+}
+
+export function reconstruirFilasDeEventos(
+  eventos: JornadaAdministrativaEvento[],
+  catalogos: CatalogosJornada,
+): JornadaFilaModel[] {
+  const activos = [...eventos]
+    .filter((evento) => !evento.anulado)
+    .sort((izquierda, derecha) => izquierda.secuencia - derecha.secuencia);
+  const filas: JornadaFilaModel[] = [];
+  let filaActual: JornadaFilaModel | null = null;
+
+  const iniciarFila = (
+    inicio: string,
+    actividad: Pick<
+      JornadaFilaModel,
+      "codigo" | "tipoActividad" | "actividadId" | "actividadNombre"
+    >,
+    implementoId: string | null,
+  ): void => {
+    if (filaActual?.inicio === inicio) {
+      filaActual.codigo = actividad.codigo;
+      filaActual.tipoActividad = actividad.tipoActividad;
+      filaActual.actividadId = actividad.actividadId;
+      filaActual.actividadNombre = actividad.actividadNombre;
+      filaActual.implementoId = implementoId;
+      return;
+    }
+
+    if (filaActual) filaActual.fin = inicio;
+    filaActual = crearFilaReconstruida(inicio, actividad, implementoId);
+    filas.push(filaActual);
+  };
+
+  for (const evento of activos) {
+    const hora = horaLocalEvento(evento);
+    const payload = evento.payload;
+
+    if (evento.tipoEvento === "inicio_jornada") {
+      if (!payload.labor_id) continue;
+      iniciarFila(
+        hora,
+        actividadDesdeEvento("labor", payload.labor_id, catalogos),
+        payload.implemento_id ?? null,
+      );
+      continue;
+    }
+
+    if (
+      evento.tipoEvento === "inicio_parada" ||
+      evento.tipoEvento === "cambio_causa"
+    ) {
+      iniciarFila(
+        hora,
+        actividadDesdeEvento("parada", payload.tipo_parada_id, catalogos),
+        filaActual?.implementoId ?? payload.implemento_id ?? null,
+      );
+      continue;
+    }
+
+    if (evento.tipoEvento === "reanudar") {
+      iniciarFila(
+        hora,
+        actividadDesdeEvento("labor", payload.labor_id, catalogos),
+        filaActual?.implementoId ?? payload.implemento_id ?? null,
+      );
+      continue;
+    }
+
+    if (evento.tipoEvento === "cambiar_labor") {
+      iniciarFila(
+        hora,
+        actividadDesdeEvento("labor", payload.nueva_labor_id, catalogos),
+        filaActual?.implementoId ?? null,
+      );
+      continue;
+    }
+
+    if (evento.tipoEvento === "confirmar_cambio_implemento") {
+      const laborId = payload.labor_id ?? filaActual?.actividadId;
+      iniciarFila(
+        hora,
+        actividadDesdeEvento("labor", laborId, catalogos),
+        payload.nuevo_implemento_id ?? null,
+      );
+      continue;
+    }
+
+    if (evento.tipoEvento === "finalizar_jornada" && filaActual) {
+      filaActual.fin = hora;
+    }
+  }
+
+  return filas;
+}
+
+export class RegistroEventosLoteFallidoError extends Error {
+  readonly resultado: RegistroEventosLoteResponse;
+
+  constructor(resultado: RegistroEventosLoteResponse) {
+    super(mensajeErrorLote(resultado));
+    this.name = "RegistroEventosLoteFallidoError";
+    this.resultado = resultado;
+  }
 }
 
 const filaRequeridaSchema = z.object({
@@ -68,6 +261,7 @@ export function construirEventosLote(
   fecha: string,
   operadorId: string,
   equipoNumero: string,
+  incluirFinalizacion = true,
 ): EventoLote[] {
   const primeraFila = jornada.filas[0];
   if (
@@ -166,9 +360,11 @@ export function construirEventosLote(
     });
   }
 
-  const ultimaFila = jornada.filas.at(-1);
-  if (!ultimaFila) throw new Error("Agrega al menos un registro.");
-  agregarEvento("finalizar_jornada", ocurrioEn(fecha, ultimaFila.fin), {});
+  if (incluirFinalizacion) {
+    const ultimaFila = jornada.filas.at(-1);
+    if (!ultimaFila) throw new Error("Agrega al menos un registro.");
+    agregarEvento("finalizar_jornada", ocurrioEn(fecha, ultimaFila.fin), {});
+  }
 
   return eventos;
 }
@@ -235,6 +431,10 @@ export function useJornadaAdmin() {
   const error = shallowRef<string | null>(null);
   const jornadaIdPendiente = shallowRef<string | null>(null);
 
+  function establecerJornadaPendiente(jornadaId: string): void {
+    jornadaIdPendiente.value = jornadaId;
+  }
+
   function validarContinuidad(
     filas: JornadaFilaModel[],
   ): ValidacionContinuidad {
@@ -275,7 +475,10 @@ export function useJornadaAdmin() {
     return data;
   }
 
-  async function finalizarDesdeFilas(jornada: JornadaState): Promise<void> {
+  async function registrarDesdeFilas(
+    jornada: JornadaState,
+    p_finalizar: boolean,
+  ): Promise<RegistroEventosLoteResponse> {
     const validacion = validarContinuidad(jornada.filas);
     if (!validacion.ok) throw new Error(validacion.mensaje);
     const datosJornada = jornadaRequeridaSchema.safeParse(jornada);
@@ -296,13 +499,16 @@ export function useJornadaAdmin() {
         datosJornada.data.fecha,
         datosJornada.data.operadorId,
         datosJornada.data.equipoNumero,
+        p_finalizar,
       );
       const resultado = await registroJornadaService.registrarEventosLote({
         p_jornada_id,
         p_eventos,
+        p_finalizar,
       });
-      if (!resultado.ok) throw new Error(mensajeErrorLote(resultado));
-      jornadaIdPendiente.value = null;
+      if (!resultado.ok) throw new RegistroEventosLoteFallidoError(resultado);
+      if (p_finalizar) jornadaIdPendiente.value = null;
+      return resultado;
     } catch (capturado) {
       error.value =
         capturado instanceof Error ? capturado.message : "Error desconocido";
@@ -312,12 +518,26 @@ export function useJornadaAdmin() {
     }
   }
 
+  async function guardarBorradorDesdeFilas(
+    jornada: JornadaState,
+  ): Promise<RegistroEventosLoteResponse> {
+    return registrarDesdeFilas(jornada, false);
+  }
+
+  async function finalizarDesdeFilas(
+    jornada: JornadaState,
+  ): Promise<RegistroEventosLoteResponse> {
+    return registrarDesdeFilas(jornada, true);
+  }
+
   return {
     error,
     guardando,
     registrarImplemento,
     resolverCodigo,
     validarContinuidad,
+    guardarBorradorDesdeFilas,
     finalizarDesdeFilas,
+    establecerJornadaPendiente,
   };
 }

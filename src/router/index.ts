@@ -190,6 +190,29 @@ const router = createRouter({
           ],
         },
         {
+          path: "seguimiento/registro-jornadas/nueva",
+          name: "RegistroJornadaAdministrativaCrear",
+          component: () =>
+            import("@/views/seguimiento/RegistroJornadaAdministrativaCrearView.vue"),
+          meta: {
+            requiredFeatures:
+              SEGUIMIENTO_ADMINISTRATIVE_JORNADAS_ROUTE_FEATURES,
+            layout: "fullscreen",
+          },
+        },
+        {
+          path: "seguimiento/registro-jornadas/:jornadaId/editar",
+          name: "RegistroJornadaAdministrativaEditar",
+          component: () =>
+            import("@/views/seguimiento/RegistroJornadaAdministrativaCrearView.vue"),
+          props: true,
+          meta: {
+            requiredFeatures:
+              SEGUIMIENTO_ADMINISTRATIVE_JORNADAS_ROUTE_FEATURES,
+            layout: "fullscreen",
+          },
+        },
+        {
           path: "seguimiento/registro-jornadas",
           name: "RegistroJornadaAdministrativa",
           component: () =>
