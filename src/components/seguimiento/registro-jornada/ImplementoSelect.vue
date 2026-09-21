@@ -57,8 +57,9 @@ function etiquetaImplemento(opcion: OpcionImplemento): string {
     :allow-empty="true"
     :show-labels="false"
     :custom-label="etiquetaImplemento"
+    :max-height="220"
     track-by="id"
     placeholder="Sin implemento"
-    class="jornada-multiselect [&_.multiselect]:min-h-8 [&_.multiselect__input]:mb-0 [&_.multiselect__input]:cursor-text [&_.multiselect__input]:text-xs [&_.multiselect__select]:h-8 [&_.multiselect__select]:cursor-pointer [&_.multiselect__single]:mb-0 [&_.multiselect__single]:pt-2 [&_.multiselect__single]:font-mono [&_.multiselect__single]:text-xs [&_.multiselect__tags]:min-h-8 [&_.multiselect__tags]:border-gray-300 [&_.multiselect__tags]:px-2 [&_.multiselect__tags]:py-0"
+    class="relative z-20 jornada-multiselect [&_.multiselect]:min-h-8 [&_.multiselect__content-wrapper]:z-[60] [&_.multiselect__input]:mb-0 [&_.multiselect__input]:cursor-text [&_.multiselect__input]:text-xs [&_.multiselect__select]:h-8 [&_.multiselect__select]:cursor-pointer [&_.multiselect__single]:mb-0 [&_.multiselect__single]:pt-2 [&_.multiselect__single]:font-mono [&_.multiselect__single]:text-xs [&_.multiselect__tags]:min-h-8 [&_.multiselect__tags]:border-gray-300 [&_.multiselect__tags]:px-2 [&_.multiselect__tags]:py-0"
   />
 </template>

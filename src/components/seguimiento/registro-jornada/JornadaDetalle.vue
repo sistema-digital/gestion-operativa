@@ -38,7 +38,7 @@ function eliminarFila(index: number): void {
 
 <template>
   <section
-    class="mt-3 overflow-hidden rounded-2xl border border-[#d8d2c8] bg-white shadow-sm"
+    class="mt-3 overflow-visible rounded-2xl border border-[#d8d2c8] bg-white shadow-sm"
     aria-labelledby="detalle-jornada-title"
   >
     <header
@@ -79,9 +79,9 @@ function eliminarFila(index: number): void {
       </div>
     </header>
 
-    <div class="overflow-x-auto md:p-0">
+    <div class="overflow-x-auto md:overflow-visible md:p-0">
       <div
-        class="hidden min-w-[1100px] grid-cols-[46px_112px_112px_100px_minmax(280px,1fr)_180px_100px_48px] border-b border-[#ddd8d0] bg-[#faf9f7] md:grid"
+        class="hidden min-w-[1140px] grid-cols-[46px_112px_112px_100px_minmax(280px,1fr)_220px_100px_48px] border-b border-[#ddd8d0] bg-[#faf9f7] md:grid"
       >
         <span class="px-2 py-2 text-[9px] font-bold uppercase text-gray-600"
           >#</span
@@ -100,7 +100,7 @@ function eliminarFila(index: number): void {
         ><span />
       </div>
 
-      <div class="grid gap-2 p-2 md:block md:min-w-[1100px] md:p-0">
+      <div class="grid gap-2 p-2 md:block md:min-w-[1140px] md:p-0">
         <JornadaFila
           v-for="(fila, index) in filas"
           :key="fila.idLocal"

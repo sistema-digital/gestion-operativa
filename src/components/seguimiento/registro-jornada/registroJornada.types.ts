@@ -18,14 +18,14 @@ export interface EquipoOption {
 
 export interface LaborCatalogo {
   id: string;
-  orden: number;
+  orden: number | null;
   nombre: string;
   activo: boolean;
 }
 
 export interface TipoParadaCatalogo {
   id: string;
-  orden: number;
+  orden: number | null;
   nombre: string;
   activo: boolean;
   libera_labor_actual?: boolean;
@@ -40,8 +40,8 @@ export interface ImplementoOption {
   id: string;
   numero: string;
   nombre: string | null;
-  tipo_implemento_id: string;
-  activo: boolean;
+  tipo_implemento_id?: string;
+  activo?: boolean;
 }
 
 export interface JornadaFilaModel {

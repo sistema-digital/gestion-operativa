@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, shallowRef } from "vue";
+import { computed, onMounted, reactive, shallowRef } from "vue";
 import {
   ArrowLeft,
   CircleAlert,
@@ -7,9 +7,11 @@ import {
   PencilLine,
 } from "lucide-vue-next";
 import { z } from "zod";
+import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
 import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 import { SEGUIMIENTO_FEATURES } from "@/seguimiento/shared/seguimiento.permissions";
+import { useRegistroJornadaCatalogosStore } from "@/stores/seguimiento/registro-jornada/registroJornadaCatalogos.store";
 import JornadaDatosGenerales from "./JornadaDatosGenerales.vue";
 import JornadaDetalle from "./JornadaDetalle.vue";
 import JornadaAcciones from "./JornadaAcciones.vue";
@@ -36,7 +38,14 @@ const implementoResponseSchema = z.object({
 });
 
 const featureAccessStore = useFeatureAccessStore();
+const catalogosStore = useRegistroJornadaCatalogosStore();
 const router = useRouter();
+const {
+  implementos,
+  labores,
+  tiposParada,
+  error: errorCatalogos,
+} = storeToRefs(catalogosStore);
 
 const jornada = reactive<JornadaState>({
   fecha: "2026-09-12",
@@ -49,12 +58,12 @@ const jornada = reactive<JornadaState>({
 
 const operadores = reactive<OperadorOption[]>([]);
 const equipos = reactive<EquipoOption[]>([]);
-const catalogos = reactive<CatalogosJornada>({
-  labores: [],
-  tiposParada: [],
-  implementos: [],
+const catalogos = computed<CatalogosJornada>(() => ({
+  labores: labores.value,
+  tiposParada: tiposParada.value,
+  implementos: implementos.value,
   implementoTipos: [],
-});
+}));
 
 const {
   finalizarDesdeFilas,
@@ -102,9 +111,7 @@ async function registrarYAsignarImplemento(
     }
 
     const implemento: ImplementoOption = resultado.data.implemento;
-    if (!catalogos.implementos.some((item) => item.id === implemento.id)) {
-      catalogos.implementos.push(implemento);
-    }
+    catalogosStore.agregarImplemento(implemento);
 
     jornada.filas[filaActiva].implementoId = implemento.id;
     implementoPanelOpen.value = false;
@@ -137,6 +144,10 @@ const canFinalize = computed(() =>
     SEGUIMIENTO_FEATURES.finalizeAdministrativeJornadas,
   ),
 );
+
+onMounted(() => {
+  void catalogosStore.cargarCatalogos();
+});
 </script>
 
 <template>
@@ -144,20 +155,11 @@ const canFinalize = computed(() =>
     <div class="mx-auto w-full max-w-[1680px]">
       <header class="flex flex-wrap items-start justify-between gap-4 py-1">
         <div class="min-w-0">
-          <p
-            class="text-[10px] font-bold uppercase tracking-[0.16em] text-main"
-          >
-            Seguimiento / captura manual
-          </p>
           <h1
             class="mt-1 text-[26px] font-black uppercase leading-none tracking-tight text-main-dark sm:text-[30px]"
           >
             Registro de jornada
           </h1>
-          <p class="mt-1 text-xs leading-5 text-gray-500">
-            Transcribe el informe diario de horas máquina manteniendo el flujo
-            de la jornada.
-          </p>
         </div>
         <div class="flex items-center gap-2">
           <span
@@ -180,6 +182,15 @@ const canFinalize = computed(() =>
         :operadores="operadores"
         :equipos="equipos"
       />
+
+      <p
+        v-if="errorCatalogos"
+        class="mt-3 flex items-start gap-2 rounded-md border border-danger/30 bg-danger-bg px-3 py-2 text-xs text-danger"
+        role="alert"
+      >
+        <CircleAlert class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        {{ errorCatalogos }}
+      </p>
 
       <JornadaDetalle
         v-model:filas="jornada.filas"

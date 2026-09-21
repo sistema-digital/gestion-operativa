@@ -50,7 +50,7 @@ const duracion = computed(() => {
 
 <template>
   <div
-    class="grid grid-cols-[28px_1fr_1fr] gap-1.5 rounded-lg border border-gray-200 bg-white p-2 shadow-sm md:min-h-[58px] md:grid-cols-[46px_112px_112px_100px_minmax(280px,1fr)_180px_100px_48px] md:items-center md:gap-0 md:rounded-none md:border-x-0 md:border-t-0 md:p-0 md:shadow-none"
+    class="grid grid-cols-[28px_1fr_1fr] gap-1.5 rounded-lg border border-gray-200 bg-white p-2 shadow-sm md:min-h-[58px] md:grid-cols-[46px_112px_112px_100px_minmax(280px,1fr)_220px_100px_48px] md:items-center md:gap-0 md:rounded-none md:border-x-0 md:border-t-0 md:p-0 md:shadow-none"
   >
     <div
       class="row-span-4 flex items-center justify-center md:row-span-1 md:h-[58px]"

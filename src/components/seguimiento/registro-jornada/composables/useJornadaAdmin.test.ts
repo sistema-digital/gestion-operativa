@@ -24,6 +24,7 @@ const catalogos: CatalogosJornada = {
   labores: [
     { id: "labor-1", orden: 10, nombre: "Siembra", activo: true },
     { id: "labor-2", orden: 20, nombre: "Labor inactiva", activo: false },
+    { id: "labor-3", orden: null, nombre: "Labor sin código", activo: true },
   ],
   tiposParada: [
     { id: "parada-1", orden: 10, nombre: "Pausa", activo: true },
@@ -66,6 +67,11 @@ describe("resolverCodigo", () => {
       actividadNombre: "Código no reconocido",
     });
     expect(resolverCodigo(40, catalogos)).toEqual({
+      tipoActividad: null,
+      actividadId: null,
+      actividadNombre: "Código no reconocido",
+    });
+    expect(resolverCodigo(3, catalogos)).toEqual({
       tipoActividad: null,
       actividadId: null,
       actividadNombre: "Código no reconocido",
