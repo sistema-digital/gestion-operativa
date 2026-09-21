@@ -140,3 +140,63 @@ export interface JornadaRpcResponse {
   requiere_labor_al_reanudar?: boolean;
   ya_finalizada?: boolean;
 }
+
+export type EventoLoteTipo =
+  | "inicio_jornada"
+  | "cambiar_labor"
+  | "inicio_parada"
+  | "cambio_causa"
+  | "reanudar"
+  | "confirmar_cambio_implemento"
+  | "finalizar_jornada";
+
+export interface EventoLotePayload {
+  operador_id?: string;
+  fecha_operativa?: string;
+  equipo_numero?: string;
+  labor_id?: string | null;
+  implemento_id?: string | null;
+  nueva_labor_id?: string;
+  tipo_parada_id?: string;
+  modo?: "cambio_real";
+  observacion?: string | null;
+  nuevo_implemento_id?: string | null;
+}
+
+export interface EventoLote {
+  secuencia: number;
+  tipo_evento: EventoLoteTipo;
+  client_event_id: string;
+  ocurrio_en: string;
+  latitud: null;
+  longitud: null;
+  payload: EventoLotePayload;
+}
+
+export interface RegistroEventosLotePayload {
+  p_jornada_id: string;
+  p_eventos: EventoLote[];
+}
+
+export interface RegistroEventosLoteError {
+  codigo: string;
+  mensaje: string;
+  detalle: string | null;
+  pista: string | null;
+}
+
+export interface RegistroEventosLoteEventoFallido {
+  secuencia: number;
+  tipo_evento: EventoLoteTipo;
+  client_event_id: string;
+  ocurrio_en: string;
+}
+
+export interface RegistroEventosLoteResponse {
+  ok: boolean;
+  rollback: boolean;
+  jornada_id: string;
+  procesados: number;
+  error?: RegistroEventosLoteError;
+  evento_fallido?: RegistroEventosLoteEventoFallido;
+}

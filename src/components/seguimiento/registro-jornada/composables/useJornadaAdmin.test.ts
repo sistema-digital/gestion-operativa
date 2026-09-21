@@ -10,13 +10,7 @@ import type {
 vi.mock("../services/registroJornada.service", () => ({
   registroJornadaService: {
     registrarImplemento: vi.fn(),
-    iniciarJornada: vi.fn(),
-    cambiarLabor: vi.fn(),
-    registrarParada: vi.fn(),
-    cambiarTipoParada: vi.fn(),
-    reanudarTrabajo: vi.fn(),
-    cambiarImplemento: vi.fn(),
-    finalizarJornada: vi.fn(),
+    registrarEventosLote: vi.fn(),
   },
 }));
 
@@ -116,38 +110,18 @@ function crearJornada(filas: JornadaFilaModel[]): JornadaState {
   };
 }
 
-const respuestaExitosa = {
-  data: {
-    ok: true,
-    jornada_id: jornadaId,
-    estado: "trabajando" as const,
-  },
-  error: null,
+const respuestaLoteExitosa = {
+  ok: true,
+  rollback: false,
+  jornada_id: jornadaId,
+  procesados: 1,
 };
 
 describe("finalizarDesdeFilas", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(registroJornadaService.iniciarJornada).mockResolvedValue(
-      respuestaExitosa,
-    );
-    vi.mocked(registroJornadaService.cambiarLabor).mockResolvedValue(
-      respuestaExitosa,
-    );
-    vi.mocked(registroJornadaService.registrarParada).mockResolvedValue(
-      respuestaExitosa,
-    );
-    vi.mocked(registroJornadaService.cambiarTipoParada).mockResolvedValue(
-      respuestaExitosa,
-    );
-    vi.mocked(registroJornadaService.reanudarTrabajo).mockResolvedValue(
-      respuestaExitosa,
-    );
-    vi.mocked(registroJornadaService.cambiarImplemento).mockResolvedValue(
-      respuestaExitosa,
-    );
-    vi.mocked(registroJornadaService.finalizarJornada).mockResolvedValue(
-      respuestaExitosa,
+    vi.mocked(registroJornadaService.registrarEventosLote).mockResolvedValue(
+      respuestaLoteExitosa,
     );
   });
 
@@ -162,32 +136,19 @@ describe("finalizarDesdeFilas", () => {
 
     await useJornadaAdmin().finalizarDesdeFilas(jornada);
 
-    expect(registroJornadaService.iniciarJornada).toHaveBeenCalledWith({
-      p_operador_id: operadorId,
-      p_fecha_operativa: "2026-09-05",
-      p_equipo_numero: "484090",
-      p_labor_id: "labor-1",
-      p_ocurrio_en: "2026-09-05T06:00:00-05:00",
-      p_implemento_id: null,
-      p_latitud: null,
-      p_longitud: null,
-    });
-    expect(registroJornadaService.cambiarLabor).toHaveBeenCalledTimes(1);
-    expect(registroJornadaService.registrarParada).toHaveBeenCalledTimes(1);
-    expect(registroJornadaService.cambiarTipoParada).toHaveBeenCalledTimes(1);
-    expect(registroJornadaService.reanudarTrabajo).toHaveBeenCalledWith({
-      p_jornada_id: jornadaId,
-      p_ocurrio_en: "2026-09-05T10:00:00-05:00",
-      p_labor_id: "labor-3",
-      p_latitud: null,
-      p_longitud: null,
-    });
-    expect(registroJornadaService.finalizarJornada).toHaveBeenCalledWith({
-      p_jornada_id: jornadaId,
-      p_ocurrio_en: "2026-09-05T11:00:00-05:00",
-      p_latitud: null,
-      p_longitud: null,
-    });
+    const lote = vi.mocked(registroJornadaService.registrarEventosLote).mock
+      .calls[0]?.[0];
+    expect(lote?.p_jornada_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(lote?.p_eventos.map((evento) => evento.tipo_evento)).toEqual([
+      "inicio_jornada",
+      "cambiar_labor",
+      "inicio_parada",
+      "cambio_causa",
+      "reanudar",
+      "finalizar_jornada",
+    ]);
   });
 
   it("inicia sin labor y registra la primera parada", async () => {
@@ -195,17 +156,13 @@ describe("finalizarDesdeFilas", () => {
       crearJornada([fila("06:00", "07:00", "parada", "parada-1")]),
     );
 
-    expect(registroJornadaService.iniciarJornada).toHaveBeenCalledWith(
-      expect.objectContaining({ p_labor_id: null }),
-    );
-    expect(registroJornadaService.registrarParada).toHaveBeenCalledWith({
-      p_jornada_id: jornadaId,
-      p_tipo_parada_id: "parada-1",
-      p_ocurrio_en: "2026-09-05T06:00:00-05:00",
-      p_observacion: "Registro desde papel",
-      p_latitud: null,
-      p_longitud: null,
-    });
+    const lote = vi.mocked(registroJornadaService.registrarEventosLote).mock
+      .calls[0]?.[0];
+    expect(lote?.p_eventos.map((evento) => evento.tipo_evento)).toEqual([
+      "inicio_jornada",
+      "inicio_parada",
+      "finalizar_jornada",
+    ]);
   });
 
   it("confirma el cambio de implemento y reanuda la labor", async () => {
@@ -216,21 +173,50 @@ describe("finalizarDesdeFilas", () => {
       ]),
     );
 
-    expect(registroJornadaService.cambiarImplemento).toHaveBeenCalledWith({
-      p_jornada_id: jornadaId,
-      p_ocurrio_en: "2026-09-05T07:00:00-05:00",
-      p_nuevo_implemento_id: "implemento-2",
-      p_labor_id: "labor-1",
-      p_latitud: null,
-      p_longitud: null,
-    });
-    expect(registroJornadaService.reanudarTrabajo).toHaveBeenCalledTimes(1);
+    const lote = vi.mocked(registroJornadaService.registrarEventosLote).mock
+      .calls[0]?.[0];
+    expect(lote?.p_eventos.map((evento) => evento.tipo_evento)).toEqual([
+      "inicio_jornada",
+      "confirmar_cambio_implemento",
+      "reanudar",
+      "finalizar_jornada",
+    ]);
+  });
+
+  it("impide cambiar el implemento mientras la fila anterior está en parada", async () => {
+    await expect(
+      useJornadaAdmin().finalizarDesdeFilas(
+        crearJornada([
+          fila("06:00", "07:00", "labor", "labor-1", "implemento-1"),
+          fila("07:00", "08:00", "parada", "parada-1", "implemento-1"),
+          fila("08:00", "09:00", "labor", "labor-1", "implemento-2"),
+        ]),
+      ),
+    ).rejects.toThrow(
+      "No puedes cambiar el implemento en la fila 3 mientras la jornada está en parada.",
+    );
+
+    expect(registroJornadaService.registrarEventosLote).not.toHaveBeenCalled();
   });
 
   it("expone el error y libera el estado de guardado cuando falla un RPC", async () => {
-    vi.mocked(registroJornadaService.finalizarJornada).mockResolvedValue({
-      data: null,
-      error: new Error("No fue posible finalizar la jornada."),
+    vi.mocked(registroJornadaService.registrarEventosLote).mockResolvedValue({
+      ok: false,
+      rollback: true,
+      jornada_id: jornadaId,
+      procesados: 0,
+      error: {
+        codigo: "P0001",
+        mensaje: "LABOR_INVALIDA_O_INACTIVA",
+        detalle: null,
+        pista: null,
+      },
+      evento_fallido: {
+        secuencia: 2,
+        tipo_evento: "finalizar_jornada",
+        client_event_id: "d370d8ee-6d73-4bfb-a12d-4d70fa9b8ebf",
+        ocurrio_en: "2026-09-05T07:00:00-05:00",
+      },
     });
     const { error, finalizarDesdeFilas, guardando } = useJornadaAdmin();
 
@@ -238,10 +224,40 @@ describe("finalizarDesdeFilas", () => {
       finalizarDesdeFilas(
         crearJornada([fila("06:00", "07:00", "labor", "labor-1")]),
       ),
-    ).rejects.toThrow("No fue posible finalizar la jornada.");
+    ).rejects.toThrow("LABOR_INVALIDA_O_INACTIVA Evento 2: finalizar_jornada.");
 
-    expect(error.value).toBe("No fue posible finalizar la jornada.");
+    expect(error.value).toBe(
+      "LABOR_INVALIDA_O_INACTIVA Evento 2: finalizar_jornada.",
+    );
     expect(guardando.value).toBe(false);
+  });
+
+  it("reutiliza el id de jornada al reintentar un lote revertido", async () => {
+    vi.mocked(registroJornadaService.registrarEventosLote)
+      .mockResolvedValueOnce({
+        ok: false,
+        rollback: true,
+        jornada_id: jornadaId,
+        procesados: 0,
+        error: {
+          codigo: "P0001",
+          mensaje: "LABOR_INVALIDA_O_INACTIVA",
+          detalle: null,
+          pista: null,
+        },
+      })
+      .mockResolvedValueOnce(respuestaLoteExitosa);
+    const { finalizarDesdeFilas } = useJornadaAdmin();
+    const jornada = crearJornada([fila("06:00", "07:00", "labor", "labor-1")]);
+
+    await expect(finalizarDesdeFilas(jornada)).rejects.toThrow(
+      "LABOR_INVALIDA_O_INACTIVA",
+    );
+    await finalizarDesdeFilas(jornada);
+
+    const llamadas = vi.mocked(registroJornadaService.registrarEventosLote).mock
+      .calls;
+    expect(llamadas[0]?.[0].p_jornada_id).toBe(llamadas[1]?.[0].p_jornada_id);
   });
 });
 

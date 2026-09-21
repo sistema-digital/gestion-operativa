@@ -37,7 +37,10 @@ const emit = defineEmits<{
     <button
       type="button"
       class="flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-main px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-main-dark disabled:cursor-not-allowed disabled:opacity-60"
-      :disabled="!valido || guardando || !finalizarDisponible"
+      :disabled="guardando || !finalizarDisponible"
+      :title="
+        valido ? undefined : 'Corrige las filas resaltadas para finalizar.'
+      "
       @click="emit('finalizar')"
     >
       <Check class="size-3.5" aria-hidden="true" />

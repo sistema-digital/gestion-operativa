@@ -20,11 +20,10 @@ import ImplementoCrearPanel from "./ImplementoCrearPanel.vue";
 import { useJornadaAdmin } from "./composables/useJornadaAdmin";
 import type {
   CatalogosJornada,
-  EquipoOption,
   ImplementoCrearPayload,
   ImplementoOption,
+  JornadaDatosGeneralesModel,
   JornadaState,
-  OperadorOption,
 } from "./registroJornada.types";
 
 const implementoResponseSchema = z.object({
@@ -42,13 +41,16 @@ const catalogosStore = useRegistroJornadaCatalogosStore();
 const router = useRouter();
 const {
   implementos,
+  equipos,
+  implementoTipos,
   labores,
+  operadores,
   tiposParada,
   error: errorCatalogos,
 } = storeToRefs(catalogosStore);
 
 const jornada = reactive<JornadaState>({
-  fecha: "2026-09-12",
+  fecha: null,
   operadorId: null,
   equipoNumero: null,
   area: "Campo",
@@ -56,13 +58,11 @@ const jornada = reactive<JornadaState>({
   filas: [],
 });
 
-const operadores = reactive<OperadorOption[]>([]);
-const equipos = reactive<EquipoOption[]>([]);
 const catalogos = computed<CatalogosJornada>(() => ({
   labores: labores.value,
   tiposParada: tiposParada.value,
   implementos: implementos.value,
-  implementoTipos: [],
+  implementoTipos: implementoTipos.value,
 }));
 
 const {
@@ -73,19 +73,27 @@ const {
   error,
 } = useJornadaAdmin();
 const validacionFilas = computed(() => validarContinuidad(jornada.filas));
+const mostrarErroresFilas = shallowRef(false);
 const filaImplementoActiva = shallowRef<number | null>(null);
+const numeroImplementoInicial = shallowRef<string | null>(null);
 const implementoPanelOpen = shallowRef(false);
 const guardandoImplemento = shallowRef(false);
 const errorImplemento = shallowRef<string | null>(null);
 
-function solicitarCrearImplemento(index: number): void {
+function actualizarDatosGenerales(datos: JornadaDatosGeneralesModel): void {
+  Object.assign(jornada, datos);
+}
+
+function solicitarCrearImplemento(index: number, numero: string): void {
   errorImplemento.value = null;
   filaImplementoActiva.value = index;
+  numeroImplementoInicial.value = numero;
   implementoPanelOpen.value = true;
 }
 
 function limpiarDetalle(): void {
   jornada.filas.splice(0);
+  mostrarErroresFilas.value = false;
   errorImplemento.value = null;
 }
 
@@ -116,6 +124,7 @@ async function registrarYAsignarImplemento(
     jornada.filas[filaActiva].implementoId = implemento.id;
     implementoPanelOpen.value = false;
     filaImplementoActiva.value = null;
+    numeroImplementoInicial.value = null;
   } catch (capturado) {
     errorImplemento.value =
       capturado instanceof Error
@@ -127,6 +136,7 @@ async function registrarYAsignarImplemento(
 }
 
 async function finalizarJornada(): Promise<void> {
+  mostrarErroresFilas.value = true;
   try {
     await finalizarDesdeFilas(jornada);
   } catch {
@@ -178,9 +188,10 @@ onMounted(() => {
       </header>
 
       <JornadaDatosGenerales
-        v-model="jornada"
+        :model-value="jornada"
         :operadores="operadores"
         :equipos="equipos"
+        @update:model-value="actualizarDatosGenerales"
       />
 
       <p
@@ -195,6 +206,7 @@ onMounted(() => {
       <JornadaDetalle
         v-model:filas="jornada.filas"
         :catalogos="catalogos"
+        :mostrar-errores="mostrarErroresFilas"
         @crear-implemento="solicitarCrearImplemento"
         @limpiar="limpiarDetalle"
       >
@@ -244,6 +256,7 @@ onMounted(() => {
         :fila-numero="
           filaImplementoActiva === null ? null : filaImplementoActiva + 1
         "
+        :numero-inicial="numeroImplementoInicial"
         :tipos-implemento="catalogos.implementoTipos"
         :guardando="guardandoImplemento"
         :error="errorImplemento"

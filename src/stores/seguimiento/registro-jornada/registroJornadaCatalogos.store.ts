@@ -3,7 +3,10 @@ import { acceptHMRUpdate, defineStore } from "pinia";
 import { registroJornadaService } from "@/components/seguimiento/registro-jornada/services/registroJornada.service";
 import type {
   ImplementoOption,
+  ImplementoTipoOption,
+  EquipoOption,
   LaborCatalogo,
+  OperadorOption,
   TipoParadaCatalogo,
 } from "@/components/seguimiento/registro-jornada/registroJornada.types";
 
@@ -11,12 +14,34 @@ export const useRegistroJornadaCatalogosStore = defineStore(
   "seguimiento_registro_jornada_catalogos",
   () => {
     const implementos = shallowRef<ImplementoOption[]>([]);
+    const implementoTipos = shallowRef<ImplementoTipoOption[]>([]);
     const labores = shallowRef<LaborCatalogo[]>([]);
+    const operadores = shallowRef<OperadorOption[]>([]);
+    const equipos = shallowRef<EquipoOption[]>([]);
     const tiposParada = shallowRef<TipoParadaCatalogo[]>([]);
     const cargado = shallowRef(false);
     const cargando = shallowRef(false);
     const error = shallowRef<string | null>(null);
     let solicitudPendiente: Promise<void> | null = null;
+    let solicitudEquiposPendiente: Promise<void> | null = null;
+    const equiposCargados = shallowRef(false);
+
+    async function cargarEquipos(): Promise<void> {
+      if (solicitudEquiposPendiente) return solicitudEquiposPendiente;
+      if (equiposCargados.value) return;
+
+      solicitudEquiposPendiente = (async () => {
+        try {
+          equipos.value =
+            await registroJornadaService.listarEquiposRegistroJornada();
+          equiposCargados.value = true;
+        } finally {
+          solicitudEquiposPendiente = null;
+        }
+      })();
+
+      return solicitudEquiposPendiente;
+    }
 
     async function cargarCatalogos(force = false): Promise<void> {
       if (solicitudPendiente) return solicitudPendiente;
@@ -27,12 +52,21 @@ export const useRegistroJornadaCatalogosStore = defineStore(
         error.value = null;
 
         try {
-          const [resultadoImplementos, resultadoLabores, resultadoParadas] =
-            await Promise.allSettled([
-              registroJornadaService.listarImplementos(),
-              registroJornadaService.listarLabores(),
-              registroJornadaService.listarParadas(),
-            ]);
+          const [
+            resultadoImplementos,
+            resultadoTiposImplemento,
+            resultadoLabores,
+            resultadoOperadores,
+            resultadoEquipos,
+            resultadoParadas,
+          ] = await Promise.allSettled([
+            registroJornadaService.listarImplementos(),
+            registroJornadaService.listarTiposImplemento(),
+            registroJornadaService.listarLabores(),
+            registroJornadaService.listarOperadores(),
+            cargarEquipos(),
+            registroJornadaService.listarParadas(),
+          ]);
 
           const catalogosConError: string[] = [];
 
@@ -44,11 +78,33 @@ export const useRegistroJornadaCatalogosStore = defineStore(
             );
           }
 
+          if (resultadoTiposImplemento.status === "fulfilled") {
+            implementoTipos.value = resultadoTiposImplemento.value;
+          } else {
+            catalogosConError.push(
+              `tipos de implemento (${resultadoTiposImplemento.reason instanceof Error ? resultadoTiposImplemento.reason.message : "error de carga"})`,
+            );
+          }
+
           if (resultadoLabores.status === "fulfilled") {
             labores.value = resultadoLabores.value;
           } else {
             catalogosConError.push(
               `labores (${resultadoLabores.reason instanceof Error ? resultadoLabores.reason.message : "error de carga"})`,
+            );
+          }
+
+          if (resultadoOperadores.status === "fulfilled") {
+            operadores.value = resultadoOperadores.value;
+          } else {
+            catalogosConError.push(
+              `operadores (${resultadoOperadores.reason instanceof Error ? resultadoOperadores.reason.message : "error de carga"})`,
+            );
+          }
+
+          if (resultadoEquipos.status === "rejected") {
+            catalogosConError.push(
+              `equipos (${resultadoEquipos.reason instanceof Error ? resultadoEquipos.reason.message : "error de carga"})`,
             );
           }
 
@@ -86,12 +142,17 @@ export const useRegistroJornadaCatalogosStore = defineStore(
 
     return {
       implementos,
+      implementoTipos,
       labores,
+      operadores,
+      equipos,
+      equiposCargados,
       tiposParada,
       cargado,
       cargando,
       error,
       cargarCatalogos,
+      cargarEquipos,
       agregarImplemento,
     };
   },

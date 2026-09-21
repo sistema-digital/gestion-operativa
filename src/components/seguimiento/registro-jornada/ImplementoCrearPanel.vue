@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, shallowRef } from "vue";
+import { computed, reactive, shallowRef, watch } from "vue";
 import { CircleAlert, Info, LoaderCircle, X } from "lucide-vue-next";
 import Multiselect from "vue-multiselect";
 import { z } from "zod";
@@ -9,7 +9,10 @@ import type {
 } from "./registroJornada.types";
 
 const implementoCrearSchema = z.object({
-  numero: z.string().trim().min(1, "Indica el número del implemento."),
+  numero: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "El número debe tener exactamente 6 dígitos."),
   tipoImplementoId: z.string().min(1, "Selecciona un tipo de implemento."),
   nombre: z.string(),
 });
@@ -18,6 +21,7 @@ const open = defineModel<boolean>("open", { required: true });
 
 const props = defineProps<{
   filaNumero: number | null;
+  numeroInicial: string | null;
   tiposImplemento: ImplementoTipoOption[];
   guardando: boolean;
   error: string | null;
@@ -33,6 +37,30 @@ const form = reactive({
   nombre: "",
 });
 const intentoEnviar = shallowRef(false);
+
+function formatearNumeroImplemento(numero: string): string {
+  const primerBloque = numero.slice(0, 1);
+  const segundoBloque = numero.slice(1, 3);
+  const tercerBloque = numero.slice(3, 6);
+
+  return [primerBloque, segundoBloque, tercerBloque]
+    .filter((bloque) => bloque !== "")
+    .join("-");
+}
+
+const numeroFormateado = computed({
+  get: () => formatearNumeroImplemento(form.numero),
+  set: (valor: string) => {
+    form.numero = valor.replace(/\D/g, "").slice(0, 6);
+  },
+});
+
+watch(
+  () => [open.value, props.numeroInicial] as const,
+  ([abierto, numeroInicial]) => {
+    if (abierto) form.numero = numeroInicial ?? "";
+  },
+);
 
 const tipoSeleccionado = computed<ImplementoTipoOption | null>({
   get: () =>
@@ -101,13 +129,7 @@ function submit(): void {
             >
               Registrar implemento
             </h2>
-            <p class="text-[10px] text-gray-500">
-              {{
-                filaNumero
-                  ? `Se registrará y usará en la fila ${filaNumero}.`
-                  : "Se usará en la fila seleccionada."
-              }}
-            </p>
+            
           </div>
           <button
             type="button"
@@ -120,7 +142,10 @@ function submit(): void {
           </button>
         </header>
 
-        <form class="grid gap-3 overflow-y-auto p-3" @submit.prevent="submit">
+        <form
+          class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3"
+          @submit.prevent="submit"
+        >
           <p
             v-if="error"
             class="flex items-start gap-2 rounded-md border border-danger/30 bg-danger-bg px-2 py-2 text-[11px] text-danger"
@@ -129,18 +154,7 @@ function submit(): void {
             <CircleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
             {{ error }}
           </p>
-          <div
-            class="flex gap-2 rounded-md border border-info/30 bg-info-bg p-2 text-[11px] text-gray-700"
-          >
-            <Info
-              class="mt-0.5 size-3.5 shrink-0 text-info"
-              aria-hidden="true"
-            />
-            <p>
-              Úsalo cuando el implemento existe físicamente, pero todavía no
-              aparece en el catálogo.
-            </p>
-          </div>
+          
 
           <label>
             <span
@@ -148,10 +162,12 @@ function submit(): void {
               >Número *</span
             >
             <input
-              v-model="form.numero"
+              v-model="numeroFormateado"
               class="h-10 w-full rounded-md border bg-white px-3 font-mono text-sm outline-none focus:border-main md:h-8 md:text-xs"
               :class="errores.numero ? 'border-danger' : 'border-gray-300'"
               placeholder="Ej. 439020"
+              inputmode="numeric"
+              maxlength="8"
               aria-required="true"
               :aria-invalid="Boolean(errores.numero)"
             />
