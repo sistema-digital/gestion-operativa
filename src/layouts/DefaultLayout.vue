@@ -1179,7 +1179,7 @@ const isActive = (path: string) =>
       <!-- Top Header (Desktop) -->
       <header
         v-if="!hideDefaultLayout"
-        class="relative z-10 hidden h-12 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center border-b border-gray-200 bg-white px-6 shadow-sm lg:grid"
+        class="relative z-30 hidden h-12 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center border-b border-gray-200 bg-white px-6 shadow-sm lg:grid"
       >
         <div
           class="flex min-w-0 items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-gray-500"
