@@ -29,6 +29,10 @@ function confirmar(): void {
 
 function manejarTecla(evento: KeyboardEvent): void {
   if (evento.key === "Escape") cerrar();
+  if (evento.key === "Enter" && !evento.repeat) {
+    evento.preventDefault();
+    confirmar();
+  }
 }
 
 onMounted(() => {

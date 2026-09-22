@@ -11,7 +11,16 @@ import type {
 } from "./registroJornada.types";
 
 const model = defineModel<JornadaFilaModel>({ required: true });
+const horaInicioContenedor = useTemplateRef<HTMLLabelElement>(
+  "horaInicioContenedor",
+);
 const horaFinContenedor = useTemplateRef<HTMLDivElement>("horaFinContenedor");
+const actividadContenedor = useTemplateRef<HTMLDivElement>(
+  "actividadContenedor",
+);
+const implementoContenedor = useTemplateRef<HTMLDivElement>(
+  "implementoContenedor",
+);
 
 interface HoraPickerValue {
   hours: number;
@@ -137,9 +146,7 @@ function moverAFin(evento: KeyboardEvent): void {
   if (!hora) return;
   model.value.inicio = hora;
 
-  void nextTick(() => {
-    horaFinContenedor.value?.querySelector("input")?.focus();
-  });
+  void nextTick(enfocarFin);
 }
 
 function confirmarHoraInicio(evento: KeyboardEvent): void {
@@ -162,6 +169,33 @@ function confirmarHoraFin(evento: KeyboardEvent): void {
     return;
   }
   model.value.fin = hora;
+  evento.preventDefault();
+  void nextTick(enfocarActividad);
+}
+
+function enfocarEntrada(contenedor: HTMLElement | null): void {
+  contenedor?.querySelector<HTMLInputElement>("input")?.focus();
+}
+
+function enfocarInicio(): void {
+  enfocarEntrada(horaInicioContenedor.value);
+}
+
+function enfocarFin(): void {
+  enfocarEntrada(horaFinContenedor.value);
+}
+
+function enfocarActividad(): void {
+  enfocarEntrada(actividadContenedor.value);
+}
+
+function enfocarImplemento(): void {
+  enfocarEntrada(implementoContenedor.value);
+}
+
+function moverAImplemento(evento: KeyboardEvent): void {
+  evento.preventDefault();
+  void nextTick(enfocarImplemento);
 }
 
 function aplicarCodigoResuelto(): void {
@@ -223,6 +257,12 @@ const duracion = computed(() => {
     minutos % 60,
   ).padStart(2, "0")}`;
 });
+
+function tieneInicio(): boolean {
+  return Boolean(model.value.inicio);
+}
+
+defineExpose({ enfocarInicio, enfocarFin, tieneInicio });
 </script>
 
 <template>
@@ -243,7 +283,7 @@ const duracion = computed(() => {
       >
     </div>
 
-    <label>
+    <label ref="horaInicioContenedor">
       <span
         class="mb-0.5 block text-[8px] font-bold uppercase text-gray-500 md:hidden"
         >Hora inicio</span
@@ -310,7 +350,11 @@ const duracion = computed(() => {
       </span>
     </label>
 
-    <label class="col-span-2 min-w-0 md:col-span-1">
+    <div
+      ref="actividadContenedor"
+      class="col-span-2 min-w-0 md:col-span-1"
+      @keydown.tab="moverAImplemento"
+    >
       <span
         class="mb-0.5 block text-[8px] font-bold uppercase text-gray-500 md:hidden"
         >Labor / causa</span
@@ -330,9 +374,9 @@ const duracion = computed(() => {
         "
         class="jornada-multiselect [&_.multiselect]:min-h-10 [&_.multiselect__input]:mb-0 [&_.multiselect__input]:cursor-text [&_.multiselect__input]:text-xs [&_.multiselect__option]:px-2 [&_.multiselect__option]:py-2 [&_.multiselect__option]:text-xs [&_.multiselect__select]:h-10 [&_.multiselect__select]:cursor-pointer [&_.multiselect__single]:mb-0 [&_.multiselect__single]:pt-2.5 [&_.multiselect__single]:text-xs [&_.multiselect__tags]:min-h-10 [&_.multiselect__tags]:border-gray-200 [&_.multiselect__tags]:px-2 [&_.multiselect__tags]:py-0 md:[&_.multiselect]:min-h-[58px] md:[&_.multiselect__input]:text-xs md:[&_.multiselect__select]:h-[58px] md:[&_.multiselect__single]:pt-5 md:[&_.multiselect__tags]:min-h-[58px] md:[&_.multiselect__tags]:border-0"
       />
-    </label>
+    </div>
 
-    <div class="col-span-2 min-w-0 md:col-span-1">
+    <div ref="implementoContenedor" class="col-span-2 min-w-0 md:col-span-1">
       <span
         class="mb-0.5 block text-[8px] font-bold uppercase text-gray-500 md:hidden"
         >Implemento</span

@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, shallowRef } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  shallowRef,
+  useTemplateRef,
+} from "vue";
 import { CircleHelp, ListRestart, Plus, Rows3 } from "lucide-vue-next";
 import JornadaFila from "./JornadaFila.vue";
 import type {
@@ -20,6 +27,8 @@ const emit = defineEmits<{
 }>();
 
 const filasAValidar = shallowRef<Set<string>>(new Set());
+const filaRefs = useTemplateRef<InstanceType<typeof JornadaFila>[]>("filaRefs");
+const controlSinCombinacion = shallowRef(false);
 
 const puedeAgregarFila = computed(() => {
   const ultimaFila = filas.value.at(-1);
@@ -29,12 +38,15 @@ const puedeAgregarFila = computed(() => {
     ultimaFila.inicio &&
     ultimaFila.fin &&
     ultimaFila.fin > ultimaFila.inicio &&
+    Number.isInteger(ultimaFila.codigo) &&
     ultimaFila.tipoActividad &&
     ultimaFila.actividadId,
   );
 });
 
-function agregarFila(): void {
+function agregarFila(): boolean {
+  if (!puedeAgregarFila.value) return false;
+
   filasAValidar.value = new Set([
     ...filasAValidar.value,
     ...filas.value.map((fila) => fila.idLocal),
@@ -50,11 +62,55 @@ function agregarFila(): void {
     actividadNombre: "",
     implementoId: null,
   });
+  return true;
+}
+
+function agregarFilaYEnfocar(): void {
+  if (!agregarFila()) return;
+
+  void nextTick(() => {
+    const nuevaFila = filaRefs.value?.at(-1);
+    if (!nuevaFila) return;
+
+    if (nuevaFila.tieneInicio()) {
+      nuevaFila.enfocarFin();
+      return;
+    }
+
+    nuevaFila.enfocarInicio();
+  });
+}
+
+function registrarTeclaPresionada(evento: KeyboardEvent): void {
+  if (evento.key === "Control" && !evento.repeat) {
+    controlSinCombinacion.value = true;
+    return;
+  }
+
+  if (evento.ctrlKey) controlSinCombinacion.value = false;
+}
+
+function manejarAtajoCrearFila(evento: KeyboardEvent): void {
+  if (evento.key !== "Control" || !controlSinCombinacion.value) return;
+
+  controlSinCombinacion.value = false;
+  evento.preventDefault();
+  agregarFilaYEnfocar();
 }
 
 function eliminarFila(index: number): void {
   filas.value.splice(index, 1);
 }
+
+onMounted(() => {
+  document.addEventListener("keydown", registrarTeclaPresionada, true);
+  document.addEventListener("keyup", manejarAtajoCrearFila, true);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("keydown", registrarTeclaPresionada, true);
+  document.removeEventListener("keyup", manejarAtajoCrearFila, true);
+});
 </script>
 
 <template>
@@ -114,6 +170,7 @@ function eliminarFila(index: number): void {
         <JornadaFila
           v-for="(fila, index) in filas"
           :key="fila.idLocal"
+          ref="filaRefs"
           v-model="filas[index]"
           :numero="index + 1"
           :catalogos="catalogos"
@@ -145,7 +202,7 @@ function eliminarFila(index: number): void {
             : 'Completa Inicio, Fin y una labor o parada antes de agregar otra fila.'
         "
         class="flex h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-[#d8d2c8] bg-white px-4 text-xs font-semibold shadow-sm hover:bg-[#faf9f6] disabled:cursor-not-allowed disabled:opacity-60"
-        @click="agregarFila"
+        @click="agregarFilaYEnfocar"
       >
         <Plus class="size-3.5" aria-hidden="true" /> Agregar registro
       </button>

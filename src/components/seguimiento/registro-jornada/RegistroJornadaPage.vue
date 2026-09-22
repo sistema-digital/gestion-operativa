@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, shallowRef } from "vue";
+import { computed, onMounted, reactive, shallowRef, watch } from "vue";
 import {
   ArrowLeft,
   CircleAlert,
@@ -109,6 +109,19 @@ const esEdicion = computed(() => Boolean(props.jornadaId));
 
 function actualizarDatosGenerales(datos: JornadaDatosGeneralesModel): void {
   Object.assign(jornada, datos);
+}
+
+function crearPrimeraFila(): void {
+  jornada.filas.push({
+    idLocal: crypto.randomUUID(),
+    inicio: jornada.equipoNumero?.startsWith("484") ? "06:00" : "",
+    fin: "",
+    codigo: null,
+    tipoActividad: null,
+    actividadId: null,
+    actividadNombre: "",
+    implementoId: null,
+  });
 }
 
 function solicitarCrearImplemento(index: number, numero: string): void {
@@ -380,6 +393,23 @@ const canFinalize = computed(() =>
   featureAccessStore.tieneFuncionalidad(
     SEGUIMIENTO_FEATURES.finalizeAdministrativeJornadas,
   ),
+);
+
+watch(
+  () => [jornada.fecha, jornada.operadorId, jornada.equipoNumero] as const,
+  ([fecha, operadorId, equipoNumero]) => {
+    if (
+      esEdicion.value ||
+      jornada.filas.length > 0 ||
+      !fecha ||
+      !operadorId ||
+      !equipoNumero
+    ) {
+      return;
+    }
+
+    crearPrimeraFila();
+  },
 );
 
 onMounted(() => {
