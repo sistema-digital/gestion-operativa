@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Copy } from "lucide-vue-next";
-import { computed, shallowRef } from "vue";
+import { computed, nextTick, shallowRef, useTemplateRef, watch } from "vue";
 import Multiselect from "vue-multiselect";
 import type { ImplementoOption } from "./registroJornada.types";
 
@@ -12,7 +12,15 @@ interface OpcionNuevoImplemento {
 
 type OpcionImplemento = ImplementoOption | OpcionNuevoImplemento;
 
+interface MultiselectConPuntero {
+  pointer: number;
+  pointerSet: (indice: number) => void;
+  deactivate: () => void;
+}
+
 const model = defineModel<string | null>({ required: true });
+const contenedor = useTemplateRef<HTMLDivElement>("contenedor");
+const multiselect = useTemplateRef<MultiselectConPuntero>("multiselect");
 
 const props = defineProps<{
   implementos: ImplementoOption[];
@@ -83,11 +91,48 @@ function copiarImplementoAnterior(): void {
 function actualizarBusqueda(termino: string): void {
   busqueda.value = termino;
 }
+
+function posicionarImplementoSeleccionado(): void {
+  const indice = opciones.value.findIndex(
+    (opcion) => !esOpcionNuevoImplemento(opcion) && opcion.id === model.value,
+  );
+  if (indice < 0) return;
+
+  multiselect.value?.pointerSet(indice);
+  void nextTick(() => {
+    contenedor.value
+      ?.querySelector<HTMLElement>(".multiselect__option--selected")
+      ?.scrollIntoView({ block: "nearest" });
+  });
+}
+
+function confirmarImplementoSeleccionado(evento: KeyboardEvent): void {
+  const opcionApuntada = opciones.value[multiselect.value?.pointer ?? -1];
+  if (
+    !model.value ||
+    !opcionApuntada ||
+    esOpcionNuevoImplemento(opcionApuntada) ||
+    opcionApuntada.id !== model.value
+  ) {
+    return;
+  }
+
+  evento.preventDefault();
+  evento.stopPropagation();
+  multiselect.value?.deactivate();
+}
+
+watch(() => model.value, posicionarImplementoSeleccionado);
 </script>
 
 <template>
-  <div class="relative min-w-0">
+  <div
+    ref="contenedor"
+    class="relative min-w-0"
+    @keydown.enter.capture="confirmarImplementoSeleccionado"
+  >
     <Multiselect
+      ref="multiselect"
       v-model="seleccionado"
       :options="opciones"
       :internal-search="false"
@@ -97,6 +142,7 @@ function actualizarBusqueda(termino: string): void {
       :max-height="220"
       track-by="id"
       placeholder="Sin implemento"
+      @open="posicionarImplementoSeleccionado"
       @search-change="actualizarBusqueda"
       class="implemento-select relative z-20 min-w-0 jornada-multiselect [&_.multiselect]:min-h-8 [&_.multiselect__content-wrapper]:z-[60] [&_.multiselect__input]:mb-0 [&_.multiselect__input]:cursor-text [&_.multiselect__input]:text-xs [&_.multiselect__option]:px-2 [&_.multiselect__option]:py-2 [&_.multiselect__option]:text-xs [&_.multiselect__select]:h-8 [&_.multiselect__select]:cursor-pointer [&_.multiselect__single]:mb-0 [&_.multiselect__single]:block [&_.multiselect__single]:min-w-0 [&_.multiselect__single]:truncate [&_.multiselect__single]:pt-2 [&_.multiselect__single]:font-mono [&_.multiselect__single]:text-xs [&_.multiselect__tags]:min-h-8 [&_.multiselect__tags]:overflow-hidden [&_.multiselect__tags]:border-gray-300 [&_.multiselect__tags]:px-2 [&_.multiselect__tags]:py-0"
       :class="implementoAnteriorId ? '[&_.multiselect__tags]:pr-12' : ''"

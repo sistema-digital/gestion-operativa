@@ -189,7 +189,14 @@ function enfocarActividad(): void {
   enfocarEntrada(actividadContenedor.value);
 }
 
+function seleccionarImplementoAnterior(): void {
+  if (!model.value.implementoId && props.implementoAnteriorId) {
+    model.value.implementoId = props.implementoAnteriorId;
+  }
+}
+
 function enfocarImplemento(): void {
+  seleccionarImplementoAnterior();
   enfocarEntrada(implementoContenedor.value);
 }
 
@@ -376,7 +383,11 @@ defineExpose({ enfocarInicio, enfocarFin, tieneInicio });
       />
     </div>
 
-    <div ref="implementoContenedor" class="col-span-2 min-w-0 md:col-span-1">
+    <div
+      ref="implementoContenedor"
+      class="col-span-2 min-w-0 md:col-span-1"
+      @focusin="seleccionarImplementoAnterior"
+    >
       <span
         class="mb-0.5 block text-[8px] font-bold uppercase text-gray-500 md:hidden"
         >Implemento</span
