@@ -1014,7 +1014,7 @@ const isActive = (path: string) =>
                       : 'text-gray-400 hover:bg-white/5 hover:text-white'
                   "
                   @click="seguimientoDesktopOpen = false"
-                  >Registro de jornadas</router-link
+                  >Registro Jornada</router-link
                 >
               </div>
             </div>
@@ -1141,6 +1141,18 @@ const isActive = (path: string) =>
             :class="isSeguimientoReportesRoute ? 'bg-white/10 text-white' : ''"
             @click="closeDesktopFloatingGroup"
             >Reportes</router-link
+          >
+          <router-link
+            v-if="canSeeRegistroJornadas"
+            to="/seguimiento/registro-jornadas"
+            class="flex rounded-lg px-3 py-2.5 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+            :class="
+              isActive('/seguimiento/registro-jornadas')
+                ? 'bg-white/10 text-white'
+                : ''
+            "
+            @click="closeDesktopFloatingGroup"
+            >Registro Jornada</router-link
           >
         </div>
       </div>
