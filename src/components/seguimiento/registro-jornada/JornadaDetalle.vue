@@ -191,6 +191,18 @@ onBeforeUnmount(() => {
     </div>
 
     <div
+      v-if="filas.length <= 2"
+      class="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 border-t border-dashed border-[#e5e1da] px-3 py-1.5 text-[10px] font-medium text-gray-400"
+      aria-label="Atajos de teclado"
+    >
+      <CircleHelp class="size-3 text-gray-300" aria-hidden="true" />
+      <span>Atajos:</span>
+      <span><kbd class="jornada-atajo">Tab</kbd> siguiente campo</span>
+      <span><kbd class="jornada-atajo">Enter</kbd> elegir opción</span>
+      <span><kbd class="jornada-atajo">Ctrl</kbd> nuevo registro</span>
+    </div>
+
+    <div
       class="flex justify-center border-t border-dashed border-[#ddd8d0] bg-[#faf9f7] p-2.5"
     >
       <button
@@ -211,3 +223,17 @@ onBeforeUnmount(() => {
     <slot name="footer" />
   </section>
 </template>
+
+<style scoped>
+.jornada-atajo {
+  border: 1px solid #ddd8d0;
+  border-bottom-width: 2px;
+  border-radius: 0.25rem;
+  background: #faf9f7;
+  padding: 0.0625rem 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  color: #888178;
+}
+</style>
