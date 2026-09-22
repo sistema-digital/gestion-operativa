@@ -140,6 +140,15 @@ export const useRegistroJornadaCatalogosStore = defineStore(
         : [...implementos.value, implemento];
     }
 
+    function agregarOperador(operador: OperadorOption): void {
+      const existe = operadores.value.some((item) => item.id === operador.id);
+      operadores.value = existe
+        ? operadores.value.map((item) =>
+            item.id === operador.id ? operador : item,
+          )
+        : [...operadores.value, operador];
+    }
+
     return {
       implementos,
       implementoTipos,
@@ -154,6 +163,7 @@ export const useRegistroJornadaCatalogosStore = defineStore(
       cargarCatalogos,
       cargarEquipos,
       agregarImplemento,
+      agregarOperador,
     };
   },
 );

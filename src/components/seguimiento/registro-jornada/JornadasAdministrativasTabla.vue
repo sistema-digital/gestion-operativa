@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Eye, LoaderCircle, Pencil } from "lucide-vue-next";
-import { formatCompactPanamaDateTime } from "@/utils/formatCompactPanamaDate";
+import { formatCompactPanamaTime } from "@/utils/formatCompactPanamaDate";
 import type { JornadaAdministrativaListaItem } from "./registroJornada.types";
 
 defineProps<{
@@ -66,10 +66,10 @@ function claseEstado(
       >
         <tr>
           <th class="px-3 py-2 font-bold">Fecha</th>
+          <th class="px-3 py-2 font-bold">Equipo</th>
           <th class="px-3 py-2 font-bold">Operador</th>
           <th class="px-3 py-2 font-bold">Inicio</th>
           <th class="px-3 py-2 font-bold">Fin</th>
-          <th class="px-3 py-2 font-bold">Eventos</th>
           <th class="px-3 py-2 font-bold">Estado</th>
           <th class="px-3 py-2"><span class="sr-only">Acciones</span></th>
         </tr>
@@ -104,6 +104,12 @@ function claseEstado(
             {{ fechaOperativa(jornada.fechaOperativa) }}
           </td>
           <td
+            class="px-3 py-2.5 font-mono text-xs text-gray-700"
+            data-label="Equipo"
+          >
+            {{ jornada.equipoNumero }}
+          </td>
+          <td
             class="px-3 py-2.5 text-xs font-semibold text-gray-800"
             data-label="Operador"
           >
@@ -113,19 +119,13 @@ function claseEstado(
             class="px-3 py-2.5 font-mono text-[11px] text-gray-600"
             data-label="Inicio"
           >
-            {{ formatCompactPanamaDateTime(jornada.iniciadaEn) }}
+            {{ formatCompactPanamaTime(jornada.iniciadaEn) }}
           </td>
           <td
             class="px-3 py-2.5 font-mono text-[11px] text-gray-600"
             data-label="Fin"
           >
-            {{ formatCompactPanamaDateTime(jornada.finalizadaEn) }}
-          </td>
-          <td
-            class="px-3 py-2.5 font-mono text-xs text-gray-700"
-            data-label="Eventos"
-          >
-            {{ jornada.eventosActivos }}
+            {{ formatCompactPanamaTime(jornada.finalizadaEn) }}
           </td>
           <td class="px-3 py-2.5" data-label="Estado">
             <span

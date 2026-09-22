@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, nextTick, useTemplateRef, watch } from "vue";
 import { Trash2 } from "lucide-vue-next";
+import { VueDatePicker } from "@vuepic/vue-datepicker";
 import Multiselect from "vue-multiselect";
 import ImplementoSelect from "./ImplementoSelect.vue";
 import { resolverCodigo } from "./composables/useJornadaAdmin";
@@ -10,6 +11,12 @@ import type {
 } from "./registroJornada.types";
 
 const model = defineModel<JornadaFilaModel>({ required: true });
+const horaFinContenedor = useTemplateRef<HTMLDivElement>("horaFinContenedor");
+
+interface HoraPickerValue {
+  hours: number;
+  minutes: number;
+}
 
 const props = defineProps<{
   numero: number;
@@ -70,6 +77,92 @@ const actividadSeleccionada = computed<
     model.value.actividadNombre = actividad.nombre;
   },
 });
+
+const horaInicio = computed<HoraPickerValue | null>({
+  get: () => {
+    if (!model.value.inicio) return null;
+    const [hours, minutes] = model.value.inicio.split(":").map(Number);
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+    return { hours, minutes };
+  },
+  set: (hora) => {
+    if (!hora) {
+      model.value.inicio = "";
+      return;
+    }
+    model.value.inicio = `${String(hora.hours).padStart(2, "0")}:${String(
+      hora.minutes,
+    ).padStart(2, "0")}`;
+  },
+});
+
+const horaFin = computed<HoraPickerValue | null>({
+  get: () => {
+    if (!model.value.fin) return null;
+    const [hours, minutes] = model.value.fin.split(":").map(Number);
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+    return { hours, minutes };
+  },
+  set: (hora) => {
+    if (!hora) {
+      model.value.fin = "";
+      return;
+    }
+    model.value.fin = `${String(hora.hours).padStart(2, "0")}:${String(
+      hora.minutes,
+    ).padStart(2, "0")}`;
+  },
+});
+
+function mantenerHoraSinConfirmar(): Date | null {
+  return null;
+}
+
+function parsearHoraAlConfirmar(valor: string): string | null {
+  const digitos = valor.replace(/\D/g, "");
+  if (digitos.length < 1 || digitos.length > 4) return null;
+
+  const horas = Number(digitos.length <= 2 ? digitos : digitos.slice(0, -2));
+  const minutos = Number(digitos.length <= 2 ? 0 : digitos.slice(-2));
+  if (horas > 23 || minutos > 59) return null;
+
+  return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(2, "0")}`;
+}
+
+function moverAFin(evento: KeyboardEvent): void {
+  evento.preventDefault();
+  const valor =
+    evento.target instanceof HTMLInputElement ? evento.target.value : "";
+  const hora = parsearHoraAlConfirmar(valor);
+  if (!hora) return;
+  model.value.inicio = hora;
+
+  void nextTick(() => {
+    horaFinContenedor.value?.querySelector("input")?.focus();
+  });
+}
+
+function confirmarHoraInicio(evento: KeyboardEvent): void {
+  const valor =
+    evento.target instanceof HTMLInputElement ? evento.target.value : "";
+  const hora = parsearHoraAlConfirmar(valor);
+  if (!hora) {
+    evento.preventDefault();
+    return;
+  }
+  model.value.inicio = hora;
+}
+
+function confirmarHoraFin(evento: KeyboardEvent): void {
+  const valor =
+    evento.target instanceof HTMLInputElement ? evento.target.value : "";
+  const hora = parsearHoraAlConfirmar(valor);
+  if (!hora) {
+    evento.preventDefault();
+    return;
+  }
+  model.value.fin = hora;
+}
 
 function aplicarCodigoResuelto(): void {
   const resultado = resolverCodigo(model.value.codigo, props.catalogos);
@@ -155,10 +248,24 @@ const duracion = computed(() => {
         class="mb-0.5 block text-[8px] font-bold uppercase text-gray-500 md:hidden"
         >Hora inicio</span
       >
-      <input
-        v-model="model.inicio"
-        type="time"
-        class="h-10 w-full rounded-md border border-gray-200 bg-gray-50 px-2 font-mono text-xs md:border-transparent md:bg-transparent"
+      <VueDatePicker
+        v-model="horaInicio"
+        :enable-seconds="false"
+        :is-24="true"
+        :text-input="{
+          format: mantenerHoraSinConfirmar,
+          openMenu: false,
+          enterSubmit: true,
+          tabSubmit: true,
+          selectOnFocus: true,
+        }"
+        auto-apply
+        class="jornada-hora"
+        input-class-name="jornada-hora-input"
+        @keydown.enter="confirmarHoraInicio"
+        @keydown.tab="moverAFin"
+        placeholder="HH:mm"
+        time-picker
       />
     </label>
 
@@ -167,21 +274,32 @@ const duracion = computed(() => {
         class="mb-0.5 block text-[8px] font-bold uppercase text-gray-500 md:hidden"
         >Hora fin</span
       >
-      <input
-        v-model="model.fin"
-        type="time"
-        :min="model.inicio || undefined"
-        :aria-describedby="
-          finEsInvalido ? `fila-${numero}-hora-fin-error` : undefined
-        "
-        :aria-invalid="finEsInvalido"
-        class="h-10 w-full rounded-md border px-2 font-mono text-xs"
-        :class="
-          finEsInvalido
-            ? 'border-danger bg-danger-bg text-danger focus:border-danger'
-            : 'border-gray-200 bg-gray-50 md:border-transparent md:bg-transparent'
-        "
-      />
+      <div ref="horaFinContenedor">
+        <VueDatePicker
+          v-model="horaFin"
+          :enable-seconds="false"
+          :is-24="true"
+          :text-input="{
+            format: mantenerHoraSinConfirmar,
+            openMenu: false,
+            enterSubmit: true,
+            tabSubmit: true,
+            selectOnFocus: true,
+          }"
+          :aria-describedby="
+            finEsInvalido ? `fila-${numero}-hora-fin-error` : undefined
+          "
+          :aria-invalid="finEsInvalido"
+          auto-apply
+          class="jornada-hora"
+          :class="finEsInvalido ? 'jornada-hora--invalida' : ''"
+          input-class-name="jornada-hora-input"
+          @keydown.enter="confirmarHoraFin"
+          @keydown.tab="confirmarHoraFin"
+          placeholder="HH:mm"
+          time-picker
+        />
+      </div>
       <span
         v-if="finEsInvalido"
         :id="`fila-${numero}-hora-fin-error`"
@@ -256,6 +374,30 @@ const duracion = computed(() => {
 .actividad-select :deep(.multiselect__tags) {
   min-width: 0;
   overflow: hidden;
+}
+
+.jornada-hora :deep(.jornada-hora-input) {
+  height: 2.5rem;
+  width: 100%;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  background: var(--color-gray-50);
+  padding-inline: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .jornada-hora :deep(.jornada-hora-input) {
+    border-color: transparent;
+    background: transparent;
+  }
+}
+
+.jornada-hora--invalida :deep(.jornada-hora-input) {
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
 }
 
 .actividad-select :deep(.multiselect__single) {

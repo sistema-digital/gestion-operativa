@@ -6,7 +6,11 @@ import JornadaAdministrativaDetallePanel from "@/components/seguimiento/registro
 import JornadasAdministrativasFiltros from "@/components/seguimiento/registro-jornada/JornadasAdministrativasFiltros.vue";
 import JornadasAdministrativasTabla from "@/components/seguimiento/registro-jornada/JornadasAdministrativasTabla.vue";
 import { useJornadasAdministrativas } from "@/components/seguimiento/registro-jornada/composables/useJornadasAdministrativas";
-import type { JornadaAdministrativaFiltros } from "@/components/seguimiento/registro-jornada/registroJornada.types";
+import type {
+  EquipoOption,
+  JornadaAdministrativaFiltros,
+  JornadaEstadoCaptura,
+} from "@/components/seguimiento/registro-jornada/registroJornada.types";
 
 const router = useRouter();
 const route = useRoute();
@@ -25,6 +29,7 @@ const filtrosIniciales: JornadaAdministrativaFiltros = {
   desde: formatearFechaLocal(haceUnaSemana),
   hasta: formatearFechaLocal(hoy),
   estado: null,
+  equipoNumero: null,
 };
 
 function obtenerValorDeQuery(
@@ -49,6 +54,7 @@ function obtenerFiltrosDesdeUrl(): JornadaAdministrativaFiltros {
     desde: obtenerValorDeQuery(route.query.desde) ?? filtrosIniciales.desde,
     hasta: obtenerValorDeQuery(route.query.hasta) ?? filtrosIniciales.hasta,
     estado: esEstadoDeCaptura(estado) ? estado : null,
+    equipoNumero: obtenerValorDeQuery(route.query.equipo),
   };
 }
 
@@ -73,6 +79,28 @@ const {
   cerrarDetalle,
 } = useJornadasAdministrativas();
 
+const ordenEstados: JornadaEstadoCaptura[] = [
+  "en_edicion",
+  "finalizada",
+  "descartada",
+];
+
+const estadosDisponibles = computed(() => {
+  const estadosCargados = new Set(
+    items.value.map((jornada) => jornada.estadoCaptura),
+  );
+
+  return ordenEstados.filter((estado) => estadosCargados.has(estado));
+});
+
+const equiposDisponibles = computed<EquipoOption[]>(() =>
+  [...new Set(items.value.map((jornada) => jornada.equipoNumero))]
+    .sort((primerEquipo, segundoEquipo) =>
+      primerEquipo.localeCompare(segundoEquipo, "es-PA", { numeric: true }),
+    )
+    .map((numero) => ({ numero, etiqueta: numero })),
+);
+
 const jornadasVisibles = computed(() => {
   const termino = busqueda.value.trim().toLocaleLowerCase("es-PA");
 
@@ -81,12 +109,34 @@ const jornadasVisibles = computed(() => {
       (termino === "" ||
         jornada.operador.toLocaleLowerCase("es-PA").includes(termino)) &&
       (filtros.value.estado === null ||
-        jornada.estadoCaptura === filtros.value.estado),
+        jornada.estadoCaptura === filtros.value.estado) &&
+      (filtros.value.equipoNumero === null ||
+        jornada.equipoNumero === filtros.value.equipoNumero),
   );
 });
 
 async function aplicarFiltros(): Promise<void> {
   await cargar({ ...filtros.value });
+  sincronizarFiltrosConCarga();
+}
+
+function sincronizarFiltrosConCarga(): void {
+  const estadoEsDisponible =
+    filtros.value.estado === null ||
+    estadosDisponibles.value.includes(filtros.value.estado);
+  const equipoEsDisponible =
+    filtros.value.equipoNumero === null ||
+    equiposDisponibles.value.some(
+      (equipo) => equipo.numero === filtros.value.equipoNumero,
+    );
+
+  if (estadoEsDisponible && equipoEsDisponible) return;
+
+  filtros.value = {
+    ...filtros.value,
+    estado: estadoEsDisponible ? filtros.value.estado : null,
+    equipoNumero: equipoEsDisponible ? filtros.value.equipoNumero : null,
+  };
 }
 
 async function limpiarFiltros(): Promise<void> {
@@ -114,6 +164,7 @@ function obtenerQueryDeFiltros(): Record<string, string | undefined> {
     desde: filtros.value.desde ?? undefined,
     hasta: filtros.value.hasta ?? undefined,
     estado: filtros.value.estado ?? undefined,
+    equipo: filtros.value.equipoNumero ?? undefined,
     busqueda: busqueda.value.trim() || undefined,
   };
 }
@@ -155,19 +206,11 @@ onMounted(() => {
       <template v-else>
         <header class="mb-2 flex items-start justify-between gap-3 sm:mb-3">
           <div class="min-w-0">
-            <p
-              class="text-[9px] font-bold uppercase tracking-[0.13em] text-main"
-            >
-              Seguimiento / Captura manual
-            </p>
             <h1
               class="mt-0.5 font-display text-[26px] leading-none text-main-dark sm:text-[30px]"
             >
               Jornadas registradas
             </h1>
-            <p class="mt-1 text-xs text-gray-500">
-              Consulta y revisa jornadas transcritas desde informes físicos.
-            </p>
           </div>
           <button
             class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-main bg-main px-3 text-xs font-bold text-white shadow-sm transition hover:bg-main-light sm:px-3.5"
@@ -184,6 +227,8 @@ onMounted(() => {
         <JornadasAdministrativasFiltros
           v-model="filtros"
           v-model:busqueda="busqueda"
+          :equipos="equiposDisponibles"
+          :estados="estadosDisponibles"
           @rango-actualizado="aplicarFiltros"
           @limpiar="limpiarFiltros"
         />
@@ -213,9 +258,6 @@ onMounted(() => {
                 <h2 class="text-xs font-bold text-gray-800">
                   Capturas administrativas
                 </h2>
-                <p class="hidden text-[10px] text-gray-500 sm:block">
-                  Jornadas creadas desde el módulo de transcripción manual.
-                </p>
               </div>
             </div>
             <span

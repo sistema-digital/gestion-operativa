@@ -6,6 +6,7 @@ import { es } from "date-fns/locale";
 import { RotateCcw, Search } from "lucide-vue-next";
 import { formatSeguimientoDate } from "@/seguimiento/shared/seguimientoDate";
 import type {
+  EquipoOption,
   JornadaAdministrativaFiltros,
   JornadaEstadoCaptura,
 } from "./registroJornada.types";
@@ -15,20 +16,42 @@ interface EstadoOption {
   nombre: string;
 }
 
+interface EquipoFiltroOption {
+  numero: string | null;
+  etiqueta: string;
+}
+
 const filtros = defineModel<JornadaAdministrativaFiltros>({ required: true });
 const busqueda = defineModel<string>("busqueda", { required: true });
+
+const props = defineProps<{
+  estados: JornadaEstadoCaptura[];
+  equipos: EquipoOption[];
+}>();
 
 const emit = defineEmits<{
   rangoActualizado: [];
   limpiar: [];
 }>();
 
-const estados: EstadoOption[] = [
+const nombresEstado: Record<JornadaEstadoCaptura, string> = {
+  en_edicion: "En edición",
+  finalizada: "Finalizada",
+  descartada: "Descartada",
+};
+
+const estados = computed<EstadoOption[]>(() => [
   { id: null, nombre: "Todos los estados" },
-  { id: "finalizada", nombre: "Finalizada" },
-  { id: "en_edicion", nombre: "En edición" },
-  { id: "descartada", nombre: "Descartada" },
-];
+  ...props.estados.map((estado) => ({
+    id: estado,
+    nombre: nombresEstado[estado],
+  })),
+]);
+
+const equipos = computed<EquipoFiltroOption[]>(() => [
+  { numero: null, etiqueta: "Todos los equipos" },
+  ...props.equipos,
+]);
 
 function fechaDesdeValor(valor: string | null): Date | null {
   if (!valor) return null;
@@ -77,16 +100,30 @@ async function solicitarCargaPorRango(rango: Date[] | null): Promise<void> {
 
 const estadoSeleccionado = computed<EstadoOption>({
   get: () =>
-    estados.find((estado) => estado.id === filtros.value.estado) ?? estados[0],
+    estados.value.find((estado) => estado.id === filtros.value.estado) ??
+    estados.value[0],
   set: (estado) => {
     filtros.value = { ...filtros.value, estado: estado?.id ?? null };
+  },
+});
+
+const equipoSeleccionado = computed<EquipoFiltroOption>({
+  get: () =>
+    equipos.value.find(
+      (equipo) => equipo.numero === filtros.value.equipoNumero,
+    ) ?? equipos.value[0],
+  set: (equipo) => {
+    filtros.value = {
+      ...filtros.value,
+      equipoNumero: equipo?.numero ?? null,
+    };
   },
 });
 </script>
 
 <template>
   <section
-    class="grid gap-2 rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm sm:grid-cols-2 lg:grid-cols-[minmax(180px,1.25fr)_minmax(225px,1fr)_170px_auto] lg:items-end"
+    class="grid gap-2 rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm sm:grid-cols-2 xl:grid-cols-[minmax(165px,1fr)_minmax(210px,1fr)_minmax(150px,.7fr)_minmax(150px,.7fr)_auto] xl:items-end"
   >
     <label class="min-w-0">
       <span
@@ -142,6 +179,23 @@ const estadoSeleccionado = computed<EstadoOption>({
         track-by="nombre"
         class="jornadas-multiselect"
         placeholder="Todos los estados"
+      />
+    </label>
+
+    <label class="min-w-0">
+      <span
+        class="mb-1 block text-[10px] font-bold uppercase tracking-[0.08em] text-gray-600"
+        >Equipo</span
+      >
+      <Multiselect
+        v-model="equipoSeleccionado"
+        :allow-empty="false"
+        :options="equipos"
+        :show-labels="false"
+        label="etiqueta"
+        track-by="numero"
+        class="jornadas-multiselect"
+        placeholder="Todos los equipos"
       />
     </label>
 

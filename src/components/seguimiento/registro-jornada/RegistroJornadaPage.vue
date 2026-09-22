@@ -17,6 +17,7 @@ import JornadaDetalle from "./JornadaDetalle.vue";
 import JornadaAcciones from "./JornadaAcciones.vue";
 import JornadaResumen from "./JornadaResumen.vue";
 import ImplementoCrearPanel from "./ImplementoCrearPanel.vue";
+import OperadorCrearPanel from "./OperadorCrearPanel.vue";
 import RegistroJornadaFeedback from "./RegistroJornadaFeedback.vue";
 import {
   RegistroEventosLoteFallidoError,
@@ -28,6 +29,7 @@ import type {
   CatalogosJornada,
   ImplementoCrearPayload,
   ImplementoOption,
+  OperadorCrearPayload,
   JornadaDatosGeneralesModel,
   RegistroEventosLoteResponse,
   RegistroJornadaFeedback as RegistroJornadaFeedbackModel,
@@ -94,6 +96,11 @@ const numeroImplementoInicial = shallowRef<string | null>(null);
 const implementoPanelOpen = shallowRef(false);
 const guardandoImplemento = shallowRef(false);
 const errorImplemento = shallowRef<string | null>(null);
+const operadorPanelOpen = shallowRef(false);
+const nombreOperadorInicial = shallowRef("");
+const apellidoOperadorInicial = shallowRef("");
+const guardandoOperador = shallowRef(false);
+const errorOperador = shallowRef<string | null>(null);
 const resultadoRegistro = shallowRef<RegistroJornadaFeedbackModel | null>(null);
 const cargandoBorrador = shallowRef(false);
 const errorBorrador = shallowRef<string | null>(null);
@@ -109,6 +116,38 @@ function solicitarCrearImplemento(index: number, numero: string): void {
   filaImplementoActiva.value = index;
   numeroImplementoInicial.value = numero;
   implementoPanelOpen.value = true;
+}
+
+async function registrarYAsignarOperador(
+  payload: OperadorCrearPayload,
+): Promise<void> {
+  guardandoOperador.value = true;
+  errorOperador.value = null;
+  try {
+    const { data, error: rpcError } =
+      await registroJornadaService.registrarOperador(payload);
+    if (rpcError) throw rpcError;
+    if (!data?.ok || !data.operador.activo) {
+      throw new Error("No se recibió un operador válido.");
+    }
+    const operador = { id: data.operador.uuid, nombre: data.operador.nombre };
+    catalogosStore.agregarOperador(operador);
+    jornada.operadorId = operador.id;
+    operadorPanelOpen.value = false;
+  } catch (capturado) {
+    errorOperador.value =
+      capturado instanceof Error
+        ? capturado.message
+        : "No se pudo registrar el operador. Inténtalo nuevamente.";
+  } finally {
+    guardandoOperador.value = false;
+  }
+}
+
+function solicitarCrearOperador(nombre: string, apellido: string): void {
+  nombreOperadorInicial.value = nombre;
+  apellidoOperadorInicial.value = apellido;
+  operadorPanelOpen.value = true;
 }
 
 function limpiarDetalle(): void {
@@ -324,7 +363,7 @@ function confirmarResultadoRegistro(): void {
   const registroExitoso = resultadoRegistro.value?.estado === "exito";
   cerrarResultadoRegistro();
 
-  if (registroExitoso && esEdicion.value) {
+  if (registroExitoso) {
     void router.replace({
       name: "RegistroJornadaAdministrativa",
       query: { ...route.query },
@@ -401,6 +440,7 @@ onMounted(() => {
         :model-value="jornada"
         :operadores="operadores"
         :equipos="equipos"
+        @crear-operador="solicitarCrearOperador"
         @update:model-value="actualizarDatosGenerales"
       />
 
@@ -472,6 +512,15 @@ onMounted(() => {
         :guardando="guardandoImplemento"
         :error="errorImplemento"
         @crear="registrarYAsignarImplemento"
+      />
+
+      <OperadorCrearPanel
+        v-model:open="operadorPanelOpen"
+        :error="errorOperador"
+        :guardando="guardandoOperador"
+        :nombre-inicial="nombreOperadorInicial"
+        :apellido-inicial="apellidoOperadorInicial"
+        @crear="registrarYAsignarOperador"
       />
 
       <RegistroJornadaFeedback

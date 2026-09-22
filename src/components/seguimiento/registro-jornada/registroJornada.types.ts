@@ -10,6 +10,21 @@ export interface OperadorOption {
   nombre: string;
 }
 
+export interface OperadorCrearPayload {
+  nombre: string;
+}
+
+export interface RegistroOperadorResponse {
+  ok: boolean;
+  creado: boolean;
+  operador: {
+    uuid: string;
+    nombre: string;
+    auth_user_id: string | null;
+    activo: boolean;
+  };
+}
+
 export interface EquipoOption {
   numero: string;
   etiqueta: string;
@@ -97,6 +112,7 @@ export interface JornadaAdministrativaListaItem {
   jornadaId: string;
   operadorId: string;
   operador: string;
+  equipoNumero: string;
   fechaOperativa: string;
   iniciadaEn: string | null;
   finalizadaEn: string | null;
@@ -110,6 +126,7 @@ export interface JornadaAdministrativaFiltros {
   desde: string | null;
   hasta: string | null;
   estado: JornadaEstadoCaptura | null;
+  equipoNumero: string | null;
 }
 
 export interface JornadaAdministrativaDetalle {

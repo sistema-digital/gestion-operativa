@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { VueDatePicker } from "@vuepic/vue-datepicker";
 import Multiselect from "vue-multiselect";
-import { computed } from "vue";
+import { computed, shallowRef } from "vue";
+import { Plus } from "lucide-vue-next";
 import { es } from "date-fns/locale";
 import { formatSeguimientoDate } from "@/seguimiento/shared/seguimientoDate";
 import type {
@@ -16,6 +17,10 @@ const props = defineProps<{
   operadores: OperadorOption[];
   equipos: EquipoOption[];
 }>();
+const emit = defineEmits<{
+  crearOperador: [nombre: string, apellido: string];
+}>();
+const busquedaOperador = shallowRef("");
 const fechaMaxima = new Date();
 
 const fechaSeleccionada = computed<Date | null>({
@@ -52,6 +57,23 @@ const operadorSeleccionado = computed<OperadorOption | null>({
   },
 });
 
+const datosNuevoOperador = computed(() => {
+  const palabras = busquedaOperador.value.trim().split(/\s+/).filter(Boolean);
+  if (
+    palabras.length === 0 ||
+    palabras.length > 3 ||
+    !palabras.every((palabra) => /^\p{L}+$/u.test(palabra))
+  ) {
+    return null;
+  }
+  return { nombre: palabras[0] ?? "", apellido: palabras.slice(1).join(" ") };
+});
+
+function abrirCrearOperador(): void {
+  const datos = datosNuevoOperador.value;
+  emit("crearOperador", datos?.nombre ?? "", datos?.apellido ?? "");
+}
+
 const equipoSeleccionado = computed<EquipoOption | null>({
   get: () =>
     props.equipos.find(
@@ -70,7 +92,7 @@ const equipoSeleccionado = computed<EquipoOption | null>({
   >
     <h2 id="datos-generales-title" class="sr-only">Datos generales</h2>
 
-    <label class="min-w-0">
+    <div class="min-w-0">
       <span
         class="mb-1 ml-0.5 block text-[10px] font-bold uppercase tracking-[0.07em] text-gray-600"
         >Fecha</span
@@ -86,9 +108,9 @@ const equipoSeleccionado = computed<EquipoOption | null>({
         input-class-name="jornada-date-input"
         class="jornada-datepicker [&_.jornada-date-input]:h-11 [&_.jornada-date-input]:w-full [&_.jornada-date-input]:cursor-pointer [&_.jornada-date-input]:rounded-lg [&_.jornada-date-input]:border-[#bdb5aa] [&_.jornada-date-input]:px-3 [&_.jornada-date-input]:font-mono [&_.jornada-date-input]:text-xs"
       />
-    </label>
+    </div>
 
-    <label class="min-w-0">
+    <div class="min-w-0">
       <span
         class="mb-1 ml-0.5 block text-[10px] font-bold uppercase tracking-[0.07em] text-gray-600"
         >Operador</span
@@ -97,15 +119,37 @@ const equipoSeleccionado = computed<EquipoOption | null>({
         v-model="operadorSeleccionado"
         :options="operadores"
         :allow-empty="true"
+        :close-on-select="true"
+        :show-no-results="false"
         :show-labels="false"
         label="nombre"
         track-by="id"
         placeholder="Seleccionar operador…"
+        @search-change="busquedaOperador = $event"
         class="jornada-multiselect [&_.multiselect]:min-h-11 [&_.multiselect__input]:mb-0 [&_.multiselect__input]:cursor-text [&_.multiselect__input]:text-xs [&_.multiselect__select]:h-11 [&_.multiselect__select]:cursor-pointer [&_.multiselect__single]:mb-0 [&_.multiselect__single]:pt-3 [&_.multiselect__single]:text-xs [&_.multiselect__tags]:min-h-11 [&_.multiselect__tags]:rounded-lg [&_.multiselect__tags]:border-[#bdb5aa] [&_.multiselect__tags]:px-3 [&_.multiselect__tags]:py-1"
-      />
-    </label>
+        ><template #beforeList
+          ><button
+            v-if="!busquedaOperador"
+            type="button"
+            class="flex w-full cursor-pointer items-center gap-2 border-b border-gray-100 px-3 py-2 text-left text-xs font-semibold text-main hover:bg-gray-50"
+            @mousedown="abrirCrearOperador"
+          >
+            <Plus class="size-3.5" />Agregar nuevo
+          </button></template
+        ><template #afterList
+          ><button
+            v-if="datosNuevoOperador"
+            type="button"
+            class="flex w-full cursor-pointer items-center gap-2 border-t border-gray-100 px-3 py-2 text-left text-xs font-semibold text-main hover:bg-gray-50"
+            @mousedown="abrirCrearOperador"
+          >
+            <Plus class="size-3.5" />Agregar {{ busquedaOperador.trim() }}
+          </button></template
+        ></Multiselect
+      >
+    </div>
 
-    <label class="min-w-0">
+    <div class="min-w-0">
       <span
         class="mb-1 ml-0.5 block text-[10px] font-bold uppercase tracking-[0.07em] text-gray-600"
         >Equipo</span
@@ -114,12 +158,13 @@ const equipoSeleccionado = computed<EquipoOption | null>({
         v-model="equipoSeleccionado"
         :options="equipos"
         :allow-empty="true"
+        :close-on-select="true"
         :show-labels="false"
         label="etiqueta"
         track-by="numero"
         placeholder="Seleccionar equipo…"
         class="jornada-multiselect [&_.multiselect]:min-h-11 [&_.multiselect__input]:mb-0 [&_.multiselect__input]:cursor-text [&_.multiselect__input]:font-mono [&_.multiselect__input]:text-xs [&_.multiselect__select]:h-11 [&_.multiselect__select]:cursor-pointer [&_.multiselect__single]:mb-0 [&_.multiselect__single]:pt-3 [&_.multiselect__single]:font-mono [&_.multiselect__single]:text-xs [&_.multiselect__tags]:min-h-11 [&_.multiselect__tags]:rounded-lg [&_.multiselect__tags]:border-[#bdb5aa] [&_.multiselect__tags]:px-3 [&_.multiselect__tags]:py-1"
       />
-    </label>
+    </div>
   </section>
 </template>

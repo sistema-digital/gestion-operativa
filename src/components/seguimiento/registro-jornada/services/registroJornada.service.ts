@@ -23,6 +23,8 @@ import type {
   EquipoOption,
   LaborCatalogo,
   OperadorOption,
+  OperadorCrearPayload,
+  RegistroOperadorResponse,
   TipoParadaCatalogo,
 } from "../registroJornada.types";
 
@@ -122,6 +124,7 @@ const jornadaAdministrativaListadoSchema = z.object({
       jornada_id: z.string().uuid(),
       operador_id: z.string().uuid(),
       operador: z.string().min(1),
+      equipo_numero: z.string().min(1),
       fecha_operativa: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       iniciada_en: z.string().nullable(),
       finalizada_en: z.string().nullable(),
@@ -224,6 +227,7 @@ function mapJornadaListado(
     jornadaId: item.jornada_id,
     operadorId: item.operador_id,
     operador: item.operador,
+    equipoNumero: item.equipo_numero,
     fechaOperativa: item.fecha_operativa,
     iniciadaEn: item.iniciada_en,
     finalizadaEn: item.finalizada_en,
@@ -473,6 +477,12 @@ export const registroJornadaService = {
         p_nombre: payload.nombre ?? null,
       })
       .overrideTypes<RegistroImplementoResponse>();
+  },
+
+  registrarOperador(payload: OperadorCrearPayload) {
+    return supabaseCapturaOperador
+      .rpc("rpc_admin_registrar_operador", { p_nombre: payload.nombre })
+      .overrideTypes<RegistroOperadorResponse>();
   },
 
   iniciarJornada(payload: JornadaInicioRpcPayload) {
