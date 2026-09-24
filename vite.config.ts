@@ -22,8 +22,8 @@ export default defineConfig(({ mode }) => {
         registerType: "prompt",
         injectRegister: false,
         manifest: {
-          name: "CADASA Taller",
-          short_name: "CADASA",
+          name: "Gestión Taller",
+          short_name: "Gestión Taller",
           description: "Gestión operativa de CADASA Taller.",
           start_url: "./",
           scope: "./",
