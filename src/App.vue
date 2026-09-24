@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
 import Toast from "primevue/toast";
-import { watch } from "vue";
+import { computed, watch } from "vue";
 import DevInspector from "@/components/DevInspector.vue";
 import ModuleNavigationLoader from "@/components/general/ModuleNavigationLoader.vue";
+import PwaUpdateRequired from "@/components/general/PwaUpdateRequired.vue";
 import SessionValidationLoader from "@/components/general/SessionValidationLoader.vue";
+import { usePwaUpdate } from "@/composables/usePwaUpdate";
 import { useNavigationLoaderStore } from "@/stores/navigationLoader.store";
+import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 import { useSessionValidationStore } from "@/stores/sessionValidation.store";
 import { useToast } from "primevue/usetoast";
 import { useRouter } from "vue-router";
@@ -14,6 +17,8 @@ const router = useRouter();
 const toast = useToast();
 const navigationLoaderStore = useNavigationLoaderStore();
 const sessionValidationStore = useSessionValidationStore();
+const featureAccessStore = useFeatureAccessStore();
+const { isLoaded: isFeatureAccessLoaded } = storeToRefs(featureAccessStore);
 const {
   errorSequence: navigationErrorSequence,
   isLoading: isNavigationLoading,
@@ -24,6 +29,24 @@ const {
   pendingProtectedPath,
   status: sessionValidationStatus,
 } = storeToRefs(sessionValidationStore);
+const {
+  needRefresh,
+  version: pwaVersion,
+  isVersionResolved: isPwaVersionResolved,
+  updateError: pwaUpdateError,
+  isApplyingUpdate,
+  applyUpdate,
+} = usePwaUpdate();
+
+const shouldRequirePwaUpdate = computed(() => {
+  if (!needRefresh.value || !isPwaVersionResolved.value) return false;
+  if (!pwaVersion.value || pwaVersion.value.appliesToAllUsers) return true;
+  if (!isFeatureAccessLoaded.value) return false;
+
+  return pwaVersion.value.affectedFeatures.some((feature) =>
+    featureAccessStore.tieneFuncionalidad(feature),
+  );
+});
 
 const retrySessionValidation = async (): Promise<void> => {
   const result = await sessionValidationStore.validateSession();
@@ -55,6 +78,14 @@ watch(navigationErrorSequence, (errorSequence) => {
 </script>
 
 <template>
+  <PwaUpdateRequired
+    v-if="shouldRequirePwaUpdate"
+    :version="pwaVersion"
+    :is-applying="isApplyingUpdate"
+    :error="pwaUpdateError"
+    @update="applyUpdate"
+  />
+
   <SessionValidationLoader
     :is-validating="isSessionValidating"
     :status="sessionValidationStatus"

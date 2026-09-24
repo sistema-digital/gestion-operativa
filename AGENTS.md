@@ -36,3 +36,6 @@ agrega la clase cursor a cualquier boton o componente que emit eventos de seleci
 cualquier inptu de lista o select debes usar vue multiselect
 
 cualqeuri valor con fecha y hora utc debe ser formataedo por la fucion del archvio  [formatCompactPanamaDate.ts](c:/Users/arcel/OneDrive/Documents/GitHub/gestion-operativa/src/utils/formatCompactPanamaDate.ts) 
+
+CADA VEZ QUE TERMINAS DE HACER CAMBIOS PREGUTNA SI VAS ACUTALIZAR version.json para los datso de la nueva actualiza
+ si acutalizaas version.json debe ser descripcion generaicas nunca tan epsecificas a menos que el usuario te de la indicaicon de esa descripcion
