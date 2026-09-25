@@ -9,6 +9,12 @@ import {
 } from "vue";
 import { CircleHelp, ListRestart, Plus, Rows3 } from "lucide-vue-next";
 import JornadaFila from "./JornadaFila.vue";
+import {
+  dividirJornadaFila,
+  eliminarJornadaFila,
+  intercambiarContenidoDeFilas,
+  puedeDividirJornadaFila,
+} from "./utils/dividirJornadaFila";
 import type {
   CatalogosJornada,
   JornadaFilaModel,
@@ -99,7 +105,50 @@ function manejarAtajoCrearFila(evento: KeyboardEvent): void {
 }
 
 function eliminarFila(index: number): void {
-  filas.value.splice(index, 1);
+  eliminarJornadaFila(filas.value, index);
+}
+
+function dividirFila(index: number): number | null {
+  const fila = filas.value[index];
+  if (!fila) return null;
+
+  const division = dividirJornadaFila(fila);
+  if (!division) return null;
+
+  fila.fin = division.finFilaActual;
+  filas.value.splice(index + 1, 0, division.nuevaFila);
+  filasAValidar.value = new Set([
+    ...filasAValidar.value,
+    fila.idLocal,
+    division.nuevaFila.idLocal,
+  ]);
+
+  return index + 1;
+}
+
+function insertarAntes(index: number): void {
+  dividirFila(index - 1);
+}
+
+function insertarDespues(index: number): void {
+  dividirFila(index);
+}
+
+function puedeDividirFila(index: number): boolean {
+  const fila = filas.value[index];
+  return fila ? puedeDividirJornadaFila(fila) : false;
+}
+
+function moverFila(index: number, destino: number): void {
+  if (!intercambiarContenidoDeFilas(filas.value, index, destino)) return;
+
+  const filaActual = filas.value[index];
+  const filaDestino = filas.value[destino];
+  filasAValidar.value = new Set([
+    ...filasAValidar.value,
+    ...(filaActual ? [filaActual.idLocal] : []),
+    ...(filaDestino ? [filaDestino.idLocal] : []),
+  ]);
 }
 
 onMounted(() => {
@@ -149,7 +198,7 @@ onBeforeUnmount(() => {
 
     <div class="overflow-x-auto md:overflow-visible md:p-0">
       <div
-        class="hidden min-w-[1156px] grid-cols-[46px_140px_140px_minmax(280px,1fr)_280px_100px_48px] border-b border-[#ddd8d0] bg-[#faf9f7] md:grid md:gap-x-2"
+        class="hidden min-w-[1220px] grid-cols-[46px_140px_140px_minmax(280px,1fr)_280px_100px_112px] border-b border-[#ddd8d0] bg-[#faf9f7] md:grid md:gap-x-2"
       >
         <span class="px-2 py-2 text-[9px] font-bold uppercase text-gray-600"
           >#</span
@@ -166,7 +215,7 @@ onBeforeUnmount(() => {
         ><span />
       </div>
 
-      <div class="grid gap-2 p-2 md:block md:min-w-[1156px] md:p-0">
+      <div class="grid gap-2 p-2 md:block md:min-w-[1220px] md:p-0">
         <JornadaFila
           v-for="(fila, index) in filas"
           :key="fila.idLocal"
@@ -184,7 +233,15 @@ onBeforeUnmount(() => {
           :mostrar-errores="
             props.mostrarErrores || filasAValidar.has(fila.idLocal)
           "
+          :puede-insertar-antes="index > 0 && puedeDividirFila(index - 1)"
+          :puede-insertar-despues="puedeDividirFila(index)"
+          :puede-mover-arriba="index > 0"
+          :puede-mover-abajo="index < filas.length - 1"
           @eliminar="eliminarFila(index)"
+          @insertar-antes="insertarAntes(index)"
+          @insertar-despues="insertarDespues(index)"
+          @mover-arriba="moverFila(index, index - 1)"
+          @mover-abajo="moverFila(index, index + 1)"
           @crear-implemento="emit('crearImplemento', index, $event)"
         />
       </div>

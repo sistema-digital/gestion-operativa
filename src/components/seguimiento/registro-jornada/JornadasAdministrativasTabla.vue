@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Eye, LoaderCircle, Pencil } from "lucide-vue-next";
+import { Eye, LoaderCircle, Pencil, Trash2 } from "lucide-vue-next";
 import { formatCompactPanamaTime } from "@/utils/formatCompactPanamaDate";
+import JornadaAdministrativaCard from "./JornadaAdministrativaCard.vue";
 import type { JornadaAdministrativaListaItem } from "./registroJornada.types";
 
 defineProps<{
@@ -11,6 +12,7 @@ defineProps<{
 const emit = defineEmits<{
   ver: [jornadaId: string];
   editar: [jornadaId: string];
+  eliminar: [jornada: JornadaAdministrativaListaItem];
 }>();
 
 function fechaOperativa(fecha: string): string {
@@ -56,7 +58,33 @@ function claseEstado(
 </script>
 
 <template>
-  <div class="overflow-x-auto p-2 sm:p-0">
+  <div class="space-y-2 p-2 sm:hidden">
+    <div
+      v-if="cargando"
+      class="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-8 text-xs text-gray-500"
+    >
+      <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
+      Cargando jornadas…
+    </div>
+    <p
+      v-else-if="jornadas.length === 0"
+      class="rounded-xl border border-gray-200 bg-white px-3 py-8 text-center text-xs text-gray-500"
+    >
+      No hay jornadas para los filtros seleccionados.
+    </p>
+    <template v-else>
+      <JornadaAdministrativaCard
+        v-for="jornada in jornadas"
+        :key="jornada.jornadaId"
+        :jornada="jornada"
+        @editar="emit('editar', $event)"
+        @eliminar="emit('eliminar', $event)"
+        @ver="emit('ver', $event)"
+      />
+    </template>
+  </div>
+
+  <div class="hidden overflow-x-auto sm:block">
     <table
       class="w-full min-w-[680px] border-collapse text-left sm:text-xs"
       aria-label="Jornadas administrativas"
@@ -71,7 +99,9 @@ function claseEstado(
           <th class="px-3 py-2 font-bold">Inicio</th>
           <th class="px-3 py-2 font-bold">Fin</th>
           <th class="px-3 py-2 font-bold">Estado</th>
-          <th class="px-3 py-2"><span class="sr-only">Acciones</span></th>
+          <th class="px-3 py-2 lg:text-right">
+            <span class="sr-only">Acciones</span>
+          </th>
         </tr>
       </thead>
       <tbody v-if="cargando">
@@ -134,9 +164,20 @@ function claseEstado(
               >{{ etiquetaEstado(jornada.estadoCaptura) }}</span
             >
           </td>
-          <td class="px-3 py-2.5" data-label="Acciones">
+          <td class="px-3 py-2.5 lg:text-right" data-label="Acciones">
             <button
-              v-if="jornada.estadoCaptura === 'en_edicion'"
+              v-if="jornada.publicadoJornadaId"
+              class="mr-1 inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-danger/25 bg-danger-bg px-2.5 text-[11px] font-semibold text-danger shadow-sm transition hover:bg-danger-bg/70"
+              type="button"
+              @click="emit('eliminar', jornada)"
+            >
+              <Trash2 class="size-3.5" aria-hidden="true" /> Eliminar
+            </button>
+            <button
+              v-if="
+                jornada.estadoCaptura === 'en_edicion' ||
+                jornada.estadoCaptura === 'finalizada'
+              "
               class="mr-1 inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-warning-bg px-2.5 text-[11px] font-semibold text-warning shadow-sm transition hover:bg-warning-bg/70"
               type="button"
               @click="emit('editar', jornada.jornadaId)"

@@ -16,6 +16,7 @@ vi.mock("../services/registroJornada.service", () => ({
   registroJornadaService: {
     registrarImplemento: vi.fn(),
     registrarEventosLote: vi.fn(),
+    editarJornadaFinalizada: vi.fn(),
   },
 }));
 
@@ -349,6 +350,34 @@ describe("finalizarDesdeFilas", () => {
     const llamadas = vi.mocked(registroJornadaService.registrarEventosLote).mock
       .calls;
     expect(llamadas[0]?.[0].p_jornada_id).toBe(llamadas[1]?.[0].p_jornada_id);
+  });
+});
+
+describe("editarJornadaFinalizadaDesdeFilas", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(registroJornadaService.editarJornadaFinalizada).mockResolvedValue(
+      respuestaLoteExitosa,
+    );
+  });
+
+  it("reconstruye y envía el lote finalizado al RPC de edición", async () => {
+    const jornada = crearJornada([fila("06:00", "07:00", "labor", "labor-1")]);
+
+    await useJornadaAdmin().editarJornadaFinalizadaDesdeFilas(
+      jornada,
+      jornadaId,
+    );
+
+    expect(registroJornadaService.editarJornadaFinalizada).toHaveBeenCalledWith(
+      expect.objectContaining({
+        p_jornada_id: jornadaId,
+        p_motivo: null,
+        p_eventos: expect.arrayContaining([
+          expect.objectContaining({ tipo_evento: "finalizar_jornada" }),
+        ]),
+      }),
+    );
   });
 });
 

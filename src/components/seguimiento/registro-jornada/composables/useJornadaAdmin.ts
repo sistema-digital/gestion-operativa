@@ -13,6 +13,7 @@ import type {
   RegistroImplementoResponse,
   JornadaState,
   RegistroEventosLoteResponse,
+  EditarJornadaFinalizadaPayload,
 } from "../registroJornada.types";
 
 export interface ValidacionContinuidad {
@@ -530,6 +531,47 @@ export function useJornadaAdmin() {
     return registrarDesdeFilas(jornada, true);
   }
 
+  async function editarJornadaFinalizadaDesdeFilas(
+    jornada: JornadaState,
+    jornadaId: string,
+  ): Promise<RegistroEventosLoteResponse> {
+    const validacion = validarContinuidad(jornada.filas);
+    if (!validacion.ok) throw new Error(validacion.mensaje);
+    const datosJornada = jornadaRequeridaSchema.safeParse(jornada);
+    if (!datosJornada.success) {
+      throw new Error(
+        "Completa la fecha, el operador y el equipo de la jornada.",
+      );
+    }
+
+    guardando.value = true;
+    error.value = null;
+
+    try {
+      const payload: EditarJornadaFinalizadaPayload = {
+        p_jornada_id: jornadaId,
+        p_eventos: construirEventosLote(
+          jornada,
+          datosJornada.data.fecha,
+          datosJornada.data.operadorId,
+          datosJornada.data.equipoNumero,
+          true,
+        ),
+        p_motivo: null,
+      };
+      const resultado =
+        await registroJornadaService.editarJornadaFinalizada(payload);
+      if (!resultado.ok) throw new RegistroEventosLoteFallidoError(resultado);
+      return resultado;
+    } catch (capturado) {
+      error.value =
+        capturado instanceof Error ? capturado.message : "Error desconocido";
+      throw capturado;
+    } finally {
+      guardando.value = false;
+    }
+  }
+
   return {
     error,
     guardando,
@@ -538,6 +580,7 @@ export function useJornadaAdmin() {
     validarContinuidad,
     guardarBorradorDesdeFilas,
     finalizarDesdeFilas,
+    editarJornadaFinalizadaDesdeFilas,
     establecerJornadaPendiente,
   };
 }

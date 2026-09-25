@@ -3,12 +3,14 @@ import { computed, onMounted, shallowRef, watch } from "vue";
 import { CircleAlert, ListFilter, Plus } from "lucide-vue-next";
 import { useRoute, useRouter } from "vue-router";
 import JornadaAdministrativaDetallePanel from "@/components/seguimiento/registro-jornada/JornadaAdministrativaDetallePanel.vue";
+import JornadaEliminarDialog from "@/components/seguimiento/registro-jornada/JornadaEliminarDialog.vue";
 import JornadasAdministrativasFiltros from "@/components/seguimiento/registro-jornada/JornadasAdministrativasFiltros.vue";
 import JornadasAdministrativasTabla from "@/components/seguimiento/registro-jornada/JornadasAdministrativasTabla.vue";
 import { useJornadasAdministrativas } from "@/components/seguimiento/registro-jornada/composables/useJornadasAdministrativas";
 import type {
   EquipoOption,
   JornadaAdministrativaFiltros,
+  JornadaAdministrativaListaItem,
   JornadaEstadoCaptura,
 } from "@/components/seguimiento/registro-jornada/registroJornada.types";
 
@@ -67,16 +69,21 @@ const filtros = shallowRef<JornadaAdministrativaFiltros>({
 });
 const busqueda = shallowRef(obtenerBusquedaDesdeUrl());
 const panelDetalleAbierto = shallowRef(false);
+const jornadaParaEliminar = shallowRef<JornadaAdministrativaListaItem | null>(
+  null,
+);
 const {
   items,
   detalle,
   cargando,
   cargandoDetalle,
+  eliminandoJornadaId,
   error,
   errorDetalle,
   cargar,
   consultarDetalle,
   cerrarDetalle,
+  eliminarJornada,
 } = useJornadasAdministrativas();
 
 const ordenEstados: JornadaEstadoCaptura[] = [
@@ -155,6 +162,26 @@ function cerrarPanelDetalle(): void {
   cerrarDetalle();
 }
 
+function solicitarEliminarJornada(
+  jornada: JornadaAdministrativaListaItem,
+): void {
+  jornadaParaEliminar.value = jornada;
+}
+
+function cancelarEliminarJornada(): void {
+  if (eliminandoJornadaId.value) return;
+
+  jornadaParaEliminar.value = null;
+}
+
+async function confirmarEliminarJornada(): Promise<void> {
+  const jornada = jornadaParaEliminar.value;
+  if (!jornada) return;
+
+  const eliminada = await eliminarJornada(jornada.jornadaId);
+  if (eliminada) jornadaParaEliminar.value = null;
+}
+
 function irANuevaJornada(): void {
   void router.push({ name: "RegistroJornadaAdministrativaCrear" });
 }
@@ -202,7 +229,6 @@ onMounted(() => {
         :jornada="detalle"
         @cerrar="cerrarPanelDetalle"
       />
-
       <template v-else>
         <header class="mb-2 flex items-start justify-between gap-3 sm:mb-3">
           <div class="min-w-0">
@@ -271,6 +297,7 @@ onMounted(() => {
             :jornadas="jornadasVisibles"
             @ver="verDetalle"
             @editar="editarJornada"
+            @eliminar="solicitarEliminarJornada"
           />
           <footer
             class="border-t border-gray-200 px-3 py-2 text-[10px] text-gray-500 sm:px-4"
@@ -279,6 +306,14 @@ onMounted(() => {
           </footer>
         </section>
       </template>
+
+      <JornadaEliminarDialog
+        v-if="jornadaParaEliminar"
+        :jornada="jornadaParaEliminar"
+        :eliminando="eliminandoJornadaId === jornadaParaEliminar.jornadaId"
+        @cancelar="cancelarEliminarJornada"
+        @confirmar="confirmarEliminarJornada"
+      />
     </div>
   </main>
 </template>

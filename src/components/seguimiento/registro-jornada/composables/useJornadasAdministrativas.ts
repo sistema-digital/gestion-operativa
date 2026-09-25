@@ -11,6 +11,7 @@ export function useJornadasAdministrativas() {
   const detalle = shallowRef<JornadaAdministrativaDetalle | null>(null);
   const cargando = shallowRef(false);
   const cargandoDetalle = shallowRef(false);
+  const eliminandoJornadaId = shallowRef<string | null>(null);
   const error = shallowRef<string | null>(null);
   const errorDetalle = shallowRef<string | null>(null);
   const total = computed(() => items.value.length);
@@ -55,16 +56,44 @@ export function useJornadasAdministrativas() {
     errorDetalle.value = null;
   }
 
+  async function eliminarJornada(jornadaId: string): Promise<boolean> {
+    eliminandoJornadaId.value = jornadaId;
+    error.value = null;
+
+    try {
+      const resultado = await registroJornadaService.eliminarJornada(jornadaId);
+      if (!resultado.ok || !resultado.eliminada) {
+        throw new Error("La jornada no pudo eliminarse.");
+      }
+
+      items.value = items.value.filter(
+        (jornada) => jornada.jornadaId !== resultado.jornadaId,
+      );
+      if (detalle.value?.id === resultado.jornadaId) cerrarDetalle();
+      return true;
+    } catch (capturado) {
+      error.value =
+        capturado instanceof Error
+          ? capturado.message
+          : "No se pudo eliminar la jornada.";
+      return false;
+    } finally {
+      eliminandoJornadaId.value = null;
+    }
+  }
+
   return {
     items,
     detalle,
     cargando,
     cargandoDetalle,
+    eliminandoJornadaId,
     error,
     errorDetalle,
     total,
     cargar,
     consultarDetalle,
     cerrarDetalle,
+    eliminarJornada,
   };
 }

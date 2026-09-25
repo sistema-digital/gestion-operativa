@@ -1,11 +1,15 @@
 {
-  "version": "0.2.2",
-  "summary": "Mejoras generales de la aplicación.",
+  "version": "0.2.5",
+  "summary": "Actualización de funcionalidades de seguimiento.",
   "changes": [
-    "Mejoras generales de funcionamiento.",
-    "Ajustes de interfaz y experiencia de uso."
+    "Mejoras generales en el registro administrativo de jornadas.",
+    "Ajustes de interacción y validación."
   ],
   "required": true,
-  "appliesToAllUsers": true,
-  "affectedFeatures": []
+  "appliesToAllUsers": false,
+  "affectedFeatures": [
+    "jornadas_admin_ver",
+    "jornadas_admin_crear",
+    "jornadas_admin_finalizar"
+  ]
 }

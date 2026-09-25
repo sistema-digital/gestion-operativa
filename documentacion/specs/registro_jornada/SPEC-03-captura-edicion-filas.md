@@ -68,7 +68,13 @@ No se verificó una firma real de Supabase: las fuentes revisadas no aportan una
 
 **Confirmado — implemento al agregar.** La nueva fila toma el `implementoId` de la última fila; si no existe última fila, toma `null`.
 
-**Confirmado — eliminar.** El evento `eliminar` de `JornadaFila` invoca `eliminarFila(index)` en `JornadaDetalle`, que ejecuta `filas.value.splice(index, 1)`. La colección no conserva un hueco y la numeración visual se deriva del índice actual (`index + 1`).
+**Confirmado — insertar antes/después.** Cada fila presenta controles para insertar antes o después. Insertar después divide la fila actual en dos intervalos continuos; insertar antes divide la fila previa. El corte se calcula en la mitad del intervalo y la nueva fila hereda el implemento, pero exige seleccionar actividad. Los controles se deshabilitan si el intervalo correspondiente no tiene al menos dos minutos para dividirse. La fila nueva conserva de forma local el identificador de la fila dividida y su fin original.
+
+**Confirmado — controles contextuales y movimiento.** Los controles de inserción solo están disponibles cuando la fila tiene inicio, fin posterior al inicio, código, tipo de actividad y actividad resuelta. En equipos con puntero, aparecen tras mantener el cursor un segundo sobre la fila; en dispositivos sin hover permanecen visibles mientras se cumpla esa condición. El bloque de acciones de mover o eliminar no activa esos controles y, al recibir el cursor, cancela cualquier temporizador pendiente. Las flechas mueven actividad e implemento entre filas adyacentes, sin cambiar horarios, identificadores locales ni metadatos de división.
+
+**Confirmado — foco al insertar.** Insertar antes o después no enfoca ningún campo de la nueva fila ni abre el selector de Labor / causa. El usuario conserva el control explícito de dónde continuar la edición.
+
+**Confirmado — eliminar.** Si se elimina una fila creada por división y sus intervalos vecinos siguen intactos, se restaura el fin original de la fila que se dividió. Una fila cargada desde la base de datos, una fila agregada normalmente o una división cuyos horarios ya cambiaron se elimina sin reasignar horas. La colección no conserva un hueco y la numeración visual se deriva del índice actual (`index + 1`).
 
 **Pendiente.** No hay regla confirmada para impedir eliminar la única fila, solicitar confirmación, compensar automáticamente los horarios colindantes o restaurar una fila eliminada.
 
@@ -102,18 +108,20 @@ No se verificó una firma real de Supabase: las fuentes revisadas no aportan una
 4. **Confirmado:** la fila emite `eliminar`; el detalle elimina el índice correspondiente.
 5. **Confirmado:** al solicitar crear implemento, la fila emite `crear-implemento`, el detalle propaga el índice y la página abre el flujo de implemento fuera del alcance de esta SPEC.
 6. **Confirmado:** la página evalúa continuidad con `validarContinuidad(jornada.filas)`.
-7. **Pendiente:** la traducción de las filas válidas a eventos y su persistencia está marcada como pendiente dentro de `finalizarDesdeFilas`.
+7. **Confirmado:** insertar antes o después actualiza el arreglo, sin transferir el foco a la nueva fila.
+8. **Pendiente:** la traducción de las filas válidas a eventos y su persistencia está marcada como pendiente dentro de `finalizarDesdeFilas`.
 
 ## Contrato entre componentes
 
-| Origen                | Destino               | Contrato confirmado                                                                 |
-| --------------------- | --------------------- | ----------------------------------------------------------------------------------- |
-| `RegistroJornadaPage` | `JornadaDetalle`      | `v-model:filas="jornada.filas"` y prop `catalogos`.                                 |
-| `JornadaDetalle`      | `JornadaFila`         | `v-model="filas[index]"`, `numero="index + 1"`, prop `catalogos`.                   |
-| `JornadaFila`         | `JornadaDetalle`      | Evento `eliminar`; el padre elimina la posición recibida en el cierre del template. |
-| `JornadaFila`         | `JornadaDetalle`      | Evento `crear-implemento`; el detalle propaga `crear-implemento(index)`.            |
-| `JornadaDetalle`      | `RegistroJornadaPage` | Evento `crear-implemento` con el índice de la fila.                                 |
-| `RegistroJornadaPage` | `JornadaAcciones`     | Resultado de continuidad mediante `valido` y `mensaje-validacion`.                  |
+| Origen                | Destino               | Contrato confirmado                                                                     |
+| --------------------- | --------------------- | --------------------------------------------------------------------------------------- |
+| `RegistroJornadaPage` | `JornadaDetalle`      | `v-model:filas="jornada.filas"` y prop `catalogos`.                                     |
+| `JornadaDetalle`      | `JornadaFila`         | `v-model="filas[index]"`, `numero="index + 1"`, prop `catalogos`.                       |
+| `JornadaFila`         | `JornadaDetalle`      | Eventos `insertar-antes` y `insertar-despues`; el padre divide la fila previa o actual. |
+| `JornadaFila`         | `JornadaDetalle`      | Evento `eliminar`; el padre elimina la posición recibida en el cierre del template.     |
+| `JornadaFila`         | `JornadaDetalle`      | Evento `crear-implemento`; el detalle propaga `crear-implemento(index)`.                |
+| `JornadaDetalle`      | `RegistroJornadaPage` | Evento `crear-implemento` con el índice de la fila.                                     |
+| `RegistroJornadaPage` | `JornadaAcciones`     | Resultado de continuidad mediante `valido` y `mensaje-validacion`.                      |
 
 **Pendiente.** No se confirma un evento específico para propagar cambios de hora, duración, código o implemento porque se realizan mediante el modelo bidireccional de la fila.
 
@@ -156,6 +164,9 @@ No se verificó una firma real de Supabase: las fuentes revisadas no aportan una
 - [ ] Dada una colección vacía, al agregar una fila se incorpora un elemento con `inicio` igual a `06:00`, `fin` vacío, código y actividad sin resolver, e `implementoId` nulo.
 - [ ] Dada una colección con una última fila, al agregar una fila su `inicio` coincide con el `fin` de esa última fila y su `implementoId` coincide con el de la última fila.
 - [ ] Al eliminar una fila, el arreglo queda sin ese elemento y la numeración renderizada de las filas restantes es consecutiva desde 1.
+- [ ] Al insertar antes o después, se divide el intervalo correspondiente sin crear huecos ni solapamientos, y la nueva fila requiere una actividad.
+- [ ] Los controles de insertar solo se muestran para una fila completa, tras un segundo de hover en equipos con puntero, y no se activan al pasar por mover o eliminar.
+- [ ] Insertar una fila no enfoca horas, actividad, implemento ni abre el selector de Labor / causa.
 - [ ] Una fila con inicio y fin válidos muestra la diferencia local en formato `HH:mm`; si falta una hora o el fin es anterior al inicio, muestra `--:--`.
 - [ ] La validación falla sin filas, con campos obligatorios de fila faltantes, con `fin <= inicio`, o con una discontinuidad entre el fin previo y el inicio actual.
 - [ ] La validación aprueba una colección no vacía cuyas filas completas tengan fin posterior al inicio y continuidad exacta en el orden del arreglo.
@@ -175,6 +186,8 @@ No se verificó una firma real de Supabase: las fuentes revisadas no aportan una
 | Código vacío                       | Se limpian los campos de actividad resuelta; la continuidad es inválida.                                                            |
 | Código no reconocido               | La actividad queda sin identificador y se muestra `Código no reconocido`; la continuidad es inválida por ausencia de `actividadId`. |
 | Eliminación intermedia             | Se elimina solo esa posición; cualquier discontinuidad posterior queda sujeta a la validación normal.                               |
+| Hover en mover o eliminar          | No aparecen los controles de inserción y se cancela el temporizador de hover pendiente.                                             |
+| Inserción de una fila              | No se enfoca automáticamente ningún campo de la nueva fila.                                                                         |
 | Cruce de medianoche                | Pendiente.                                                                                                                          |
 
 ## Pendientes / preguntas abiertas
@@ -186,6 +199,16 @@ No se verificó una firma real de Supabase: las fuentes revisadas no aportan una
 - Se necesita confirmar las validaciones de código, implemento y cualquier validación de servidor.
 - Se necesita confirmar cómo se muestra al usuario el `error` expuesto por el composable, pues la página revisada no lo entrega a un componente visual.
 
+## Revisión requerida por feature
+
+| Feature actualizado                            | Quién debe revisar                                            | Qué debe validar                                                                                                                   |
+| ---------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| División e inserción de intervalos             | Responsable funcional de Seguimiento / Jornadas               | Que el corte de tiempo, la continuidad y la restauración al eliminar una fila dividida reflejen la operación esperada.             |
+| Movimiento de actividad e implemento           | Responsable funcional de Seguimiento / Jornadas               | Que el movimiento intercambie únicamente actividad e implemento, sin alterar las horas de la jornada.                              |
+| Controles contextuales de inserción            | Usuario administrativo que registra jornadas                  | Que el segundo de hover, la ubicación de los botones y la ausencia de autofocus permitan editar sin aperturas accidentales.        |
+| Diseño responsive y accesibilidad de controles | QA frontend                                                   | Que el flujo funcione en escritorio, táctil y móvil; que los botones tengan etiquetas accesibles y no oculten acciones necesarias. |
+| Edición de jornadas finalizadas y persistencia | Responsable técnico de backend / Supabase y QA de integración | Que el RPC autorizado preserve permisos, campos y consistencia de los eventos al guardar una jornada finalizada.                   |
+
 ## Tabla de trazabilidad
 
 | Regla o dato                                                                           | Clasificación                           | Fuente exacta                                                                                  |
@@ -193,6 +216,8 @@ No se verificó una firma real de Supabase: las fuentes revisadas no aportan una
 | `JornadaState` contiene `filas: JornadaFilaModel[]`                                    | Confirmado                              | `registroJornada.types.ts`, interfaces `JornadaState` y `JornadaFilaModel`                     |
 | La página es propietaria de `jornada.filas` y lo enlaza con el detalle                 | Confirmado                              | `RegistroJornadaPage.vue`, estado `jornada` y `<JornadaDetalle v-model:filas="jornada.filas">` |
 | Alta: inicio desde el fin anterior o `06:00`; copia de implemento                      | Confirmado                              | `components/JornadaDetalle.vue`, función `agregarFila`                                         |
+| Inserción por división, restauración condicional y movimiento de contenido             | Confirmado                              | `components/JornadaDetalle.vue`, `utils/dividirJornadaFila.ts`                                 |
+| Controles de inserción condicionados, hover y ausencia de autofocus                    | Confirmado                              | `components/JornadaFila.vue` y `components/JornadaDetalle.vue`                                 |
 | Eliminación por índice y renumeración por `index + 1`                                  | Confirmado                              | `components/JornadaDetalle.vue`, función `eliminarFila` y `v-for`                              |
 | Duración como diferencia de horas; `--:--` con datos incompletos o diferencia negativa | Confirmado                              | `components/JornadaFila.vue`, computada `duracion`                                             |
 | Continuidad, campos exigidos y fin posterior                                           | Confirmado                              | `composables/useJornadaAdmin.ts`, función `validarContinuidad`                                 |

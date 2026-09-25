@@ -4,18 +4,22 @@ import type {
   CambiarImplementoRpcPayload,
   CambiarLaborRpcPayload,
   CambiarTipoParadaRpcPayload,
+  EditarJornadaFinalizadaPayload,
+  EliminarJornadaResponse,
   ImplementoCrearPayload,
   JornadaEventoRpcPayload,
   JornadaInicioRpcPayload,
   JornadaAdministrativaDetalle,
   JornadaAdministrativaFiltros,
   JornadaAdministrativaListaItem,
+  JornadaExistenteEquipoFecha,
   JornadaRpcResponse,
   RegistroEventosLotePayload,
   RegistroEventosLoteResponse,
   ReanudarTrabajoRpcPayload,
   RegistrarParadaRpcPayload,
   RegistroImplementoResponse,
+  ValidacionJornadasEquipoFecha,
 } from "../registroJornada.types";
 import type {
   ImplementoOption,
@@ -136,6 +140,30 @@ const jornadaAdministrativaListadoSchema = z.object({
   ),
 });
 
+const validacionJornadasEquipoFechaSchema = z.object({
+  ok: z.boolean(),
+  existe: z.boolean(),
+  cantidad: z.number().int().nonnegative(),
+  equipo: z.string().min(1),
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  jornadas: z.array(
+    z.object({
+      jornada_id: z.string().uuid(),
+      fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      equipo: z.string().min(1),
+      operador_id: z.string().uuid().nullable(),
+      operador: z.string().min(1).nullable(),
+      registrada_en: z.string().min(1),
+    }),
+  ),
+});
+
+const eliminarJornadaResponseSchema = z.object({
+  ok: z.boolean(),
+  eliminada: z.boolean(),
+  jornada_id: z.string().uuid(),
+});
+
 const jornadaAdministrativaFilaActividadSchema = z.object({
   uuid: z.string().uuid(),
   codigo: z.string().min(1),
@@ -238,6 +266,26 @@ function mapJornadaListado(
   };
 }
 
+function mapValidacionJornadasEquipoFecha(
+  data: z.infer<typeof validacionJornadasEquipoFechaSchema>,
+): ValidacionJornadasEquipoFecha {
+  return {
+    ok: data.ok,
+    existe: data.existe,
+    cantidad: data.cantidad,
+    equipoNumero: data.equipo,
+    fechaOperativa: data.fecha,
+    jornadas: data.jornadas.map((jornada): JornadaExistenteEquipoFecha => ({
+      jornadaId: jornada.jornada_id,
+      fechaOperativa: jornada.fecha,
+      equipoNumero: jornada.equipo,
+      operadorId: jornada.operador_id,
+      operador: jornada.operador,
+      registradaEn: jornada.registrada_en,
+    })),
+  };
+}
+
 function mapJornadaDetalle(
   data: z.infer<typeof jornadaAdministrativaDetalleSchema>,
 ): JornadaAdministrativaDetalle {
@@ -322,6 +370,48 @@ export const registroJornadaService = {
     return resultado.data.items.map(mapJornadaListado);
   },
 
+  async validarJornadasEquipoFecha(
+    equipoNumero: string,
+    fechaOperativa: string,
+  ): Promise<ValidacionJornadasEquipoFecha> {
+    const { data, error } = await supabaseCapturaOperador
+      .rpc("rpc_admin_validar_jornadas_equipo_fecha", {
+        p_equipo_numero: equipoNumero,
+        p_fecha_operativa: fechaOperativa,
+      })
+      .overrideTypes<z.infer<typeof validacionJornadasEquipoFechaSchema>>();
+    if (error) throw error;
+
+    const resultado = validacionJornadasEquipoFechaSchema.safeParse(data);
+    if (!resultado.success) {
+      throw new Error(
+        "La respuesta de validación de jornadas no tiene el formato esperado.",
+      );
+    }
+
+    return mapValidacionJornadasEquipoFecha(resultado.data);
+  },
+
+  async eliminarJornada(jornadaId: string): Promise<EliminarJornadaResponse> {
+    const { data, error } = await supabaseCapturaOperador
+      .rpc("rpc_admin_eliminar_jornada", { p_jornada_id: jornadaId })
+      .overrideTypes<z.infer<typeof eliminarJornadaResponseSchema>>();
+    if (error) throw error;
+
+    const resultado = eliminarJornadaResponseSchema.safeParse(data);
+    if (!resultado.success) {
+      throw new Error(
+        "La respuesta de eliminación de jornada no tiene el formato esperado.",
+      );
+    }
+
+    return {
+      ok: resultado.data.ok,
+      eliminada: resultado.data.eliminada,
+      jornadaId: resultado.data.jornada_id,
+    };
+  },
+
   async obtenerJornadaAdministrativa(
     jornadaId: string,
   ): Promise<JornadaAdministrativaDetalle> {
@@ -350,6 +440,24 @@ export const registroJornadaService = {
     if (!resultado.success) {
       throw new Error(
         "La respuesta del registro de eventos no tiene el formato esperado.",
+      );
+    }
+
+    return resultado.data;
+  },
+
+  async editarJornadaFinalizada(
+    payload: EditarJornadaFinalizadaPayload,
+  ): Promise<RegistroEventosLoteResponse> {
+    const { data, error } = await supabaseCapturaOperador
+      .rpc("rpc_admin_editar_jornada", payload)
+      .overrideTypes<z.infer<typeof registroEventosLoteResponseSchema>>();
+    if (error) throw error;
+
+    const resultado = registroEventosLoteResponseSchema.safeParse(data);
+    if (!resultado.success) {
+      throw new Error(
+        "La respuesta de edición de jornada no tiene el formato esperado.",
       );
     }
 

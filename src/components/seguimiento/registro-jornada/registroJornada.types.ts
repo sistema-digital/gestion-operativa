@@ -71,6 +71,10 @@ export interface JornadaFilaModel {
   actividadNombre: string;
 
   implementoId: string | null;
+  origenDivision?: {
+    filaOrigenId: string;
+    finOriginal: string;
+  };
 }
 
 export interface JornadaDatosGeneralesModel {
@@ -127,6 +131,30 @@ export interface JornadaAdministrativaFiltros {
   hasta: string | null;
   estado: JornadaEstadoCaptura | null;
   equipoNumero: string | null;
+}
+
+export interface JornadaExistenteEquipoFecha {
+  jornadaId: string;
+  fechaOperativa: string;
+  equipoNumero: string;
+  operadorId: string | null;
+  operador: string | null;
+  registradaEn: string;
+}
+
+export interface ValidacionJornadasEquipoFecha {
+  ok: boolean;
+  existe: boolean;
+  cantidad: number;
+  equipoNumero: string;
+  fechaOperativa: string;
+  jornadas: JornadaExistenteEquipoFecha[];
+}
+
+export interface EliminarJornadaResponse {
+  ok: boolean;
+  eliminada: boolean;
+  jornadaId: string;
 }
 
 export interface JornadaAdministrativaDetalle {
@@ -271,6 +299,12 @@ export interface RegistroEventosLotePayload {
   p_finalizar: boolean;
 }
 
+export interface EditarJornadaFinalizadaPayload {
+  p_jornada_id: string;
+  p_eventos: EventoLote[];
+  p_motivo: string | null;
+}
+
 export interface RegistroEventosLoteError {
   codigo: string;
   mensaje: string;
@@ -302,7 +336,7 @@ export interface RegistroEventosLoteResponse {
 
 export interface RegistroJornadaFeedback {
   estado: "exito" | "error";
-  modo: "borrador" | "finalizada";
+  modo: "borrador" | "finalizada" | "edicion";
   procesados?: number;
   borradorReemplazado?: boolean;
   borradorPrevioConservado?: boolean;

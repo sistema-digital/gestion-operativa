@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { Check, Save } from "lucide-vue-next";
 
-defineProps<{
+const props = defineProps<{
   valido: boolean;
   guardando: boolean;
   guardarDisponible?: boolean;
   finalizarDisponible?: boolean;
+  editandoFinalizada?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -20,6 +21,7 @@ const emit = defineEmits<{
     aria-label="Acciones de la jornada"
   >
     <button
+      v-if="!props.editandoFinalizada"
       type="button"
       class="flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[#d8d2c8] bg-white px-4 text-xs font-semibold text-main-dark shadow-sm transition-colors hover:bg-[#faf9f6] disabled:cursor-not-allowed disabled:opacity-60"
       :disabled="guardando || !guardarDisponible"
@@ -44,7 +46,9 @@ const emit = defineEmits<{
       @click="emit('finalizar')"
     >
       <Check class="size-3.5" aria-hidden="true" />
-      Finalizar y registrar
+      {{
+        props.editandoFinalizada ? "Guardar cambios" : "Finalizar y registrar"
+      }}
     </button>
   </footer>
 </template>

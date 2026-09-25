@@ -1,6 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, useTemplateRef, watch } from "vue";
-import { Trash2 } from "lucide-vue-next";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  shallowRef,
+  useTemplateRef,
+  watch,
+} from "vue";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-vue-next";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
 import Multiselect from "vue-multiselect";
 import ImplementoSelect from "./ImplementoSelect.vue";
@@ -34,12 +42,84 @@ const props = defineProps<{
   finAnterior: string | null;
   inicioSiguiente: string | null;
   mostrarErrores: boolean;
+  puedeInsertarAntes: boolean;
+  puedeInsertarDespues: boolean;
+  puedeMoverArriba: boolean;
+  puedeMoverAbajo: boolean;
 }>();
 
 const emit = defineEmits<{
   eliminar: [];
   crearImplemento: [numero: string];
+  insertarAntes: [];
+  insertarDespues: [];
+  moverArriba: [];
+  moverAbajo: [];
 }>();
+
+const controlesInsercionVisibles = shallowRef(false);
+const dispositivoSinHover = shallowRef(false);
+let temporizadorHover: ReturnType<typeof setTimeout> | null = null;
+
+const filaCompletaParaInsertar = computed(() =>
+  Boolean(
+    model.value.inicio &&
+    model.value.fin &&
+    model.value.fin > model.value.inicio &&
+    model.value.codigo !== null &&
+    model.value.tipoActividad !== null &&
+    model.value.actividadId !== null,
+  ),
+);
+
+const mostrarControlesInsercion = computed(
+  () =>
+    filaCompletaParaInsertar.value &&
+    (controlesInsercionVisibles.value || dispositivoSinHover.value),
+);
+
+function cancelarTemporizadorHover(): void {
+  if (temporizadorHover === null) return;
+
+  clearTimeout(temporizadorHover);
+  temporizadorHover = null;
+}
+
+function programarControlesInsercion(): void {
+  if (!filaCompletaParaInsertar.value) {
+    cancelarTemporizadorHover();
+    controlesInsercionVisibles.value = false;
+    return;
+  }
+
+  if (dispositivoSinHover.value || controlesInsercionVisibles.value) return;
+
+  cancelarTemporizadorHover();
+  temporizadorHover = setTimeout(() => {
+    controlesInsercionVisibles.value = true;
+    temporizadorHover = null;
+  }, 1000);
+}
+
+function ocultarControlesInsercion(): void {
+  cancelarTemporizadorHover();
+  if (!dispositivoSinHover.value) controlesInsercionVisibles.value = false;
+}
+
+watch(filaCompletaParaInsertar, (estaCompleta) => {
+  if (estaCompleta) return;
+
+  cancelarTemporizadorHover();
+  controlesInsercionVisibles.value = false;
+});
+
+onMounted(() => {
+  dispositivoSinHover.value =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(hover: none)").matches;
+});
+
+onBeforeUnmount(cancelarTemporizadorHover);
 
 const opcionesActividad = computed(() => [
   ...props.catalogos.labores
@@ -269,18 +349,42 @@ function tieneInicio(): boolean {
   return Boolean(model.value.inicio);
 }
 
-defineExpose({ enfocarInicio, enfocarFin, tieneInicio });
+defineExpose({ enfocarInicio, enfocarFin, enfocarActividad, tieneInicio });
 </script>
 
 <template>
   <div
-    class="grid grid-cols-[28px_1fr_1fr] gap-1.5 rounded-lg p-2 shadow-sm md:min-h-[58px] md:grid-cols-[46px_140px_140px_minmax(280px,1fr)_280px_100px_48px] md:items-center md:gap-x-2 md:rounded-none md:p-0 md:shadow-none"
+    class="relative grid grid-cols-[28px_1fr_1fr] gap-1.5 rounded-lg p-2 shadow-sm md:min-h-[58px] md:grid-cols-[46px_140px_140px_minmax(280px,1fr)_280px_100px_112px] md:items-center md:gap-x-2 md:rounded-none md:p-0 md:shadow-none"
     :class="
       mostrarErrorDeFila
         ? 'border border-danger/50 bg-danger/10'
         : 'border border-gray-200 bg-white md:border-x-0 md:border-t-0'
     "
+    @pointerenter="programarControlesInsercion"
+    @pointerleave="ocultarControlesInsercion"
   >
+    <button
+      v-if="mostrarControlesInsercion"
+      type="button"
+      class="absolute -top-4 left-1/2 z-10 inline-flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border border-main/20 bg-white text-main shadow-sm transition hover:bg-main hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+      :disabled="!props.puedeInsertarAntes"
+      title="Insertar una fila antes"
+      aria-label="Insertar una fila antes"
+      @click="emit('insertarAntes')"
+    >
+      <Plus class="size-4" aria-hidden="true" />
+    </button>
+    <button
+      v-if="mostrarControlesInsercion"
+      type="button"
+      class="absolute -bottom-4 left-1/2 z-10 inline-flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border border-main/20 bg-white text-main shadow-sm transition hover:bg-main hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+      :disabled="!props.puedeInsertarDespues"
+      title="Insertar una fila después"
+      aria-label="Insertar una fila después"
+      @click="emit('insertarDespues')"
+    >
+      <Plus class="size-4" aria-hidden="true" />
+    </button>
     <div
       class="row-span-4 flex items-center justify-center md:row-span-1 md:h-[58px]"
     >
@@ -412,7 +516,31 @@ defineExpose({ enfocarInicio, enfocarFin, tieneInicio });
       </div>
     </div>
 
-    <div class="flex justify-end md:justify-center">
+    <div
+      class="col-span-2 flex justify-center gap-1 md:col-span-1"
+      data-fila-acciones
+      @pointerenter="ocultarControlesInsercion"
+    >
+      <button
+        type="button"
+        class="grid size-8 cursor-pointer place-items-center rounded-md text-main hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+        :disabled="!props.puedeMoverArriba"
+        title="Mover actividad e implemento hacia arriba"
+        aria-label="Mover actividad e implemento hacia arriba"
+        @click="emit('moverArriba')"
+      >
+        <ArrowUp class="size-4" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="grid size-8 cursor-pointer place-items-center rounded-md text-main hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+        :disabled="!props.puedeMoverAbajo"
+        title="Mover actividad e implemento hacia abajo"
+        aria-label="Mover actividad e implemento hacia abajo"
+        @click="emit('moverAbajo')"
+      >
+        <ArrowDown class="size-4" aria-hidden="true" />
+      </button>
       <button
         type="button"
         class="grid size-8 cursor-pointer place-items-center rounded-md text-danger hover:bg-danger-bg"

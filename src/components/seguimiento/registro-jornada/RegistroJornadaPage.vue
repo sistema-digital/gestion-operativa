@@ -19,6 +19,7 @@ import JornadaResumen from "./JornadaResumen.vue";
 import ImplementoCrearPanel from "./ImplementoCrearPanel.vue";
 import OperadorCrearPanel from "./OperadorCrearPanel.vue";
 import RegistroJornadaFeedback from "./RegistroJornadaFeedback.vue";
+import JornadasExistentesWarning from "./JornadasExistentesWarning.vue";
 import {
   RegistroEventosLoteFallidoError,
   mapearFilasDeJornadaAdministrativa,
@@ -31,6 +32,8 @@ import type {
   ImplementoOption,
   OperadorCrearPayload,
   JornadaDatosGeneralesModel,
+  JornadaExistenteEquipoFecha,
+  JornadaEstadoCaptura,
   RegistroEventosLoteResponse,
   RegistroJornadaFeedback as RegistroJornadaFeedbackModel,
   JornadaState,
@@ -82,6 +85,7 @@ const catalogos = computed<CatalogosJornada>(() => ({
 
 const {
   finalizarDesdeFilas,
+  editarJornadaFinalizadaDesdeFilas,
   guardarBorradorDesdeFilas,
   guardando,
   registrarImplemento,
@@ -105,10 +109,48 @@ const resultadoRegistro = shallowRef<RegistroJornadaFeedbackModel | null>(null);
 const cargandoBorrador = shallowRef(false);
 const errorBorrador = shallowRef<string | null>(null);
 const estadoInicial = shallowRef("");
+const estadoCaptura = shallowRef<JornadaEstadoCaptura | null>(null);
 const esEdicion = computed(() => Boolean(props.jornadaId));
+const esEdicionFinalizada = computed(
+  () => estadoCaptura.value === "finalizada",
+);
+const jornadasExistentes = shallowRef<JornadaExistenteEquipoFecha[]>([]);
+const advertenciaJornadasExistentesAbierta = shallowRef(false);
+let solicitudValidacionJornadas = 0;
 
 function actualizarDatosGenerales(datos: JornadaDatosGeneralesModel): void {
   Object.assign(jornada, datos);
+}
+
+async function validarJornadasExistentes(
+  fecha: string | null,
+  equipoNumero: string | null,
+): Promise<void> {
+  const solicitudActual = ++solicitudValidacionJornadas;
+  advertenciaJornadasExistentesAbierta.value = false;
+  jornadasExistentes.value = [];
+
+  if (esEdicion.value || !fecha || !equipoNumero) return;
+
+  try {
+    const resultado = await registroJornadaService.validarJornadasEquipoFecha(
+      equipoNumero,
+      fecha,
+    );
+    if (solicitudActual !== solicitudValidacionJornadas) return;
+
+    jornadasExistentes.value = resultado.jornadas;
+    advertenciaJornadasExistentesAbierta.value = resultado.existe;
+  } catch {
+    if (solicitudActual !== solicitudValidacionJornadas) return;
+
+    jornadasExistentes.value = [];
+    advertenciaJornadasExistentesAbierta.value = false;
+  }
+}
+
+function cerrarAdvertenciaJornadasExistentes(): void {
+  advertenciaJornadasExistentesAbierta.value = false;
 }
 
 function crearPrimeraFila(): void {
@@ -193,7 +235,10 @@ async function cargarBorrador(jornadaId: string): Promise<void> {
   try {
     const detalle =
       await registroJornadaService.obtenerJornadaAdministrativa(jornadaId);
-    if (detalle.estadoCaptura !== "en_edicion") {
+    if (
+      detalle.estadoCaptura !== "en_edicion" &&
+      detalle.estadoCaptura !== "finalizada"
+    ) {
       throw new Error(
         "La jornada seleccionada ya no está disponible para edición.",
       );
@@ -207,7 +252,10 @@ async function cargarBorrador(jornadaId: string): Promise<void> {
       equipoNumero: equipoInicial,
       filas: mapearFilasDeJornadaAdministrativa(detalle.filas),
     });
-    establecerJornadaPendiente(detalle.id);
+    estadoCaptura.value = detalle.estadoCaptura;
+    if (detalle.estadoCaptura === "en_edicion") {
+      establecerJornadaPendiente(detalle.id);
+    }
     estadoInicial.value = JSON.stringify(jornada);
   } catch (capturado) {
     errorBorrador.value =
@@ -261,15 +309,31 @@ async function finalizarJornada(): Promise<void> {
   mostrarErroresFilas.value = true;
   resultadoRegistro.value = null;
   try {
-    const resultado = await finalizarDesdeFilas(jornada);
-    resultadoRegistro.value = crearResultadoExitoso(resultado, "finalizada");
+    const resultado = await (() => {
+      if (!esEdicionFinalizada.value) return finalizarDesdeFilas(jornada);
+
+      if (!props.jornadaId) {
+        return Promise.reject(
+          new Error("No se identificó la jornada finalizada para actualizar."),
+        );
+      }
+
+      return editarJornadaFinalizadaDesdeFilas(jornada, props.jornadaId);
+    })();
+    resultadoRegistro.value = crearResultadoExitoso(
+      resultado,
+      esEdicionFinalizada.value ? "edicion" : "finalizada",
+    );
   } catch (capturado) {
     resultadoRegistro.value =
       capturado instanceof RegistroEventosLoteFallidoError
-        ? crearResultadoErrorDeLote(capturado, "finalizada")
+        ? crearResultadoErrorDeLote(
+            capturado,
+            esEdicionFinalizada.value ? "edicion" : "finalizada",
+          )
         : crearResultadoErrorGeneral(
             error.value ?? "No se pudo completar el registro.",
-            "finalizada",
+            esEdicionFinalizada.value ? "edicion" : "finalizada",
           );
   }
 }
@@ -306,7 +370,9 @@ function crearResultadoExitoso(
         ? borradorReemplazado
           ? "El borrador fue actualizado correctamente."
           : "El borrador quedó guardado correctamente."
-        : "La jornada quedó registrada y finalizada correctamente.",
+        : modo === "edicion"
+          ? "La jornada finalizada fue actualizada correctamente."
+          : "La jornada quedó registrada y finalizada correctamente.",
   };
 }
 
@@ -351,6 +417,14 @@ function describirErrorRegistro(codigo: string): string {
     return "Esta jornada ya fue publicada y no puede modificarse.";
   if (codigo === "JORNADA_ADMIN_NO_EDITABLE")
     return "Este borrador ya no está disponible para edición.";
+  if (codigo === "JORNADA_ADMIN_NO_FINALIZADA")
+    return "La jornada no está finalizada y no puede actualizarse con esta acción.";
+  if (codigo === "JORNADA_NO_FUE_PUBLICADA_POR_ADMIN")
+    return "Solo puedes editar jornadas publicadas mediante captura administrativa.";
+  if (codigo === "JORNADA_TIENE_INCIDENCIAS_RELACIONADAS")
+    return "La jornada tiene incidencias relacionadas y no puede editarse.";
+  if (codigo === "JORNADA_TIENE_ALERTAS_RELACIONADAS")
+    return "La jornada tiene alertas relacionadas y no puede editarse.";
   if (codigo === "BORRADOR_NO_PUEDE_INCLUIR_FINALIZAR_JORNADA")
     return "El borrador contiene un evento de finalización no permitido.";
   if (codigo.includes("SECUENCIA"))
@@ -412,6 +486,13 @@ watch(
   },
 );
 
+watch(
+  () => [jornada.fecha, jornada.equipoNumero] as const,
+  ([fecha, equipoNumero]) => {
+    void validarJornadasExistentes(fecha, equipoNumero);
+  },
+);
+
 onMounted(() => {
   void (async () => {
     await catalogosStore.cargarCatalogos();
@@ -431,14 +512,19 @@ onMounted(() => {
             {{ esEdicion ? "Editando jornada" : "Registro de jornada" }}
           </h1>
           <p v-if="esEdicion" class="mt-1 text-xs text-gray-500">
-            Editando borrador.
+            {{
+              esEdicionFinalizada
+                ? "Editando jornada finalizada. Al guardar se publicará nuevamente."
+                : "Editando borrador."
+            }}
           </p>
         </div>
         <div class="flex items-center gap-2">
           <span
             class="flex h-11 items-center gap-2 rounded-full bg-[#fff4df] px-4 text-xs font-semibold text-[#c77919]"
           >
-            <PencilLine class="size-4" aria-hidden="true" /> Borrador
+            <PencilLine class="size-4" aria-hidden="true" />
+            {{ esEdicionFinalizada ? "Finalizada" : "Borrador" }}
           </span>
           <button
             type="button"
@@ -525,6 +611,7 @@ onMounted(() => {
               :guardando="guardando"
               :guardar-disponible="canCreate"
               :finalizar-disponible="canFinalize"
+              :editando-finalizada="esEdicionFinalizada"
               @guardar="guardarBorrador"
               @finalizar="finalizarJornada"
             />
@@ -551,6 +638,12 @@ onMounted(() => {
         :nombre-inicial="nombreOperadorInicial"
         :apellido-inicial="apellidoOperadorInicial"
         @crear="registrarYAsignarOperador"
+      />
+
+      <JornadasExistentesWarning
+        v-if="advertenciaJornadasExistentesAbierta"
+        :jornadas="jornadasExistentes"
+        @confirmar="cerrarAdvertenciaJornadasExistentes"
       />
 
       <RegistroJornadaFeedback
