@@ -32,8 +32,8 @@ export default defineConfig(({ mode }) => {
           background_color: "#f0ede5",
           icons: [
             {
-              src: "icon_go.png",
-              sizes: "500x500",
+              src: "icon_go-maskable.png",
+              sizes: "1254x1254",
               type: "image/png",
               purpose: "any maskable",
             },

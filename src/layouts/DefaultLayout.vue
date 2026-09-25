@@ -25,6 +25,7 @@ import { useAceitesCatalogoStore } from "@/stores/dbequipos/engrase/catalogo/ace
 import { useSistemasCatalogoStore } from "@/stores/dbequipos/engrase/catalogo/sistemasCatalogo.store";
 import { useDashboardHeaderNav } from "@/composables/useDashboardHeaderNav";
 import { useCatalogoEngrasePermissions } from "@/composables/engrase/catalogo/useCatalogoEngrasePermissions";
+import { fetchAppVersion } from "@/pwa/appVersion";
 import {
   filterMaintenanceTabs,
   type MaintenanceTabDefinition,
@@ -72,6 +73,7 @@ const isPreparingSolicitudCompraCreate = ref(false);
 const isDashboardOverflowMenuOpen = shallowRef(false);
 const isMaintenanceOverflowMenuOpen = shallowRef(false);
 const isProfileMenuOpen = shallowRef(false);
+const appVersion = shallowRef<string | null>(null);
 const { dashboardHeaderNavState, selectDashboardHeaderSlide } =
   useDashboardHeaderNav();
 
@@ -686,6 +688,10 @@ watch(
 );
 
 onMounted(async () => {
+  void fetchAppVersion().then((version) => {
+    appVersion.value = version?.version ?? null;
+  });
+
   window.addEventListener("resize", updateSidebarNavScrollState);
   window.addEventListener("click", closeDashboardOverflowMenu);
   window.addEventListener("click", closeDesktopFloatingGroupOnOutsideClick);
@@ -1157,6 +1163,14 @@ const isActive = (path: string) =>
         </div>
       </div>
 
+      <div
+        v-if="isSidebarOpen && appVersion"
+        class="mt-3 flex shrink-0 items-center justify-between border-t border-white/10 px-2 pt-3 text-[9px] font-medium uppercase tracking-[0.12em] text-white/45"
+      >
+        <span>Versión</span>
+        <span class="font-bold text-white/65">v{{ appVersion }}</span>
+      </div>
+
       <button
         @click="logout"
         class="group relative mt-3 flex shrink-0 items-center rounded-xl text-gray-400 hover:bg-danger hover:text-white transition-all"
@@ -1497,6 +1511,12 @@ const isActive = (path: string) =>
                     <LogOut class="h-3.5 w-3.5" />
                     Cerrar sesión
                   </button>
+                  <p
+                    v-if="appVersion"
+                    class="mt-1 border-t border-gray-100 px-2.5 pt-2 text-[9px] font-medium uppercase tracking-[0.1em] text-gray-400"
+                  >
+                    Versión v{{ appVersion }}
+                  </p>
                 </div>
               </Transition>
             </div>

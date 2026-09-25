@@ -1,10 +1,9 @@
 {
-  "version": "0.2.0",
-  "summary": "La aplicación ahora puede instalarse como PWA y aplica actualizaciones obligatorias.",
+  "version": "0.2.2",
+  "summary": "Mejoras generales de la aplicación.",
   "changes": [
-    "Instalación disponible en dispositivos compatibles.",
-    "Detección y aplicación obligatoria de nuevas versiones.",
-    "Los datos operativos continúan consultándose siempre en línea."
+    "Mejoras generales de funcionamiento.",
+    "Ajustes de interfaz y experiencia de uso."
   ],
   "required": true,
   "appliesToAllUsers": true,
