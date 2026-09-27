@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
 import Toast from "primevue/toast";
-import { computed, watch } from "vue";
+import { computed, shallowRef, watch } from "vue";
 import DevInspector from "@/components/DevInspector.vue";
 import ModuleNavigationLoader from "@/components/general/ModuleNavigationLoader.vue";
 import PwaUpdateRequired from "@/components/general/PwaUpdateRequired.vue";
@@ -37,15 +37,30 @@ const {
   isApplyingUpdate,
   applyUpdate,
 } = usePwaUpdate();
+const isPwaUpdateDeferred = shallowRef(false);
 
 const shouldRequirePwaUpdate = computed(() => {
-  if (!needRefresh.value || !isPwaVersionResolved.value) return false;
+  if (
+    !needRefresh.value ||
+    !isPwaVersionResolved.value ||
+    isPwaUpdateDeferred.value
+  ) {
+    return false;
+  }
   if (!pwaVersion.value || pwaVersion.value.appliesToAllUsers) return true;
   if (!isFeatureAccessLoaded.value) return false;
 
   return pwaVersion.value.affectedFeatures.some((feature) =>
     featureAccessStore.tieneFuncionalidad(feature),
   );
+});
+
+const deferPwaUpdate = (): void => {
+  isPwaUpdateDeferred.value = true;
+};
+
+watch(needRefresh, (hasUpdate) => {
+  if (hasUpdate) isPwaUpdateDeferred.value = false;
 });
 
 const retrySessionValidation = async (): Promise<void> => {
@@ -84,6 +99,7 @@ watch(navigationErrorSequence, (errorSequence) => {
     :is-applying="isApplyingUpdate"
     :error="pwaUpdateError"
     @update="applyUpdate"
+    @later="deferPwaUpdate"
   />
 
   <SessionValidationLoader

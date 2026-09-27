@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { AlertTriangle, LoaderCircle, RefreshCw } from "lucide-vue-next";
+import {
+  AlertTriangle,
+  Clock3,
+  LoaderCircle,
+  RefreshCw,
+} from "lucide-vue-next";
 import type { AppVersion } from "@/pwa/appVersion";
 
 defineProps<{
@@ -10,6 +15,7 @@ defineProps<{
 
 defineEmits<{
   update: [];
+  later: [];
 }>();
 </script>
 
@@ -35,7 +41,7 @@ defineEmits<{
           <p
             class="text-xs font-semibold uppercase tracking-[0.12em] text-warning"
           >
-            Actualización obligatoria
+            Actualización disponible
           </p>
           <h2
             id="pwa-update-title"
@@ -79,20 +85,32 @@ defineEmits<{
         {{ error }}
       </p>
 
-      <button
-        type="button"
-        class="mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-main px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-main-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-main disabled:cursor-wait disabled:opacity-70 sm:text-sm"
-        :disabled="isApplying"
-        @click="$emit('update')"
-      >
-        <LoaderCircle
-          v-if="isApplying"
-          class="size-4 animate-spin"
-          aria-hidden="true"
-        />
-        <RefreshCw v-else class="size-4" aria-hidden="true" />
-        {{ isApplying ? "Actualizando…" : "Actualizar ahora" }}
-      </button>
+      <div class="mt-4 grid gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-main disabled:cursor-not-allowed disabled:opacity-70 sm:text-sm"
+          :disabled="isApplying"
+          @click="$emit('later')"
+        >
+          <Clock3 class="size-4" aria-hidden="true" />
+          Más tarde
+        </button>
+
+        <button
+          type="button"
+          class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-main px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-main-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-main disabled:cursor-wait disabled:opacity-70 sm:text-sm"
+          :disabled="isApplying"
+          @click="$emit('update')"
+        >
+          <LoaderCircle
+            v-if="isApplying"
+            class="size-4 animate-spin"
+            aria-hidden="true"
+          />
+          <RefreshCw v-else class="size-4" aria-hidden="true" />
+          {{ isApplying ? "Actualizando…" : "Actualizar ahora" }}
+        </button>
+      </div>
     </div>
   </section>
 </template>
