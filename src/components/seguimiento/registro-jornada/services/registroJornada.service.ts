@@ -59,6 +59,17 @@ const operadorListadoSchema = z.array(
   }),
 );
 
+const registroOperadorResponseSchema = z.object({
+  ok: z.boolean(),
+  creado: z.boolean(),
+  operador: z.object({
+    uuid: z.string().uuid(),
+    nombre: z.string().min(1),
+    auth_user_id: z.string().uuid().nullable(),
+    activo: z.boolean(),
+  }),
+});
+
 const tipoImplementoListadoSchema = z.array(
   z.object({
     uuid: z.string().uuid(),
@@ -587,10 +598,20 @@ export const registroJornadaService = {
       .overrideTypes<RegistroImplementoResponse>();
   },
 
-  registrarOperador(payload: OperadorCrearPayload) {
-    return supabaseCapturaOperador
+  async registrarOperador(
+    payload: OperadorCrearPayload,
+  ): Promise<RegistroOperadorResponse> {
+    const { data, error } = await supabaseCapturaOperador
       .rpc("rpc_admin_registrar_operador", { p_nombre: payload.nombre })
-      .overrideTypes<RegistroOperadorResponse>();
+      .overrideTypes<RegistroOperadorResponse[]>();
+    if (error) throw error;
+
+    const resultado = registroOperadorResponseSchema.safeParse(data);
+    if (!resultado.success) {
+      throw new Error("La respuesta de registro del operador no es válida.");
+    }
+
+    return resultado.data;
   },
 
   iniciarJornada(payload: JornadaInicioRpcPayload) {

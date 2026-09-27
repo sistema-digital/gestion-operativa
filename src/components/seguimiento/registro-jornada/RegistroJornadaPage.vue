@@ -179,10 +179,8 @@ async function registrarYAsignarOperador(
   guardandoOperador.value = true;
   errorOperador.value = null;
   try {
-    const { data, error: rpcError } =
-      await registroJornadaService.registrarOperador(payload);
-    if (rpcError) throw rpcError;
-    if (!data?.ok || !data.operador.activo) {
+    const data = await registroJornadaService.registrarOperador(payload);
+    if (!data.ok || !data.operador.activo) {
       throw new Error("No se recibió un operador válido.");
     }
     const operador = { id: data.operador.uuid, nombre: data.operador.nombre };
