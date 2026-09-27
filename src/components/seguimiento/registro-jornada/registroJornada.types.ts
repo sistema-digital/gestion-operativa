@@ -56,6 +56,7 @@ export interface ImplementoOption {
   numero: string;
   nombre: string | null;
   tipo_implemento_id?: string;
+  tipo?: string;
   activo?: boolean;
 }
 
@@ -102,12 +103,11 @@ export interface ImplementoCrearPayload {
   nombre?: string | null;
 }
 
-/**
- * Forma que la interfaz puede consumir tras registrar un implemento.
- * La respuesta real del RPC sigue pendiente de verificación en Supabase.
- */
 export interface RegistroImplementoResponse {
-  implemento?: ImplementoOption;
+  ok: boolean;
+  creado: boolean;
+  ya_existia: boolean;
+  implemento: ImplementoOption;
 }
 
 export type JornadaEstadoCaptura = "en_edicion" | "finalizada" | "descartada";

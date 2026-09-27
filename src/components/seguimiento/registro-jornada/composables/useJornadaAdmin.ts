@@ -122,7 +122,9 @@ export function reconstruirFilasDeEventos(
     .filter((evento) => !evento.anulado)
     .sort((izquierda, derecha) => izquierda.secuencia - derecha.secuencia);
   const filas: JornadaFilaModel[] = [];
-  let filaActual: JornadaFilaModel | null = null;
+  const estadoReconstruccion: { filaActual: JornadaFilaModel | null } = {
+    filaActual: null,
+  };
 
   const iniciarFila = (
     inicio: string,
@@ -132,18 +134,25 @@ export function reconstruirFilasDeEventos(
     >,
     implementoId: string | null,
   ): void => {
-    if (filaActual?.inicio === inicio) {
-      filaActual.codigo = actividad.codigo;
-      filaActual.tipoActividad = actividad.tipoActividad;
-      filaActual.actividadId = actividad.actividadId;
-      filaActual.actividadNombre = actividad.actividadNombre;
-      filaActual.implementoId = implementoId;
+    if (estadoReconstruccion.filaActual?.inicio === inicio) {
+      estadoReconstruccion.filaActual.codigo = actividad.codigo;
+      estadoReconstruccion.filaActual.tipoActividad = actividad.tipoActividad;
+      estadoReconstruccion.filaActual.actividadId = actividad.actividadId;
+      estadoReconstruccion.filaActual.actividadNombre =
+        actividad.actividadNombre;
+      estadoReconstruccion.filaActual.implementoId = implementoId;
       return;
     }
 
-    if (filaActual) filaActual.fin = inicio;
-    filaActual = crearFilaReconstruida(inicio, actividad, implementoId);
-    filas.push(filaActual);
+    if (estadoReconstruccion.filaActual) {
+      estadoReconstruccion.filaActual.fin = inicio;
+    }
+    estadoReconstruccion.filaActual = crearFilaReconstruida(
+      inicio,
+      actividad,
+      implementoId,
+    );
+    filas.push(estadoReconstruccion.filaActual);
   };
 
   for (const evento of activos) {
@@ -167,7 +176,9 @@ export function reconstruirFilasDeEventos(
       iniciarFila(
         hora,
         actividadDesdeEvento("parada", payload.tipo_parada_id, catalogos),
-        filaActual?.implementoId ?? payload.implemento_id ?? null,
+        estadoReconstruccion.filaActual?.implementoId ??
+          payload.implemento_id ??
+          null,
       );
       continue;
     }
@@ -176,7 +187,9 @@ export function reconstruirFilasDeEventos(
       iniciarFila(
         hora,
         actividadDesdeEvento("labor", payload.labor_id, catalogos),
-        filaActual?.implementoId ?? payload.implemento_id ?? null,
+        estadoReconstruccion.filaActual?.implementoId ??
+          payload.implemento_id ??
+          null,
       );
       continue;
     }
@@ -185,13 +198,14 @@ export function reconstruirFilasDeEventos(
       iniciarFila(
         hora,
         actividadDesdeEvento("labor", payload.nueva_labor_id, catalogos),
-        filaActual?.implementoId ?? null,
+        estadoReconstruccion.filaActual?.implementoId ?? null,
       );
       continue;
     }
 
     if (evento.tipoEvento === "confirmar_cambio_implemento") {
-      const laborId = payload.labor_id ?? filaActual?.actividadId;
+      const laborId =
+        payload.labor_id ?? estadoReconstruccion.filaActual?.actividadId;
       iniciarFila(
         hora,
         actividadDesdeEvento("labor", laborId, catalogos),
@@ -200,8 +214,11 @@ export function reconstruirFilasDeEventos(
       continue;
     }
 
-    if (evento.tipoEvento === "finalizar_jornada" && filaActual) {
-      filaActual.fin = hora;
+    if (
+      evento.tipoEvento === "finalizar_jornada" &&
+      estadoReconstruccion.filaActual
+    ) {
+      estadoReconstruccion.filaActual.fin = hora;
     }
   }
 
@@ -470,10 +487,7 @@ export function useJornadaAdmin() {
   async function registrarImplemento(
     payload: ImplementoCrearPayload,
   ): Promise<RegistroImplementoResponse | null> {
-    const { data, error: rpcError } =
-      await registroJornadaService.registrarImplemento(payload);
-    if (rpcError) throw rpcError;
-    return data;
+    return registroJornadaService.registrarImplemento(payload);
   }
 
   async function registrarDesdeFilas(

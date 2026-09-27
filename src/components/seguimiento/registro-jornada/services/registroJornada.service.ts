@@ -70,6 +70,20 @@ const registroOperadorResponseSchema = z.object({
   }),
 });
 
+const registroImplementoResponseSchema = z.object({
+  ok: z.boolean(),
+  creado: z.boolean(),
+  ya_existia: z.boolean(),
+  implemento: z.object({
+    id: z.string().uuid(),
+    numero: z.string().trim().min(1),
+    nombre: z.string().trim().min(1).nullable(),
+    tipo_implemento_id: z.string().uuid(),
+    tipo: z.string().trim().min(1).optional(),
+    activo: z.boolean(),
+  }),
+});
+
 const tipoImplementoListadoSchema = z.array(
   z.object({
     uuid: z.string().uuid(),
@@ -588,14 +602,24 @@ export const registroJornadaService = {
     }));
   },
 
-  registrarImplemento(payload: ImplementoCrearPayload) {
-    return supabase
+  async registrarImplemento(
+    payload: ImplementoCrearPayload,
+  ): Promise<RegistroImplementoResponse> {
+    const { data, error } = await supabase
       .rpc("rpc_admin_registrar_implemento", {
         p_numero: payload.numero,
         p_tipo_implemento_id: payload.tipoImplementoId,
         p_nombre: payload.nombre ?? null,
       })
-      .overrideTypes<RegistroImplementoResponse>();
+      .overrideTypes<RegistroImplementoResponse[]>();
+    if (error) throw error;
+
+    const resultado = registroImplementoResponseSchema.safeParse(data);
+    if (!resultado.success) {
+      throw new Error("La respuesta de registro del implemento no es válida.");
+    }
+
+    return resultado.data;
   },
 
   async registrarOperador(
