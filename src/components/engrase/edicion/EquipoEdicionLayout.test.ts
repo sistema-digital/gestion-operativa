@@ -20,7 +20,7 @@ const draft: EquipoEdicionDraft = {
   },
   etapas: [{ id: 1, nombre: "Cultivo" }],
   filtros: [],
-  aceites: [],
+  estructuraSistemas: [],
   imagen: {
     mainStoragePath: null,
     tieneImagenMain: false,
@@ -36,7 +36,7 @@ const draft: EquipoEdicionDraft = {
     datos: "existente",
     etapas: "existente",
     filtros: "existente",
-    aceites: "existente",
+    estructuraSistemas: "existente",
   },
 };
 
@@ -44,7 +44,8 @@ const auxiliares: AuxiliaresEdicionEquipo = {
   tiposEquipo: [],
   etapas: draft.etapas,
   tiposFiltro: [],
-  sistemasAceite: [],
+  sistemas: [],
+  subsistemas: [],
   aceites: [],
 };
 
@@ -89,13 +90,13 @@ describe("cabecera y datos del editor", () => {
         draft,
         activeTab: "datos",
         filtersCount: 2,
-        oilsCount: 1,
+        structureCount: 1,
         hasDataChanges: false,
         hasFilterChanges: true,
-        hasOilChanges: false,
+        hasStructureChanges: false,
         hasDataErrors: false,
         hasFilterErrors: true,
-        hasOilErrors: false,
+        hasStructureErrors: false,
         canSave: true,
         saving: false,
         message: null,
@@ -106,15 +107,21 @@ describe("cabecera y datos del editor", () => {
       slots: {
         datos: '<div data-test="datos">Datos</div>',
         filtros: '<div data-test="filtros">Filtros</div>',
-        aceites: '<div data-test="aceites">Aceites</div>',
+        estructura: '<div data-test="estructura">Estructura</div>',
       },
-      global: { stubs: { EquipoEdicionHeader: true, EquipoEdicionFooter: true } },
+      global: {
+        stubs: { EquipoEdicionHeader: true, EquipoEdicionFooter: true },
+      },
     });
 
-    expect(wrapper.get("[role=tab][aria-selected=true]").text()).toContain("Datos del equipo");
+    expect(wrapper.get("[role=tab][aria-selected=true]").text()).toContain(
+      "Datos del equipo",
+    );
     expect(wrapper.get("#panel-datos").isVisible()).toBe(true);
     expect(wrapper.get("#panel-filtros").isVisible()).toBe(false);
-    expect(wrapper.get("#tab-filtros").text()).toContain("Errores por corregir");
+    expect(wrapper.get("#tab-filtros").text()).toContain(
+      "Errores por corregir",
+    );
 
     await wrapper.get("#tab-filtros").trigger("click");
     expect(wrapper.emitted("updateActiveTab")).toEqual([["filtros"]]);

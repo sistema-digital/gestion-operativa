@@ -1,17 +1,102 @@
+import { z } from "zod";
 import { CatalogoAceitesError } from "./aceitesCatalogo.errors";
-import type { CatalogoAceiteGuardarResultado, CatalogoAceiteItem, CatalogoAceitesResumen, CatalogoSistemaRelacionado, CatalogoTipoEquipoImpacto } from "./aceitesCatalogo.types";
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
-function invalid(message: string): never { throw new CatalogoAceitesError("RESPUESTA_INVALIDA", message); }
-function id(value: unknown, field: string): number { if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) return invalid(`${field} debe ser un ID positivo.`); return value; }
-function count(value: unknown, field: string): number { if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return invalid(`${field} debe ser no negativo.`); return value; }
-function text(value: unknown, field: string): string { if (typeof value !== "string" || !value.trim()) return invalid(`${field} es obligatorio.`); return value.trim(); }
-function timestamp(value: unknown): string | null { return typeof value === "string" && value.trim() && !Number.isNaN(Date.parse(value)) ? value : null; }
-function mapSystem(value: unknown): CatalogoSistemaRelacionado { if (!isRecord(value)) return invalid("Sistema relacionado inválido."); return { id: id(value.id, "sistemas.id"), nombre: text(value.nombre, "sistemas.nombre"), cantidadEquipos: count(value.cantidad_equipos, "sistemas.cantidad_equipos") }; }
-function mapEquipmentType(value: unknown): CatalogoTipoEquipoImpacto { if (!isRecord(value)) return invalid("Tipo de equipo inválido."); return { id: id(value.id, "impacto.tipos_equipo.id"), nombre: text(value.nombre, "impacto.tipos_equipo.nombre"), cantidadEquipos: count(value.cantidad_equipos, "impacto.tipos_equipo.cantidad_equipos") }; }
-export function mapCatalogoAceiteItem(value: unknown): CatalogoAceiteItem {
-  if (!isRecord(value) || !Array.isArray(value.sistemas) || !isRecord(value.impacto) || !Array.isArray(value.impacto.tipos_equipo)) return invalid("El aceite retornado es inválido.");
-  if (typeof value.activo !== "boolean") return invalid("activo debe ser booleano.");
-  return { id: id(value.id, "id"), nombre: text(value.nombre, "nombre"), activo: value.activo, creadoEn: timestamp(value.creado_en), actualizadoEn: timestamp(value.actualizado_en), sistemas: value.sistemas.map(mapSystem), impacto: { totalEquipos: count(value.impacto.total_equipos, "impacto.total_equipos"), totalAsignaciones: count(value.impacto.total_asignaciones, "impacto.total_asignaciones"), tiposEquipo: value.impacto.tipos_equipo.map(mapEquipmentType) } };
+import type {
+  CatalogoAceiteGuardarResultado,
+  CatalogoAceiteItem,
+  CatalogoAceitesResumen,
+  CatalogoSistemaRelacionado,
+  CatalogoTipoEquipoImpacto,
+} from "./aceitesCatalogo.types";
+
+const id = z.number().int().positive();
+const count = z.number().finite().nonnegative();
+const name = z.string().trim().min(1);
+const relatedSchema = z.object({ id, nombre: name, cantidad_equipos: count });
+const impactSchema = z.object({
+  total_equipos: count,
+  total_asignaciones: count,
+  tipos_equipo: z.array(relatedSchema),
+});
+const itemSchema = z.object({
+  id,
+  nombre: name,
+  activo: z.boolean(),
+  creado_en: z.string().datetime({ offset: true }).nullable(),
+  actualizado_en: z.string().datetime({ offset: true }).nullable(),
+  sistemas: z.array(relatedSchema),
+  impacto: impactSchema,
+});
+const listSchema = z.object({
+  ok: z.literal(true),
+  items: z.array(itemSchema),
+  resumen: z.object({ total: count, activos: count, desactivados: count }),
+});
+const saveSchema = z.object({
+  ok: z.literal(true),
+  operacion: z.enum(["creado", "actualizado"]),
+  codigo: z.enum(["ACEITE_CREADO", "ACEITE_ACTUALIZADO"]),
+  mensaje: name,
+  afecta_equipos: count,
+  item: itemSchema,
+});
+
+function parse<T>(schema: z.ZodType<T>, value: unknown): T {
+  const result = schema.safeParse(value);
+  if (!result.success)
+    throw new CatalogoAceitesError(
+      "RESPUESTA_INVALIDA",
+      "La respuesta del catálogo es inválida.",
+    );
+  return result.data;
 }
-export function mapCatalogoAceitesListarResponse(value: unknown): { items: CatalogoAceiteItem[]; resumen: CatalogoAceitesResumen } { if (!isRecord(value) || value.ok !== true || !Array.isArray(value.items) || !isRecord(value.resumen)) return invalid("Listado inválido."); return { items: value.items.map(mapCatalogoAceiteItem), resumen: { total: count(value.resumen.total, "resumen.total"), activos: count(value.resumen.activos, "resumen.activos"), desactivados: count(value.resumen.desactivados, "resumen.desactivados") } }; }
-export function mapCatalogoAceiteGuardarResponse(value: unknown): CatalogoAceiteGuardarResultado { if (!isRecord(value) || value.ok !== true || (value.operacion !== "creado" && value.operacion !== "actualizado") || (value.codigo !== "ACEITE_CREADO" && value.codigo !== "ACEITE_ACTUALIZADO")) return invalid("Guardado inválido."); return { operacion: value.operacion, codigo: value.codigo, mensaje: text(value.mensaje, "mensaje"), afectaEquipos: count(value.afecta_equipos, "afecta_equipos"), item: mapCatalogoAceiteItem(value.item) }; }
+function mapRelated(
+  value: z.infer<typeof relatedSchema>,
+): CatalogoSistemaRelacionado {
+  return {
+    id: value.id,
+    nombre: value.nombre,
+    cantidadEquipos: value.cantidad_equipos,
+  };
+}
+function mapEquipment(
+  value: z.infer<typeof relatedSchema>,
+): CatalogoTipoEquipoImpacto {
+  return mapRelated(value);
+}
+function mapItem(value: z.infer<typeof itemSchema>): CatalogoAceiteItem {
+  return {
+    id: value.id,
+    nombre: value.nombre,
+    activo: value.activo,
+    creadoEn: value.creado_en,
+    actualizadoEn: value.actualizado_en,
+    sistemas: value.sistemas.map(mapRelated),
+    impacto: {
+      totalEquipos: value.impacto.total_equipos,
+      totalAsignaciones: value.impacto.total_asignaciones,
+      tiposEquipo: value.impacto.tipos_equipo.map(mapEquipment),
+    },
+  };
+}
+export function mapCatalogoAceiteItem(value: unknown): CatalogoAceiteItem {
+  return mapItem(parse(itemSchema, value));
+}
+export function mapCatalogoAceitesListarResponse(value: unknown): {
+  items: CatalogoAceiteItem[];
+  resumen: CatalogoAceitesResumen;
+} {
+  const response = parse(listSchema, value);
+  return { items: response.items.map(mapItem), resumen: response.resumen };
+}
+export function mapCatalogoAceiteGuardarResponse(
+  value: unknown,
+): CatalogoAceiteGuardarResultado {
+  const response = parse(saveSchema, value);
+  return {
+    operacion: response.operacion,
+    codigo: response.codigo,
+    mensaje: response.mensaje,
+    afectaEquipos: response.afecta_equipos,
+    item: mapItem(response.item),
+  };
+}

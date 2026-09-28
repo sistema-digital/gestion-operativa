@@ -344,13 +344,11 @@ function construirCambiosEstructura(
 
 ### Reglas de generación
 
-- **Nuevo:** incluye `temp_id`, `parent_temp_id`, `sistema_id`,
-  `subsistema_id` y `aceite_id`. Un nodo nuevo hijo de un padre persistido
-  necesita una representación compatible con el contrato RPC; si el contrato
-  vigente requiere exclusivamente `parent_temp_id` en `nuevos`, el motor debe
-  rechazar esa operación antes de guardar o el contrato debe ampliarse con el
-  backend. Esta ambigüedad debe resolverse antes de implementar; no se debe
-  inventar un campo no documentado.
+- **Nuevo:** incluye `temp_id`, `parent_id`, `parent_temp_id`, `sistema_id`,
+  `subsistema_id` y `aceite_id`. Una raíz usa ambos campos de padre en `null`;
+  un hijo de un padre persistido usa `parent_id`; un hijo de un padre nuevo usa
+  `parent_temp_id`. No deben enviarse ambos campos de padre con valores no
+  nulos.
 - **Actualizado:** incluye solo propiedades que cambiaron: `parent_id` o
   `parent_temp_id`, y/o `aceite_id`. No reenvía catálogos sin cambios.
 - **Eliminado:** incluye únicamente `{ id }` de nodos existentes marcados para
@@ -361,19 +359,12 @@ function construirCambiosEstructura(
 - **Sin cambios:** si no existe cambio estructural, devuelve los tres arreglos
   vacíos y nunca un bloque legacy `aceites`.
 
-### Decisión pendiente obligatoria
+### Contrato confirmado para padre persistido
 
-La sección 11 de `03_rpc_payloads_nueva_estructura_engrase.md` enumera solo
-`parent_temp_id` para nodos nuevos, pero la sección 9 muestra un nuevo hijo
-referenciando un padre temporal. Antes de construir la UI, el responsable del
-backend debe confirmar cómo expresar un **nodo nuevo hijo de un padre existente**:
-
-1. si `nuevos` acepta `parent_id`; o
-2. si debe enviarse en otra forma documentada.
-
-Hasta tener esa confirmación, la API del motor debe modelar el caso localmente
-pero no fabricar un payload. El test correspondiente queda marcado como
-pendiente de contrato, no como comportamiento asumido.
+El backend admite `parent_id` en `nuevos[]` para crear un nodo hijo bajo un
+padre persistido del mismo equipo. El motor debe generar ese campo con un ID
+positivo y mantener `parent_temp_id: null`. La validación de backend rechaza
+padres de otro equipo y referencias de padre ambiguas.
 
 ## Uso esperado por los specs siguientes
 
@@ -403,15 +394,17 @@ store, y el store usa el motor para reemplazar la lista plana de borrador.
    el nodo.
 8. Mover un hijo actualiza el tipo de referencia de padre correcto y rechaza
    moverlo bajo su descendiente.
-9. Eliminar un nodo existente marca el subárbol; eliminar un nodo nuevo lo
-   elimina del borrador; el payload solo envía el padre persistido.
-10. Deshacer una eliminación recupera el subárbol cuando su ancestro está activo.
-11. El árbol derivado conserva orden, profundidad y ruta, y excluye nodos
+9. Crear un hijo nuevo bajo padre persistido envía `parent_id`; bajo padre
+   temporal envía `parent_temp_id`.
+10. Eliminar un nodo existente marca el subárbol; eliminar un nodo nuevo lo
+    elimina del borrador; el payload solo envía el padre persistido.
+11. Deshacer una eliminación recupera el subárbol cuando su ancestro está activo.
+12. El árbol derivado conserva orden, profundidad y ruta, y excluye nodos
     pendientes de eliminación.
-12. El payload de creación contiene nodos nuevos y nunca una clave `aceites`.
-13. El payload de edición incluye únicamente cambios reales de aceite o padre y
+13. El payload de creación contiene nodos nuevos y nunca una clave `aceites`.
+14. El payload de edición incluye únicamente cambios reales de aceite o padre y
     no reenvía nodos sin cambios.
-14. Los tres arreglos vacíos representan una estructura sin cambios.
+15. Los tres arreglos vacíos representan una estructura sin cambios.
 
 ## Criterios de aceptación
 
@@ -432,18 +425,18 @@ store, y el store usa el motor para reemplazar la lista plana de borrador.
 
 ## Riesgos y mitigación
 
-| Riesgo                                                   | Mitigación                                                                         |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Usar el árbol como estado y desincronizar padres/hijos   | Conservar solo la lista plana; derivar el árbol con una función pura.              |
-| Dejar huérfanos tras borrar o mover                      | Validar colección completa tras toda mutación y bloquear el resultado inválido.    |
-| Eliminar descendientes dos veces en el payload           | Colapsar eliminaciones al ancestro persistido más alto.                            |
-| Reintroducir la regla legacy de un aceite por sistema    | Permitir reutilizar `aceiteId`; limitarlo únicamente a un valor por nodo.          |
-| Inventar el padre de un nodo nuevo bajo padre persistido | Mantener la decisión pendiente visible y confirmar el contrato antes de persistir. |
+| Riesgo                                                  | Mitigación                                                                                            |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Usar el árbol como estado y desincronizar padres/hijos  | Conservar solo la lista plana; derivar el árbol con una función pura.                                 |
+| Dejar huérfanos tras borrar o mover                     | Validar colección completa tras toda mutación y bloquear el resultado inválido.                       |
+| Eliminar descendientes dos veces en el payload          | Colapsar eliminaciones al ancestro persistido más alto.                                               |
+| Reintroducir la regla legacy de un aceite por sistema   | Permitir reutilizar `aceiteId`; limitarlo únicamente a un valor por nodo.                             |
+| Enviar una referencia de padre ambigua en un nodo nuevo | Usar `parent_id` para padre persistido o `parent_temp_id` para padre temporal, nunca ambos con valor. |
 
 ## Dependencias y salida
 
-- **Entrada:** SPEC-01 terminado y contrato backend confirmado para el padre de
-  un nodo nuevo bajo un padre persistido.
+- **Entrada:** SPEC-01 terminado y contrato backend vigente con `parent_id` en
+  `nuevos[]` para un hijo bajo padre persistido.
 - **Salida:** un motor de dominio testeado que deja a creación y edición listas
   para implementar su interfaz de **Estructura de lubricación** sin depender de
   lógica legacy.

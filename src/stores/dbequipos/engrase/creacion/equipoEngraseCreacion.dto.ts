@@ -21,7 +21,11 @@ export interface CrearEquipoCompletoDto {
     etapas_agregadas: number;
     filtros_agregados: number;
     aceites_agregados: number;
+    estructura_agregada?: number;
+    sistemas_agregados?: number;
+    subsistemas_agregados?: number;
   };
+  estructura_temp_ids?: Record<string, number>;
 }
 
 export type { EquipoEstado };

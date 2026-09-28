@@ -7,6 +7,7 @@ import CatalogoTiposFiltroSection from "./CatalogoTiposFiltroSection.vue";
 import CatalogoFiltrosSection from "./CatalogoFiltrosSection.vue";
 import CatalogoAceitesSection from "./CatalogoAceitesSection.vue";
 import CatalogoSistemasSection from "./CatalogoSistemasSection.vue";
+import CatalogoSubsistemasSection from "./CatalogoSubsistemasSection.vue";
 import type {
   CatalogoEngraseNavigationItem,
   CatalogoEngraseRouteName,
@@ -25,6 +26,11 @@ const sections = [
   { id: "filtros", label: "Filtros", routeName: "CatalogoEngraseFiltros" },
   { id: "aceites", label: "Aceites", routeName: "CatalogoEngraseAceites" },
   { id: "sistemas", label: "Sistemas", routeName: "CatalogoEngraseSistemas" },
+  {
+    id: "subsistemas",
+    label: "Subsistemas",
+    routeName: "CatalogoEngraseSubsistemas",
+  },
 ] as const satisfies readonly CatalogoEngraseNavigationItem[];
 
 const sectionByRouteName = Object.fromEntries(
@@ -49,14 +55,19 @@ function selectSection(sectionId: CatalogoEngraseSection): void {
     void router.push({ name: section.routeName });
   }
 }
-
 </script>
 
 <template>
   <main
     class="flex min-h-full min-w-0 flex-col gap-2 bg-second p-2 pb-20 text-gray-700 sm:gap-2.5 sm:p-3 md:pb-4 lg:p-4"
     :class="
-      ['tipos-filtro', 'filtros', 'aceites', 'sistemas'].includes(activeSection)
+      [
+        'tipos-filtro',
+        'filtros',
+        'aceites',
+        'sistemas',
+        'subsistemas',
+      ].includes(activeSection)
         ? 'lg:h-full lg:overflow-hidden'
         : ''
     "
@@ -81,6 +92,10 @@ function selectSection(sectionId: CatalogoEngraseSection): void {
     />
     <CatalogoSistemasSection
       v-else-if="activeSection === 'sistemas'"
+      class="lg:min-h-0 lg:overflow-hidden"
+    />
+    <CatalogoSubsistemasSection
+      v-else-if="activeSection === 'subsistemas'"
       class="lg:min-h-0 lg:overflow-hidden"
     />
     <CatalogoEngraseSectionShell v-else :title="activeSectionLabel" />

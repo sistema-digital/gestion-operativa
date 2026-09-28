@@ -24,6 +24,7 @@ const respuestaEquipo: ObtenerEquipoParaEdicionDto = {
     tiene_imagen_main: false,
     imagen_actualizada_en: null,
   },
+  estructura_sistemas: [],
 };
 
 describe("servicio de edición de equipos", () => {

@@ -36,10 +36,11 @@ Antes de iniciar este spec deben estar terminados SPEC-01 y SPEC-02:
    activos.
 2. El motor de borrador puede agregar, actualizar aceite, marcar eliminación,
    construir el árbol derivado y producir `estructura_sistemas.nuevos`.
-3. Debe estar confirmado el contrato para crear un hijo nuevo bajo un padre
-   persistido. En creación todos los nodos son nuevos, por lo que el flujo base
-   usa `parent_temp_id`; la confirmación sigue siendo necesaria para mantener
-   consistencia con SPEC-04 de edición.
+3. El contrato vigente permite crear un hijo nuevo bajo un padre persistido con
+   `parent_id`; cuando el padre también es nuevo, usa `parent_temp_id`. Ambos
+   campos no pueden enviarse con valores no nulos simultáneamente. En creación
+   el flujo base usa `parent_temp_id`, porque todos los nodos del equipo son
+   nuevos.
 
 ## Estado actual que se reemplaza
 

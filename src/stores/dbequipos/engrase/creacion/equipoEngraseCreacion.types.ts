@@ -3,6 +3,8 @@ import type {
   AuxiliaresEdicionEquipo,
   ResultadoBusquedaFiltroOriginal as ResultadoBusquedaFiltroOriginalEdicion,
 } from "../edicion/equipoEngraseEdicion.types";
+import type { EstructuraSistemasTempIds } from "../shared/estructuraLubricacion.types";
+import type { NodoEstructuraBorrador } from "../shared/estructuraLubricacion.draft.types";
 import type {
   CatalogoDraftReference,
   CatalogoExistenteReference,
@@ -35,6 +37,9 @@ export interface ResumenOperacionesCreacionEquipo {
   etapasAgregadas: number;
   filtrosAgregados: number;
   aceitesAgregados: number;
+  estructuraAgregada?: number;
+  sistemasAgregados?: number;
+  subsistemasAgregados?: number;
 }
 
 export interface CrearEquipoCompletoRespuesta {
@@ -42,6 +47,7 @@ export interface CrearEquipoCompletoRespuesta {
   mensaje: string;
   equipoLista: EquipoEngraseListItem;
   resumenOperaciones: ResumenOperacionesCreacionEquipo;
+  estructuraTempIds?: EstructuraSistemasTempIds;
 }
 
 export type CrearEquipoSubmitState =
@@ -119,7 +125,7 @@ export type CrearEquipoPaso = 1 | 2 | 3 | 4 | 5;
 export const CREAR_EQUIPO_PASOS = [
   { numero: 1, clave: "datos", titulo: "Datos del equipo" },
   { numero: 2, clave: "filtros", titulo: "Filtros" },
-  { numero: 3, clave: "aceites", titulo: "Aceites" },
+  { numero: 3, clave: "estructura", titulo: "Estructura de lubricación" },
   { numero: 4, clave: "revisar", titulo: "Revisar" },
   { numero: 5, clave: "imagen", titulo: "Imagen" },
 ] as const;
@@ -130,34 +136,24 @@ export interface CrearEquipoError {
 }
 
 export type CrearEquipoOverlay =
-  | "confirmar_salida"
-  | "nuevo_tipo_equipo"
-  | "agregar_filtro"
-  | "editar_filtro"
-  | "agregar_aceite"
-  | "editar_aceite";
+  "confirmar_salida" | "nuevo_tipo_equipo" | "agregar_filtro" | "editar_filtro";
 
 export type CrearEquipoOverlayState =
   | { kind: "confirmar_salida" }
   | { kind: "nuevo_tipo_equipo" }
   | { kind: "agregar_filtro" }
-  | { kind: "editar_filtro"; draftId: string }
-  | { kind: "agregar_aceite" }
-  | { kind: "editar_aceite"; draftId: string };
+  | { kind: "editar_filtro"; draftId: string };
 
-export interface TipoEquipoExistenteCreacionReference
-  extends CatalogoExistenteReference {
+export interface TipoEquipoExistenteCreacionReference extends CatalogoExistenteReference {
   subtiposSugeridos: string[];
 }
 
-export interface TipoEquipoNuevoCreacionReference
-  extends CatalogoTemporalReference {
+export interface TipoEquipoNuevoCreacionReference extends CatalogoTemporalReference {
   subtiposSugeridos: string[];
 }
 
 export type TipoEquipoCreacionReference =
-  | TipoEquipoExistenteCreacionReference
-  | TipoEquipoNuevoCreacionReference;
+  TipoEquipoExistenteCreacionReference | TipoEquipoNuevoCreacionReference;
 
 export interface FiltroExistenteCreacionReference {
   estado: "existente";
@@ -176,8 +172,7 @@ export interface FiltroNuevoCreacionReference {
 }
 
 export type FiltroCreacionReference =
-  | FiltroExistenteCreacionReference
-  | FiltroNuevoCreacionReference;
+  FiltroExistenteCreacionReference | FiltroNuevoCreacionReference;
 
 export type TipoFiltroCreacionReference = CatalogoDraftReference;
 
@@ -273,54 +268,6 @@ export interface CrearEquipoFiltroDraft {
   cantidad: number;
 }
 
-export interface CrearEquipoAceiteDraft {
-  draftId: string;
-  sistema: CatalogoDraftReference;
-  aceite: CatalogoDraftReference;
-}
-
-export type CrearEquipoAceiteEditorState =
-  | { kind: "closed" }
-  | { kind: "add"; dirty: boolean; error: string | null }
-  | { kind: "edit"; draftId: string; dirty: boolean; error: string | null };
-
-export interface AgregarAceiteCreacionInput {
-  sistema: CatalogoDraftReference;
-  aceite: CatalogoDraftReference;
-}
-
-export interface EditarAceiteCreacionInput extends AgregarAceiteCreacionInput {
-  draftId: string;
-}
-
-export type ResultadoMutacionAceiteCreacion =
-  | { ok: true; draftId: string }
-  | {
-      ok: false;
-      codigo:
-        | "EQUIPO_YA_CREADO"
-        | "ASOCIACION_ACEITE_NO_ENCONTRADA"
-        | "SISTEMA_ACEITE_INVALIDO"
-        | "ACEITE_INVALIDO"
-        | "SISTEMA_ACEITE_DUPLICADO";
-      mensaje: string;
-    };
-
-export interface OpcionSistemaAceiteCreacion {
-  referencia: CatalogoDraftReference;
-  asignado: boolean;
-  disabled: boolean;
-  badge: "Asignado" | null;
-}
-
-export interface ResumenAceiteCreacion {
-  draftId: string;
-  sistema: string;
-  aceite: string;
-  sistemaNuevo: boolean;
-  aceiteNuevo: boolean;
-}
-
 export type ValidacionCodigoEquipoCreacion =
   | { estado: "idle" }
   | { estado: "loading"; codigo: string }
@@ -336,7 +283,7 @@ export type ValidacionCodigoEquipoCreacion =
 export interface CrearEquipoDraft {
   datos: CrearEquipoDatosDraft;
   filtros: CrearEquipoFiltroDraft[];
-  aceites: CrearEquipoAceiteDraft[];
+  estructuraSistemas: NodoEstructuraBorrador[];
   validacionCodigo: ValidacionCodigoEquipoCreacion;
   equipoCreado: EquipoEngraseListItem | null;
 }
@@ -344,11 +291,7 @@ export interface CrearEquipoDraft {
 export type CrearEquipoPasoValidable = 1 | 2 | 3 | 4;
 
 export type CrearEquipoSeccionError =
-  | "datos"
-  | "etapas"
-  | "filtros"
-  | "aceites"
-  | "general";
+  "datos" | "etapas" | "filtros" | "estructura" | "general";
 
 export interface CrearEquipoValidationIssue {
   codigo: string;
@@ -377,8 +320,7 @@ export interface EntidadNuevaCreacionPayload {
 }
 
 export type EntidadCreacionPayload =
-  | EntidadExistenteCreacionPayload
-  | EntidadNuevaCreacionPayload;
+  EntidadExistenteCreacionPayload | EntidadNuevaCreacionPayload;
 
 export interface FiltroExistenteCreacionPayload {
   estado: "existente";
@@ -396,8 +338,7 @@ export interface FiltroNuevoCreacionPayload {
 }
 
 export type FiltroCreacionPayload =
-  | FiltroExistenteCreacionPayload
-  | FiltroNuevoCreacionPayload;
+  FiltroExistenteCreacionPayload | FiltroNuevoCreacionPayload;
 
 export interface DatosEquipoCreacionPayload {
   codigo: string;
@@ -427,22 +368,21 @@ export interface FiltrosCreacionPayload {
   nuevos: FiltroEquipoNuevoCreacionPayload[];
 }
 
-export interface AceiteEquipoNuevoCreacionPayload {
-  estado_operacion: "nuevo";
-  temp_id: string;
-  sistema: EntidadCreacionPayload;
-  aceite: EntidadCreacionPayload;
-}
-
-export interface AceitesCreacionPayload {
-  nuevos: AceiteEquipoNuevoCreacionPayload[];
+export interface EstructuraSistemasCreacionPayload {
+  nuevos: Array<{
+    temp_id: string;
+    parent_temp_id: string | null;
+    sistema_id: number | null;
+    subsistema_id: number | null;
+    aceite_id: number | null;
+  }>;
 }
 
 export interface CrearEquipoCompletoDatosPayload {
   datos_equipo: DatosEquipoCreacionPayload;
   etapas: EtapasCreacionPayload;
   filtros: FiltrosCreacionPayload;
-  aceites: AceitesCreacionPayload;
+  estructura_sistemas: EstructuraSistemasCreacionPayload;
 }
 
 export interface CrearEquipoCompletoArgumento {

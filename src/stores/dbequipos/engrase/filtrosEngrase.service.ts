@@ -1,4 +1,5 @@
 import { supabaseEquipos } from "@/lib/supabase";
+import { z } from "zod";
 import { mapCatalogo, mapEquipo, mapFiltro } from "./filtrosEngrase.mappers";
 import type {
   EquipoEngraseListItem,
@@ -16,6 +17,14 @@ const raise = (error: { message?: string } | null, fallback: string) => {
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+const aceiteEquipoRutaSchema = z.array(
+  z.object({
+    sistema: z.string().trim().min(1),
+    subsistema: z.string().trim().min(1).nullable(),
+    ruta: z.string().trim().min(1),
+    aceite: z.string().trim().min(1),
+  }),
+);
 export const filtrosEngraseService = {
   async obtenerEquipos(): Promise<EquipoEngraseListItem[]> {
     const { data, error } = await schema().rpc("rpc_obtener_equipos_lista");
@@ -77,13 +86,12 @@ export const filtrosEngraseService = {
       p_equipo_id: equipoId,
     });
     raise(error, "No se pudieron obtener los aceites del equipo");
-    return (Array.isArray(data) ? data : [])
-      .filter(isRecord)
-      .map((item) => ({
-        sistema: String(item.sistema ?? ""),
-        aceite: String(item.aceite ?? ""),
-      }))
-      .filter((item) => item.sistema && item.aceite);
+    const result = aceiteEquipoRutaSchema.safeParse(data);
+    if (!result.success)
+      throw new Error(
+        "La respuesta de aceites del equipo no tiene el formato esperado",
+      );
+    return result.data;
   },
   async cambiarEstadoEquipo(
     codigo: string,

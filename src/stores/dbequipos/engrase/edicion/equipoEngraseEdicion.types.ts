@@ -1,5 +1,14 @@
 import type { EquipoEngraseListItem } from "../filtrosEngrase.types";
 import type {
+  CatalogoActivo,
+  EstructuraSistemasTempIds,
+  NodoEstructuraLubricacion,
+} from "../shared/estructuraLubricacion.types";
+import type {
+  EstructuraSistemasCambiosPayload,
+  NodoEstructuraBorrador,
+} from "../shared/estructuraLubricacion.draft.types";
+import type {
   CatalogoDraftReference,
   CatalogoExistenteReference,
   CatalogoIdNombre,
@@ -17,10 +26,7 @@ export type {
 
 export type EntidadDraftEstado = "existente" | "nuevo";
 export type OperacionDraft =
-  | "existente"
-  | "nuevo"
-  | "actualizado"
-  | "pendiente_eliminacion";
+  "existente" | "nuevo" | "actualizado" | "pendiente_eliminacion";
 
 export interface EquipoEdicionDatos {
   id: number;
@@ -38,59 +44,67 @@ export interface EquipoEdicionFiltro {
   cantidad: number;
   cantidadEquivalencias: number;
 }
-export interface EquipoEdicionAceite {
-  equipoAceiteId: number;
-  sistema: CatalogoIdNombre;
-  aceite: CatalogoIdNombre;
-}
 export interface EquipoImagenPersistida {
   mainStoragePath: string | null;
   tieneImagenMain: boolean;
   imagenActualizadaEn: string | null;
 }
-export type CatalogoAceiteDraftReference =
-  CatalogoDraftReference;
-export interface EquipoAceiteDraft extends EquipoEdicionAceite {
-  draftId: string;
-  estadoOperacion: OperacionDraft;
-  estadoAntesDeEliminar: Exclude<OperacionDraft, "pendiente_eliminacion"> | null;
-  sistemaReferencia: CatalogoAceiteDraftReference;
-  aceiteReferencia: CatalogoAceiteDraftReference;
-}
-export interface AgregarAceiteDraft {
-  sistema: CatalogoAceiteDraftReference;
-  aceite: CatalogoAceiteDraftReference;
-}
-export interface ActualizarAceiteDraft extends AgregarAceiteDraft {
-  draftId: string;
-}
-export type EquipoAceiteFormMode =
-  | { kind: "add" }
-  | { kind: "edit"; draftId: string };
 export interface EquipoParaEdicion {
   equipo: EquipoEdicionDatos;
   etapas: CatalogoIdNombre[];
   filtros: EquipoEdicionFiltro[];
-  aceites: EquipoEdicionAceite[];
+  estructuraSistemas: NodoEstructuraLubricacion[];
   imagen: EquipoImagenPersistida;
 }
 export type EquipoEdicionSnapshot = EquipoParaEdicion;
-export interface TipoEquipoExistenteDraftReference extends CatalogoIdNombre { estado: "existente"; tempId: null }
-export interface TipoEquipoNuevoDraftReference { estado: "nuevo"; id: null; tempId: string; nombre: string; subtiposSugeridos: string[] }
-export type TipoEquipoDraftReference = TipoEquipoExistenteDraftReference | TipoEquipoNuevoDraftReference;
+export interface TipoEquipoExistenteDraftReference extends CatalogoIdNombre {
+  estado: "existente";
+  tempId: null;
+}
+export interface TipoEquipoNuevoDraftReference {
+  estado: "nuevo";
+  id: null;
+  tempId: string;
+  nombre: string;
+  subtiposSugeridos: string[];
+}
+export type TipoEquipoDraftReference =
+  TipoEquipoExistenteDraftReference | TipoEquipoNuevoDraftReference;
 export interface EquipoFiltroDraft extends EquipoEdicionFiltro {
   draftId: string;
   estadoOperacion: OperacionDraft;
-  estadoAntesDeEliminar: Exclude<OperacionDraft, "pendiente_eliminacion"> | null;
+  estadoAntesDeEliminar: Exclude<
+    OperacionDraft,
+    "pendiente_eliminacion"
+  > | null;
   filtroReferencia: FiltroDraftReference;
   tipoFiltroReferencia: TipoFiltroDraftReference;
 }
-export interface TipoFiltroExistenteDraftReference extends CatalogoIdNombre { estado: "existente"; tempId: null }
-export interface TipoFiltroNuevoDraftReference { estado: "nuevo"; id: null; tempId: string; nombre: string }
-export type TipoFiltroDraftReference = TipoFiltroExistenteDraftReference | TipoFiltroNuevoDraftReference;
-export interface FiltroExistenteDraftReference extends FiltroOriginal { estado: "existente"; tempId: null }
-export interface FiltroNuevoDraftReference { estado: "nuevo"; id: null; tempId: string; codigo: string; estaEnListaCompras: boolean }
-export type FiltroDraftReference = FiltroExistenteDraftReference | FiltroNuevoDraftReference;
+export interface TipoFiltroExistenteDraftReference extends CatalogoIdNombre {
+  estado: "existente";
+  tempId: null;
+}
+export interface TipoFiltroNuevoDraftReference {
+  estado: "nuevo";
+  id: null;
+  tempId: string;
+  nombre: string;
+}
+export type TipoFiltroDraftReference =
+  TipoFiltroExistenteDraftReference | TipoFiltroNuevoDraftReference;
+export interface FiltroExistenteDraftReference extends FiltroOriginal {
+  estado: "existente";
+  tempId: null;
+}
+export interface FiltroNuevoDraftReference {
+  estado: "nuevo";
+  id: null;
+  tempId: string;
+  codigo: string;
+  estaEnListaCompras: boolean;
+}
+export type FiltroDraftReference =
+  FiltroExistenteDraftReference | FiltroNuevoDraftReference;
 export interface AgregarFiltroExistenteDraft {
   filtro: FiltroOriginal;
   tipoFiltro: CatalogoIdNombre;
@@ -107,19 +121,25 @@ export interface AgregarFiltroTemporalDraft {
   tipoFiltro: TipoFiltroDraftReference;
   cantidad: number;
 }
-export interface EquipoEdicionDraft extends Omit<EquipoEdicionSnapshot, "filtros" | "aceites"> {
+export interface EquipoEdicionDraft extends Omit<
+  EquipoEdicionSnapshot,
+  "filtros" | "estructuraSistemas"
+> {
   filtros: EquipoFiltroDraft[];
-  aceites: EquipoAceiteDraft[];
+  estructuraSistemas: NodoEstructuraBorrador[];
   tipoEquipoReferencia: TipoEquipoDraftReference;
   operaciones: {
     datos: OperacionDraft;
     etapas: OperacionDraft;
     filtros: OperacionDraft;
-    aceites: OperacionDraft;
+    estructuraSistemas: OperacionDraft;
   };
 }
 export type EquipoEdicionOverlay = "confirmar_salida" | "nuevo_tipo_equipo";
-export interface EquipoEdicionError { codigo: string; mensaje: string }
+export interface EquipoEdicionError {
+  codigo: string;
+  mensaje: string;
+}
 
 export interface TipoEquipoAuxiliar extends CatalogoIdNombre {
   subtiposSugeridos: string[];
@@ -131,8 +151,9 @@ export interface AuxiliaresEdicionEquipo {
   tiposEquipo: TipoEquipoAuxiliar[];
   etapas: CatalogoIdNombre[];
   tiposFiltro: TipoFiltroAuxiliar[];
-  sistemasAceite: CatalogoIdNombre[];
-  aceites: CatalogoIdNombre[];
+  sistemas: CatalogoActivo[];
+  subsistemas: CatalogoActivo[];
+  aceites: CatalogoActivo[];
 }
 
 export interface FiltroOriginal {
@@ -169,8 +190,7 @@ export interface ResultadoFiltroNoEncontrado {
   sugerencias: FiltroOriginal[];
 }
 export type ResultadoBusquedaFiltroOriginal =
-  | ResultadoFiltroEncontrado
-  | ResultadoFiltroNoEncontrado;
+  ResultadoFiltroEncontrado | ResultadoFiltroNoEncontrado;
 
 export interface EntidadExistenteNombre {
   estado: "existente";
@@ -198,8 +218,7 @@ export interface FiltroNuevoCatalogoPayload {
   esta_en_lista_compras: boolean;
 }
 export type FiltroCatalogoPayload =
-  | FiltroExistentePayload
-  | FiltroNuevoCatalogoPayload;
+  FiltroExistentePayload | FiltroNuevoCatalogoPayload;
 export interface DatosEquipoCambiosPayload {
   estado_operacion: "actualizado";
   codigo_nuevo?: string;
@@ -243,39 +262,19 @@ export interface FiltrosCambiosPayload {
   actualizados?: FiltroActualizadoPayload[];
   eliminados?: FiltroEliminadoPayload[];
 }
-export interface AceiteNuevoPayload {
-  estado_operacion: "nuevo";
-  temp_id: string;
-  sistema: EntidadNombrePayload;
-  aceite: EntidadNombrePayload;
-}
-export interface AceiteActualizadoPayload {
-  estado_operacion: "actualizado";
-  equipo_aceite_id: number;
-  sistema: EntidadNombrePayload;
-  aceite: EntidadNombrePayload;
-}
-export interface AceiteEliminadoPayload {
-  estado_operacion: "eliminado";
-  equipo_aceite_id: number;
-}
-export interface AceitesCambiosPayload {
-  nuevos?: AceiteNuevoPayload[];
-  actualizados?: AceiteActualizadoPayload[];
-  eliminados?: AceiteEliminadoPayload[];
-}
 export interface CambiosEquipoPayload {
   datos_equipo?: DatosEquipoCambiosPayload;
   etapas?: EtapasCambiosPayload;
   filtros?: FiltrosCambiosPayload;
-  aceites?: AceitesCambiosPayload;
+  estructura_sistemas?: EstructuraSistemasCambiosPayload;
 }
 export interface ActualizarEquipoCompletoArgumento {
   codigoOriginal: string;
   cambios: CambiosEquipoPayload;
 }
 
-export type EquipoEdicionSeccionError = "datos" | "etapas" | "filtros" | "aceites" | "general";
+export type EquipoEdicionSeccionError =
+  "datos" | "etapas" | "filtros" | "estructura-lubricacion" | "general";
 export interface EquipoEdicionValidationIssue {
   codigo: string;
   mensaje: string;
@@ -291,7 +290,7 @@ export interface CambiosDetalleEquipo {
   datosEquipoCambiaron: boolean;
   etapasCambiaron: boolean;
   filtrosCambiaron: boolean;
-  aceitesCambiaron: boolean;
+  estructuraSistemasCambiaron?: boolean;
 }
 export interface ResumenOperacionesEquipo {
   etapasAgregadas: number;
@@ -300,9 +299,11 @@ export interface ResumenOperacionesEquipo {
   filtrosActualizados: number;
   filtrosEliminados: number;
   historialesFiltroCreados: number;
-  aceitesAgregados: number;
-  aceitesActualizados: number;
-  aceitesEliminados: number;
+  estructuraAgregada?: number;
+  estructuraActualizada?: number;
+  estructuraEliminada?: number;
+  sistemasAgregados?: number;
+  subsistemasAgregados?: number;
 }
 export interface ActualizarEquipoCompletoRespuesta {
   codigo: string;
@@ -310,6 +311,7 @@ export interface ActualizarEquipoCompletoRespuesta {
   equipoLista: EquipoEngraseListItem;
   cambiosDetalle: CambiosDetalleEquipo;
   resumenOperaciones: ResumenOperacionesEquipo;
+  estructuraTempIds?: EstructuraSistemasTempIds;
 }
 
 export type OperacionImagenEquipo = "agregar" | "actualizar" | "eliminar";
@@ -326,8 +328,7 @@ export interface AdministrarImagenEliminar {
   descripcion: null;
 }
 export type AdministrarImagenEquipoEntrada =
-  | AdministrarImagenAgregarActualizar
-  | AdministrarImagenEliminar;
+  AdministrarImagenAgregarActualizar | AdministrarImagenEliminar;
 export interface ImagenEquipoResultado {
   mainStoragePath: string | null;
   tieneImagenMain: boolean;
@@ -367,11 +368,13 @@ export interface ObtenerEquipoParaEdicionDto {
     filtro: { id: number; codigo: string; esta_en_lista_compras: boolean };
     cantidad_equivalencias: number;
   }[];
-  aceites?: {
-    equipo_aceite_id: number;
-    sistema: { id: number; nombre: string };
-    aceite: { id: number; nombre: string };
-  }[];
+  estructura_sistemas?: Array<{
+    id: number;
+    parent_id: number | null;
+    sistema: { id: number; nombre: string; activo: boolean } | null;
+    subsistema: { id: number; nombre: string; activo: boolean } | null;
+    aceite: { id: number; nombre: string; activo: boolean } | null;
+  }>;
 }
 export interface ObtenerAuxiliaresEdicionDto {
   ok: boolean;
@@ -384,7 +387,8 @@ export interface ObtenerAuxiliaresEdicionDto {
     nombre: string;
     tipos_equipo_que_lo_usan: string[];
   }[];
-  sistemas_aceite?: { id: number; nombre: string }[];
+  sistemas?: { id: number; nombre: string }[];
+  subsistemas?: { id: number; nombre: string }[];
   aceites?: { id: number; nombre: string }[];
 }
 export interface BuscarFiltroOriginalDto {
@@ -395,7 +399,11 @@ export interface BuscarFiltroOriginalDto {
   codigo_buscado?: string;
   puede_crearse?: boolean;
   coincidencia_exacta?: boolean;
-  sugerencias?: { id: number; codigo: string; esta_en_lista_compras: boolean }[];
+  sugerencias?: {
+    id: number;
+    codigo: string;
+    esta_en_lista_compras: boolean;
+  }[];
   filtro?: { id: number; codigo: string; esta_en_lista_compras: boolean };
   requiere_seleccionar_tipo?: boolean;
   sin_tipos_registrados?: boolean;
@@ -430,7 +438,7 @@ export interface ActualizarEquipoCompletoDto {
     datos_equipo_cambiaron: boolean;
     etapas_cambiaron: boolean;
     filtros_cambiaron: boolean;
-    aceites_cambiaron: boolean;
+    estructura_sistemas_cambiaron?: boolean;
   };
   resumen_operaciones?: {
     etapas_agregadas: number;
@@ -439,10 +447,13 @@ export interface ActualizarEquipoCompletoDto {
     filtros_actualizados: number;
     filtros_eliminados: number;
     historiales_filtro_creados: number;
-    aceites_agregados: number;
-    aceites_actualizados: number;
-    aceites_eliminados: number;
+    estructura_agregada?: number;
+    estructura_actualizada?: number;
+    estructura_eliminada?: number;
+    sistemas_agregados?: number;
+    subsistemas_agregados?: number;
   };
+  estructura_temp_ids?: Record<string, number>;
 }
 export interface AdministrarImagenEquipoDto {
   ok: boolean;

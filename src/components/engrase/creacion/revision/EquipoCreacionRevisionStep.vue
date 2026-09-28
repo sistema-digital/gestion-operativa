@@ -2,7 +2,6 @@
 import { Info } from "lucide-vue-next";
 import type { CrearEquipoDraft } from "@/stores/dbequipos/engrase/creacion/equipoEngraseCreacion.types";
 import EquipoCreacionRevisionDataCard from "./EquipoCreacionRevisionDataCard.vue";
-import EquipoCreacionRevisionSummary from "./EquipoCreacionRevisionSummary.vue";
 import EquipoCreacionRevisionAssignments from "./EquipoCreacionRevisionAssignments.vue";
 
 defineProps<{
@@ -15,9 +14,13 @@ const emit = defineEmits<{ edit: [1 | 2 | 3] }>();
 </script>
 
 <template>
-  <section class="rounded-xl border border-second-deep bg-white p-3 text-xs shadow-sm">
+  <section
+    class="rounded-xl border border-second-deep bg-white p-3 text-xs shadow-sm"
+  >
     <header>
-      <h2 tabindex="-1" class="text-sm font-bold text-main">Revisar creación</h2>
+      <h2 tabindex="-1" class="text-sm font-bold text-main">
+        Revisar creación
+      </h2>
     </header>
 
     <div
@@ -32,7 +35,6 @@ const emit = defineEmits<{ edit: [1 | 2 | 3] }>();
     </div>
 
     <template v-else>
-
       <div class="mt-3 grid gap-2.5">
         <EquipoCreacionRevisionDataCard
           :datos="draft.datos"
@@ -41,13 +43,12 @@ const emit = defineEmits<{ edit: [1 | 2 | 3] }>();
         />
         <EquipoCreacionRevisionAssignments
           :filtros="draft.filtros"
-          :aceites="draft.aceites"
+          :estructura-sistemas="draft.estructuraSistemas"
           :disabled="creating"
           @edit-filters="emit('edit', 2)"
-          @edit-oils="emit('edit', 3)"
+          @edit-structure="emit('edit', 3)"
         />
       </div>
-
     </template>
   </section>
 </template>

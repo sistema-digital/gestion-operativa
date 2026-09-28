@@ -10,7 +10,7 @@ const emit = defineEmits<{ go: [CrearEquipoPaso] }>();
 const pasos: Array<{ numero: CrearEquipoPaso; titulo: string }> = [
   { numero: 1, titulo: "Datos" },
   { numero: 2, titulo: "Filtros" },
-  { numero: 3, titulo: "Aceites" },
+  { numero: 3, titulo: "Lubricación" },
   { numero: 4, titulo: "Revisar" },
   { numero: 5, titulo: "Imagen" },
 ];

@@ -9,17 +9,22 @@ import CatalogoEngraseView from "@/views/engrase/catalogo/CatalogoEngraseView.vu
 import CatalogoTiposFiltroSection from "@/views/engrase/catalogo/CatalogoTiposFiltroSection.vue";
 import CatalogoFiltrosSection from "@/views/engrase/catalogo/CatalogoFiltrosSection.vue";
 import CatalogoAceitesSection from "@/views/engrase/catalogo/CatalogoAceitesSection.vue";
+import CatalogoSubsistemasSection from "@/views/engrase/catalogo/CatalogoSubsistemasSection.vue";
 import type { CatalogoEngraseNavigationItem } from "@/stores/dbequipos/engrase/catalogo/catalogoEngrase.types";
 
 const listarTiposFiltro = vi.hoisted(() => vi.fn());
 const listarFiltros = vi.hoisted(() => vi.fn());
 const listarAceites = vi.hoisted(() => vi.fn());
-vi.mock("@/stores/dbequipos/engrase/catalogo/tiposFiltroCatalogo.service", () => ({
-  tiposFiltroCatalogoService: {
-    listar: listarTiposFiltro,
-    guardar: vi.fn(),
-  },
-}));
+const listarSubsistemas = vi.hoisted(() => vi.fn());
+vi.mock(
+  "@/stores/dbequipos/engrase/catalogo/tiposFiltroCatalogo.service",
+  () => ({
+    tiposFiltroCatalogoService: {
+      listar: listarTiposFiltro,
+      guardar: vi.fn(),
+    },
+  }),
+);
 vi.mock("@/stores/dbequipos/engrase/catalogo/filtrosCatalogo.service", () => ({
   filtrosCatalogoService: {
     listar: listarFiltros,
@@ -29,12 +34,27 @@ vi.mock("@/stores/dbequipos/engrase/catalogo/filtrosCatalogo.service", () => ({
 vi.mock("@/stores/dbequipos/engrase/catalogo/aceitesCatalogo.service", () => ({
   aceitesCatalogoService: { listar: listarAceites, guardar: vi.fn() },
 }));
+vi.mock(
+  "@/stores/dbequipos/engrase/catalogo/subsistemasCatalogo.service",
+  () => ({
+    subsistemasCatalogoService: { listar: listarSubsistemas, guardar: vi.fn() },
+  }),
+);
 
 const items = [
-  { id: "tipos-filtro", label: "Tipos de filtro", routeName: "CatalogoEngraseTiposFiltro" },
+  {
+    id: "tipos-filtro",
+    label: "Tipos de filtro",
+    routeName: "CatalogoEngraseTiposFiltro",
+  },
   { id: "filtros", label: "Filtros", routeName: "CatalogoEngraseFiltros" },
   { id: "aceites", label: "Aceites", routeName: "CatalogoEngraseAceites" },
   { id: "sistemas", label: "Sistemas", routeName: "CatalogoEngraseSistemas" },
+  {
+    id: "subsistemas",
+    label: "Subsistemas",
+    routeName: "CatalogoEngraseSubsistemas",
+  },
 ] as const satisfies readonly CatalogoEngraseNavigationItem[];
 
 function createTestRouter() {
@@ -58,15 +78,26 @@ describe("shell del catálogo de engrase", () => {
     listarFiltros.mockReset();
     listarFiltros.mockResolvedValue({
       items: [],
-      resumen: { total: 0, activos: 0, desactivados: 0, enCompras: 0, fueraCompras: 0 },
+      resumen: {
+        total: 0,
+        activos: 0,
+        desactivados: 0,
+        enCompras: 0,
+        fueraCompras: 0,
+      },
     });
     listarAceites.mockReset();
     listarAceites.mockResolvedValue({
       items: [],
       resumen: { total: 0, activos: 0, desactivados: 0 },
     });
+    listarSubsistemas.mockReset();
+    listarSubsistemas.mockResolvedValue({
+      items: [],
+      resumen: { total: 0, activos: 0, desactivados: 0 },
+    });
   });
-  it("ofrece los cuatro enlaces y un selector mobile", async () => {
+  it("ofrece los cinco enlaces y un selector mobile", async () => {
     const router = createTestRouter();
     await router.push({ name: "CatalogoEngraseFiltros" });
     await router.isReady();
@@ -76,7 +107,7 @@ describe("shell del catálogo de engrase", () => {
       global: { plugins: [router] },
     });
 
-    expect(wrapper.findAll("a")).toHaveLength(4);
+    expect(wrapper.findAll("a")).toHaveLength(5);
     expect(wrapper.get('a[aria-current="page"]').text()).toBe("Filtros");
     expect(wrapper.get("label").text()).toBe("Sección del catálogo");
 
@@ -125,25 +156,44 @@ describe("shell del catálogo de engrase", () => {
     const wrapper = mount(defineComponent({ template: "<RouterView />" }), {
       global: { plugins: [router, createPinia()] },
     });
-    const initialViewElement = wrapper.findComponent(CatalogoEngraseView).element;
-    expect(wrapper.findComponent(CatalogoTiposFiltroSection).exists()).toBe(true);
-    expect(wrapper.findComponent(CatalogoEngraseView).get("main").classes()).toContain("lg:overflow-hidden");
+    const initialViewElement =
+      wrapper.findComponent(CatalogoEngraseView).element;
+    expect(wrapper.findComponent(CatalogoTiposFiltroSection).exists()).toBe(
+      true,
+    );
+    expect(
+      wrapper.findComponent(CatalogoEngraseView).get("main").classes(),
+    ).toContain("lg:overflow-hidden");
     await vi.waitFor(() => expect(listarTiposFiltro).toHaveBeenCalledOnce());
 
     await router.push({ name: "CatalogoEngraseFiltros" });
 
-    expect(wrapper.findComponent(CatalogoEngraseView).element).toBe(initialViewElement);
-    expect(wrapper.findComponent(CatalogoEngraseView).get("main").classes()).toContain("lg:overflow-hidden");
+    expect(wrapper.findComponent(CatalogoEngraseView).element).toBe(
+      initialViewElement,
+    );
+    expect(
+      wrapper.findComponent(CatalogoEngraseView).get("main").classes(),
+    ).toContain("lg:overflow-hidden");
     expect(wrapper.findComponent(CatalogoFiltrosSection).exists()).toBe(true);
     await vi.waitFor(() => expect(listarFiltros).toHaveBeenCalledOnce());
 
     await router.push({ name: "CatalogoEngraseAceites" });
     expect(wrapper.findComponent(CatalogoAceitesSection).exists()).toBe(true);
-    expect(wrapper.findComponent(CatalogoEngraseView).get("main").classes()).toContain("lg:overflow-hidden");
+    expect(
+      wrapper.findComponent(CatalogoEngraseView).get("main").classes(),
+    ).toContain("lg:overflow-hidden");
     await vi.waitFor(() => expect(listarAceites).toHaveBeenCalledOnce());
 
+    await router.push({ name: "CatalogoEngraseSubsistemas" });
+    expect(wrapper.findComponent(CatalogoSubsistemasSection).exists()).toBe(
+      true,
+    );
+    await vi.waitFor(() => expect(listarSubsistemas).toHaveBeenCalledOnce());
+
     await router.push({ name: "CatalogoEngraseTiposFiltro" });
-    expect(wrapper.findComponent(CatalogoTiposFiltroSection).exists()).toBe(true);
+    expect(wrapper.findComponent(CatalogoTiposFiltroSection).exists()).toBe(
+      true,
+    );
     expect(listarTiposFiltro).toHaveBeenCalledOnce();
   });
 });

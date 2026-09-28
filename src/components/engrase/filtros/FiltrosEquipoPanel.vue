@@ -37,9 +37,10 @@ const emit = defineEmits<{
 }>();
 const featureAccessStore = useFeatureAccessStore();
 const { isLoaded: isFeatureAccessLoaded } = storeToRefs(featureAccessStore);
-const canEditFiltrosEngrase = computed(() =>
-  isFeatureAccessLoaded.value &&
-  featureAccessStore.tieneFuncionalidad("editar_filtros_engrase"),
+const canEditFiltrosEngrase = computed(
+  () =>
+    isFeatureAccessLoaded.value &&
+    featureAccessStore.tieneFuncionalidad("editar_filtros_engrase"),
 );
 function coincideConBusqueda(filtro: EquipoFiltroDetalle) {
   const codigo = props.codigoBuscado;
@@ -115,8 +116,7 @@ const filtrosVisibles = computed(() =>
   ),
 );
 function alternarGrupo(grupo: string) {
-  grupoSeleccionado.value =
-    grupoSeleccionado.value === grupo ? null : grupo;
+  grupoSeleccionado.value = grupoSeleccionado.value === grupo ? null : grupo;
 }
 function alternarEstado(): void {
   if (!props.equipo || props.loadingCambioEstado) return;
@@ -141,7 +141,9 @@ function alternarEstado(): void {
     <template v-if="equipo">
       <header class="flex items-start justify-between gap-3">
         <div class="flex min-w-0 items-start gap-3">
-          <div class="grid aspect-square w-20 shrink-0 place-items-center overflow-hidden rounded-md bg-second-dark text-gray-400 sm:w-24">
+          <div
+            class="grid aspect-square w-20 shrink-0 place-items-center overflow-hidden rounded-md bg-second-dark text-gray-400 sm:w-24"
+          >
             <img
               v-if="equipo.imageUrl && !imagenPrincipalFallida"
               class="h-full w-full object-cover"
@@ -149,7 +151,11 @@ function alternarEstado(): void {
               :alt="`Imagen del equipo ${equipo.codigo}`"
               @error="imagenPrincipalFallida = true"
             />
-            <ImageOff v-else class="h-5 w-5" :aria-label="`Sin imagen: ${equipo.codigo}`" />
+            <ImageOff
+              v-else
+              class="h-5 w-5"
+              :aria-label="`Sin imagen: ${equipo.codigo}`"
+            />
           </div>
           <div class="min-w-0">
             <p class="text-xs font-semibold text-main">
@@ -158,7 +164,9 @@ function alternarEstado(): void {
             <h2 class="font-mono text-lg font-semibold text-main">
               {{ equipo.codigo }}
             </h2>
-            <p class="flex flex-wrap items-center gap-x-1 text-xs text-gray-500">
+            <p
+              class="flex flex-wrap items-center gap-x-1 text-xs text-gray-500"
+            >
               Modelo: {{ equipo.subtipo || "Sin modelo" }} ·
               <template v-if="equipo.etapas.length"
                 ><span
@@ -199,29 +207,51 @@ function alternarEstado(): void {
           >
             <span
               class="grid h-4 w-4 place-items-center rounded-full bg-white shadow-md transition-transform duration-200"
-              :class="equipo.estado === 'activo' ? 'translate-x-5' : 'translate-x-0'"
+              :class="
+                equipo.estado === 'activo' ? 'translate-x-5' : 'translate-x-0'
+              "
               aria-hidden="true"
             >
-              <LoaderCircle v-if="loadingCambioEstado" class="h-2.5 w-2.5 animate-spin text-gray-500" />
+              <LoaderCircle
+                v-if="loadingCambioEstado"
+                class="h-2.5 w-2.5 animate-spin text-gray-500"
+              />
             </span>
           </button>
         </div>
         <b
           v-else
           class="rounded px-1.5 py-1 text-[10px] font-semibold uppercase"
-          :class="equipo.estado === 'activo' ? 'bg-main/10 text-main' : 'bg-danger-bg text-danger'"
+          :class="
+            equipo.estado === 'activo'
+              ? 'bg-main/10 text-main'
+              : 'bg-danger-bg text-danger'
+          "
           >{{ equipo.estado }}</b
         >
       </header>
-      <div v-if="aceites.length" class="mb-3 mt-3 flex flex-wrap gap-2">
-        <span
-          v-for="aceite in aceites"
-          :key="`${aceite.sistema}-${aceite.aceite}`"
-          class="rounded-md bg-main-light/15 px-2.5 py-1 text-xs font-medium text-main"
+      <section class="mb-3 mt-3" aria-labelledby="aceites-lubricacion-title">
+        <h3
+          id="aceites-lubricacion-title"
+          class="text-xs font-semibold text-gray-700"
         >
-          {{ aceite.sistema }} · {{ aceite.aceite }}
-        </span>
-      </div>
+          Aceites de lubricación
+        </h3>
+        <p v-if="!aceites.length" class="mt-1 text-xs text-gray-500">
+          Sin aceites asignados en la estructura de lubricación.
+        </p>
+        <div v-else class="mt-2 flex flex-wrap gap-2">
+          <span
+            v-for="aceite in aceites"
+            :key="`${aceite.ruta}-${aceite.aceite}`"
+            class="rounded-md bg-main-light/15 px-2.5 py-1 text-xs font-medium text-main"
+            :title="aceite.ruta"
+            :aria-label="`${aceite.ruta}: ${aceite.aceite}`"
+          >
+            {{ aceite.ruta }} · {{ aceite.aceite }}
+          </span>
+        </div>
+      </section>
       <p v-if="errorCambioEstado" class="mt-3 text-xs text-danger" role="alert">
         {{ errorCambioEstado }}
       </p>
@@ -263,7 +293,8 @@ function alternarEstado(): void {
           v-if="canEditFiltrosEngrase"
           type="button"
           class="cursor-pointer rounded-md border border-gray-200 p-1 text-main transition hover:border-main/40 hover:bg-main/10"
-          aria-label="Editar filtros del equipo"
+          aria-label="Editar equipo y estructura de lubricación"
+          title="Editar estructura de lubricación"
           @click="emit('editarEquipo', equipo.codigo)"
         >
           <SquarePen class="h-4 w-4" />
@@ -275,34 +306,39 @@ function alternarEstado(): void {
         class="mb-3"
       >
         <div class="flex flex-wrap items-center gap-2 text-xs">
-        <button
-          type="button"
-          class="cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 transition"
-          :class="
-            soloConEquivalencias
-              ? 'border-main bg-main/10 text-main'
-              : 'border-gray-200 text-gray-600 hover:border-main/40'
-          "
-          :aria-pressed="soloConEquivalencias"
-          @click="soloConEquivalencias = !soloConEquivalencias"
-        >
-          Con equivalencias
-          <span class="font-semibold">{{ filtros.filter((x) => (equivalencias[x.filtro_id] ?? []).length).length }}</span>
-        </button>
-        <button
-          type="button"
-          class="cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 transition"
-          :class="
-            soloEnCompras
-              ? 'border-main bg-main/10 text-main'
-              : 'border-gray-200 text-gray-600 hover:border-main/40'
-          "
-          :aria-pressed="soloEnCompras"
-          @click="soloEnCompras = !soloEnCompras"
-        >
-          En compras
-          <span class="font-semibold">{{ filtros.filter((x) => x.filtro.esta_en_lista_compras).length }}</span>
-        </button>
+          <button
+            type="button"
+            class="cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 transition"
+            :class="
+              soloConEquivalencias
+                ? 'border-main bg-main/10 text-main'
+                : 'border-gray-200 text-gray-600 hover:border-main/40'
+            "
+            :aria-pressed="soloConEquivalencias"
+            @click="soloConEquivalencias = !soloConEquivalencias"
+          >
+            Con equivalencias
+            <span class="font-semibold">{{
+              filtros.filter((x) => (equivalencias[x.filtro_id] ?? []).length)
+                .length
+            }}</span>
+          </button>
+          <button
+            type="button"
+            class="cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 transition"
+            :class="
+              soloEnCompras
+                ? 'border-main bg-main/10 text-main'
+                : 'border-gray-200 text-gray-600 hover:border-main/40'
+            "
+            :aria-pressed="soloEnCompras"
+            @click="soloEnCompras = !soloEnCompras"
+          >
+            En compras
+            <span class="font-semibold">{{
+              filtros.filter((x) => x.filtro.esta_en_lista_compras).length
+            }}</span>
+          </button>
         </div>
         <div aria-hidden="true" class="my-3 border-t border-gray-200" />
         <div
@@ -323,7 +359,11 @@ function alternarEstado(): void {
             :aria-pressed="grupoSeleccionado === grupo.grupo"
             @click="alternarGrupo(grupo.grupo)"
           >
-            <component :is="grupo.icono" class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <component
+              :is="grupo.icono"
+              class="h-3.5 w-3.5 shrink-0"
+              aria-hidden="true"
+            />
             <span>{{ grupo.nombreGrupo }}</span>
             <span class="font-semibold">{{ grupo.cantidad }}</span>
           </button>
@@ -334,7 +374,10 @@ function alternarEstado(): void {
       </p>
       <p v-else-if="error" class="p-4 text-center text-xs text-danger">
         {{ error }}
-        <button class="cursor-pointer font-semibold underline" @click="$emit('retry')">
+        <button
+          class="cursor-pointer font-semibold underline"
+          @click="$emit('retry')"
+        >
           Reintentar
         </button>
       </p>

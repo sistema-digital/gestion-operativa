@@ -1,4 +1,5 @@
 import { mapEquipoEngraseListItem } from "../shared/equipoEngraseListItem.mapper";
+import { mapAuxiliaresEstructuraLubricacion } from "../shared/estructuraLubricacion.mappers";
 import { crearErrorCreacionEquipo } from "./equipoEngraseCreacion.remote-errors";
 import type {
   BuscarFiltroOriginalDto,
@@ -35,6 +36,9 @@ export const mapAuxiliaresEquipo = (
   dto: ObtenerAuxiliaresEquipoDto,
 ): AuxiliaresEquipoEngrase => {
   asegurarExito(dto.ok, dto.codigo, dto.mensaje);
+  const estructura = mapAuxiliaresEstructuraLubricacion(dto, (mensaje) =>
+    crearErrorCreacionEquipo(mensaje, "RESPUESTA_INVALIDA"),
+  );
   return {
     tiposEquipo: (dto.tipos_equipo ?? []).map((tipo) => ({
       ...catalogo(tipo),
@@ -45,8 +49,7 @@ export const mapAuxiliaresEquipo = (
       ...catalogo(tipo),
       tiposEquipoQueLoUsan: tipo.tipos_equipo_que_lo_usan,
     })),
-    sistemasAceite: (dto.sistemas_aceite ?? []).map(catalogo),
-    aceites: (dto.aceites ?? []).map(catalogo),
+    ...estructura,
   };
 };
 
@@ -134,6 +137,10 @@ export const mapCrearEquipoCompleto = (
       etapasAgregadas: dto.resumen_operaciones.etapas_agregadas,
       filtrosAgregados: dto.resumen_operaciones.filtros_agregados,
       aceitesAgregados: dto.resumen_operaciones.aceites_agregados,
+      estructuraAgregada: dto.resumen_operaciones.estructura_agregada ?? 0,
+      sistemasAgregados: dto.resumen_operaciones.sistemas_agregados ?? 0,
+      subsistemasAgregados: dto.resumen_operaciones.subsistemas_agregados ?? 0,
     },
+    estructuraTempIds: dto.estructura_temp_ids ?? {},
   };
 };

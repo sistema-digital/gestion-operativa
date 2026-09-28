@@ -45,14 +45,18 @@ export function useEquipoEngraseEditor() {
     const objetivo = error?.fieldId
       ? document.getElementById(error.fieldId)
       : error
-        ? document.querySelector<HTMLElement>(`[data-validation-section="${error.seccion === "etapas" ? "datos" : error.seccion}"]`)
+        ? document.querySelector<HTMLElement>(
+            `[data-validation-section="${error.seccion === "etapas" ? "datos" : error.seccion}"]`,
+          )
         : null;
     objetivo?.focus();
   };
   const guardar = async (moverImagen: MoverImagenEquipo): Promise<void> => {
     const resultado = await store.guardar(moverImagen);
-    if (resultado.kind === "invalid" || resultado.kind === "error") await enfocarPrimerError();
-    if (resultado.kind === "success") await router.push({ name: "FiltrosEngrase" });
+    if (resultado.kind === "invalid" || resultado.kind === "error")
+      await enfocarPrimerError();
+    if (resultado.kind === "success")
+      await router.push({ name: "FiltrosEngrase" });
   };
   const prevenirCierre = (event: BeforeUnloadEvent): void => {
     if (!store.isDirty && !store.saving) return;
@@ -87,9 +91,15 @@ export function useEquipoEngraseEditor() {
     actualizarAsignacionFiltro: store.actualizarAsignacionFiltro,
     marcarFiltroParaEliminar: store.marcarFiltroParaEliminar,
     deshacerEliminacionFiltro: store.deshacerEliminacionFiltro,
-    agregarAceite: store.agregarAceite,
-    actualizarAceite: store.actualizarAceite,
-    marcarAceiteParaEliminar: store.marcarAceiteParaEliminar,
-    deshacerEliminacionAceite: store.deshacerEliminacionAceite,
+    agregarSistemaRaiz: store.agregarSistemaRaiz,
+    crearSistemaYAgregarRaiz: store.crearSistemaYAgregarRaiz,
+    crearSubsistemaYAgregarHijo: store.crearSubsistemaYAgregarHijo,
+    agregarSubsistema: store.agregarSubsistema,
+    actualizarAceiteNodo: store.actualizarAceiteNodo,
+    quitarAceiteNodo: store.quitarAceiteNodo,
+    moverNodo: store.moverNodo,
+    obtenerSubarbolParaEliminar: store.obtenerSubarbolParaEliminar,
+    confirmarEliminarNodo: store.confirmarEliminarNodo,
+    deshacerEliminacionNodo: store.deshacerEliminacionNodo,
   };
 }

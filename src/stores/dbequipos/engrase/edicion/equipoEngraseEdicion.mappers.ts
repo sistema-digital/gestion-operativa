@@ -1,4 +1,8 @@
 import { mapEquipoEngraseListItem } from "../shared/equipoEngraseListItem.mapper";
+import {
+  mapAuxiliaresEstructuraLubricacion,
+  mapNodoEstructuraLubricacion,
+} from "../shared/estructuraLubricacion.mappers";
 import { crearErrorEdicionEquipo } from "./equipoEngraseEdicion.errors";
 import type {
   AdministrarImagenEquipoDto,
@@ -40,6 +44,11 @@ export const mapEquipoParaEdicion = (
       dto.mensaje ?? "Respuesta sin equipo.",
       dto.codigo,
     );
+  if (!dto.estructura_sistemas)
+    throw crearErrorEdicionEquipo(
+      "Respuesta sin estructura de lubricación.",
+      "RESPUESTA_INVALIDA",
+    );
   return {
     equipo: {
       id: dto.equipo.id,
@@ -62,11 +71,11 @@ export const mapEquipoParaEdicion = (
       cantidad: filtro.cantidad,
       cantidadEquivalencias: filtro.cantidad_equivalencias,
     })),
-    aceites: (dto.aceites ?? []).map((aceite) => ({
-      equipoAceiteId: aceite.equipo_aceite_id,
-      sistema: catalogo(aceite.sistema),
-      aceite: catalogo(aceite.aceite),
-    })),
+    estructuraSistemas: dto.estructura_sistemas.map((nodo) =>
+      mapNodoEstructuraLubricacion(nodo, (mensaje) =>
+        crearErrorEdicionEquipo(mensaje, "RESPUESTA_INVALIDA"),
+      ),
+    ),
     imagen: {
       mainStoragePath: dto.equipo.main_storage_path,
       tieneImagenMain: dto.equipo.tiene_imagen_main,
@@ -78,6 +87,9 @@ export const mapAuxiliaresEdicionEquipo = (
   dto: ObtenerAuxiliaresEdicionDto,
 ): AuxiliaresEdicionEquipo => {
   asegurarExito(dto.ok, dto.codigo, dto.mensaje);
+  const estructura = mapAuxiliaresEstructuraLubricacion(dto, (mensaje) =>
+    crearErrorEdicionEquipo(mensaje, "RESPUESTA_INVALIDA"),
+  );
   return {
     tiposEquipo: (dto.tipos_equipo ?? []).map((tipo) => ({
       ...catalogo(tipo),
@@ -88,8 +100,7 @@ export const mapAuxiliaresEdicionEquipo = (
       ...catalogo(tipo),
       tiposEquipoQueLoUsan: tipo.tipos_equipo_que_lo_usan,
     })),
-    sistemasAceite: (dto.sistemas_aceite ?? []).map(catalogo),
-    aceites: (dto.aceites ?? []).map(catalogo),
+    ...estructura,
   };
 };
 export const mapBusquedaFiltroOriginal = (
@@ -152,7 +163,8 @@ export const mapActualizarEquipoCompleto = (
     datosEquipoCambiaron: dto.cambios_detalle.datos_equipo_cambiaron,
     etapasCambiaron: dto.cambios_detalle.etapas_cambiaron,
     filtrosCambiaron: dto.cambios_detalle.filtros_cambiaron,
-    aceitesCambiaron: dto.cambios_detalle.aceites_cambiaron,
+    estructuraSistemasCambiaron:
+      dto.cambios_detalle.estructura_sistemas_cambiaron ?? false,
   };
   const resumen: ResumenOperacionesEquipo = {
     etapasAgregadas: dto.resumen_operaciones.etapas_agregadas,
@@ -162,9 +174,11 @@ export const mapActualizarEquipoCompleto = (
     filtrosEliminados: dto.resumen_operaciones.filtros_eliminados,
     historialesFiltroCreados:
       dto.resumen_operaciones.historiales_filtro_creados,
-    aceitesAgregados: dto.resumen_operaciones.aceites_agregados,
-    aceitesActualizados: dto.resumen_operaciones.aceites_actualizados,
-    aceitesEliminados: dto.resumen_operaciones.aceites_eliminados,
+    estructuraAgregada: dto.resumen_operaciones.estructura_agregada ?? 0,
+    estructuraActualizada: dto.resumen_operaciones.estructura_actualizada ?? 0,
+    estructuraEliminada: dto.resumen_operaciones.estructura_eliminada ?? 0,
+    sistemasAgregados: dto.resumen_operaciones.sistemas_agregados ?? 0,
+    subsistemasAgregados: dto.resumen_operaciones.subsistemas_agregados ?? 0,
   };
   return {
     codigo: dto.codigo,
@@ -172,6 +186,7 @@ export const mapActualizarEquipoCompleto = (
     equipoLista: mapEquipoEngraseListItem(dto.equipo_lista),
     cambiosDetalle: detalle,
     resumenOperaciones: resumen,
+    estructuraTempIds: dto.estructura_temp_ids ?? {},
   };
 };
 export const mapAdministrarImagenEquipo = (

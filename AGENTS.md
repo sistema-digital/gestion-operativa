@@ -33,7 +33,7 @@ prioriza a medida que haces la ui para web ir adaptando a mobile cada componente
 
 agrega la clase cursor a cualquier boton o componente que emit eventos de selecion
 
-cualquier inptu de lista o select debes usar vue multiselect
+cualquier inptu de lista o select debes usar vue multiselect, evita envolverlo en etiquetas label.
 
 cualqeuri valor con fecha y hora utc debe ser formataedo por la fucion del archvio  [formatCompactPanamaDate.ts](c:/Users/arcel/OneDrive/Documents/GitHub/gestion-operativa/src/utils/formatCompactPanamaDate.ts) 
 

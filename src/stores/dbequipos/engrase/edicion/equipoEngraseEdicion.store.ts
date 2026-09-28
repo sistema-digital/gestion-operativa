@@ -1,12 +1,38 @@
-import { computed, ref, shallowRef } from "vue";
+import { computed, ref, shallowRef, toRaw } from "vue";
 import { defineStore } from "pinia";
 import { useFiltrosEngraseStore } from "../filtrosEngrase.store";
+import { sistemasCatalogoService } from "../catalogo/sistemasCatalogo.service";
+import { subsistemasCatalogoService } from "../catalogo/subsistemasCatalogo.service";
 import { extraerCodigoErrorEdicionEquipo } from "./equipoEngraseEdicion.errors";
 import { equipoEngraseEdicionService } from "./equipoEngraseEdicion.service";
 import { crearTempId } from "./equipoEngraseEdicion.tempIds";
 import { crearMotivoCambioFiltro } from "./equipoEngraseFiltroMotivo";
-import { construirCambiosEquipo, hayCambiosEquipo } from "./equipoEngraseEdicion.payload";
-import { mapearErrorRpcEquipo, validarEquipoEngrase } from "./equipoEngraseEdicion.validation";
+import {
+  construirCambiosEquipo,
+  hayCambiosEquipo,
+} from "./equipoEngraseEdicion.payload";
+import {
+  mapearErrorRpcEquipo,
+  validarEquipoEngrase,
+} from "./equipoEngraseEdicion.validation";
+import {
+  agregarHijoEstructura,
+  agregarRaizEstructura,
+  actualizarAceiteNodo as actualizarAceiteNodoEstructura,
+  crearBorradorEstructura,
+  deshacerEliminacionNodo as deshacerEliminacionNodoEstructura,
+  marcarNodoParaEliminar,
+  moverNodoEstructura,
+  obtenerSubarbolActivo,
+} from "../shared/estructuraLubricacion.draft";
+import type {
+  AgregarHijoEstructuraInput,
+  AgregarRaizEstructuraInput,
+  ActualizarNodoEstructuraInput,
+  MoverNodoEstructuraInput,
+  ResultadoMutacionEstructura,
+} from "../shared/estructuraLubricacion.draft.types";
+import type { CatalogoActivo } from "../shared/estructuraLubricacion.types";
 import type { ImagenSyncState } from "./equipoEngraseImagen.types";
 import type {
   AuxiliaresEdicionEquipo,
@@ -19,29 +45,34 @@ import type {
   AgregarFiltroExistenteDraft,
   AgregarFiltroTemporalDraft,
   EditarAsignacionFiltroDraft,
-  AgregarAceiteDraft,
-  ActualizarAceiteDraft,
-  CatalogoAceiteDraftReference,
   FiltroDraftReference,
   ResultadoBusquedaFiltroOriginal,
   TipoEquipoDraftReference,
   TipoFiltroDraftReference,
   EquipoEdicionValidationIssue,
   ActualizarEquipoCompletoRespuesta,
-  } from "./equipoEngraseEdicion.types";
+} from "./equipoEngraseEdicion.types";
 
 export type ResultadoGuardadoEquipo =
   | { kind: "success"; respuesta: ActualizarEquipoCompletoRespuesta }
   | { kind: "partial"; respuesta: ActualizarEquipoCompletoRespuesta }
   | { kind: "invalid" | "empty" | "busy" | "error" };
-export type MoverImagenEquipo = (sourcePath: string, destinationPath: string) => Promise<void>;
+export type MoverImagenEquipo = (
+  sourcePath: string,
+  destinationPath: string,
+) => Promise<void>;
 
 const crearError = (error: Error): EquipoEdicionError => ({
   codigo: extraerCodigoErrorEdicionEquipo(error.message),
   mensaje: error.message,
 });
-const normalizarTexto = (valor: string): string => valor.trim().replace(/\s+/g, " ");
-const claveTexto = (valor: string): string => normalizarTexto(valor).normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase();
+const normalizarTexto = (valor: string): string =>
+  valor.trim().replace(/\s+/g, " ");
+const claveTexto = (valor: string): string =>
+  normalizarTexto(valor)
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase();
 const clonarTipoEquipoReferencia = (
   referencia: TipoEquipoDraftReference,
 ): TipoEquipoDraftReference =>
@@ -54,9 +85,6 @@ const clonarFiltroReferencia = (
 const clonarTipoFiltroReferencia = (
   referencia: TipoFiltroDraftReference,
 ): TipoFiltroDraftReference => ({ ...referencia });
-const clonarAceiteReferencia = (
-  referencia: CatalogoAceiteDraftReference,
-): CatalogoAceiteDraftReference => ({ ...referencia });
 const clonarBorrador = (borrador: EquipoEdicionDraft): EquipoEdicionDraft => ({
   equipo: { ...borrador.equipo },
   etapas: borrador.etapas.map((etapa) => ({ ...etapa })),
@@ -65,15 +93,11 @@ const clonarBorrador = (borrador: EquipoEdicionDraft): EquipoEdicionDraft => ({
     tipoFiltro: { ...filtro.tipoFiltro },
     filtro: { ...filtro.filtro },
     filtroReferencia: clonarFiltroReferencia(filtro.filtroReferencia),
-    tipoFiltroReferencia: clonarTipoFiltroReferencia(filtro.tipoFiltroReferencia),
+    tipoFiltroReferencia: clonarTipoFiltroReferencia(
+      filtro.tipoFiltroReferencia,
+    ),
   })),
-  aceites: borrador.aceites.map((aceite) => ({
-    ...aceite,
-    sistema: { ...aceite.sistema },
-    aceite: { ...aceite.aceite },
-    sistemaReferencia: clonarAceiteReferencia(aceite.sistemaReferencia),
-    aceiteReferencia: clonarAceiteReferencia(aceite.aceiteReferencia),
-  })),
+  estructuraSistemas: structuredClone(toRaw(borrador.estructuraSistemas)),
   imagen: { ...borrador.imagen },
   tipoEquipoReferencia: clonarTipoEquipoReferencia(
     borrador.tipoEquipoReferencia,
@@ -92,10 +116,26 @@ const clonarSnapshot = (
     draftId: `equipo_filtro_${filtro.id}`,
     estadoOperacion: "existente",
     estadoAntesDeEliminar: null,
-    filtroReferencia: { estado: "existente", id: filtro.filtro.id, tempId: null, codigo: filtro.filtro.codigo, estaEnListaCompras: filtro.filtro.estaEnListaCompras },
-    tipoFiltroReferencia: { estado: "existente", id: filtro.tipoFiltro.id, tempId: null, nombre: filtro.tipoFiltro.nombre },
+    filtroReferencia: {
+      estado: "existente",
+      id: filtro.filtro.id,
+      tempId: null,
+      codigo: filtro.filtro.codigo,
+      estaEnListaCompras: filtro.filtro.estaEnListaCompras,
+    },
+    tipoFiltroReferencia: {
+      estado: "existente",
+      id: filtro.tipoFiltro.id,
+      tempId: null,
+      nombre: filtro.tipoFiltro.nombre,
+    },
   })),
-  aceites: snapshot.aceites.map((aceite) => ({ ...aceite, sistema: { ...aceite.sistema }, aceite: { ...aceite.aceite } })),
+  estructuraSistemas: snapshot.estructuraSistemas.map((nodo) => ({
+    ...nodo,
+    sistema: nodo.sistema ? { ...nodo.sistema } : null,
+    subsistema: nodo.subsistema ? { ...nodo.subsistema } : null,
+    aceite: nodo.aceite ? { ...nodo.aceite } : null,
+  })),
   imagen: { ...snapshot.imagen },
 });
 const crearBorrador = (
@@ -109,25 +149,32 @@ const crearBorrador = (
     draftId: `equipo_filtro_${filtro.id}`,
     estadoOperacion: "existente",
     estadoAntesDeEliminar: null,
-    filtroReferencia: { estado: "existente", id: filtro.filtro.id, tempId: null, codigo: filtro.filtro.codigo, estaEnListaCompras: filtro.filtro.estaEnListaCompras },
-    tipoFiltroReferencia: { estado: "existente", id: filtro.tipoFiltro.id, tempId: null, nombre: filtro.tipoFiltro.nombre },
+    filtroReferencia: {
+      estado: "existente",
+      id: filtro.filtro.id,
+      tempId: null,
+      codigo: filtro.filtro.codigo,
+      estaEnListaCompras: filtro.filtro.estaEnListaCompras,
+    },
+    tipoFiltroReferencia: {
+      estado: "existente",
+      id: filtro.tipoFiltro.id,
+      tempId: null,
+      nombre: filtro.tipoFiltro.nombre,
+    },
   })),
-  aceites: snapshot.aceites.map((aceite) => ({
-    ...aceite,
-    sistema: { ...aceite.sistema },
-    aceite: { ...aceite.aceite },
-    draftId: `equipo_aceite_${aceite.equipoAceiteId}`,
-    estadoOperacion: "existente",
-    estadoAntesDeEliminar: null,
-    sistemaReferencia: { estado: "existente", id: aceite.sistema.id, tempId: null, nombre: aceite.sistema.nombre },
-    aceiteReferencia: { estado: "existente", id: aceite.aceite.id, tempId: null, nombre: aceite.aceite.nombre },
-  })),
-  tipoEquipoReferencia: { estado: "existente", id: snapshot.equipo.tipoEquipoId, nombre: snapshot.equipo.tipoEquipo, tempId: null },
+  estructuraSistemas: crearBorradorEstructura(snapshot.estructuraSistemas),
+  tipoEquipoReferencia: {
+    estado: "existente",
+    id: snapshot.equipo.tipoEquipoId,
+    nombre: snapshot.equipo.tipoEquipo,
+    tempId: null,
+  },
   operaciones: {
     datos: "existente",
     etapas: "existente",
     filtros: "existente",
-    aceites: "existente",
+    estructuraSistemas: "existente",
   },
 });
 const crearSnapshotPersistido = (
@@ -153,13 +200,27 @@ const crearSnapshotPersistido = (
       cantidad: filtro.cantidad,
       cantidadEquivalencias: filtro.cantidadEquivalencias,
     })),
-  aceites: borrador.aceites
-    .filter((aceite) => aceite.estadoOperacion !== "pendiente_eliminacion")
-    .map((aceite) => ({
-      equipoAceiteId: aceite.equipoAceiteId,
-      sistema: { ...aceite.sistema },
-      aceite: { ...aceite.aceite },
-    })),
+  estructuraSistemas: borrador.estructuraSistemas
+    .filter((nodo) => nodo.estadoLocal !== "pendiente_eliminacion")
+    .flatMap((nodo) => {
+      const id =
+        nodo.id ??
+        (nodo.tempId ? respuesta.estructuraTempIds?.[nodo.tempId] : undefined);
+      if (!id) return [];
+      return [
+        {
+          id,
+          parentId:
+            nodo.parentId ??
+            (nodo.parentTempId
+              ? (respuesta.estructuraTempIds?.[nodo.parentTempId] ?? null)
+              : null),
+          sistema: nodo.sistema ? { ...nodo.sistema } : null,
+          subsistema: nodo.subsistema ? { ...nodo.subsistema } : null,
+          aceite: nodo.aceite ? { ...nodo.aceite } : null,
+        },
+      ];
+    }),
   imagen: {
     mainStoragePath: respuesta.equipoLista.main_storage_path,
     tieneImagenMain: respuesta.equipoLista.tiene_imagen_main,
@@ -192,7 +253,11 @@ export const useEquipoEngraseEdicionStore = defineStore(
         auxiliares.value !== null &&
         !loading.value,
     );
-    const cambiosPendientes = computed(() => original.value && draft.value ? construirCambiosEquipo(original.value, draft.value) : {});
+    const cambiosPendientes = computed(() =>
+      original.value && draft.value
+        ? construirCambiosEquipo(original.value, draft.value)
+        : {},
+    );
     const erroresDeBorrador = computed(() =>
       draft.value ? validarEquipoEngrase(draft.value).errores : [],
     );
@@ -202,8 +267,12 @@ export const useEquipoEngraseEdicionStore = defineStore(
         Boolean(cambiosPendientes.value.datos_equipo) ||
         Boolean(cambiosPendientes.value.etapas),
     );
-    const hasFilterChanges = computed(() => Boolean(cambiosPendientes.value.filtros));
-    const hasOilChanges = computed(() => Boolean(cambiosPendientes.value.aceites));
+    const hasFilterChanges = computed(() =>
+      Boolean(cambiosPendientes.value.filtros),
+    );
+    const hasStructureChanges = computed(() =>
+      Boolean(cambiosPendientes.value.estructura_sistemas),
+    );
     const hasDataErrors = computed(() =>
       [...erroresDeBorrador.value, ...validationErrors.value].some(
         (error) =>
@@ -217,16 +286,41 @@ export const useEquipoEngraseEdicionStore = defineStore(
         (error) => error.seccion === "filtros",
       ),
     );
-    const hasOilErrors = computed(() =>
+    const hasStructureErrors = computed(() =>
       [...erroresDeBorrador.value, ...validationErrors.value].some(
-        (error) => error.seccion === "aceites",
+        (error) => error.seccion === "estructura-lubricacion",
       ),
     );
     const hasActiveOverlay = computed(() => activeOverlay.value !== null);
-    const canSave = computed(() => isReady.value && hayCambiosEquipo(cambiosPendientes.value) && !saving.value && activeOverlay.value === null && imagenSyncState.value.kind !== "move_pending");
-    const activeFiltersCount = computed(() => draft.value?.filtros.filter((filtro) => filtro.estadoOperacion !== "pendiente_eliminacion").length ?? 0);
+    const canSave = computed(
+      () =>
+        isReady.value &&
+        hayCambiosEquipo(cambiosPendientes.value) &&
+        !saving.value &&
+        activeOverlay.value === null &&
+        imagenSyncState.value.kind !== "move_pending",
+    );
+    const activeFiltersCount = computed(
+      () =>
+        draft.value?.filtros.filter(
+          (filtro) => filtro.estadoOperacion !== "pendiente_eliminacion",
+        ).length ?? 0,
+    );
     const activeStagesCount = computed(() => draft.value?.etapas.length ?? 0);
-    const activeOilsCount = computed(() => draft.value?.aceites.filter((aceite) => aceite.estadoOperacion !== "pendiente_eliminacion").length ?? 0);
+    const activeStructureNodesCount = computed(
+      () =>
+        draft.value?.estructuraSistemas.filter(
+          (nodo) => nodo.estadoLocal !== "pendiente_eliminacion",
+        ).length ?? 0,
+    );
+    const assignedOilsCount = computed(
+      () =>
+        draft.value?.estructuraSistemas.filter(
+          (nodo) =>
+            nodo.estadoLocal !== "pendiente_eliminacion" &&
+            nodo.aceiteId !== null,
+        ).length ?? 0,
+    );
 
     async function cargar(codigo: string): Promise<void> {
       const codigoNormalizado = codigo.trim();
@@ -260,7 +354,7 @@ export const useEquipoEngraseEdicionStore = defineStore(
         original.value = clonarSnapshot(snapshot);
         draft.value = crearBorrador(snapshot);
         imagenPersistidaActual.value = { ...snapshot.imagen };
-        auxiliares.value = structuredClone(catalogos);
+        auxiliares.value = structuredClone(toRaw(catalogos));
       } catch (error) {
         if (solicitud !== solicitudActual) return;
         const fallo =
@@ -288,127 +382,397 @@ export const useEquipoEngraseEdicionStore = defineStore(
       draft.value = original.value ? crearBorrador(original.value) : null;
       activeOverlay.value = null;
     }
-    function actualizarCodigo(codigo: string): void { if (draft.value) draft.value.equipo.codigo = codigo.trim(); }
-    function seleccionarTipoEquipo(tipo: EquipoEdicionDraft["tipoEquipoReferencia"]): void { if (!draft.value) return; draft.value.tipoEquipoReferencia = clonarTipoEquipoReferencia(tipo); draft.value.equipo.tipoEquipoId = tipo.estado === "existente" ? tipo.id : 0; draft.value.equipo.tipoEquipo = tipo.nombre; }
-    function actualizarSubtipo(subtipo: string): void { if (draft.value) draft.value.equipo.subtipo = normalizarTexto(subtipo).toLocaleUpperCase("es"); }
-    function actualizarEstado(estado: EquipoEstado): void { if (draft.value) draft.value.equipo.estado = estado; }
-    function agregarEtapa(etapaId: number): void { if (!draft.value || draft.value.etapas.some((etapa) => etapa.id === etapaId)) return; const etapa = auxiliares.value?.etapas.find((item) => item.id === etapaId); if (etapa) draft.value.etapas.push({ ...etapa }); }
-    function quitarEtapa(etapaId: number): void { if (!draft.value || draft.value.etapas.length <= 1) return; draft.value.etapas = draft.value.etapas.filter((etapa) => etapa.id !== etapaId); }
-    function esTipoEquipoDuplicado(nombre: string): boolean { const clave = claveTexto(nombre); return Boolean(clave && (auxiliares.value?.tiposEquipo.some((tipo) => claveTexto(tipo.nombre) === clave) || (draft.value?.tipoEquipoReferencia.estado === "nuevo" && claveTexto(draft.value.tipoEquipoReferencia.nombre) === clave))); }
-    function crearYSeleccionarTipoEquipo(nombre: string): boolean { const normalizado = normalizarTexto(nombre); if (!draft.value || !normalizado || esTipoEquipoDuplicado(normalizado)) return false; seleccionarTipoEquipo({ estado: "nuevo", id: null, tempId: crearTempId("tipo_equipo"), nombre: normalizado, subtiposSugeridos: [] }); return true; }
-    function abrirNuevoTipoEquipo(): void { activeOverlay.value = "nuevo_tipo_equipo"; }
-    async function buscarFiltroOriginalParaAsignar(codigo: string): Promise<ResultadoBusquedaFiltroOriginal> {
-      return equipoEngraseEdicionService.buscarFiltroOriginalParaAsignar(normalizarTexto(codigo).toUpperCase(), codigoOriginal.value ?? undefined);
+    function actualizarCodigo(codigo: string): void {
+      if (draft.value) draft.value.equipo.codigo = codigo.trim();
     }
-    function agregarFiltroExistente(entrada: AgregarFiltroExistenteDraft): boolean {
+    function seleccionarTipoEquipo(
+      tipo: EquipoEdicionDraft["tipoEquipoReferencia"],
+    ): void {
+      if (!draft.value) return;
+      draft.value.tipoEquipoReferencia = clonarTipoEquipoReferencia(tipo);
+      draft.value.equipo.tipoEquipoId =
+        tipo.estado === "existente" ? tipo.id : 0;
+      draft.value.equipo.tipoEquipo = tipo.nombre;
+    }
+    function actualizarSubtipo(subtipo: string): void {
+      if (draft.value)
+        draft.value.equipo.subtipo =
+          normalizarTexto(subtipo).toLocaleUpperCase("es");
+    }
+    function actualizarEstado(estado: EquipoEstado): void {
+      if (draft.value) draft.value.equipo.estado = estado;
+    }
+    function agregarEtapa(etapaId: number): void {
+      if (
+        !draft.value ||
+        draft.value.etapas.some((etapa) => etapa.id === etapaId)
+      )
+        return;
+      const etapa = auxiliares.value?.etapas.find(
+        (item) => item.id === etapaId,
+      );
+      if (etapa) draft.value.etapas.push({ ...etapa });
+    }
+    function quitarEtapa(etapaId: number): void {
+      if (!draft.value || draft.value.etapas.length <= 1) return;
+      draft.value.etapas = draft.value.etapas.filter(
+        (etapa) => etapa.id !== etapaId,
+      );
+    }
+    function esTipoEquipoDuplicado(nombre: string): boolean {
+      const clave = claveTexto(nombre);
+      return Boolean(
+        clave &&
+        (auxiliares.value?.tiposEquipo.some(
+          (tipo) => claveTexto(tipo.nombre) === clave,
+        ) ||
+          (draft.value?.tipoEquipoReferencia.estado === "nuevo" &&
+            claveTexto(draft.value.tipoEquipoReferencia.nombre) === clave)),
+      );
+    }
+    function crearYSeleccionarTipoEquipo(nombre: string): boolean {
+      const normalizado = normalizarTexto(nombre);
+      if (!draft.value || !normalizado || esTipoEquipoDuplicado(normalizado))
+        return false;
+      seleccionarTipoEquipo({
+        estado: "nuevo",
+        id: null,
+        tempId: crearTempId("tipo_equipo"),
+        nombre: normalizado,
+        subtiposSugeridos: [],
+      });
+      return true;
+    }
+    function abrirNuevoTipoEquipo(): void {
+      activeOverlay.value = "nuevo_tipo_equipo";
+    }
+    async function buscarFiltroOriginalParaAsignar(
+      codigo: string,
+    ): Promise<ResultadoBusquedaFiltroOriginal> {
+      return equipoEngraseEdicionService.buscarFiltroOriginalParaAsignar(
+        normalizarTexto(codigo).toUpperCase(),
+        codigoOriginal.value ?? undefined,
+      );
+    }
+    function agregarFiltroExistente(
+      entrada: AgregarFiltroExistenteDraft,
+    ): boolean {
       if (!draft.value || entrada.cantidad < 1) return false;
-      const asignacionPendiente = draft.value.filtros.find((item) => item.estadoOperacion === "pendiente_eliminacion" && item.filtro.id === entrada.filtro.id && item.tipoFiltro.id === entrada.tipoFiltro.id);
+      const asignacionPendiente = draft.value.filtros.find(
+        (item) =>
+          item.estadoOperacion === "pendiente_eliminacion" &&
+          item.filtro.id === entrada.filtro.id &&
+          item.tipoFiltro.id === entrada.tipoFiltro.id,
+      );
       if (asignacionPendiente) {
-        asignacionPendiente.estadoOperacion = asignacionPendiente.estadoAntesDeEliminar ?? "existente";
+        asignacionPendiente.estadoOperacion =
+          asignacionPendiente.estadoAntesDeEliminar ?? "existente";
         asignacionPendiente.estadoAntesDeEliminar = null;
         return true;
       }
-      if (draft.value.filtros.some((item) => item.estadoOperacion !== "pendiente_eliminacion" && item.tipoFiltro.id === entrada.tipoFiltro.id)) return false;
-      draft.value.filtros.push({ id: 0, equipoId: draft.value.equipo.id, tipoFiltro: { ...entrada.tipoFiltro }, filtro: { ...entrada.filtro }, cantidad: entrada.cantidad, cantidadEquivalencias: entrada.cantidadEquivalencias ?? 0, draftId: crearTempId("equipo_filtro"), estadoOperacion: "nuevo", estadoAntesDeEliminar: null, filtroReferencia: { estado: "existente", id: entrada.filtro.id, tempId: null, codigo: entrada.filtro.codigo, estaEnListaCompras: entrada.filtro.estaEnListaCompras }, tipoFiltroReferencia: { estado: "existente", id: entrada.tipoFiltro.id, tempId: null, nombre: entrada.tipoFiltro.nombre } });
+      if (
+        draft.value.filtros.some(
+          (item) =>
+            item.estadoOperacion !== "pendiente_eliminacion" &&
+            item.tipoFiltro.id === entrada.tipoFiltro.id,
+        )
+      )
+        return false;
+      draft.value.filtros.push({
+        id: 0,
+        equipoId: draft.value.equipo.id,
+        tipoFiltro: { ...entrada.tipoFiltro },
+        filtro: { ...entrada.filtro },
+        cantidad: entrada.cantidad,
+        cantidadEquivalencias: entrada.cantidadEquivalencias ?? 0,
+        draftId: crearTempId("equipo_filtro"),
+        estadoOperacion: "nuevo",
+        estadoAntesDeEliminar: null,
+        filtroReferencia: {
+          estado: "existente",
+          id: entrada.filtro.id,
+          tempId: null,
+          codigo: entrada.filtro.codigo,
+          estaEnListaCompras: entrada.filtro.estaEnListaCompras,
+        },
+        tipoFiltroReferencia: {
+          estado: "existente",
+          id: entrada.tipoFiltro.id,
+          tempId: null,
+          nombre: entrada.tipoFiltro.nombre,
+        },
+      });
       return true;
     }
-    function agregarFiltroTemporal(entrada: AgregarFiltroTemporalDraft): boolean {
+    function agregarFiltroTemporal(
+      entrada: AgregarFiltroTemporalDraft,
+    ): boolean {
       if (!draft.value || entrada.cantidad < 1) return false;
-      const tipoRepetido = draft.value.filtros.some((item) => item.estadoOperacion !== "pendiente_eliminacion" && claveTexto(item.tipoFiltroReferencia.nombre) === claveTexto(entrada.tipoFiltro.nombre));
+      const tipoRepetido = draft.value.filtros.some(
+        (item) =>
+          item.estadoOperacion !== "pendiente_eliminacion" &&
+          claveTexto(item.tipoFiltroReferencia.nombre) ===
+            claveTexto(entrada.tipoFiltro.nombre),
+      );
       if (tipoRepetido) return false;
-      draft.value.filtros.push({ id: 0, equipoId: draft.value.equipo.id, tipoFiltro: { id: entrada.tipoFiltro.estado === "existente" ? entrada.tipoFiltro.id : 0, nombre: entrada.tipoFiltro.nombre }, filtro: { id: entrada.filtro.estado === "existente" ? entrada.filtro.id : 0, codigo: entrada.filtro.codigo, estaEnListaCompras: entrada.filtro.estaEnListaCompras }, cantidad: entrada.cantidad, cantidadEquivalencias: 0, draftId: crearTempId("equipo_filtro"), estadoOperacion: "nuevo", estadoAntesDeEliminar: null, filtroReferencia: clonarFiltroReferencia(entrada.filtro), tipoFiltroReferencia: clonarTipoFiltroReferencia(entrada.tipoFiltro) });
+      draft.value.filtros.push({
+        id: 0,
+        equipoId: draft.value.equipo.id,
+        tipoFiltro: {
+          id:
+            entrada.tipoFiltro.estado === "existente"
+              ? entrada.tipoFiltro.id
+              : 0,
+          nombre: entrada.tipoFiltro.nombre,
+        },
+        filtro: {
+          id: entrada.filtro.estado === "existente" ? entrada.filtro.id : 0,
+          codigo: entrada.filtro.codigo,
+          estaEnListaCompras: entrada.filtro.estaEnListaCompras,
+        },
+        cantidad: entrada.cantidad,
+        cantidadEquivalencias: 0,
+        draftId: crearTempId("equipo_filtro"),
+        estadoOperacion: "nuevo",
+        estadoAntesDeEliminar: null,
+        filtroReferencia: clonarFiltroReferencia(entrada.filtro),
+        tipoFiltroReferencia: clonarTipoFiltroReferencia(entrada.tipoFiltro),
+      });
       return true;
     }
-    function actualizarAsignacionFiltro(entrada: EditarAsignacionFiltroDraft): void {
+    function actualizarAsignacionFiltro(
+      entrada: EditarAsignacionFiltroDraft,
+    ): void {
       if (!draft.value || entrada.cantidad < 1) return;
-      const item = draft.value.filtros.find((filtro) => filtro.draftId === entrada.draftId && filtro.estadoOperacion !== "pendiente_eliminacion");
+      const item = draft.value.filtros.find(
+        (filtro) =>
+          filtro.draftId === entrada.draftId &&
+          filtro.estadoOperacion !== "pendiente_eliminacion",
+      );
       if (!item) return;
       if (entrada.tipoFiltroId === null) {
         if (item.tipoFiltroReferencia.estado !== "nuevo") return;
         item.cantidad = entrada.cantidad;
         return;
       }
-      const tipo = auxiliares.value?.tiposFiltro.find((filtro) => filtro.id === entrada.tipoFiltroId);
-      if (!tipo || draft.value.filtros.some((filtro) => filtro.draftId !== item.draftId && filtro.estadoOperacion !== "pendiente_eliminacion" && filtro.tipoFiltro.id === tipo.id)) return;
+      const tipo = auxiliares.value?.tiposFiltro.find(
+        (filtro) => filtro.id === entrada.tipoFiltroId,
+      );
+      if (
+        !tipo ||
+        draft.value.filtros.some(
+          (filtro) =>
+            filtro.draftId !== item.draftId &&
+            filtro.estadoOperacion !== "pendiente_eliminacion" &&
+            filtro.tipoFiltro.id === tipo.id,
+        )
+      )
+        return;
       item.tipoFiltro = { id: tipo.id, nombre: tipo.nombre };
-      item.tipoFiltroReferencia = { estado: "existente", id: tipo.id, tempId: null, nombre: tipo.nombre };
+      item.tipoFiltroReferencia = {
+        estado: "existente",
+        id: tipo.id,
+        tempId: null,
+        nombre: tipo.nombre,
+      };
       item.cantidad = entrada.cantidad;
       if (item.estadoOperacion !== "nuevo") {
-        const originalFiltro = original.value?.filtros.find((filtro) => filtro.id === item.id);
-        item.estadoOperacion = originalFiltro && crearMotivoCambioFiltro(originalFiltro, item) ? "actualizado" : "existente";
+        const originalFiltro = original.value?.filtros.find(
+          (filtro) => filtro.id === item.id,
+        );
+        item.estadoOperacion =
+          originalFiltro && crearMotivoCambioFiltro(originalFiltro, item)
+            ? "actualizado"
+            : "existente";
       }
     }
     function marcarFiltroParaEliminar(draftId: string): void {
       if (!draft.value || activeFiltersCount.value <= 1) return;
-      const item = draft.value.filtros.find((filtro) => filtro.draftId === draftId);
+      const item = draft.value.filtros.find(
+        (filtro) => filtro.draftId === draftId,
+      );
       if (!item || item.estadoOperacion === "pendiente_eliminacion") return;
       item.estadoAntesDeEliminar = item.estadoOperacion;
       item.estadoOperacion = "pendiente_eliminacion";
     }
     function deshacerEliminacionFiltro(draftId: string): void {
-      const item = draft.value?.filtros.find((filtro) => filtro.draftId === draftId);
+      const item = draft.value?.filtros.find(
+        (filtro) => filtro.draftId === draftId,
+      );
       if (!item || item.estadoOperacion !== "pendiente_eliminacion") return;
       item.estadoOperacion = item.estadoAntesDeEliminar ?? "existente";
       item.estadoAntesDeEliminar = null;
     }
-    function referenciaAceiteActiva(referencia: CatalogoAceiteDraftReference): string {
-      return referencia.estado === "existente" ? `id:${referencia.id}` : `temp:${referencia.tempId}`;
-    }
-    function existeSistemaActivo(sistema: CatalogoAceiteDraftReference, excluirDraftId?: string): boolean {
-      const clave = referenciaAceiteActiva(sistema);
-      return draft.value?.aceites.some((aceite) => aceite.draftId !== excluirDraftId && aceite.estadoOperacion !== "pendiente_eliminacion" && referenciaAceiteActiva(aceite.sistemaReferencia) === clave) ?? false;
-    }
-    function agregarAceite(entrada: AgregarAceiteDraft): boolean {
-      if (!draft.value || existeSistemaActivo(entrada.sistema)) return false;
-      draft.value.aceites.push({
-        equipoAceiteId: 0,
-        sistema: { id: entrada.sistema.estado === "existente" ? entrada.sistema.id : 0, nombre: entrada.sistema.nombre },
-        aceite: { id: entrada.aceite.estado === "existente" ? entrada.aceite.id : 0, nombre: entrada.aceite.nombre },
-        draftId: crearTempId("equipo_aceite"), estadoOperacion: "nuevo", estadoAntesDeEliminar: null,
-        sistemaReferencia: clonarAceiteReferencia(entrada.sistema), aceiteReferencia: clonarAceiteReferencia(entrada.aceite),
-      });
+    function aplicarEstructura(
+      resultado: ResultadoMutacionEstructura,
+    ): boolean {
+      if (!draft.value || !resultado.ok) return false;
+      draft.value.estructuraSistemas = resultado.nodos;
+      validationErrors.value = [];
       return true;
     }
-    function actualizarAceite(entrada: ActualizarAceiteDraft): boolean {
-      const item = draft.value?.aceites.find((aceite) => aceite.draftId === entrada.draftId && aceite.estadoOperacion !== "pendiente_eliminacion");
-      if (!item || existeSistemaActivo(entrada.sistema, entrada.draftId)) return false;
-      item.sistema = { id: entrada.sistema.estado === "existente" ? entrada.sistema.id : 0, nombre: entrada.sistema.nombre };
-      item.aceite = { id: entrada.aceite.estado === "existente" ? entrada.aceite.id : 0, nombre: entrada.aceite.nombre };
-      item.sistemaReferencia = clonarAceiteReferencia(entrada.sistema);
-      item.aceiteReferencia = clonarAceiteReferencia(entrada.aceite);
-      if (item.estadoOperacion !== "nuevo") {
-        const originalAceite = original.value?.aceites.find((aceite) => aceite.equipoAceiteId === item.equipoAceiteId);
-        item.estadoOperacion = originalAceite && originalAceite.sistema.id === item.sistema.id && originalAceite.aceite.id === item.aceite.id ? "existente" : "actualizado";
+    function agregarSistemaRaiz(input: AgregarRaizEstructuraInput): boolean {
+      return draft.value && auxiliares.value
+        ? aplicarEstructura(
+            agregarRaizEstructura(
+              draft.value.estructuraSistemas,
+              input,
+              auxiliares.value,
+            ),
+          )
+        : false;
+    }
+    async function crearSistemaYAgregarRaiz(input: {
+      nombre: string;
+      aceite: CatalogoActivo | null;
+    }): Promise<boolean> {
+      if (!auxiliares.value) return false;
+      try {
+        const resultado = await sistemasCatalogoService.guardar({
+          id: null,
+          nombre: normalizarTexto(input.nombre),
+          activo: true,
+        });
+        const sistema: CatalogoActivo = {
+          id: resultado.item.id,
+          nombre: resultado.item.nombre,
+          activo: resultado.item.activo,
+        };
+        auxiliares.value = {
+          ...auxiliares.value,
+          sistemas: [...auxiliares.value.sistemas, sistema],
+        };
+        return agregarSistemaRaiz({ sistema, aceite: input.aceite });
+      } catch {
+        validationErrors.value = [
+          {
+            codigo: "SISTEMA_NO_CREADO",
+            mensaje:
+              "No se pudo crear el sistema. Verifica el nombre e inténtalo nuevamente.",
+            seccion: "estructura-lubricacion",
+          },
+        ];
+        return false;
       }
-      return true;
     }
-    function marcarAceiteParaEliminar(draftId: string): void {
-      const item = draft.value?.aceites.find((aceite) => aceite.draftId === draftId);
-      if (!item || item.estadoOperacion === "pendiente_eliminacion") return;
-      item.estadoAntesDeEliminar = item.estadoOperacion;
-      item.estadoOperacion = "pendiente_eliminacion";
+    async function crearSubsistemaYAgregarHijo(input: {
+      parentLocalId: string;
+      nombre: string;
+      aceite: CatalogoActivo | null;
+    }): Promise<boolean> {
+      if (!auxiliares.value) return false;
+      try {
+        const resultado = await subsistemasCatalogoService.guardar({
+          id: null,
+          nombre: normalizarTexto(input.nombre),
+          activo: true,
+        });
+        const subsistema: CatalogoActivo = {
+          id: resultado.item.id,
+          nombre: resultado.item.nombre,
+          activo: resultado.item.activo,
+        };
+        auxiliares.value = {
+          ...auxiliares.value,
+          subsistemas: [...auxiliares.value.subsistemas, subsistema],
+        };
+        return agregarSubsistema({
+          parentLocalId: input.parentLocalId,
+          subsistema,
+          aceite: input.aceite,
+        });
+      } catch {
+        validationErrors.value = [
+          {
+            codigo: "SUBSISTEMA_NO_CREADO",
+            mensaje:
+              "No se pudo crear el subsistema. Verifica el nombre e inténtalo nuevamente.",
+            seccion: "estructura-lubricacion",
+          },
+        ];
+        return false;
+      }
     }
-    function deshacerEliminacionAceite(draftId: string): boolean {
-      const item = draft.value?.aceites.find((aceite) => aceite.draftId === draftId);
-      if (!item || item.estadoOperacion !== "pendiente_eliminacion" || existeSistemaActivo(item.sistemaReferencia, item.draftId)) return false;
-      item.estadoOperacion = item.estadoAntesDeEliminar ?? "existente";
-      item.estadoAntesDeEliminar = null;
-      return true;
+    function agregarSubsistema(input: AgregarHijoEstructuraInput): boolean {
+      return draft.value && auxiliares.value
+        ? aplicarEstructura(
+            agregarHijoEstructura(
+              draft.value.estructuraSistemas,
+              input,
+              auxiliares.value,
+            ),
+          )
+        : false;
+    }
+    function actualizarAceiteNodo(
+      input: ActualizarNodoEstructuraInput,
+    ): boolean {
+      return draft.value && auxiliares.value
+        ? aplicarEstructura(
+            actualizarAceiteNodoEstructura(
+              draft.value.estructuraSistemas,
+              input,
+              auxiliares.value,
+            ),
+          )
+        : false;
+    }
+    function quitarAceiteNodo(localId: string): boolean {
+      return actualizarAceiteNodo({ localId, aceite: null });
+    }
+    function moverNodo(input: MoverNodoEstructuraInput): boolean {
+      return draft.value
+        ? aplicarEstructura(
+            moverNodoEstructura(draft.value.estructuraSistemas, input),
+          )
+        : false;
+    }
+    function obtenerSubarbolParaEliminar(localId: string) {
+      return draft.value
+        ? obtenerSubarbolActivo(draft.value.estructuraSistemas, localId)
+        : [];
+    }
+    function confirmarEliminarNodo(localId: string): void {
+      if (!draft.value) return;
+      draft.value.estructuraSistemas = marcarNodoParaEliminar(
+        draft.value.estructuraSistemas,
+        localId,
+      ).nodos;
+    }
+    function deshacerEliminacionNodo(localId: string): boolean {
+      return draft.value
+        ? aplicarEstructura(
+            deshacerEliminacionNodoEstructura(
+              draft.value.estructuraSistemas,
+              localId,
+            ),
+          )
+        : false;
     }
     function actualizarImagenPersistida(imagen: EquipoImagenPersistida): void {
       imagenPersistidaActual.value = { ...imagen };
       if (original.value) original.value.imagen = { ...imagen };
       if (draft.value) draft.value.imagen = { ...imagen };
-      if (draft.value) useFiltrosEngraseStore().actualizarImagenEquipo(draft.value.equipo.id, imagen);
+      if (draft.value)
+        useFiltrosEngraseStore().actualizarImagenEquipo(
+          draft.value.equipo.id,
+          imagen,
+        );
     }
     function actualizarEstadoSyncImagen(estado: ImagenSyncState): void {
-      const movimientoResuelto = imagenSyncState.value.kind === "move_pending" && estado.kind === "idle";
+      const movimientoResuelto =
+        imagenSyncState.value.kind === "move_pending" && estado.kind === "idle";
       imagenSyncState.value = estado;
-      if (movimientoResuelto) successMessage.value = "Los cambios y la imagen quedaron sincronizados correctamente.";
+      if (movimientoResuelto)
+        successMessage.value =
+          "Los cambios y la imagen quedaron sincronizados correctamente.";
     }
-    async function guardar(moverImagen: MoverImagenEquipo): Promise<ResultadoGuardadoEquipo> {
+    async function guardar(
+      moverImagen: MoverImagenEquipo,
+    ): Promise<ResultadoGuardadoEquipo> {
       if (saving.value) return { kind: "busy" };
-      if (!original.value || !draft.value || !codigoOriginal.value) return { kind: "invalid" };
+      if (!original.value || !draft.value || !codigoOriginal.value)
+        return { kind: "invalid" };
       saveError.value = null;
       successMessage.value = null;
       const validacion = validarEquipoEngrase(draft.value);
@@ -416,17 +780,21 @@ export const useEquipoEngraseEdicionStore = defineStore(
       if (!validacion.valido) return { kind: "invalid" };
       const cambios = construirCambiosEquipo(original.value, draft.value);
       if (!hayCambiosEquipo(cambios)) {
-        saveError.value = { codigo: "SIN_CAMBIOS", mensaje: "No hay cambios pendientes." };
+        saveError.value = {
+          codigo: "SIN_CAMBIOS",
+          mensaje: "No hay cambios pendientes.",
+        };
         return { kind: "empty" };
       }
       const rutaFuente = imagenPersistidaActual.value?.mainStoragePath ?? null;
       saving.value = true;
       try {
         const borradorPersistido = clonarBorrador(draft.value);
-        const respuesta = await equipoEngraseEdicionService.actualizarEquipoCompleto({
-          codigoOriginal: codigoOriginal.value,
-          cambios,
-        });
+        const respuesta =
+          await equipoEngraseEdicionService.actualizarEquipoCompleto({
+            codigoOriginal: codigoOriginal.value,
+            cambios,
+          });
         const listado = useFiltrosEngraseStore();
         listado.aplicarEquipoActualizado(respuesta.equipoLista);
         listado.invalidarDetalleEquipo(respuesta.equipoLista.id);
@@ -441,17 +809,26 @@ export const useEquipoEngraseEdicionStore = defineStore(
           try {
             await moverImagen(rutaFuente, rutaDestino);
           } catch {
-            imagenSyncState.value = { kind: "move_pending", sourcePath: rutaFuente, destinationPath: rutaDestino };
+            imagenSyncState.value = {
+              kind: "move_pending",
+              sourcePath: rutaFuente,
+              destinationPath: rutaDestino,
+            };
           }
         }
         if (imagenSyncState.value.kind === "move_pending") {
-          successMessage.value = "Los cambios se guardaron, pero falta mover la imagen a la ruta del nuevo código.";
+          successMessage.value =
+            "Los cambios se guardaron, pero falta mover la imagen a la ruta del nuevo código.";
           return { kind: "partial", respuesta };
         }
-        successMessage.value = respuesta.mensaje || "Los cambios se guardaron correctamente.";
+        successMessage.value =
+          respuesta.mensaje || "Los cambios se guardaron correctamente.";
         return { kind: "success", respuesta };
       } catch (error) {
-        const codigo = error instanceof Error ? extraerCodigoErrorEdicionEquipo(error.message) : "ERROR_EDICION_EQUIPO";
+        const codigo =
+          error instanceof Error
+            ? extraerCodigoErrorEdicionEquipo(error.message)
+            : "ERROR_EDICION_EQUIPO";
         const mapped = mapearErrorRpcEquipo(codigo);
         validationErrors.value = [mapped];
         saveError.value = { codigo, mensaje: mapped.mensaje };
@@ -494,22 +871,48 @@ export const useEquipoEngraseEdicionStore = defineStore(
       isDirty,
       hasDataChanges,
       hasFilterChanges,
-      hasOilChanges,
+      hasStructureChanges,
       hasDataErrors,
       hasFilterErrors,
-      hasOilErrors,
+      hasStructureErrors,
       hasActiveOverlay,
       canSave,
       activeFiltersCount,
       activeStagesCount,
-      activeOilsCount,
+      activeStructureNodesCount,
+      assignedOilsCount,
       cargar,
       solicitarSalida,
       continuarEditando,
       descartarCambios,
       reset,
-      actualizarCodigo, seleccionarTipoEquipo, actualizarSubtipo, actualizarEstado, agregarEtapa, quitarEtapa, crearYSeleccionarTipoEquipo, esTipoEquipoDuplicado, abrirNuevoTipoEquipo, buscarFiltroOriginalParaAsignar, agregarFiltroExistente, agregarFiltroTemporal, actualizarAsignacionFiltro, marcarFiltroParaEliminar, deshacerEliminacionFiltro, agregarAceite, actualizarAceite, marcarAceiteParaEliminar, deshacerEliminacionAceite,
-      actualizarImagenPersistida, actualizarEstadoSyncImagen,
+      actualizarCodigo,
+      seleccionarTipoEquipo,
+      actualizarSubtipo,
+      actualizarEstado,
+      agregarEtapa,
+      quitarEtapa,
+      crearYSeleccionarTipoEquipo,
+      esTipoEquipoDuplicado,
+      abrirNuevoTipoEquipo,
+      buscarFiltroOriginalParaAsignar,
+      agregarFiltroExistente,
+      agregarFiltroTemporal,
+      actualizarAsignacionFiltro,
+      marcarFiltroParaEliminar,
+      deshacerEliminacionFiltro,
+      agregarSistemaRaiz,
+      crearSistemaYAgregarRaiz,
+      crearSubsistemaYAgregarHijo,
+      agregarSubsistema,
+      actualizarAceiteNodo,
+      quitarAceiteNodo,
+      moverNodo,
+      obtenerSubarbolParaEliminar,
+      confirmarEliminarNodo,
+      deshacerEliminacionNodo,
+      actualizarImagenPersistida,
+      actualizarEstadoSyncImagen,
       guardar,
     };
   },

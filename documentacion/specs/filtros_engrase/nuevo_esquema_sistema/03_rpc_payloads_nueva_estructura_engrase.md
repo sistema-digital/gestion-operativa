@@ -260,6 +260,7 @@ Eliminar un nodo elimina también sus descendientes y sus relaciones de aceite.
 ```json
 {
   "temp_id": "string",
+  "parent_id": null,
   "parent_temp_id": null,
   "sistema_id": 1,
   "subsistema_id": null,
@@ -270,6 +271,7 @@ Eliminar un nodo elimina también sus descendientes y sus relaciones de aceite.
 Campos permitidos:
 
 - `temp_id`
+- `parent_id`
 - `parent_temp_id`
 - `sistema_id`
 - `subsistema_id`
@@ -299,6 +301,19 @@ Campos permitidos:
 
 No deben enviarse simultáneamente `parent_id` y `parent_temp_id` con valores no nulos.
 
+Un nodo nuevo hijo de un padre persistido usa `parent_id`:
+
+```json
+{
+  "temp_id": "direccion-nueva",
+  "parent_id": 300,
+  "parent_temp_id": null,
+  "sistema_id": null,
+  "subsistema_id": 5,
+  "aceite_id": 2
+}
+```
+
 ## `eliminados`
 
 ```json
@@ -326,10 +341,7 @@ No recibe payload.
     {
       "id": 1,
       "nombre": "TRACTOR",
-      "subtipos_sugeridos": [
-        "AGRÍCOLA",
-        "PESADO"
-      ]
+      "subtipos_sugeridos": ["AGRÍCOLA", "PESADO"]
     }
   ],
   "etapas": [
@@ -342,9 +354,7 @@ No recibe payload.
     {
       "id": 1,
       "nombre": "ACEITE MOTOR",
-      "tipos_equipo_que_lo_usan": [
-        "TRACTOR"
-      ]
+      "tipos_equipo_que_lo_usan": ["TRACTOR"]
     }
   ],
   "sistemas": [
@@ -1229,6 +1239,7 @@ No debe ofrecerlo para una asignación nueva.
 
 ```json
 {
+  "parent_id": null,
   "parent_temp_id": null,
   "sistema_id": 1,
   "subsistema_id": null
@@ -1239,6 +1250,7 @@ No debe ofrecerlo para una asignación nueva.
 
 ```json
 {
+  "parent_id": null,
   "parent_temp_id": "n1",
   "sistema_id": null,
   "subsistema_id": 5
@@ -1249,6 +1261,7 @@ No debe ofrecerlo para una asignación nueva.
 
 ```json
 {
+  "parent_id": null,
   "parent_temp_id": null,
   "sistema_id": null,
   "subsistema_id": 5
@@ -1259,6 +1272,7 @@ No debe ofrecerlo para una asignación nueva.
 
 ```json
 {
+  "parent_id": null,
   "parent_temp_id": "n1",
   "sistema_id": 1,
   "subsistema_id": null
@@ -1272,6 +1286,7 @@ No debe ofrecerlo para una asignación nueva.
   "nuevos": [
     {
       "temp_id": "a",
+      "parent_id": null,
       "parent_temp_id": "b",
       "sistema_id": null,
       "subsistema_id": 5,
@@ -1279,6 +1294,7 @@ No debe ofrecerlo para una asignación nueva.
     },
     {
       "temp_id": "b",
+      "parent_id": null,
       "parent_temp_id": "a",
       "sistema_id": null,
       "subsistema_id": 6,
@@ -1379,6 +1395,7 @@ El frontend puede mantener internamente nodos y luego convertirlos a:
     "nuevos": [
       {
         "temp_id": "tmp-1",
+        "parent_id": null,
         "parent_temp_id": null,
         "sistema_id": 1,
         "subsistema_id": null,

@@ -44,11 +44,13 @@ const equipoDto: ObtenerEquipoParaEdicionDto = {
       cantidad_equivalencias: 0,
     },
   ],
-  aceites: [
+  estructura_sistemas: [
     {
-      equipo_aceite_id: 10,
-      sistema: { id: 1, nombre: "Motor" },
-      aceite: { id: 1, nombre: "15W-40" },
+      id: 10,
+      parent_id: null,
+      sistema: { id: 1, nombre: "Motor", activo: true },
+      subsistema: null,
+      aceite: { id: 1, nombre: "15W-40", activo: true },
     },
   ],
 };
@@ -59,7 +61,8 @@ const auxiliaresDto: ObtenerAuxiliaresEdicionDto = {
   tipos_filtro: [
     { id: 1, nombre: "Aceite", tipos_equipo_que_lo_usan: ["Buses"] },
   ],
-  sistemas_aceite: [{ id: 1, nombre: "Motor" }],
+  sistemas: [{ id: 1, nombre: "Motor" }],
+  subsistemas: [{ id: 2, nombre: "Bomba" }],
   aceites: [{ id: 1, nombre: "15W-40" }],
 };
 const actualizacionDto: ActualizarEquipoCompletoDto = {
@@ -83,6 +86,7 @@ const actualizacionDto: ActualizarEquipoCompletoDto = {
     etapas_cambiaron: true,
     filtros_cambiaron: true,
     aceites_cambiaron: true,
+    estructura_sistemas_cambiaron: true,
   },
   resumen_operaciones: {
     etapas_agregadas: 1,
@@ -94,7 +98,13 @@ const actualizacionDto: ActualizarEquipoCompletoDto = {
     aceites_agregados: 1,
     aceites_actualizados: 1,
     aceites_eliminados: 1,
+    estructura_agregada: 2,
+    estructura_actualizada: 3,
+    estructura_eliminada: 4,
+    sistemas_agregados: 1,
+    subsistemas_agregados: 2,
   },
+  estructura_temp_ids: { estructura_1: 300, estructura_2: 301 },
 };
 
 describe("mappers de edición de equipos", () => {
@@ -108,19 +118,40 @@ describe("mappers de edición de equipos", () => {
       tieneImagenMain: true,
       imagenActualizadaEn: "2026-08-10T15:33:50.316Z",
     });
-    const vacio = mapEquipoParaEdicion({ ok: true, equipo: equipoDto.equipo });
-    expect(vacio).toMatchObject({ etapas: [], filtros: [], aceites: [] });
+    const vacio = mapEquipoParaEdicion({
+      ok: true,
+      equipo: equipoDto.equipo,
+      estructura_sistemas: [],
+    });
+    expect(vacio).toMatchObject({
+      etapas: [],
+      filtros: [],
+      estructuraSistemas: [],
+    });
+  });
+  it("rechaza la lectura sin estructura_sistemas", () => {
+    expect(() =>
+      mapEquipoParaEdicion({ ok: true, equipo: equipoDto.equipo }),
+    ).toThrow(/estructura de lubricación/i);
   });
   it("mapea auxiliares sin convertir colecciones vacías a null", () => {
     expect(
       mapAuxiliaresEdicionEquipo(auxiliaresDto).tiposEquipo[0]
         .subtiposSugeridos,
     ).toEqual(["Bus"]);
-    expect(mapAuxiliaresEdicionEquipo({ ok: true })).toEqual({
+    expect(
+      mapAuxiliaresEdicionEquipo({
+        ok: true,
+        sistemas: [],
+        subsistemas: [],
+        aceites: [],
+      }),
+    ).toEqual({
       tiposEquipo: [],
       etapas: [],
       tiposFiltro: [],
-      sistemasAceite: [],
+      sistemas: [],
+      subsistemas: [],
       aceites: [],
     });
   });
@@ -181,11 +212,11 @@ describe("mappers de edición de equipos", () => {
         ok: true,
         encontrado: false,
         codigo: "FILTRO_NO_ENCONTRADO",
-      codigo_buscado: "XYZ123",
-      puede_crearse: true,
-      sugerencias: [
-        { id: 35, codigo: "LFP3191", esta_en_lista_compras: true },
-      ],
+        codigo_buscado: "XYZ123",
+        puede_crearse: true,
+        sugerencias: [
+          { id: 35, codigo: "LFP3191", esta_en_lista_compras: true },
+        ],
       }),
     ).toEqual({
       encontrado: false,
@@ -193,15 +224,28 @@ describe("mappers de edición de equipos", () => {
       codigo: "FILTRO_NO_ENCONTRADO",
       codigoBuscado: "XYZ123",
       puedeCrearse: true,
-      sugerencias: [
-        { id: 35, codigo: "LFP3191", estaEnListaCompras: true },
-      ],
+      sugerencias: [{ id: 35, codigo: "LFP3191", estaEnListaCompras: true }],
     });
   });
   it("mapea una actualización al contrato del listado existente", () => {
-    expect(
-      mapActualizarEquipoCompleto(actualizacionDto).equipoLista,
-    ).toMatchObject({ id: 6, etapas: [{ nombre: "Zafra" }] });
+    const resultado = mapActualizarEquipoCompleto(actualizacionDto);
+
+    expect(resultado.equipoLista).toMatchObject({
+      id: 6,
+      etapas: [{ nombre: "Zafra" }],
+    });
+    expect(resultado.cambiosDetalle.estructuraSistemasCambiaron).toBe(true);
+    expect(resultado.resumenOperaciones).toMatchObject({
+      estructuraAgregada: 2,
+      estructuraActualizada: 3,
+      estructuraEliminada: 4,
+      sistemasAgregados: 1,
+      subsistemasAgregados: 2,
+    });
+    expect(resultado.estructuraTempIds).toEqual({
+      estructura_1: 300,
+      estructura_2: 301,
+    });
   });
   it("mapea la respuesta de imagen y conserva código de error funcional", () => {
     const imagen: AdministrarImagenEquipoDto = {

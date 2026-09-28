@@ -1,11 +1,5 @@
 export type TempIdTipo =
-  | "equipo_filtro"
-  | "tipo_filtro"
-  | "filtro"
-  | "equipo_aceite"
-  | "sistema_aceite"
-  | "aceite"
-  | "tipo_equipo";
+  "equipo_filtro" | "tipo_filtro" | "filtro" | "tipo_equipo";
 
 let secuencia = 0;
 

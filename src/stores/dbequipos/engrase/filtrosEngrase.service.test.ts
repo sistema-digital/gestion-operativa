@@ -14,12 +14,21 @@ describe("servicio de filtros de engrase", () => {
 
   it("obtiene los aceites asociados mediante la RPC del equipo", async () => {
     rpcMock.mockResolvedValue({
-      data: [{ sistema: "Motor", aceite: "15W-40" }],
+      data: [
+        {
+          sistema: "Motor",
+          subsistema: null,
+          ruta: "Motor",
+          aceite: "15W-40",
+        },
+      ],
       error: null,
     });
 
-    await expect(filtrosEngraseService.obtenerAceitesDeEquipo(123)).resolves.toEqual([
-      { sistema: "Motor", aceite: "15W-40" },
+    await expect(
+      filtrosEngraseService.obtenerAceitesDeEquipo(123),
+    ).resolves.toEqual([
+      { sistema: "Motor", subsistema: null, ruta: "Motor", aceite: "15W-40" },
     ]);
     expect(rpcMock).toHaveBeenCalledWith("rpc_obtener_aceites_equipo", {
       p_equipo_id: 123,

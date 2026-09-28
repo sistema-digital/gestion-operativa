@@ -12,6 +12,7 @@ import type {
   FiltroCreacionReference,
   TipoEquipoCreacionReference,
 } from "./equipoEngraseCreacion.types";
+import { construirCambiosEstructura } from "../shared/estructuraLubricacion.payload";
 
 export function crearEntidadCreacionPayload(
   referencia: CatalogoDraftReference | TipoEquipoCreacionReference,
@@ -59,13 +60,15 @@ export function construirPayloadCrearEquipo(
   if (tipoEquipo === null) {
     return {
       ok: false,
-      errores: [{
-        codigo: "TIPO_EQUIPO_REQUERIDO",
-        mensaje: "Selecciona o crea un tipo de equipo.",
-        paso: 1,
-        seccion: "datos",
-        fieldId: "equipo-creacion-tipo",
-      }],
+      errores: [
+        {
+          codigo: "TIPO_EQUIPO_REQUERIDO",
+          mensaje: "Selecciona o crea un tipo de equipo.",
+          paso: 1,
+          seccion: "datos",
+          fieldId: "equipo-creacion-tipo",
+        },
+      ],
     };
   }
 
@@ -94,13 +97,9 @@ export function construirPayloadCrearEquipo(
             cantidad: filtro.cantidad,
           })),
         },
-        aceites: {
-          nuevos: draft.aceites.map((aceite) => ({
-            estado_operacion: "nuevo",
-            temp_id: aceite.draftId,
-            sistema: crearEntidadCreacionPayload(aceite.sistema),
-            aceite: crearEntidadCreacionPayload(aceite.aceite),
-          })),
+        estructura_sistemas: {
+          nuevos: construirCambiosEstructura([], draft.estructuraSistemas)
+            .nuevos,
         },
       },
     },

@@ -258,6 +258,11 @@ const router = createRouter({
               name: "CatalogoEngraseSistemas",
               component: EmptyRouteComponent,
             },
+            {
+              path: "subsistemas",
+              name: "CatalogoEngraseSubsistemas",
+              component: EmptyRouteComponent,
+            },
           ],
         },
         {
@@ -280,6 +285,10 @@ const router = createRouter({
             {
               path: "sistemas",
               redirect: { name: "CatalogoEngraseSistemas" },
+            },
+            {
+              path: "subsistemas",
+              redirect: { name: "CatalogoEngraseSubsistemas" },
             },
           ],
         },

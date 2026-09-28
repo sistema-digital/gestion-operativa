@@ -44,6 +44,8 @@ export interface EquipoFiltroDetalle extends EquipoFiltroRow {
 }
 export interface EquipoAceiteDetalle {
   sistema: string;
+  subsistema: string | null;
+  ruta: string;
   aceite: string;
 }
 export interface FiltroEquivalenciaRow {

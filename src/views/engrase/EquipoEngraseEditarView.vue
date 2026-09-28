@@ -5,11 +5,15 @@ import EquipoEdicionShell from "@/components/engrase/edicion/EquipoEdicionShell.
 import EquipoDatosForm from "@/components/engrase/edicion/datos/EquipoDatosForm.vue";
 import EquipoFiltrosSection from "@/components/engrase/edicion/filtros/EquipoFiltrosSection.vue";
 import EquipoFiltroOverlay from "@/components/engrase/edicion/filtros/EquipoFiltroOverlay.vue";
-import EquipoAceitesSection from "@/components/engrase/edicion/aceites/EquipoAceitesSection.vue";
-import EquipoAceiteOverlay from "@/components/engrase/edicion/aceites/EquipoAceiteOverlay.vue";
+import EquipoEstructuraLubricacionSection from "@/components/engrase/edicion/estructura-lubricacion/EquipoEstructuraLubricacionSection.vue";
 import EquipoImagenTrigger from "@/components/engrase/edicion/imagen/EquipoImagenTrigger.vue";
 import EquipoImagenOverlay from "@/components/engrase/edicion/imagen/EquipoImagenOverlay.vue";
-import type { CatalogoAceiteDraftReference, EquipoAceiteFormMode, FiltroExistenteDraftReference, FiltroNuevoDraftReference, ResultadoFiltroEncontrado, TipoFiltroDraftReference } from "@/stores/dbequipos/engrase/edicion/equipoEngraseEdicion.types";
+import type {
+  FiltroExistenteDraftReference,
+  FiltroNuevoDraftReference,
+  ResultadoFiltroEncontrado,
+  TipoFiltroDraftReference,
+} from "@/stores/dbequipos/engrase/edicion/equipoEngraseEdicion.types";
 import { useEquipoEngraseEditor } from "@/composables/engrase/useEquipoEngraseEditor";
 import { useEquipoImagenManager } from "@/composables/engrase/useEquipoImagenManager";
 const editor = useEquipoEngraseEditor();
@@ -17,76 +21,150 @@ const imagenManager = useEquipoImagenManager();
 const filtroOverlay = shallowRef<"add" | "edit" | null>(null);
 const filtroEditadoId = shallowRef<string | null>(null);
 const errorAgregarFiltro = shallowRef<string | null>(null);
-const aceiteOverlay = shallowRef<EquipoAceiteFormMode | null>(null);
-const errorAceite = shallowRef<string | null>(null);
 const imagenOverlay = shallowRef(false);
-type PestañaEdicion = "datos" | "filtros" | "aceites";
+type PestañaEdicion = "datos" | "filtros" | "estructura";
 const pestanaActiva = shallowRef<PestañaEdicion>("datos");
-const erroresPorSeccion = (seccion: "datos" | "etapas" | "filtros" | "aceites") => computed(() => editor.validationErrors.value.filter((error) => error.seccion === seccion));
+const erroresPorSeccion = (
+  seccion: "datos" | "etapas" | "filtros" | "estructura-lubricacion",
+) =>
+  computed(() =>
+    editor.validationErrors.value.filter((error) => error.seccion === seccion),
+  );
 const erroresDatos = erroresPorSeccion("datos");
 const erroresEtapas = erroresPorSeccion("etapas");
 const erroresFiltros = erroresPorSeccion("filtros");
-const erroresAceites = erroresPorSeccion("aceites");
-const mensajeGuardado = computed(() => editor.saveError.value?.mensaje ?? editor.successMessage.value);
+const erroresEstructura = erroresPorSeccion("estructura-lubricacion");
+const mensajeGuardado = computed(
+  () => editor.saveError.value?.mensaje ?? editor.successMessage.value,
+);
 watch(
   () => editor.validationErrors.value[0],
   (error) => {
     if (!error) return;
     pestanaActiva.value =
-      error.seccion === "filtros" || error.seccion === "aceites"
-        ? error.seccion
-        : "datos";
+      error.seccion === "filtros"
+        ? "filtros"
+        : error.seccion === "estructura-lubricacion"
+          ? "estructura"
+          : "datos";
   },
 );
-const tipoMensajeGuardado = computed<"error" | "success" | "partial" | null>(() => {
-  if (editor.saveError.value) return "error";
-  if (!editor.successMessage.value) return null;
-  return editor.imagenSyncState.value.kind === "move_pending" ? "partial" : "success";
-});
-const filtroEditado = computed(() => editor.draft.value?.filtros.find((filtro) => filtro.draftId === filtroEditadoId.value));
-const tiposOcupados = computed(() => editor.draft.value?.filtros.filter((filtro) => filtro.estadoOperacion !== "pendiente_eliminacion" && filtro.draftId !== filtroEditadoId.value).map((filtro) => filtro.tipoFiltro.id) ?? []);
-const filtrosOcupadosId = computed(() => editor.draft.value?.filtros.flatMap((filtro) => filtro.estadoOperacion !== "pendiente_eliminacion" && filtro.filtroReferencia.estado === "existente" ? [filtro.filtroReferencia.id] : []) ?? []);
-const filtrosOcupadosCodigo = computed(() => editor.draft.value?.filtros.filter((filtro) => filtro.estadoOperacion !== "pendiente_eliminacion").map((filtro) => filtro.filtroReferencia.codigo) ?? []);
+const tipoMensajeGuardado = computed<"error" | "success" | "partial" | null>(
+  () => {
+    if (editor.saveError.value) return "error";
+    if (!editor.successMessage.value) return null;
+    return editor.imagenSyncState.value.kind === "move_pending"
+      ? "partial"
+      : "success";
+  },
+);
+const filtroEditado = computed(() =>
+  editor.draft.value?.filtros.find(
+    (filtro) => filtro.draftId === filtroEditadoId.value,
+  ),
+);
+const tiposOcupados = computed(
+  () =>
+    editor.draft.value?.filtros
+      .filter(
+        (filtro) =>
+          filtro.estadoOperacion !== "pendiente_eliminacion" &&
+          filtro.draftId !== filtroEditadoId.value,
+      )
+      .map((filtro) => filtro.tipoFiltro.id) ?? [],
+);
+const filtrosOcupadosId = computed(
+  () =>
+    editor.draft.value?.filtros.flatMap((filtro) =>
+      filtro.estadoOperacion !== "pendiente_eliminacion" &&
+      filtro.filtroReferencia.estado === "existente"
+        ? [filtro.filtroReferencia.id]
+        : [],
+    ) ?? [],
+);
+const filtrosOcupadosCodigo = computed(
+  () =>
+    editor.draft.value?.filtros
+      .filter((filtro) => filtro.estadoOperacion !== "pendiente_eliminacion")
+      .map((filtro) => filtro.filtroReferencia.codigo) ?? [],
+);
 const codigosPorTipoOcupado = computed<Record<number, string>>(() =>
   Object.fromEntries(
     editor.draft.value?.filtros.flatMap((filtro) =>
       filtro.estadoOperacion !== "pendiente_eliminacion" &&
       filtro.draftId !== filtroEditadoId.value &&
       filtro.tipoFiltroReferencia.estado === "existente"
-        ? [[filtro.tipoFiltroReferencia.id, filtro.filtroReferencia.codigo] as const]
+        ? [
+            [
+              filtro.tipoFiltroReferencia.id,
+              filtro.filtroReferencia.codigo,
+            ] as const,
+          ]
         : [],
     ) ?? [],
   ),
 );
-const sugerenciasBorrador = computed(() => editor.draft.value?.filtros.filter((filtro) => filtro.estadoOperacion !== "pendiente_eliminacion").map((filtro) => ({ id: filtro.filtroReferencia.estado === "existente" ? filtro.filtroReferencia.id : null, codigo: filtro.filtroReferencia.codigo, estaEnListaCompras: filtro.filtroReferencia.estaEnListaCompras })) ?? []);
-const nombresTiposActivos = computed(() => editor.draft.value?.filtros.filter((filtro) => filtro.estadoOperacion !== "pendiente_eliminacion").map((filtro) => filtro.tipoFiltroReferencia.nombre) ?? []);
-const filtrosPendientesClave = computed(() => editor.draft.value?.filtros.filter((filtro) => filtro.estadoOperacion === "pendiente_eliminacion").map((filtro) => `${filtro.filtro.id}:${filtro.tipoFiltro.id}`) ?? []);
-function cerrarFiltroOverlay(): void { filtroOverlay.value = null; filtroEditadoId.value = null; errorAgregarFiltro.value = null; }
-function abrirAgregarFiltro(): void { errorAgregarFiltro.value = null; filtroOverlay.value = "add"; }
-function agregarFiltroDesdeOverlay(resultado: ResultadoFiltroEncontrado, cantidad: number, tipoId: number): void {
-  const tipo = editor.auxiliares.value?.tiposFiltro.find((item) => item.id === tipoId);
+const sugerenciasBorrador = computed(
+  () =>
+    editor.draft.value?.filtros
+      .filter((filtro) => filtro.estadoOperacion !== "pendiente_eliminacion")
+      .map((filtro) => ({
+        id:
+          filtro.filtroReferencia.estado === "existente"
+            ? filtro.filtroReferencia.id
+            : null,
+        codigo: filtro.filtroReferencia.codigo,
+        estaEnListaCompras: filtro.filtroReferencia.estaEnListaCompras,
+      })) ?? [],
+);
+const nombresTiposActivos = computed(
+  () =>
+    editor.draft.value?.filtros
+      .filter((filtro) => filtro.estadoOperacion !== "pendiente_eliminacion")
+      .map((filtro) => filtro.tipoFiltroReferencia.nombre) ?? [],
+);
+const filtrosPendientesClave = computed(
+  () =>
+    editor.draft.value?.filtros
+      .filter((filtro) => filtro.estadoOperacion === "pendiente_eliminacion")
+      .map((filtro) => `${filtro.filtro.id}:${filtro.tipoFiltro.id}`) ?? [],
+);
+function cerrarFiltroOverlay(): void {
+  filtroOverlay.value = null;
+  filtroEditadoId.value = null;
+  errorAgregarFiltro.value = null;
+}
+function abrirAgregarFiltro(): void {
+  errorAgregarFiltro.value = null;
+  filtroOverlay.value = "add";
+}
+function agregarFiltroDesdeOverlay(
+  resultado: ResultadoFiltroEncontrado,
+  cantidad: number,
+  tipoId: number,
+): void {
+  const tipo = editor.auxiliares.value?.tiposFiltro.find(
+    (item) => item.id === tipoId,
+  );
   if (!tipo) return;
-  const agregado = editor.agregarFiltroExistente({ filtro: resultado.filtro, tipoFiltro: { id: tipo.id, nombre: tipo.nombre }, cantidad });
+  const agregado = editor.agregarFiltroExistente({
+    filtro: resultado.filtro,
+    tipoFiltro: { id: tipo.id, nombre: tipo.nombre },
+    cantidad,
+  });
   if (agregado) cerrarFiltroOverlay();
-  else errorAgregarFiltro.value = "Este filtro ya está asignado al equipo."
+  else errorAgregarFiltro.value = "Este filtro ya está asignado al equipo.";
 }
-function agregarFiltroTemporalDesdeOverlay(filtro: FiltroNuevoDraftReference | FiltroExistenteDraftReference, tipoFiltro: TipoFiltroDraftReference, cantidad: number): void {
-  if (editor.agregarFiltroTemporal({ filtro, tipoFiltro, cantidad })) cerrarFiltroOverlay();
-  else errorAgregarFiltro.value = "Ya existe una asignación activa para este tipo de filtro."
-}
-const aceiteEditado = computed(() => {
-  const modo = aceiteOverlay.value;
-  return modo?.kind === "edit" ? editor.draft.value?.aceites.find((aceite) => aceite.draftId === modo.draftId) : undefined;
-});
-function conflictoSistemaAceite(sistema: CatalogoAceiteDraftReference): boolean {
-  const modo = aceiteOverlay.value;
-  return editor.draft.value?.aceites.some((aceite) => aceite.estadoOperacion !== "pendiente_eliminacion" && aceite.draftId !== (modo?.kind === "edit" ? modo.draftId : undefined) && (sistema.estado === "existente" ? aceite.sistemaReferencia.estado === "existente" && aceite.sistemaReferencia.id === sistema.id : aceite.sistemaReferencia.estado === "nuevo" && aceite.sistemaReferencia.tempId === sistema.tempId)) ?? false;
-}
-function confirmarAceite(sistema: CatalogoAceiteDraftReference, aceite: CatalogoAceiteDraftReference): void {
-  const modo = aceiteOverlay.value;
-  if (!modo) return;
-  const aplicado = modo.kind === "add" ? editor.agregarAceite({ sistema, aceite }) : editor.actualizarAceite({ draftId: modo.draftId, sistema, aceite });
-  if (aplicado) { aceiteOverlay.value = null; errorAceite.value = null; } else errorAceite.value = "Este equipo ya tiene un aceite asociado a ese sistema.";
+function agregarFiltroTemporalDesdeOverlay(
+  filtro: FiltroNuevoDraftReference | FiltroExistenteDraftReference,
+  tipoFiltro: TipoFiltroDraftReference,
+  cantidad: number,
+): void {
+  if (editor.agregarFiltroTemporal({ filtro, tipoFiltro, cantidad }))
+    cerrarFiltroOverlay();
+  else
+    errorAgregarFiltro.value =
+      "Ya existe una asignación activa para este tipo de filtro.";
 }
 </script>
 <template>
@@ -139,13 +217,13 @@ function confirmarAceite(sistema: CatalogoAceiteDraftReference, aceite: Catalogo
       :draft="editor.draft.value"
       :active-tab="pestanaActiva"
       :filters-count="editor.activeFiltersCount.value"
-      :oils-count="editor.activeOilsCount.value"
+      :structure-count="editor.activeStructureNodesCount.value"
       :has-data-changes="editor.hasDataChanges.value"
       :has-filter-changes="editor.hasFilterChanges.value"
-      :has-oil-changes="editor.hasOilChanges.value"
+      :has-structure-changes="editor.hasStructureChanges.value"
       :has-data-errors="editor.hasDataErrors.value"
       :has-filter-errors="editor.hasFilterErrors.value"
-      :has-oil-errors="editor.hasOilErrors.value"
+      :has-structure-errors="editor.hasStructureErrors.value"
       :can-save="editor.canSave.value"
       :saving="editor.saving.value"
       :message="mensajeGuardado"
@@ -159,12 +237,34 @@ function confirmarAceite(sistema: CatalogoAceiteDraftReference, aceite: Catalogo
       @update-active-tab="pestanaActiva = $event"
     >
       <template #datos>
-        <div v-if="editor.validationErrors.value.length > 1" class="rounded-md border border-danger bg-danger-bg p-3 text-xs text-danger" role="alert" tabindex="-1" data-validation-section="general">
-          <p class="font-bold">Hay {{ editor.validationErrors.value.length }} errores por corregir:</p>
-          <ul class="mt-1 list-disc space-y-1 pl-4"><li v-for="error in editor.validationErrors.value" :key="`${error.codigo}-${error.mensaje}`">{{ error.mensaje }}</li></ul>
+        <div
+          v-if="editor.validationErrors.value.length > 1"
+          class="rounded-md border border-danger bg-danger-bg p-3 text-xs text-danger"
+          role="alert"
+          tabindex="-1"
+          data-validation-section="general"
+        >
+          <p class="font-bold">
+            Hay {{ editor.validationErrors.value.length }} errores por corregir:
+          </p>
+          <ul class="mt-1 list-disc space-y-1 pl-4">
+            <li
+              v-for="error in editor.validationErrors.value"
+              :key="`${error.codigo}-${error.mensaje}`"
+            >
+              {{ error.mensaje }}
+            </li>
+          </ul>
         </div>
         <div data-validation-section="datos" tabindex="-1">
-          <p v-for="error in [...erroresDatos, ...erroresEtapas]" :key="`${error.codigo}-${error.mensaje}`" class="mb-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger" role="alert">{{ error.mensaje }}</p>
+          <p
+            v-for="error in [...erroresDatos, ...erroresEtapas]"
+            :key="`${error.codigo}-${error.mensaje}`"
+            class="mb-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger"
+            role="alert"
+          >
+            {{ error.mensaje }}
+          </p>
           <EquipoDatosForm
             v-if="editor.auxiliares.value"
             :draft="editor.draft.value"
@@ -192,20 +292,76 @@ function confirmarAceite(sistema: CatalogoAceiteDraftReference, aceite: Catalogo
       </template>
       <template #filtros>
         <div data-validation-section="filtros" tabindex="-1">
-          <p v-for="error in erroresFiltros" :key="`${error.codigo}-${error.mensaje}`" class="mb-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger" role="alert">{{ error.mensaje }}</p>
+          <p
+            v-for="error in erroresFiltros"
+            :key="`${error.codigo}-${error.mensaje}`"
+            class="mb-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger"
+            role="alert"
+          >
+            {{ error.mensaje }}
+          </p>
           <EquipoFiltrosSection
-          :filtros="editor.draft.value.filtros"
-          :active-count="editor.activeFiltersCount.value"
-          @add="abrirAgregarFiltro"
-          @edit="(draftId) => { filtroEditadoId = draftId; filtroOverlay = 'edit' }"
-          @remove="editor.marcarFiltroParaEliminar"
-          @undo="editor.deshacerEliminacionFiltro"
-        /></div>
+            :filtros="editor.draft.value.filtros"
+            :active-count="editor.activeFiltersCount.value"
+            @add="abrirAgregarFiltro"
+            @edit="
+              (draftId) => {
+                filtroEditadoId = draftId;
+                filtroOverlay = 'edit';
+              }
+            "
+            @remove="editor.marcarFiltroParaEliminar"
+            @undo="editor.deshacerEliminacionFiltro"
+          />
+        </div>
       </template>
-      <template #aceites>
-        <div data-validation-section="aceites" tabindex="-1">
-          <p v-for="error in erroresAceites" :key="`${error.codigo}-${error.mensaje}`" class="mb-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger" role="alert">{{ error.mensaje }}</p>
-          <EquipoAceitesSection :aceites="editor.draft.value.aceites" @add="aceiteOverlay = { kind: 'add' }" @edit="(draftId) => aceiteOverlay = { kind: 'edit', draftId }" @remove="editor.marcarAceiteParaEliminar" @undo="editor.deshacerEliminacionAceite" />
+      <template #estructura>
+        <div data-validation-section="estructura-lubricacion" tabindex="-1">
+          <EquipoEstructuraLubricacionSection
+            v-if="editor.auxiliares.value"
+            :nodos="editor.draft.value.estructuraSistemas"
+            :sistemas="editor.auxiliares.value.sistemas"
+            :subsistemas="editor.auxiliares.value.subsistemas"
+            :aceites="editor.auxiliares.value.aceites"
+            :errors="
+              erroresEstructura.map(({ codigo, mensaje, fieldId }) => ({
+                codigo,
+                mensaje,
+                ...(fieldId ? { localId: fieldId } : {}),
+              }))
+            "
+            :disabled="editor.saving.value"
+            @add-root="
+              (sistema, aceite) =>
+                editor.agregarSistemaRaiz({ sistema, aceite })
+            "
+            @create-root-system="
+              (nombre, aceite) =>
+                editor.crearSistemaYAgregarRaiz({ nombre, aceite })
+            "
+            @create-child-subsystem="
+              (parentLocalId, nombre, aceite) =>
+                editor.crearSubsistemaYAgregarHijo({
+                  parentLocalId,
+                  nombre,
+                  aceite,
+                })
+            "
+            @add-child="
+              (parentLocalId, subsistema, aceite) =>
+                editor.agregarSubsistema({ parentLocalId, subsistema, aceite })
+            "
+            @update-oil="
+              (localId, aceite) =>
+                editor.actualizarAceiteNodo({ localId, aceite })
+            "
+            @move="
+              (localId, nuevoPadreLocalId) =>
+                editor.moverNodo({ localId, nuevoPadreLocalId })
+            "
+            @remove="editor.confirmarEliminarNodo"
+            @restore="editor.deshacerEliminacionNodo"
+          />
         </div>
       </template>
       <template #overlay
@@ -260,12 +416,40 @@ function confirmarAceite(sistema: CatalogoAceiteDraftReference, aceite: Catalogo
           @close="cerrarFiltroOverlay"
           @add="agregarFiltroDesdeOverlay"
           @add-temporal="agregarFiltroTemporalDesdeOverlay"
-          @edit="(tipoFiltroId, cantidad) => { if (filtroEditadoId) editor.actualizarAsignacionFiltro({ draftId: filtroEditadoId, tipoFiltroId, cantidad }); cerrarFiltroOverlay() }"
+          @edit="
+            (tipoFiltroId, cantidad) => {
+              if (filtroEditadoId)
+                editor.actualizarAsignacionFiltro({
+                  draftId: filtroEditadoId,
+                  tipoFiltroId,
+                  cantidad,
+                });
+              cerrarFiltroOverlay();
+            }
+          "
         />
-        <EquipoAceiteOverlay v-if="aceiteOverlay && editor.auxiliares.value" :mode="aceiteOverlay" :aceite="aceiteEditado" :sistemas="editor.auxiliares.value.sistemasAceite" :aceites="editor.auxiliares.value.aceites" :has-system-conflict="conflictoSistemaAceite" @close="aceiteOverlay = null" @confirm="confirmarAceite" />
-        <EquipoImagenOverlay v-if="imagenOverlay" :codigo-equipo="editor.draft.value.equipo.codigo" :actual-url="imagenManager.urlActual.value" :url-loading="imagenManager.urlLoading.value" :url-error="imagenManager.urlError.value" :preview-url="imagenManager.preparada.value?.previewUrl ?? null" :tiene-imagen="imagenManager.tieneImagen.value" :sync-state="imagenManager.imagenSyncState.value" :bloqueado="imagenManager.bloqueado.value" @close="imagenOverlay = false" @select="imagenManager.seleccionarArchivo" @save="imagenManager.guardar(editor.draft.value.equipo.codigo, $event)" @remove="imagenManager.eliminar(editor.draft.value.equipo.codigo)" @retry-cleanup="imagenManager.reintentarLimpieza" @retry-move="imagenManager.reintentarMovimiento" @retry-preview="imagenManager.reintentarUrl" @clear-preview="imagenManager.limpiarPreview" />
-      </template
-      >
+        <EquipoImagenOverlay
+          v-if="imagenOverlay"
+          :codigo-equipo="editor.draft.value.equipo.codigo"
+          :actual-url="imagenManager.urlActual.value"
+          :url-loading="imagenManager.urlLoading.value"
+          :url-error="imagenManager.urlError.value"
+          :preview-url="imagenManager.preparada.value?.previewUrl ?? null"
+          :tiene-imagen="imagenManager.tieneImagen.value"
+          :sync-state="imagenManager.imagenSyncState.value"
+          :bloqueado="imagenManager.bloqueado.value"
+          @close="imagenOverlay = false"
+          @select="imagenManager.seleccionarArchivo"
+          @save="
+            imagenManager.guardar(editor.draft.value.equipo.codigo, $event)
+          "
+          @remove="imagenManager.eliminar(editor.draft.value.equipo.codigo)"
+          @retry-cleanup="imagenManager.reintentarLimpieza"
+          @retry-move="imagenManager.reintentarMovimiento"
+          @retry-preview="imagenManager.reintentarUrl"
+          @clear-preview="imagenManager.limpiarPreview"
+        />
+      </template>
     </EquipoEdicionShell>
   </div>
 </template>

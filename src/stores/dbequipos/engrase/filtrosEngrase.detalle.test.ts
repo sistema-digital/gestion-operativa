@@ -39,19 +39,35 @@ describe("detalle de filtros y aceites del equipo", () => {
     vi.clearAllMocks();
     obtenerFiltrosDeEquipo.mockResolvedValue([]);
     obtenerAceitesDeEquipo.mockResolvedValue([
-      { sistema: "Motor", aceite: "15W-40" },
+      { sistema: "Motor", subsistema: null, ruta: "Motor", aceite: "15W-40" },
     ]);
     obtenerEquivalenciasActivas.mockResolvedValue([]);
   });
 
   it("carga filtros y aceites en paralelo y conserva ambos en cache", async () => {
     let resolverFiltros!: (value: []) => void;
-    let resolverAceites!: (value: { sistema: string; aceite: string }[]) => void;
+    let resolverAceites!: (
+      value: {
+        sistema: string;
+        subsistema: string | null;
+        ruta: string;
+        aceite: string;
+      }[],
+    ) => void;
     obtenerFiltrosDeEquipo.mockReturnValue(
-      new Promise<[]>((resolve) => { resolverFiltros = resolve; }),
+      new Promise<[]>((resolve) => {
+        resolverFiltros = resolve;
+      }),
     );
     obtenerAceitesDeEquipo.mockReturnValue(
-      new Promise<{ sistema: string; aceite: string }[]>((resolve) => {
+      new Promise<
+        {
+          sistema: string;
+          subsistema: string | null;
+          ruta: string;
+          aceite: string;
+        }[]
+      >((resolve) => {
         resolverAceites = resolve;
       }),
     );
@@ -63,10 +79,14 @@ describe("detalle de filtros y aceites del equipo", () => {
     expect(obtenerFiltrosDeEquipo).toHaveBeenCalledWith(123);
     expect(obtenerAceitesDeEquipo).toHaveBeenCalledWith(123);
     resolverFiltros([]);
-    resolverAceites([{ sistema: "Motor", aceite: "15W-40" }]);
+    resolverAceites([
+      { sistema: "Motor", subsistema: null, ruta: "Motor", aceite: "15W-40" },
+    ]);
     await carga;
 
-    expect(store.aceitesEquipo).toEqual([{ sistema: "Motor", aceite: "15W-40" }]);
+    expect(store.aceitesEquipo).toEqual([
+      { sistema: "Motor", subsistema: null, ruta: "Motor", aceite: "15W-40" },
+    ]);
     await store.cargarFiltrosEquipo(123);
     expect(obtenerFiltrosDeEquipo).toHaveBeenCalledOnce();
     expect(obtenerAceitesDeEquipo).toHaveBeenCalledOnce();
