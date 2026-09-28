@@ -1,15 +1,11 @@
 {
-  "version": "0.2.5",
-  "summary": "Actualización de funcionalidades de seguimiento.",
+  "version": "0.2.6",
+  "summary": "Mejoras en la consulta de filtros y aceites por equipo.",
   "changes": [
-    "Mejoras generales en el registro administrativo de jornadas.",
-    "Ajustes de interacción y validación."
+    "Se separó la consulta de filtros y aceites en pestañas.",
+    "La estructura de aceites ahora organiza los subsistemas dentro de sus sistemas."
   ],
   "required": true,
   "appliesToAllUsers": false,
-  "affectedFeatures": [
-    "jornadas_admin_ver",
-    "jornadas_admin_crear",
-    "jornadas_admin_finalizar"
-  ]
+  "affectedFeatures": ["ver_filtros_engrase"]
 }
