@@ -10,6 +10,7 @@ import {
 } from "lucide-vue-next";
 import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 import { obtenerIconoTipoFiltro } from "@/utils/filtrosEngraseIconos";
+import FiltrosEquipoAceitesPanel from "./FiltrosEquipoAceitesPanel.vue";
 import type {
   EquipoEngraseListItem,
   EquipoAceiteDetalle,
@@ -65,6 +66,7 @@ const soloConEquivalencias = shallowRef(false);
 const soloEnCompras = shallowRef(false);
 const opcionesDeListadoAbiertas = shallowRef(false);
 const imagenPrincipalFallida = shallowRef(false);
+const pestanaActiva = shallowRef<"filtros" | "aceites">("filtros");
 watch(
   () => props.equipo?.imageUrl,
   () => {
@@ -230,206 +232,239 @@ function alternarEstado(): void {
           >{{ equipo.estado }}</b
         >
       </header>
-      <section class="mb-3 mt-3" aria-labelledby="aceites-lubricacion-title">
-        <h3
-          id="aceites-lubricacion-title"
-          class="text-xs font-semibold text-gray-700"
-        >
-          Aceites de lubricación
-        </h3>
-        <p v-if="!aceites.length" class="mt-1 text-xs text-gray-500">
-          Sin aceites asignados en la estructura de lubricación.
-        </p>
-        <div v-else class="mt-2 flex flex-wrap gap-2">
-          <span
-            v-for="aceite in aceites"
-            :key="`${aceite.ruta}-${aceite.aceite}`"
-            class="rounded-md bg-main-light/15 px-2.5 py-1 text-xs font-medium text-main"
-            :title="aceite.ruta"
-            :aria-label="`${aceite.ruta}: ${aceite.aceite}`"
-          >
-            {{ aceite.ruta }} · {{ aceite.aceite }}
-          </span>
-        </div>
-      </section>
       <p v-if="errorCambioEstado" class="mt-3 text-xs text-danger" role="alert">
         {{ errorCambioEstado }}
       </p>
-      <div class="my-3 flex flex-wrap items-center gap-2 text-xs">
-        <p class="whitespace-nowrap text-gray-500">
-          Total filtros: <b class="text-main">{{ filtros.length }}</b>
-        </p>
-        <button
-          type="button"
-          class="cursor-pointer inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-medium transition"
-          :class="
-            hayFiltrosDeListadoActivos
-              ? 'border-second-deep bg-second text-main hover:bg-second-dark'
-              : 'border-gray-200 text-gray-600 hover:border-main/40 hover:text-main'
-          "
-          :aria-expanded="opcionesDeListadoAbiertas"
-          aria-controls="opciones-de-listado"
-          :title="
-            hayFiltrosDeListadoActivos
-              ? `${cantidadFiltrosDeListadoActivos} filtro(s) aplicado(s)`
-              : 'Mostrar filtros de listado'
-          "
-          @click="opcionesDeListadoAbiertas = !opcionesDeListadoAbiertas"
-        >
-          Mostrar por
-          <span
-            v-if="hayFiltrosDeListadoActivos && !opcionesDeListadoAbiertas"
-            class="h-1.5 w-1.5 rounded-full bg-second-deep"
-            aria-hidden="true"
-          />
-          <span
-            v-if="hayFiltrosDeListadoActivos && !opcionesDeListadoAbiertas"
-            class="sr-only"
-          >
-            {{ cantidadFiltrosDeListadoActivos }} filtro(s) aplicado(s)
-          </span>
-        </button>
-        <button
-          v-if="canEditFiltrosEngrase"
-          type="button"
-          class="cursor-pointer rounded-md border border-gray-200 p-1 text-main transition hover:border-main/40 hover:bg-main/10"
-          aria-label="Editar equipo y estructura de lubricación"
-          title="Editar estructura de lubricación"
-          @click="emit('editarEquipo', equipo.codigo)"
-        >
-          <SquarePen class="h-4 w-4" />
-        </button>
-      </div>
       <div
-        id="opciones-de-listado"
-        v-show="opcionesDeListadoAbiertas"
-        class="mb-3"
+        class="mt-3 flex border-b border-gray-200"
+        role="tablist"
+        aria-label="Información del equipo"
       >
-        <div class="flex flex-wrap items-center gap-2 text-xs">
-          <button
-            type="button"
-            class="cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 transition"
-            :class="
-              soloConEquivalencias
-                ? 'border-main bg-main/10 text-main'
-                : 'border-gray-200 text-gray-600 hover:border-main/40'
-            "
-            :aria-pressed="soloConEquivalencias"
-            @click="soloConEquivalencias = !soloConEquivalencias"
-          >
-            Con equivalencias
-            <span class="font-semibold">{{
-              filtros.filter((x) => (equivalencias[x.filtro_id] ?? []).length)
-                .length
-            }}</span>
-          </button>
-          <button
-            type="button"
-            class="cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 transition"
-            :class="
-              soloEnCompras
-                ? 'border-main bg-main/10 text-main'
-                : 'border-gray-200 text-gray-600 hover:border-main/40'
-            "
-            :aria-pressed="soloEnCompras"
-            @click="soloEnCompras = !soloEnCompras"
-          >
-            En compras
-            <span class="font-semibold">{{
-              filtros.filter((x) => x.filtro.esta_en_lista_compras).length
-            }}</span>
-          </button>
-        </div>
-        <div aria-hidden="true" class="my-3 border-t border-gray-200" />
-        <div
-          v-if="gruposDeFiltros.length"
-          class="flex flex-wrap gap-2"
-          aria-label="Filtrar filtros por grupo"
-        >
-          <button
-            v-for="grupo in gruposDeFiltros"
-            :key="grupo.grupo"
-            type="button"
-            class="cursor-pointer flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-1 text-xs transition"
-            :class="
-              grupoSeleccionado === grupo.grupo
-                ? 'border-main bg-main/10 text-main'
-                : 'border-gray-200 text-gray-600 hover:border-main/40'
-            "
-            :aria-pressed="grupoSeleccionado === grupo.grupo"
-            @click="alternarGrupo(grupo.grupo)"
-          >
-            <component
-              :is="grupo.icono"
-              class="h-3.5 w-3.5 shrink-0"
-              aria-hidden="true"
-            />
-            <span>{{ grupo.nombreGrupo }}</span>
-            <span class="font-semibold">{{ grupo.cantidad }}</span>
-          </button>
-        </div>
-      </div>
-      <p v-if="loading" class="p-4 text-center text-xs text-gray-500">
-        Cargando filtros…
-      </p>
-      <p v-else-if="error" class="p-4 text-center text-xs text-danger">
-        {{ error }}
         <button
-          class="cursor-pointer font-semibold underline"
-          @click="$emit('retry')"
-        >
-          Reintentar
-        </button>
-      </p>
-      <p
-        v-else-if="!filtros.length"
-        class="p-4 text-center text-xs text-gray-500"
-      >
-        Este equipo no tiene filtros asignados.
-      </p>
-      <div v-else class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        <button
-          v-for="filtro in filtrosVisibles"
-          :key="filtro.id"
-          class="cursor-pointer rounded-md border p-2 text-left text-xs transition hover:border-main/40"
+          type="button"
+          id="tab-filtros-equipo"
+          role="tab"
+          class="cursor-pointer border-b-2 px-3 py-2 text-xs font-semibold transition"
           :class="
-            selectedFiltroId === filtro.id
-              ? 'border-main bg-main/5'
-              : 'border-gray-200'
+            pestanaActiva === 'filtros'
+              ? 'border-main text-main'
+              : 'border-transparent text-gray-500 hover:border-main/30 hover:text-main'
           "
-          :aria-selected="selectedFiltroId === filtro.id"
-          @click="$emit('selectFiltro', filtro.id)"
+          :aria-selected="pestanaActiva === 'filtros'"
+          aria-controls="panel-filtros-equipo"
+          @click="pestanaActiva = 'filtros'"
         >
-          <strong class="flex items-center gap-1.5 text-sm text-main">
-            <component
-              :is="obtenerIconoTipoFiltro(filtro.tipoFiltro.nombre).icono"
-              class="h-4 w-4 shrink-0"
-              aria-hidden="true"
-            />
-            {{ filtro.tipoFiltro.nombre }}
-          </strong>
-          <dl class="mt-2 grid grid-cols-2 gap-y-1 text-gray-500">
-            <dt>Código original</dt>
-            <dd class="text-right font-mono">
-              <span
-                class="inline-block rounded px-1 font-bold text-main"
-                :class="{ 'codigo-buscado': coincideConBusqueda(filtro) }"
-                >{{ filtro.filtro.codigo }}</span
-              >
-            </dd>
-            <dt>Cantidad</dt>
-            <dd class="text-right">x{{ filtro.cantidad }}</dd>
-            <dt>Equivalencias</dt>
-            <dd class="text-right">
-              {{ (equivalencias[filtro.filtro_id] ?? []).length }}
-            </dd>
-            <dt>En compras</dt>
-            <dd class="text-right">
-              {{ filtro.filtro.esta_en_lista_compras ? "Sí" : "No" }}
-            </dd>
-          </dl>
+          Filtros <span class="ml-1 text-gray-500">{{ filtros.length }}</span>
+        </button>
+        <button
+          type="button"
+          id="tab-aceites-equipo"
+          role="tab"
+          class="cursor-pointer border-b-2 px-3 py-2 text-xs font-semibold transition"
+          :class="
+            pestanaActiva === 'aceites'
+              ? 'border-main text-main'
+              : 'border-transparent text-gray-500 hover:border-main/30 hover:text-main'
+          "
+          :aria-selected="pestanaActiva === 'aceites'"
+          aria-controls="panel-aceites-equipo"
+          @click="pestanaActiva = 'aceites'"
+        >
+          Aceites <span class="ml-1 text-gray-500">{{ aceites.length }}</span>
         </button>
       </div>
+      <section
+        v-if="pestanaActiva === 'filtros'"
+        id="panel-filtros-equipo"
+        class="pt-3"
+        role="tabpanel"
+        aria-labelledby="tab-filtros-equipo"
+      >
+        <div class="mb-3 flex flex-wrap items-center gap-2 text-xs">
+          <p class="whitespace-nowrap text-gray-500">
+            Total filtros: <b class="text-main">{{ filtros.length }}</b>
+          </p>
+          <button
+            type="button"
+            class="cursor-pointer inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-medium transition"
+            :class="
+              hayFiltrosDeListadoActivos
+                ? 'border-second-deep bg-second text-main hover:bg-second-dark'
+                : 'border-gray-200 text-gray-600 hover:border-main/40 hover:text-main'
+            "
+            :aria-expanded="opcionesDeListadoAbiertas"
+            aria-controls="opciones-de-listado"
+            :title="
+              hayFiltrosDeListadoActivos
+                ? `${cantidadFiltrosDeListadoActivos} filtro(s) aplicado(s)`
+                : 'Mostrar filtros de listado'
+            "
+            @click="opcionesDeListadoAbiertas = !opcionesDeListadoAbiertas"
+          >
+            Mostrar por
+            <span
+              v-if="hayFiltrosDeListadoActivos && !opcionesDeListadoAbiertas"
+              class="h-1.5 w-1.5 rounded-full bg-second-deep"
+              aria-hidden="true"
+            />
+            <span
+              v-if="hayFiltrosDeListadoActivos && !opcionesDeListadoAbiertas"
+              class="sr-only"
+            >
+              {{ cantidadFiltrosDeListadoActivos }} filtro(s) aplicado(s)
+            </span>
+          </button>
+          <button
+            v-if="canEditFiltrosEngrase"
+            type="button"
+            class="cursor-pointer rounded-md border border-gray-200 p-1 text-main transition hover:border-main/40 hover:bg-main/10"
+            aria-label="Editar equipo y estructura de lubricación"
+            title="Editar estructura de lubricación"
+            @click="emit('editarEquipo', equipo.codigo)"
+          >
+            <SquarePen class="h-4 w-4" />
+          </button>
+        </div>
+        <div
+          id="opciones-de-listado"
+          v-show="opcionesDeListadoAbiertas"
+          class="mb-3"
+        >
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <button
+              type="button"
+              class="cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 transition"
+              :class="
+                soloConEquivalencias
+                  ? 'border-main bg-main/10 text-main'
+                  : 'border-gray-200 text-gray-600 hover:border-main/40'
+              "
+              :aria-pressed="soloConEquivalencias"
+              @click="soloConEquivalencias = !soloConEquivalencias"
+            >
+              Con equivalencias
+              <span class="font-semibold">{{
+                filtros.filter((x) => (equivalencias[x.filtro_id] ?? []).length)
+                  .length
+              }}</span>
+            </button>
+            <button
+              type="button"
+              class="cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 transition"
+              :class="
+                soloEnCompras
+                  ? 'border-main bg-main/10 text-main'
+                  : 'border-gray-200 text-gray-600 hover:border-main/40'
+              "
+              :aria-pressed="soloEnCompras"
+              @click="soloEnCompras = !soloEnCompras"
+            >
+              En compras
+              <span class="font-semibold">{{
+                filtros.filter((x) => x.filtro.esta_en_lista_compras).length
+              }}</span>
+            </button>
+          </div>
+          <div aria-hidden="true" class="my-3 border-t border-gray-200" />
+          <div
+            v-if="gruposDeFiltros.length"
+            class="flex flex-wrap gap-2"
+            aria-label="Filtrar filtros por grupo"
+          >
+            <button
+              v-for="grupo in gruposDeFiltros"
+              :key="grupo.grupo"
+              type="button"
+              class="cursor-pointer flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-1 text-xs transition"
+              :class="
+                grupoSeleccionado === grupo.grupo
+                  ? 'border-main bg-main/10 text-main'
+                  : 'border-gray-200 text-gray-600 hover:border-main/40'
+              "
+              :aria-pressed="grupoSeleccionado === grupo.grupo"
+              @click="alternarGrupo(grupo.grupo)"
+            >
+              <component
+                :is="grupo.icono"
+                class="h-3.5 w-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              <span>{{ grupo.nombreGrupo }}</span>
+              <span class="font-semibold">{{ grupo.cantidad }}</span>
+            </button>
+          </div>
+        </div>
+        <p v-if="loading" class="p-4 text-center text-xs text-gray-500">
+          Cargando filtros…
+        </p>
+        <p v-else-if="error" class="p-4 text-center text-xs text-danger">
+          {{ error }}
+          <button
+            class="cursor-pointer font-semibold underline"
+            @click="$emit('retry')"
+          >
+            Reintentar
+          </button>
+        </p>
+        <p
+          v-else-if="!filtros.length"
+          class="p-4 text-center text-xs text-gray-500"
+        >
+          Este equipo no tiene filtros asignados.
+        </p>
+        <div v-else class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <button
+            v-for="filtro in filtrosVisibles"
+            :key="filtro.id"
+            class="cursor-pointer rounded-md border p-2 text-left text-xs transition hover:border-main/40"
+            :class="
+              selectedFiltroId === filtro.id
+                ? 'border-main bg-main/5'
+                : 'border-gray-200'
+            "
+            :aria-selected="selectedFiltroId === filtro.id"
+            @click="$emit('selectFiltro', filtro.id)"
+          >
+            <strong class="flex items-center gap-1.5 text-sm text-main">
+              <component
+                :is="obtenerIconoTipoFiltro(filtro.tipoFiltro.nombre).icono"
+                class="h-4 w-4 shrink-0"
+                aria-hidden="true"
+              />
+              {{ filtro.tipoFiltro.nombre }}
+            </strong>
+            <dl class="mt-2 grid grid-cols-2 gap-y-1 text-gray-500">
+              <dt>Código original</dt>
+              <dd class="text-right font-mono">
+                <span
+                  class="inline-block rounded px-1 font-bold text-main"
+                  :class="{ 'codigo-buscado': coincideConBusqueda(filtro) }"
+                  >{{ filtro.filtro.codigo }}</span
+                >
+              </dd>
+              <dt>Cantidad</dt>
+              <dd class="text-right">x{{ filtro.cantidad }}</dd>
+              <dt>Equivalencias</dt>
+              <dd class="text-right">
+                {{ (equivalencias[filtro.filtro_id] ?? []).length }}
+              </dd>
+              <dt>En compras</dt>
+              <dd class="text-right">
+                {{ filtro.filtro.esta_en_lista_compras ? "Sí" : "No" }}
+              </dd>
+            </dl>
+          </button>
+        </div>
+      </section>
+      <FiltrosEquipoAceitesPanel
+        v-else
+        id="panel-aceites-equipo"
+        :aceites="aceites"
+        :can-edit="canEditFiltrosEngrase"
+        role="tabpanel"
+        aria-labelledby="tab-aceites-equipo"
+        @edit="emit('editarEquipo', equipo.codigo)"
+      />
     </template>
     <p v-else class="p-4 text-center text-xs text-gray-500">
       Seleccione un equipo para ver sus filtros.
