@@ -4,11 +4,12 @@ import { Plus } from "lucide-vue-next";
 import VueMultiselect from "vue-multiselect";
 import type { CatalogoActivo } from "@/stores/dbequipos/engrase/shared/estructuraLubricacion.types";
 import type {
+  CatalogoEstructura,
   ErrorValidacionEstructura,
   NodoEstructuraArbol,
 } from "@/stores/dbequipos/engrase/shared/estructuraLubricacion.draft.types";
 
-type DrawerMode = "root" | "child" | "oil" | "move";
+type DrawerMode = "root" | "child" | "catalog" | "oil";
 type PendingCatalogOption = {
   key: string;
   nombre: string;
@@ -20,36 +21,58 @@ type NoOilOption = {
   activo: true;
   noOil: true;
 };
-type CatalogOption = CatalogoActivo | PendingCatalogOption;
-type OilOption = CatalogoActivo | NoOilOption;
+type CatalogOption = CatalogoEstructura | PendingCatalogOption;
+type OilOption = CatalogoEstructura | PendingCatalogOption | NoOilOption;
 type DrawerConfirm =
-  | { mode: "root"; sistema: CatalogoActivo; aceite: CatalogoActivo | null }
-  | { mode: "root-new-system"; nombre: string; aceite: CatalogoActivo | null }
+  | { mode: "root"; sistema: CatalogoActivo; aceite: CatalogoEstructura | null }
+  | {
+      mode: "root-new-system";
+      nombre: string;
+      aceite: CatalogoEstructura | null;
+    }
   | {
       mode: "child";
       parentLocalId: string;
       subsistema: CatalogoActivo;
-      aceite: CatalogoActivo | null;
+      aceite: CatalogoEstructura | null;
+    }
+  | {
+      mode: "catalog";
+      localId: string;
+      catalogo: CatalogoEstructura;
+      aceite: CatalogoEstructura | null;
+      aceiteNuevoNombre: string | null;
+    }
+  | {
+      mode: "catalog-new";
+      localId: string;
+      nombre: string;
+      aceite: CatalogoEstructura | null;
+      aceiteNuevoNombre: string | null;
     }
   | {
       mode: "child-new-subsystem";
       parentLocalId: string;
       nombre: string;
-      aceite: CatalogoActivo | null;
+      aceite: CatalogoEstructura | null;
     }
-  | { mode: "oil"; localId: string; aceite: CatalogoActivo | null }
-  | { mode: "move"; localId: string; nuevoPadreLocalId: string };
+  | { mode: "oil"; localId: string; aceite: CatalogoEstructura | null }
+  | { mode: "oil-new"; localId: string; nombre: string };
 const props = defineProps<{
   mode: DrawerMode;
   node: NodoEstructuraArbol | null;
+  nodos?: NodoEstructuraArbol[];
   sistemas: CatalogoActivo[];
   subsistemas: CatalogoActivo[];
   aceites: CatalogoActivo[];
-  movementOptions: NodoEstructuraArbol[];
   errors: ErrorValidacionEstructura[];
 }>();
 const emit = defineEmits<{ close: []; confirm: [DrawerConfirm] }>();
-const selectedCatalog = shallowRef<CatalogOption | null>(null);
+const selectedCatalog = shallowRef<CatalogOption | null>(
+  props.mode === "catalog"
+    ? (props.node?.sistema ?? props.node?.subsistema)
+    : null,
+);
 const noOilOption: NoOilOption = {
   id: Number.MIN_SAFE_INTEGER,
   nombre: "Sin aceite",
@@ -57,30 +80,61 @@ const noOilOption: NoOilOption = {
   noOil: true,
 };
 const selectedOil = shallowRef<OilOption>(
-  props.mode === "oil" && props.node?.aceite ? props.node.aceite : noOilOption,
+  (props.mode === "oil" || props.mode === "catalog") && props.node?.aceite
+    ? props.node.aceite
+    : noOilOption,
 );
-const selectedParent = shallowRef<NodoEstructuraArbol | null>(null);
 const tagSearch = shallowRef("");
 const pendingCatalog = shallowRef<PendingCatalogOption | null>(null);
+const pendingOil = shallowRef<PendingCatalogOption | null>(null);
 const titleRef = useTemplateRef<HTMLElement>("title");
 const title = computed(() =>
   props.mode === "root"
     ? "Agregar sistema"
     : props.mode === "child"
       ? "Agregar subsistema"
-      : props.mode === "move"
-        ? "Mover subsistema"
+      : props.mode === "catalog"
+        ? props.node?.sistema
+          ? "Cambiar sistema"
+          : "Cambiar subsistema"
         : props.node?.aceite
           ? "Cambiar aceite"
           : "Asignar aceite",
 );
 const catalogBaseOptions = computed<CatalogoActivo[]>(() =>
-  props.mode === "root" ? props.sistemas : props.subsistemas,
+  props.mode === "root" ||
+  (props.mode === "catalog" && props.node?.sistema !== null)
+    ? props.sistemas
+    : props.subsistemas,
+);
+const nodosLocales = computed<NodoEstructuraArbol[]>(() => {
+  const aplanar = (
+    nodos: readonly NodoEstructuraArbol[],
+  ): NodoEstructuraArbol[] =>
+    nodos.flatMap((nodo) => [nodo, ...aplanar(nodo.hijos)]);
+  return aplanar(props.nodos ?? []);
+});
+const catalogosLocales = computed<CatalogoEstructura[]>(() =>
+  nodosLocales.value.flatMap((nodo) => {
+    const catalogo =
+      props.mode === "root" ||
+      (props.mode === "catalog" && props.node?.sistema !== null)
+        ? nodo.sistema
+        : nodo.subsistema;
+    return catalogo?.id === null ? [catalogo] : [];
+  }),
+);
+const aceitesLocales = computed<CatalogoEstructura[]>(() =>
+  nodosLocales.value.flatMap((nodo) =>
+    nodo.aceite?.id === null ? [nodo.aceite] : [],
+  ),
 );
 const catalogOptions = computed<CatalogOption[]>(() =>
-  props.mode === "root" || props.mode === "child"
+  props.mode === "root" || props.mode === "child" || props.mode === "catalog"
     ? [
         ...catalogBaseOptions.value,
+        ...catalogosLocales.value,
+        ...(selectedCatalog.value?.id === null ? [selectedCatalog.value] : []),
         ...(pendingCatalog.value ? [pendingCatalog.value] : []),
         ...(tagSearch.value.trim() &&
         !pendingCatalog.value &&
@@ -94,11 +148,25 @@ const catalogOptions = computed<CatalogOption[]>(() =>
       ]
     : [],
 );
-const oilOptions = computed<OilOption[]>(() => [noOilOption, ...props.aceites]);
+const oilOptions = computed<OilOption[]>(() => [
+  noOilOption,
+  ...props.aceites,
+  ...aceitesLocales.value,
+  ...(pendingOil.value ? [pendingOil.value] : []),
+  ...(tagSearch.value.trim() &&
+  !pendingOil.value &&
+  !props.aceites.some(
+    (aceite) =>
+      normalizarNombreCatalogo(aceite.nombre) ===
+      normalizarNombreCatalogo(tagSearch.value),
+  )
+    ? [crearOpcionCatalogo(tagSearch.value)]
+    : []),
+]);
 const errorId = "estructura-lubricacion-drawer-errors";
 const description = computed(() =>
   props.node
-    ? `${props.mode === "child" ? "Dentro de" : props.mode === "move" ? "Mover" : "Ubicación"}: ${props.node.ruta}`
+    ? `${props.mode === "child" ? "Dentro de" : "Ubicación"}: ${props.node.ruta}`
     : "Ubicación raíz de la estructura de lubricación.",
 );
 onMounted(() => nextTick(() => titleRef.value?.focus()));
@@ -110,8 +178,16 @@ function isPendingCatalog(
 ): option is PendingCatalogOption {
   return "pendingCreation" in option;
 }
+function isCatalogoNuevo(
+  option: CatalogOption,
+): option is Extract<CatalogoEstructura, { id: null }> {
+  return !isPendingCatalog(option) && option.id === null;
+}
 function isNoOil(option: OilOption): option is NoOilOption {
   return "noOil" in option;
+}
+function isPendingOil(option: OilOption): option is PendingCatalogOption {
+  return "pendingCreation" in option;
 }
 function crearOpcionCatalogo(name: string): PendingCatalogOption {
   const normalized = normalizarNombreCatalogo(name);
@@ -131,11 +207,23 @@ function selectCatalog(option: CatalogOption): void {
     tagSearch.value = "";
   }
 }
+function selectOil(option: OilOption): void {
+  if (isPendingOil(option)) {
+    pendingOil.value = option;
+    selectedOil.value = option;
+    tagSearch.value = "";
+  }
+}
 function updateTagSearch(search: string): void {
   tagSearch.value = search;
 }
-function selectedOilValue(): CatalogoActivo | null {
-  return isNoOil(selectedOil.value) ? null : selectedOil.value;
+function selectedOilValue(): CatalogoEstructura | null {
+  return isNoOil(selectedOil.value) || isPendingOil(selectedOil.value)
+    ? null
+    : selectedOil.value;
+}
+function aceiteNuevoNombre(): string | null {
+  return isPendingOil(selectedOil.value) ? selectedOil.value.nombre : null;
 }
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === "Escape") {
@@ -168,6 +256,12 @@ function confirm(): void {
         nombre: selectedCatalog.value.nombre,
         aceite: selectedOilValue(),
       });
+    else if (isCatalogoNuevo(selectedCatalog.value))
+      emit("confirm", {
+        mode: "root-new-system",
+        nombre: selectedCatalog.value.nombre,
+        aceite: selectedOilValue(),
+      });
     else
       emit("confirm", {
         mode: "root",
@@ -175,8 +269,15 @@ function confirm(): void {
         aceite: selectedOilValue(),
       });
   }
-  if (props.mode === "child" && selectedCatalog.value && props.node)
+  if (props.mode === "child" && selectedCatalog.value && props.node) {
     if (isPendingCatalog(selectedCatalog.value))
+      emit("confirm", {
+        mode: "child-new-subsystem",
+        parentLocalId: props.node.localId,
+        nombre: selectedCatalog.value.nombre,
+        aceite: selectedOilValue(),
+      });
+    else if (isCatalogoNuevo(selectedCatalog.value))
       emit("confirm", {
         mode: "child-new-subsystem",
         parentLocalId: props.node.localId,
@@ -190,18 +291,46 @@ function confirm(): void {
         subsistema: selectedCatalog.value,
         aceite: selectedOilValue(),
       });
+  }
+  if (props.mode === "catalog" && selectedCatalog.value && props.node) {
+    if (isPendingCatalog(selectedCatalog.value))
+      emit("confirm", {
+        mode: "catalog-new",
+        localId: props.node.localId,
+        nombre: selectedCatalog.value.nombre,
+        aceite: selectedOilValue(),
+        aceiteNuevoNombre: aceiteNuevoNombre(),
+      });
+    else if (isCatalogoNuevo(selectedCatalog.value))
+      emit("confirm", {
+        mode: "catalog-new",
+        localId: props.node.localId,
+        nombre: selectedCatalog.value.nombre,
+        aceite: selectedOilValue(),
+        aceiteNuevoNombre: aceiteNuevoNombre(),
+      });
+    else
+      emit("confirm", {
+        mode: "catalog",
+        localId: props.node.localId,
+        catalogo: selectedCatalog.value,
+        aceite: selectedOilValue(),
+        aceiteNuevoNombre: aceiteNuevoNombre(),
+      });
+  }
   if (props.mode === "oil" && props.node)
-    emit("confirm", {
-      mode: "oil",
-      localId: props.node.localId,
-      aceite: selectedOilValue(),
-    });
-  if (props.mode === "move" && props.node && selectedParent.value)
-    emit("confirm", {
-      mode: "move",
-      localId: props.node.localId,
-      nuevoPadreLocalId: selectedParent.value.localId,
-    });
+    if (isPendingOil(selectedOil.value))
+      emit("confirm", {
+        mode: "oil-new",
+        localId: props.node.localId,
+        nombre: selectedOil.value.nombre,
+      });
+    else
+      emit("confirm", {
+        mode: "oil",
+        localId: props.node.localId,
+        aceite: selectedOilValue(),
+      });
 }
 </script>
 
@@ -233,27 +362,11 @@ function confirm(): void {
           {{ errors.map((error) => error.mensaje).join(" ") }}
         </p>
         <div class="mt-4 grid gap-3">
-          <div v-if="mode === 'move'" class="grid gap-1">
-            <span id="estructura-nuevo-padre" class="text-xs font-semibold"
-              >Nuevo padre *</span
-            ><VueMultiselect
-              v-model="selectedParent"
-              :options="movementOptions"
-              track-by="localId"
-              label="ruta"
-              :allow-empty="false"
-              :close-on-select="true"
-              :clear-on-select="true"
-              :show-labels="false"
-              aria-labelledby="estructura-nuevo-padre"
-              placeholder="Seleccione el nuevo padre"
-              ><template #noOptions>No hay ubicaciones disponibles.</template
-              ><template #noResult>Sin coincidencias.</template></VueMultiselect
-            >
-          </div>
-          <div v-else-if="mode !== 'oil'" class="grid gap-1">
+          <div v-if="mode !== 'oil'" class="grid gap-1">
             <span id="estructura-catalogo" class="text-xs font-semibold">{{
-              mode === "root" ? "Sistema *" : "Subsistema *"
+              mode === "root" || (mode === "catalog" && node?.sistema)
+                ? "Sistema *"
+                : "Subsistema *"
             }}</span
             ><VueMultiselect
               v-model="selectedCatalog"
@@ -274,7 +387,12 @@ function confirm(): void {
                 <div v-if="option.pendingCreation" class="create-system-option">
                   <Plus class="h-4 w-4" aria-hidden="true" />Agregar “{{
                     option.nombre
-                  }}” como {{ mode === "root" ? "sistema" : "subsistema" }}
+                  }}” como
+                  {{
+                    mode === "root" || (mode === "catalog" && node?.sistema)
+                      ? "sistema"
+                      : "subsistema"
+                  }}
                   nuevo
                 </div>
                 <span v-else>{{ option.nombre }}</span> </template
@@ -286,7 +404,7 @@ function confirm(): void {
               </template></VueMultiselect
             >
           </div>
-          <div v-if="mode !== 'move'" class="grid gap-1">
+          <div class="grid gap-1">
             <span id="estructura-aceite" class="text-xs font-semibold"
               >Aceite</span
             ><VueMultiselect
@@ -301,6 +419,8 @@ function confirm(): void {
               aria-labelledby="estructura-aceite"
               :aria-describedby="errors.length ? errorId : undefined"
               placeholder="Seleccione un aceite"
+              @search-change="updateTagSearch"
+              @select="selectOil"
               ><template #option="{ option }">
                 <span :class="{ 'oil-none-option': option.noOil }">
                   {{ option.nombre }}
@@ -319,20 +439,11 @@ function confirm(): void {
             Cancelar</button
           ><button
             type="button"
-            :disabled="
-              (mode !== 'oil' && mode !== 'move' && !selectedCatalog) ||
-              (mode === 'move' && !selectedParent)
-            "
+            :disabled="mode !== 'oil' && !selectedCatalog"
             class="min-h-11 cursor-pointer rounded-md bg-main text-white disabled:cursor-not-allowed disabled:opacity-50"
             @click="confirm"
           >
-            {{
-              mode === "oil"
-                ? "Guardar aceite"
-                : mode === "move"
-                  ? "Mover"
-                  : title
-            }}
+            {{ mode === "catalog" ? "Actualizar" : "Guardar" }}
           </button>
         </footer>
       </aside>

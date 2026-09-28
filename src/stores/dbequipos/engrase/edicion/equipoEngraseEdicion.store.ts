@@ -1,8 +1,6 @@
 import { computed, ref, shallowRef, toRaw } from "vue";
 import { defineStore } from "pinia";
 import { useFiltrosEngraseStore } from "../filtrosEngrase.store";
-import { sistemasCatalogoService } from "../catalogo/sistemasCatalogo.service";
-import { subsistemasCatalogoService } from "../catalogo/subsistemasCatalogo.service";
 import { extraerCodigoErrorEdicionEquipo } from "./equipoEngraseEdicion.errors";
 import { equipoEngraseEdicionService } from "./equipoEngraseEdicion.service";
 import { crearTempId } from "./equipoEngraseEdicion.tempIds";
@@ -19,20 +17,23 @@ import {
   agregarHijoEstructura,
   agregarRaizEstructura,
   actualizarAceiteNodo as actualizarAceiteNodoEstructura,
+  actualizarCatalogoNodo as actualizarCatalogoNodoEstructura,
   crearBorradorEstructura,
   deshacerEliminacionNodo as deshacerEliminacionNodoEstructura,
   marcarNodoParaEliminar,
-  moverNodoEstructura,
   obtenerSubarbolActivo,
 } from "../shared/estructuraLubricacion.draft";
 import type {
   AgregarHijoEstructuraInput,
   AgregarRaizEstructuraInput,
   ActualizarNodoEstructuraInput,
-  MoverNodoEstructuraInput,
+  ActualizarCatalogoNodoInput,
   ResultadoMutacionEstructura,
 } from "../shared/estructuraLubricacion.draft.types";
-import type { CatalogoActivo } from "../shared/estructuraLubricacion.types";
+import type {
+  CatalogoEstructura,
+  CatalogoEstructuraNuevo,
+} from "../shared/estructuraLubricacion.draft.types";
 import type { ImagenSyncState } from "./equipoEngraseImagen.types";
 import type {
   AuxiliaresEdicionEquipo,
@@ -73,6 +74,12 @@ const claveTexto = (valor: string): string =>
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLocaleLowerCase();
+const crearCatalogoTemporal = (nombre: string): CatalogoEstructuraNuevo => ({
+  id: null,
+  tempId: crearTempId("catalogo_estructura"),
+  nombre: normalizarTexto(nombre),
+  activo: true,
+});
 const clonarTipoEquipoReferencia = (
   referencia: TipoEquipoDraftReference,
 ): TipoEquipoDraftReference =>
@@ -605,8 +612,20 @@ export const useEquipoEngraseEdicionStore = defineStore(
     }
     function aplicarEstructura(
       resultado: ResultadoMutacionEstructura,
+      fieldId?: string,
     ): boolean {
-      if (!draft.value || !resultado.ok) return false;
+      if (!draft.value) return false;
+      if (!resultado.ok) {
+        validationErrors.value = [
+          {
+            codigo: resultado.codigo,
+            mensaje: resultado.mensaje,
+            seccion: "estructura-lubricacion",
+            ...(fieldId ? { fieldId } : {}),
+          },
+        ];
+        return false;
+      }
       draft.value.estructuraSistemas = resultado.nodos;
       validationErrors.value = [];
       return true;
@@ -622,76 +641,25 @@ export const useEquipoEngraseEdicionStore = defineStore(
           )
         : false;
     }
-    async function crearSistemaYAgregarRaiz(input: {
+    function crearSistemaYAgregarRaiz(input: {
       nombre: string;
-      aceite: CatalogoActivo | null;
-    }): Promise<boolean> {
-      if (!auxiliares.value) return false;
-      try {
-        const resultado = await sistemasCatalogoService.guardar({
-          id: null,
-          nombre: normalizarTexto(input.nombre),
-          activo: true,
-        });
-        const sistema: CatalogoActivo = {
-          id: resultado.item.id,
-          nombre: resultado.item.nombre,
-          activo: resultado.item.activo,
-        };
-        auxiliares.value = {
-          ...auxiliares.value,
-          sistemas: [...auxiliares.value.sistemas, sistema],
-        };
-        return agregarSistemaRaiz({ sistema, aceite: input.aceite });
-      } catch {
-        validationErrors.value = [
-          {
-            codigo: "SISTEMA_NO_CREADO",
-            mensaje:
-              "No se pudo crear el sistema. Verifica el nombre e inténtalo nuevamente.",
-            seccion: "estructura-lubricacion",
-          },
-        ];
-        return false;
-      }
+      aceite: CatalogoEstructura | null;
+    }): boolean {
+      return agregarSistemaRaiz({
+        sistema: crearCatalogoTemporal(input.nombre),
+        aceite: input.aceite,
+      });
     }
-    async function crearSubsistemaYAgregarHijo(input: {
+    function crearSubsistemaYAgregarHijo(input: {
       parentLocalId: string;
       nombre: string;
-      aceite: CatalogoActivo | null;
-    }): Promise<boolean> {
-      if (!auxiliares.value) return false;
-      try {
-        const resultado = await subsistemasCatalogoService.guardar({
-          id: null,
-          nombre: normalizarTexto(input.nombre),
-          activo: true,
-        });
-        const subsistema: CatalogoActivo = {
-          id: resultado.item.id,
-          nombre: resultado.item.nombre,
-          activo: resultado.item.activo,
-        };
-        auxiliares.value = {
-          ...auxiliares.value,
-          subsistemas: [...auxiliares.value.subsistemas, subsistema],
-        };
-        return agregarSubsistema({
-          parentLocalId: input.parentLocalId,
-          subsistema,
-          aceite: input.aceite,
-        });
-      } catch {
-        validationErrors.value = [
-          {
-            codigo: "SUBSISTEMA_NO_CREADO",
-            mensaje:
-              "No se pudo crear el subsistema. Verifica el nombre e inténtalo nuevamente.",
-            seccion: "estructura-lubricacion",
-          },
-        ];
-        return false;
-      }
+      aceite: CatalogoEstructura | null;
+    }): boolean {
+      return agregarSubsistema({
+        parentLocalId: input.parentLocalId,
+        subsistema: crearCatalogoTemporal(input.nombre),
+        aceite: input.aceite,
+      });
     }
     function agregarSubsistema(input: AgregarHijoEstructuraInput): boolean {
       return draft.value && auxiliares.value
@@ -701,6 +669,7 @@ export const useEquipoEngraseEdicionStore = defineStore(
               input,
               auxiliares.value,
             ),
+            input.parentLocalId,
           )
         : false;
     }
@@ -714,18 +683,63 @@ export const useEquipoEngraseEdicionStore = defineStore(
               input,
               auxiliares.value,
             ),
+            input.localId,
           )
         : false;
+    }
+    function actualizarCatalogoNodo(
+      input: ActualizarCatalogoNodoInput,
+    ): boolean {
+      return draft.value && auxiliares.value
+        ? aplicarEstructura(
+            actualizarCatalogoNodoEstructura(
+              draft.value.estructuraSistemas,
+              input,
+              auxiliares.value,
+            ),
+            input.localId,
+          )
+        : false;
+    }
+    function crearYActualizarCatalogoNodo(input: {
+      localId: string;
+      nombre: string;
+      aceite: CatalogoEstructura | null;
+      aceiteNuevoNombre: string | null;
+    }): boolean {
+      return actualizarCatalogoNodo({
+        localId: input.localId,
+        catalogo: crearCatalogoTemporal(input.nombre),
+        aceite: input.aceiteNuevoNombre
+          ? crearCatalogoTemporal(input.aceiteNuevoNombre)
+          : input.aceite,
+      });
+    }
+    function actualizarNodoEstructura(input: {
+      localId: string;
+      catalogo: CatalogoEstructura;
+      aceite: CatalogoEstructura | null;
+      aceiteNuevoNombre: string | null;
+    }): boolean {
+      return actualizarCatalogoNodo({
+        localId: input.localId,
+        catalogo: input.catalogo,
+        aceite: input.aceiteNuevoNombre
+          ? crearCatalogoTemporal(input.aceiteNuevoNombre)
+          : input.aceite,
+      });
+    }
+    function crearYActualizarAceiteNodo(input: {
+      localId: string;
+      nombre: string;
+    }): boolean {
+      return actualizarAceiteNodo({
+        localId: input.localId,
+        aceite: crearCatalogoTemporal(input.nombre),
+      });
     }
     function quitarAceiteNodo(localId: string): boolean {
       return actualizarAceiteNodo({ localId, aceite: null });
-    }
-    function moverNodo(input: MoverNodoEstructuraInput): boolean {
-      return draft.value
-        ? aplicarEstructura(
-            moverNodoEstructura(draft.value.estructuraSistemas, input),
-          )
-        : false;
     }
     function obtenerSubarbolParaEliminar(localId: string) {
       return draft.value
@@ -746,6 +760,7 @@ export const useEquipoEngraseEdicionStore = defineStore(
               draft.value.estructuraSistemas,
               localId,
             ),
+            localId,
           )
         : false;
     }
@@ -906,8 +921,11 @@ export const useEquipoEngraseEdicionStore = defineStore(
       crearSubsistemaYAgregarHijo,
       agregarSubsistema,
       actualizarAceiteNodo,
+      actualizarCatalogoNodo,
+      crearYActualizarCatalogoNodo,
+      actualizarNodoEstructura,
+      crearYActualizarAceiteNodo,
       quitarAceiteNodo,
-      moverNodo,
       obtenerSubarbolParaEliminar,
       confirmarEliminarNodo,
       deshacerEliminacionNodo,

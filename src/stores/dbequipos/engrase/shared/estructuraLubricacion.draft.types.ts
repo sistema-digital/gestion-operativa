@@ -16,25 +16,40 @@ export interface NodoEstructuraBorrador {
   sistemaId: number | null;
   subsistemaId: number | null;
   aceiteId: number | null;
-  sistema: CatalogoActivo | null;
-  subsistema: CatalogoActivo | null;
-  aceite: CatalogoActivo | null;
+  sistema: CatalogoEstructura | null;
+  subsistema: CatalogoEstructura | null;
+  aceite: CatalogoEstructura | null;
 }
 
+export interface CatalogoEstructuraNuevo {
+  id: null;
+  tempId: string;
+  nombre: string;
+  activo: true;
+}
+
+export type CatalogoEstructura = CatalogoActivo | CatalogoEstructuraNuevo;
+
 export interface AgregarRaizEstructuraInput {
-  sistema: CatalogoActivo;
-  aceite: CatalogoActivo | null;
+  sistema: CatalogoEstructura;
+  aceite: CatalogoEstructura | null;
 }
 
 export interface AgregarHijoEstructuraInput {
   parentLocalId: string;
-  subsistema: CatalogoActivo;
-  aceite: CatalogoActivo | null;
+  subsistema: CatalogoEstructura;
+  aceite: CatalogoEstructura | null;
 }
 
 export interface ActualizarNodoEstructuraInput {
   localId: string;
-  aceite: CatalogoActivo | null;
+  aceite: CatalogoEstructura | null;
+}
+
+export interface ActualizarCatalogoNodoInput {
+  localId: string;
+  catalogo: CatalogoEstructura;
+  aceite: CatalogoEstructura | null;
 }
 
 export interface MoverNodoEstructuraInput {
@@ -77,16 +92,29 @@ export interface NodoEstructuraNuevoPayload {
   temp_id: string;
   parent_id: number | null;
   parent_temp_id: string | null;
-  sistema_id: number | null;
-  subsistema_id: number | null;
-  aceite_id: number | null;
+  sistema_id?: number | null;
+  subsistema_id?: number | null;
+  aceite_id?: number | null;
+  sistema_nuevo?: CatalogoNuevoPayload;
+  subsistema_nuevo?: CatalogoNuevoPayload;
+  aceite_nuevo?: CatalogoNuevoPayload;
+}
+
+export interface CatalogoNuevoPayload {
+  temp_id: string;
+  nombre: string;
 }
 
 export interface NodoEstructuraActualizadoPayload {
   id: number;
   parent_id?: number | null;
   parent_temp_id?: string | null;
+  sistema_id?: number;
+  sistema_nuevo?: CatalogoNuevoPayload;
+  subsistema_id?: number;
+  subsistema_nuevo?: CatalogoNuevoPayload;
   aceite_id?: number | null;
+  aceite_nuevo?: CatalogoNuevoPayload;
 }
 
 export interface NodoEstructuraEliminadoPayload {

@@ -10,9 +10,24 @@ const textoSchema = z.string().trim().min(1);
 const catalogoSchema = z
   .object({ id: idPositivoSchema, nombre: textoSchema, activo: z.boolean() })
   .strict();
+const catalogoNuevoSchema = z
+  .object({
+    id: z.null(),
+    tempId: z.string().trim().min(1),
+    nombre: textoSchema,
+    activo: z.literal(true),
+  })
+  .strict();
 
 const activo = (nodo: NodoEstructuraBorrador): boolean =>
   nodo.estadoLocal !== "pendiente_eliminacion";
+const normalizarClaveCatalogo = (nombre: string): string =>
+  nombre
+    .trim()
+    .replace(/\s+/gu, " ")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase("es");
 
 const agregar = (
   errores: ErrorValidacionEstructura[],
@@ -32,7 +47,11 @@ const validarCatalogo = (
   const catalogo = nodo[etiqueta];
   if (id === null && catalogo === null) return;
   const resultado = catalogoSchema.safeParse(catalogo);
-  if (!resultado.success || id !== resultado.data.id) {
+  const nuevo = catalogoNuevoSchema.safeParse(catalogo);
+  if (
+    (!resultado.success || id !== resultado.data.id) &&
+    (!nuevo.success || id !== null)
+  ) {
     agregar(
       errores,
       "ESTRUCTURA_CATALOGO_INCOHERENTE",
@@ -53,6 +72,8 @@ export function validarBorradorEstructura(
   const tempIds = new Set<string>();
   const porId = new Map<number, NodoEstructuraBorrador>();
   const porTempId = new Map<string, NodoEstructuraBorrador>();
+  const sistemasRaiz = new Set<string>();
+  const subsistemasPorPadre = new Set<string>();
 
   for (const nodo of nodos) {
     if (localIds.has(nodo.localId))
@@ -63,7 +84,7 @@ export function validarBorradorEstructura(
         nodo.localId,
       );
     localIds.add(nodo.localId);
-    const esNuevo = nodo.estadoLocal === "nuevo";
+    const esNuevo = nodo.id === null;
     if (esNuevo) {
       if (nodo.id !== null || !nodo.tempId?.trim())
         agregar(
@@ -127,26 +148,27 @@ export function validarBorradorEstructura(
   for (const nodo of activos) {
     const esRaiz = nodo.parentId === null && nodo.parentTempId === null;
     if (esRaiz) {
-      if (
-        nodo.sistemaId === null ||
-        nodo.sistema === null ||
-        nodo.subsistemaId !== null ||
-        nodo.subsistema !== null
-      )
+      if (nodo.sistema === null || nodo.subsistema !== null)
         agregar(
           errores,
           "ESTRUCTURA_RAIZ_INVALIDA",
           "Un nodo raíz requiere sistema y no admite subsistema.",
           nodo.localId,
         );
+      else {
+        const claveSistema = normalizarClaveCatalogo(nodo.sistema.nombre);
+        if (sistemasRaiz.has(claveSistema))
+          agregar(
+            errores,
+            "ESTRUCTURA_SISTEMA_DUPLICADO",
+            "Un sistema solo puede aparecer una vez en la estructura del equipo.",
+            nodo.localId,
+          );
+        sistemasRaiz.add(claveSistema);
+      }
       continue;
     }
-    if (
-      nodo.sistemaId !== null ||
-      nodo.sistema !== null ||
-      nodo.subsistemaId === null ||
-      nodo.subsistema === null
-    )
+    if (nodo.sistema !== null || nodo.subsistema === null)
       agregar(
         errores,
         "ESTRUCTURA_HIJO_INVALIDO",
@@ -168,6 +190,17 @@ export function validarBorradorEstructura(
         "Un nodo no puede ser su propio padre.",
         nodo.localId,
       );
+    else if (nodo.subsistema !== null) {
+      const claveSubsistema = `${padre.localId}:${normalizarClaveCatalogo(nodo.subsistema.nombre)}`;
+      if (subsistemasPorPadre.has(claveSubsistema))
+        agregar(
+          errores,
+          "ESTRUCTURA_SUBSISTEMA_DUPLICADO",
+          "Un subsistema solo puede aparecer una vez dentro de la misma ubicación padre.",
+          nodo.localId,
+        );
+      subsistemasPorPadre.add(claveSubsistema);
+    }
   }
 
   const visitados = new Set<string>();

@@ -24,7 +24,7 @@ const emit = defineEmits<{ back: [] }>();
       </div>
       <span
         class="ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold"
-        :class="created ? 'bg-success-bg text-success' : 'bg-main/10 text-main'"
+        :class="created ? 'bg-secondary-bg text-success' : 'bg-main/10 text-main'"
       >
         <CheckCircle2 v-if="created" class="h-3.5 w-3.5" /><Circle
           v-else

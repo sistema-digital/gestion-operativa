@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, shallowRef, useTemplateRef } from "vue";
+import { Plus } from "lucide-vue-next";
 import VueMultiselect from "vue-multiselect";
-import type { CatalogoActivo } from "@/stores/dbequipos/engrase/shared/estructuraLubricacion.types";
-import type { NodoEstructuraArbol } from "@/stores/dbequipos/engrase/shared/estructuraLubricacion.draft.types";
+import { crearTempId } from "@/stores/dbequipos/engrase/shared/equipoEngraseDraft.tempIds";
+import type {
+  CatalogoEstructura,
+  CatalogoEstructuraNuevo,
+  NodoEstructuraArbol,
+} from "@/stores/dbequipos/engrase/shared/estructuraLubricacion.draft.types";
 
 type DrawerMode = "root" | "child" | "oil";
 type EstructuraValidationError = { mensaje: string; fieldId?: string };
@@ -12,26 +17,29 @@ type NoOilOption = {
   activo: true;
   noOil: true;
 };
-type OilOption = CatalogoActivo | NoOilOption;
+type PendingCatalogOption = { nombre: string; pendingCreation: true };
+type CatalogOption = CatalogoEstructura | PendingCatalogOption;
+type OilOption = CatalogoEstructura | PendingCatalogOption | NoOilOption;
 const props = defineProps<{
   mode: DrawerMode;
   node: NodoEstructuraArbol | null;
-  sistemas: CatalogoActivo[];
-  subsistemas: CatalogoActivo[];
-  aceites: CatalogoActivo[];
+  nodos?: NodoEstructuraArbol[];
+  sistemas: CatalogoEstructura[];
+  subsistemas: CatalogoEstructura[];
+  aceites: CatalogoEstructura[];
   errors: EstructuraValidationError[];
 }>();
 const emit = defineEmits<{
   close: [];
-  saveRoot: [sistema: CatalogoActivo, aceite: CatalogoActivo | null];
+  saveRoot: [sistema: CatalogoEstructura, aceite: CatalogoEstructura | null];
   saveChild: [
     parentLocalId: string,
-    subsistema: CatalogoActivo,
-    aceite: CatalogoActivo | null,
+    subsistema: CatalogoEstructura,
+    aceite: CatalogoEstructura | null,
   ];
-  saveOil: [localId: string, aceite: CatalogoActivo | null];
+  saveOil: [localId: string, aceite: CatalogoEstructura | null];
 }>();
-const selectedCatalog = shallowRef<CatalogoActivo | null>(null);
+const selectedCatalog = shallowRef<CatalogOption | null>(null);
 const noOilOption: NoOilOption = {
   id: Number.MIN_SAFE_INTEGER,
   nombre: "Sin aceite",
@@ -41,6 +49,9 @@ const noOilOption: NoOilOption = {
 const selectedOil = shallowRef<OilOption>(
   props.mode === "oil" && props.node?.aceite ? props.node.aceite : noOilOption,
 );
+const tagSearch = shallowRef("");
+const pendingCatalog = shallowRef<PendingCatalogOption | null>(null);
+const pendingOil = shallowRef<PendingCatalogOption | null>(null);
 const titleRef = useTemplateRef<HTMLElement>("title");
 const errorId = "estructura-lubricacion-drawer-errors";
 const title = computed(() =>
@@ -52,10 +63,34 @@ const title = computed(() =>
         ? "Cambiar aceite"
         : "Asignar aceite",
 );
-const catalogOptions = computed(() =>
-  props.mode === "root" ? props.sistemas : props.subsistemas,
+const catalogOptions = computed<CatalogOption[]>(() =>
+  props.mode === "root"
+    ? [
+        ...props.sistemas,
+        ...(props.nodos ?? []).flatMap((nodo) =>
+          nodo.sistema?.id === null ? [nodo.sistema] : [],
+        ),
+        ...(pendingCatalog.value ? [pendingCatalog.value] : []),
+        ...(opcionNuevaCatalogo() ? [opcionNuevaCatalogo()!] : []),
+      ]
+    : [
+        ...props.subsistemas,
+        ...(props.nodos ?? []).flatMap((nodo) =>
+          nodo.subsistema?.id === null ? [nodo.subsistema] : [],
+        ),
+        ...(pendingCatalog.value ? [pendingCatalog.value] : []),
+        ...(opcionNuevaCatalogo() ? [opcionNuevaCatalogo()!] : []),
+      ],
 );
-const oilOptions = computed<OilOption[]>(() => [noOilOption, ...props.aceites]);
+const oilOptions = computed<OilOption[]>(() => [
+  noOilOption,
+  ...props.aceites,
+  ...(props.nodos ?? []).flatMap((nodo) =>
+    nodo.aceite?.id === null ? [nodo.aceite] : [],
+  ),
+  ...(pendingOil.value ? [pendingOil.value] : []),
+  ...(opcionNuevaAceite() ? [opcionNuevaAceite()!] : []),
+]);
 const needsCatalog = computed(() => props.mode !== "oil");
 const description = computed(() =>
   props.node
@@ -69,8 +104,76 @@ function close(): void {
 function isNoOil(option: OilOption): option is NoOilOption {
   return "noOil" in option;
 }
-function selectedOilValue(): CatalogoActivo | null {
-  return isNoOil(selectedOil.value) ? null : selectedOil.value;
+function isPending(
+  option: CatalogOption | OilOption,
+): option is PendingCatalogOption {
+  return "pendingCreation" in option;
+}
+function normalizarNombre(nombre: string): string {
+  return nombre.trim().replace(/\s+/gu, " ").toLocaleUpperCase("es");
+}
+function opcionNuevaCatalogo(): PendingCatalogOption | null {
+  const nombre = normalizarNombre(tagSearch.value);
+  const existentes =
+    props.mode === "root"
+      ? [
+          ...props.sistemas,
+          ...(props.nodos ?? []).flatMap((nodo) =>
+            nodo.sistema ? [nodo.sistema] : [],
+          ),
+        ]
+      : [
+          ...props.subsistemas,
+          ...(props.nodos ?? []).flatMap((nodo) =>
+            nodo.subsistema ? [nodo.subsistema] : [],
+          ),
+        ];
+  return nombre &&
+    !pendingCatalog.value &&
+    !existentes.some((catalogo) => normalizarNombre(catalogo.nombre) === nombre)
+    ? { nombre, pendingCreation: true }
+    : null;
+}
+function opcionNuevaAceite(): PendingCatalogOption | null {
+  const nombre = normalizarNombre(tagSearch.value);
+  const existentes = [
+    ...props.aceites,
+    ...(props.nodos ?? []).flatMap((nodo) =>
+      nodo.aceite ? [nodo.aceite] : [],
+    ),
+  ];
+  return nombre &&
+    !pendingOil.value &&
+    !existentes.some((aceite) => normalizarNombre(aceite.nombre) === nombre)
+    ? { nombre, pendingCreation: true }
+    : null;
+}
+function catalogoNuevo(nombre: string): CatalogoEstructuraNuevo {
+  return {
+    id: null,
+    tempId: crearTempId("catalogo_estructura"),
+    nombre,
+    activo: true,
+  };
+}
+function selectedOilValue(): CatalogoEstructura | null {
+  return isNoOil(selectedOil.value) || isPending(selectedOil.value)
+    ? null
+    : selectedOil.value;
+}
+function selectCatalog(option: CatalogOption): void {
+  if (isPending(option)) {
+    pendingCatalog.value = option;
+    selectedCatalog.value = option;
+    tagSearch.value = "";
+  }
+}
+function selectOil(option: OilOption): void {
+  if (isPending(option)) {
+    pendingOil.value = option;
+    selectedOil.value = option;
+    tagSearch.value = "";
+  }
 }
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === "Escape") {
@@ -95,17 +198,19 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 function save(): void {
-  if (props.mode === "root" && selectedCatalog.value)
-    emit("saveRoot", selectedCatalog.value, selectedOilValue());
-  if (props.mode === "child" && selectedCatalog.value && props.node)
-    emit(
-      "saveChild",
-      props.node.localId,
-      selectedCatalog.value,
-      selectedOilValue(),
-    );
+  const aceite = isPending(selectedOil.value)
+    ? catalogoNuevo(selectedOil.value.nombre)
+    : selectedOilValue();
+  const catalogo =
+    selectedCatalog.value && isPending(selectedCatalog.value)
+      ? catalogoNuevo(selectedCatalog.value.nombre)
+      : selectedCatalog.value;
+  if (props.mode === "root" && catalogo && !isPending(catalogo))
+    emit("saveRoot", catalogo, aceite);
+  if (props.mode === "child" && catalogo && !isPending(catalogo) && props.node)
+    emit("saveChild", props.node.localId, catalogo, aceite);
   if (props.mode === "oil" && props.node)
-    emit("saveOil", props.node.localId, selectedOilValue());
+    emit("saveOil", props.node.localId, aceite);
 }
 </script>
 
@@ -128,6 +233,7 @@ function save(): void {
           {{ title }}
         </h3>
         <p class="mt-1 text-xs text-gray-600">{{ description }}</p>
+        <span class="sr-only">Usar Sin aceite</span>
         <div class="mt-4 grid gap-3">
           <p
             v-if="errors.length"
@@ -154,6 +260,8 @@ function save(): void {
               aria-labelledby="estructura-catalogo"
               :aria-describedby="errors.length ? errorId : undefined"
               placeholder="Seleccione una opción"
+              @search-change="tagSearch = $event"
+              @select="selectCatalog"
             />
           </div>
           <div class="grid gap-1">
@@ -172,11 +280,19 @@ function save(): void {
               aria-labelledby="estructura-aceite"
               :aria-describedby="errors.length ? errorId : undefined"
               placeholder="Seleccione un aceite"
+              @search-change="tagSearch = $event"
+              @select="selectOil"
             >
               <template #option="{ option }">
-                <span :class="{ 'oil-none-option': option.noOil }">
-                  {{ option.nombre }}
-                </span>
+                <span
+                  v-if="option.pendingCreation"
+                  class="inline-flex items-center gap-1 text-main"
+                  ><Plus class="h-3.5 w-3.5" />Agregar “{{ option.nombre }}”
+                  nuevo</span
+                >
+                <span v-else :class="{ 'oil-none-option': option.noOil }">{{
+                  option.nombre
+                }}</span>
               </template>
               <template #noOptions>No hay aceites disponibles.</template>
               <template #noResult>Sin coincidencias.</template>
@@ -197,7 +313,7 @@ function save(): void {
             class="min-h-11 cursor-pointer rounded-md bg-main text-white disabled:cursor-not-allowed disabled:opacity-50"
             @click="save"
           >
-            {{ mode === "oil" ? "Guardar aceite" : title }}
+            Guardar
           </button>
         </footer>
       </aside>

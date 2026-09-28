@@ -5,12 +5,14 @@ import type {
 } from "./estructuraLubricacion.types";
 import {
   type ActualizarNodoEstructuraInput,
+  type ActualizarCatalogoNodoInput,
   type AgregarHijoEstructuraInput,
   type AgregarRaizEstructuraInput,
   type EliminarNodoEstructuraResultado,
   type MoverNodoEstructuraInput,
   type NodoEstructuraBorrador,
   type ResultadoMutacionEstructura,
+  type CatalogoEstructura,
 } from "./estructuraLubricacion.draft.types";
 import { validarBorradorEstructura } from "./estructuraLubricacion.validation";
 
@@ -18,8 +20,8 @@ let secuencia = 0;
 const siguienteId = (prefijo: "local" | "estructura"): string =>
   `${prefijo}_estructura_${++secuencia}`;
 const clonarCatalogo = (
-  catalogo: CatalogoActivo | null,
-): CatalogoActivo | null => (catalogo ? { ...catalogo } : null);
+  catalogo: CatalogoEstructura | null,
+): CatalogoEstructura | null => (catalogo ? { ...catalogo } : null);
 const clonarNodo = (nodo: NodoEstructuraBorrador): NodoEstructuraBorrador => ({
   ...nodo,
   sistema: clonarCatalogo(nodo.sistema),
@@ -41,10 +43,11 @@ const error = (
   nodos: clonarBorradorEstructura(nodos),
 });
 const perteneceAAuxiliar = (
-  catalogo: CatalogoActivo | null,
+  catalogo: CatalogoEstructura | null,
   auxiliares: readonly CatalogoActivo[],
 ): boolean =>
   catalogo === null ||
+  catalogo.id === null ||
   auxiliares.some((auxiliar) => auxiliar.id === catalogo.id);
 
 export function crearBorradorEstructura(
@@ -189,6 +192,51 @@ export function actualizarAceiteNodo(
   return validarResultado(copia, nodo.localId);
 }
 
+export function actualizarCatalogoNodo(
+  nodos: readonly NodoEstructuraBorrador[],
+  input: ActualizarCatalogoNodoInput,
+  auxiliares: AuxiliaresEstructuraLubricacion,
+): ResultadoMutacionEstructura {
+  const copia = clonarBorradorEstructura(nodos);
+  const nodo = copia.find(
+    (item) =>
+      item.localId === input.localId &&
+      item.estadoLocal !== "pendiente_eliminacion",
+  );
+  if (!nodo)
+    return error(
+      nodos,
+      "ESTRUCTURA_NODO_NO_ENCONTRADO",
+      "El nodo a actualizar no existe.",
+    );
+  const esRaiz = nodo.parentId === null && nodo.parentTempId === null;
+  const auxiliaresCatalogo = esRaiz
+    ? auxiliares.sistemas
+    : auxiliares.subsistemas;
+  if (!perteneceAAuxiliar(input.catalogo, auxiliaresCatalogo))
+    return error(
+      nodos,
+      "ESTRUCTURA_CATALOGO_INACTIVO",
+      "Solo puede asignar catálogos incluidos en los auxiliares activos.",
+    );
+  if (!perteneceAAuxiliar(input.aceite, auxiliares.aceites))
+    return error(
+      nodos,
+      "ACEITE_NO_DISPONIBLE_PARA_ASIGNAR",
+      "Solo puede asignar un aceite incluido en los auxiliares activos.",
+    );
+  if (esRaiz) {
+    nodo.sistemaId = input.catalogo.id;
+    nodo.sistema = clonarCatalogo(input.catalogo);
+  } else {
+    nodo.subsistemaId = input.catalogo.id;
+    nodo.subsistema = clonarCatalogo(input.catalogo);
+  }
+  nodo.aceiteId = input.aceite?.id ?? null;
+  nodo.aceite = clonarCatalogo(input.aceite);
+  return validarResultado(copia, nodo.localId);
+}
+
 export function obtenerSubarbolActivo(
   nodos: readonly NodoEstructuraBorrador[],
   localId: string,
@@ -275,12 +323,11 @@ export function marcarNodoParaEliminar(
   if (!subarbol.length)
     return { nodos: clonarBorradorEstructura(nodos), eliminados: [] };
   const eliminados = new Set(subarbol.map((nodo) => nodo.localId));
-  const resultado = clonarBorradorEstructura(nodos).flatMap((nodo) => {
-    if (!eliminados.has(nodo.localId)) return [nodo];
-    return nodo.estadoLocal === "nuevo"
-      ? []
-      : [{ ...nodo, estadoLocal: "pendiente_eliminacion" as const }];
-  });
+  const resultado = clonarBorradorEstructura(nodos).map((nodo) =>
+    eliminados.has(nodo.localId)
+      ? { ...nodo, estadoLocal: "pendiente_eliminacion" as const }
+      : nodo,
+  );
   return { nodos: resultado, eliminados: subarbol };
 }
 
@@ -296,31 +343,35 @@ export function deshacerEliminacionNodo(
       "No hay una eliminación pendiente para deshacer.",
     );
   const copia = clonarBorradorEstructura(nodos);
-  const porId = new Map(
-    copia
-      .filter((nodo) => nodo.id !== null)
-      .map((nodo) => [nodo.id as number, nodo]),
-  );
+  const obtenerPadre = (
+    nodo: NodoEstructuraBorrador,
+  ): NodoEstructuraBorrador | null => {
+    if (nodo.parentId !== null)
+      return copia.find((item) => item.id === nodo.parentId) ?? null;
+    if (nodo.parentTempId !== null)
+      return copia.find((item) => item.tempId === nodo.parentTempId) ?? null;
+    return null;
+  };
+  let raizPendiente = objetivo;
+  let padre = obtenerPadre(raizPendiente);
+  while (padre?.estadoLocal === "pendiente_eliminacion") {
+    raizPendiente = padre;
+    padre = obtenerPadre(raizPendiente);
+  }
   const restaurar = (nodo: NodoEstructuraBorrador): void => {
-    nodo.estadoLocal = "existente";
+    nodo.estadoLocal = nodo.id === null ? "nuevo" : "existente";
     copia
       .filter(
         (hijo) =>
-          hijo.parentId === nodo.id &&
+          ((nodo.id !== null && hijo.parentId === nodo.id) ||
+            (nodo.tempId !== null && hijo.parentTempId === nodo.tempId)) &&
           hijo.estadoLocal === "pendiente_eliminacion",
       )
       .forEach(restaurar);
   };
-  if (
-    objetivo.parentId !== null &&
-    porId.get(objetivo.parentId)?.estadoLocal === "pendiente_eliminacion"
-  )
-    return error(
-      nodos,
-      "ESTRUCTURA_PADRE_ELIMINADO",
-      "Debe deshacer primero la eliminación del nodo padre.",
-    );
-  const copiaObjetivo = copia.find((nodo) => nodo.localId === localId);
+  const copiaObjetivo = copia.find(
+    (nodo) => nodo.localId === raizPendiente.localId,
+  );
   if (!copiaObjetivo)
     return error(
       nodos,

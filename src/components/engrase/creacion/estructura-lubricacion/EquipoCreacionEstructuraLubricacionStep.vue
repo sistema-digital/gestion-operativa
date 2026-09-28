@@ -2,8 +2,9 @@
 import { computed, nextTick, shallowRef, useTemplateRef } from "vue";
 import { GitBranch, Plus } from "lucide-vue-next";
 import { obtenerSubarbolActivo } from "@/stores/dbequipos/engrase/shared/estructuraLubricacion.draft";
-import type { CatalogoActivo } from "@/stores/dbequipos/engrase/shared/estructuraLubricacion.types";
+import { construirArbolEstructura } from "@/stores/dbequipos/engrase/shared/estructuraLubricacion.tree";
 import type {
+  CatalogoEstructura,
   NodoEstructuraArbol,
   NodoEstructuraBorrador,
 } from "@/stores/dbequipos/engrase/shared/estructuraLubricacion.draft.types";
@@ -15,20 +16,20 @@ type DrawerMode = "root" | "child" | "oil";
 type EstructuraValidationError = { mensaje: string; fieldId?: string };
 const props = defineProps<{
   nodos: NodoEstructuraBorrador[];
-  sistemas: CatalogoActivo[];
-  subsistemas: CatalogoActivo[];
-  aceites: CatalogoActivo[];
+  sistemas: CatalogoEstructura[];
+  subsistemas: CatalogoEstructura[];
+  aceites: CatalogoEstructura[];
   disabled: boolean;
   errors: EstructuraValidationError[];
 }>();
 const emit = defineEmits<{
-  addRoot: [sistema: CatalogoActivo, aceite: CatalogoActivo | null];
+  addRoot: [sistema: CatalogoEstructura, aceite: CatalogoEstructura | null];
   addChild: [
     parentLocalId: string,
-    subsistema: CatalogoActivo,
-    aceite: CatalogoActivo | null,
+    subsistema: CatalogoEstructura,
+    aceite: CatalogoEstructura | null,
   ];
-  updateOil: [localId: string, aceite: CatalogoActivo | null];
+  updateOil: [localId: string, aceite: CatalogoEstructura | null];
   remove: [localId: string];
 }>();
 const drawer = shallowRef<{
@@ -43,24 +44,12 @@ const deleteScope = computed(() =>
     ? obtenerSubarbolActivo(props.nodos, pendingDeleteId.value)
     : [],
 );
-const globalErrors = computed(() =>
-  props.errors.filter((error) => error.fieldId === undefined),
-);
 const drawerErrors = computed(() => {
   const localId = drawer.value?.node?.localId;
   return props.errors.filter(
     (error) => error.fieldId === undefined || error.fieldId === localId,
   );
 });
-const nodeErrors = computed(() =>
-  props.errors.reduce<Record<string, EstructuraValidationError[]>>(
-    (errorsByNode, error) => {
-      if (error.fieldId) (errorsByNode[error.fieldId] ??= []).push(error);
-      return errorsByNode;
-    },
-    {},
-  ),
-);
 function openRoot(event: MouseEvent): void {
   lastOpener.value = event.currentTarget as HTMLElement;
   drawer.value = { mode: "root", node: null };
@@ -88,24 +77,36 @@ function handleAction(
   }
   drawer.value = { mode: action === "add-child" ? "child" : "oil", node };
 }
-function saveRoot(
-  sistema: CatalogoActivo,
-  aceite: CatalogoActivo | null,
-): void {
+function tieneErroresDelDrawer(fieldId?: string): boolean {
+  return props.errors.some(
+    (error) => error.fieldId === undefined || error.fieldId === fieldId,
+  );
+}
+async function closeDrawerSiNoHayErrores(fieldId?: string): Promise<void> {
+  await nextTick();
+  if (!tieneErroresDelDrawer(fieldId)) closeDrawer();
+}
+async function saveRoot(
+  sistema: CatalogoEstructura,
+  aceite: CatalogoEstructura | null,
+): Promise<void> {
   emit("addRoot", sistema, aceite);
-  closeDrawer();
+  await closeDrawerSiNoHayErrores();
 }
-function saveChild(
+async function saveChild(
   parentLocalId: string,
-  subsistema: CatalogoActivo,
-  aceite: CatalogoActivo | null,
-): void {
+  subsistema: CatalogoEstructura,
+  aceite: CatalogoEstructura | null,
+): Promise<void> {
   emit("addChild", parentLocalId, subsistema, aceite);
-  closeDrawer();
+  await closeDrawerSiNoHayErrores(parentLocalId);
 }
-function saveOil(localId: string, aceite: CatalogoActivo | null): void {
+async function saveOil(
+  localId: string,
+  aceite: CatalogoEstructura | null,
+): Promise<void> {
   emit("updateOil", localId, aceite);
-  closeDrawer();
+  await closeDrawerSiNoHayErrores(localId);
 }
 function confirmDelete(): void {
   if (pendingDeleteId.value) emit("remove", pendingDeleteId.value);
@@ -138,16 +139,6 @@ function confirmDelete(): void {
         <Plus class="h-4 w-4" aria-hidden="true" />Agregar sistema
       </button>
     </header>
-    <div v-if="globalErrors.length" class="m-3 grid gap-1" aria-live="polite">
-      <p
-        v-for="error in globalErrors"
-        :key="error.mensaje"
-        class="rounded bg-danger-bg p-2 text-xs text-danger"
-        role="alert"
-      >
-        {{ error.mensaje }}
-      </p>
-    </div>
     <div
       v-if="!nodos.length"
       class="grid place-items-center gap-2 p-8 text-center"
@@ -173,7 +164,6 @@ function confirmDelete(): void {
       v-else
       :nodos="nodos"
       :disabled="disabled"
-      :errors-by-node="nodeErrors"
       @action="handleAction"
     />
   </section>
@@ -181,6 +171,7 @@ function confirmDelete(): void {
     v-if="drawer"
     :mode="drawer.mode"
     :node="drawer.node"
+    :nodos="construirArbolEstructura(nodos)"
     :sistemas="sistemas"
     :subsistemas="subsistemas"
     :aceites="aceites"

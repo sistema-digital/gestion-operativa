@@ -18,7 +18,7 @@ import EquipoCreacionErrorState from "@/components/engrase/creacion/EquipoCreaci
 import EquipoCreacionExitDialog from "@/components/engrase/creacion/EquipoCreacionExitDialog.vue";
 import EquipoCreacionDatosStep from "@/components/engrase/creacion/datos/EquipoCreacionDatosStep.vue";
 import EquipoCreacionFiltrosStep from "@/components/engrase/creacion/filtros/EquipoCreacionFiltrosStep.vue";
-import EquipoCreacionEstructuraLubricacionStep from "@/components/engrase/creacion/estructura-lubricacion/EquipoCreacionEstructuraLubricacionStep.vue";
+import EquipoEstructuraLubricacionSection from "@/components/engrase/edicion/estructura-lubricacion/EquipoEstructuraLubricacionSection.vue";
 import EquipoCreacionRevisionStep from "@/components/engrase/creacion/revision/EquipoCreacionRevisionStep.vue";
 import EquipoCreacionImagenStep from "@/components/engrase/creacion/imagen/EquipoCreacionImagenStep.vue";
 import { useEquipoEngraseCreacionWizard } from "@/composables/engrase/useEquipoEngraseCreacionWizard";
@@ -290,19 +290,53 @@ async function guardarImagen(): Promise<void> {
           @edit="abrirEditarFiltro"
           @remove="store.quitarFiltro"
         />
-        <EquipoCreacionEstructuraLubricacionStep
+        <EquipoEstructuraLubricacionSection
           v-else-if="pasoActual === 3"
           :nodos="draft.estructuraSistemas"
           :sistemas="auxiliares.sistemas ?? []"
           :subsistemas="auxiliares.subsistemas ?? []"
-          :aceites="
-            auxiliares.aceites.map((aceite) => ({ ...aceite, activo: true }))
-          "
+          :aceites="auxiliares.aceites"
           :disabled="isInteractionLocked"
-          :errors="erroresEstructura"
+          :can-restore-deleted-nodes="false"
+          :errors="
+            erroresEstructura.map(({ codigo, mensaje, fieldId }) => ({
+              codigo,
+              mensaje,
+              ...(fieldId ? { localId: fieldId } : {}),
+            }))
+          "
           @add-root="store.agregarSistemaRaiz"
+          @create-root-system="
+            (nombre, aceite) =>
+              store.crearSistemaYAgregarRaiz({ nombre, aceite })
+          "
           @add-child="store.agregarSubsistema"
-          @update-oil="store.asignarAceiteNodo"
+          @create-child-subsystem="
+            (parentLocalId, nombre, aceite) =>
+              store.crearSubsistemaYAgregarHijo({
+                parentLocalId,
+                nombre,
+                aceite,
+              })
+          "
+          @update-node="
+            (localId, catalogo, aceite, aceiteNuevoNombre) =>
+              store.actualizarNodoEstructura({
+                localId,
+                catalogo,
+                aceite,
+                aceiteNuevoNombre,
+              })
+          "
+          @create-node="
+            (localId, nombre, aceite, aceiteNuevoNombre) =>
+              store.crearYActualizarCatalogoNodo({
+                localId,
+                nombre,
+                aceite,
+                aceiteNuevoNombre,
+              })
+          "
           @remove="store.eliminarNodo"
         />
         <EquipoCreacionRevisionStep

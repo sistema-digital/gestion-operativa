@@ -10,6 +10,7 @@ const nombreNodo = (nodo: NodoEstructuraBorrador): string =>
 
 export function construirArbolEstructura(
   nodos: readonly NodoEstructuraBorrador[],
+  incluirPendientes = false,
 ): NodoEstructuraArbol[] {
   const validacion = validarBorradorEstructura(nodos);
   if (!validacion.valido)
@@ -17,8 +18,8 @@ export function construirArbolEstructura(
       validacion.errores[0]?.codigo ?? "ESTRUCTURA_INVALIDA",
       validacion.errores[0]?.mensaje ?? "La estructura no es válida.",
     );
-  const activos = nodos.filter(
-    (nodo) => nodo.estadoLocal !== "pendiente_eliminacion",
+  const nodosVisibles = nodos.filter(
+    (nodo) => incluirPendientes || nodo.estadoLocal !== "pendiente_eliminacion",
   );
   const construir = (
     nodo: NodoEstructuraBorrador,
@@ -27,7 +28,7 @@ export function construirArbolEstructura(
   ): NodoEstructuraArbol => {
     const nombre = nombreNodo(nodo);
     const ruta = rutaAnterior ? `${rutaAnterior} > ${nombre}` : nombre;
-    const hijos = activos
+    const hijos = nodosVisibles
       .filter(
         (hijo) =>
           (nodo.id !== null && hijo.parentId === nodo.id) ||
@@ -44,7 +45,7 @@ export function construirArbolEstructura(
       ruta,
     };
   };
-  return activos
+  return nodosVisibles
     .filter((nodo) => nodo.parentId === null && nodo.parentTempId === null)
     .map((nodo) => construir(nodo, 0, ""));
 }

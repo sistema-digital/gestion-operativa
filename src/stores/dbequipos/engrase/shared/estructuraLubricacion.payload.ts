@@ -6,6 +6,17 @@ import {
 } from "./estructuraLubricacion.draft.types";
 import { validarBorradorEstructura } from "./estructuraLubricacion.validation";
 
+const catalogoNuevoPayload = (catalogo: NodoEstructuraBorrador["sistema"]) =>
+  catalogo?.id === null
+    ? { temp_id: catalogo.tempId, nombre: catalogo.nombre }
+    : undefined;
+const referenciaCatalogoPayload = (
+  propiedad: "sistema_id" | "subsistema_id" | "aceite_id",
+  catalogo: NodoEstructuraBorrador["sistema"],
+  id: number | null,
+): Record<string, number | null> =>
+  catalogo?.id === null && id === null ? {} : { [propiedad]: id };
+
 export function construirCambiosEstructura(
   original: readonly NodoEstructuraLubricacion[],
   borrador: readonly NodoEstructuraBorrador[],
@@ -29,9 +40,26 @@ export function construirCambiosEstructura(
         temp_id: nodo.tempId,
         parent_id: nodo.parentId,
         parent_temp_id: nodo.parentTempId,
-        sistema_id: nodo.sistemaId,
-        subsistema_id: nodo.subsistemaId,
-        aceite_id: nodo.aceiteId,
+        ...referenciaCatalogoPayload(
+          "sistema_id",
+          nodo.sistema,
+          nodo.sistemaId,
+        ),
+        ...referenciaCatalogoPayload(
+          "subsistema_id",
+          nodo.subsistema,
+          nodo.subsistemaId,
+        ),
+        ...referenciaCatalogoPayload("aceite_id", nodo.aceite, nodo.aceiteId),
+        ...(catalogoNuevoPayload(nodo.sistema)
+          ? { sistema_nuevo: catalogoNuevoPayload(nodo.sistema) }
+          : {}),
+        ...(catalogoNuevoPayload(nodo.subsistema)
+          ? { subsistema_nuevo: catalogoNuevoPayload(nodo.subsistema) }
+          : {}),
+        ...(catalogoNuevoPayload(nodo.aceite)
+          ? { aceite_nuevo: catalogoNuevoPayload(nodo.aceite) }
+          : {}),
       };
     });
   const actualizados = borrador.flatMap((nodo) => {
@@ -46,15 +74,37 @@ export function construirCambiosEstructura(
       id: number;
       parent_id?: number | null;
       parent_temp_id?: string | null;
+      sistema_id?: number;
+      sistema_nuevo?: { temp_id: string; nombre: string };
+      subsistema_id?: number;
+      subsistema_nuevo?: { temp_id: string; nombre: string };
       aceite_id?: number | null;
+      aceite_nuevo?: { temp_id: string; nombre: string };
     } = { id: nodo.id };
     if (nodo.parentTempId !== null) {
       cambio.parent_temp_id = nodo.parentTempId;
     } else if (nodo.parentId !== originalNodo.parentId) {
       cambio.parent_id = nodo.parentId;
     }
-    if (nodo.aceiteId !== (originalNodo.aceite?.id ?? null))
-      cambio.aceite_id = nodo.aceiteId;
+    if (nodo.sistema !== null && nodo.sistemaId !== originalNodo.sistema?.id) {
+      const sistemaNuevo = catalogoNuevoPayload(nodo.sistema);
+      if (sistemaNuevo) cambio.sistema_nuevo = sistemaNuevo;
+      else if (nodo.sistemaId !== null) cambio.sistema_id = nodo.sistemaId;
+    }
+    if (
+      nodo.subsistema !== null &&
+      nodo.subsistemaId !== originalNodo.subsistema?.id
+    ) {
+      const subsistemaNuevo = catalogoNuevoPayload(nodo.subsistema);
+      if (subsistemaNuevo) cambio.subsistema_nuevo = subsistemaNuevo;
+      else if (nodo.subsistemaId !== null)
+        cambio.subsistema_id = nodo.subsistemaId;
+    }
+    if (nodo.aceiteId !== (originalNodo.aceite?.id ?? null)) {
+      const aceiteNuevo = catalogoNuevoPayload(nodo.aceite);
+      if (aceiteNuevo) cambio.aceite_nuevo = aceiteNuevo;
+      else cambio.aceite_id = nodo.aceiteId;
+    }
     return Object.keys(cambio).length > 1 ? [cambio] : [];
   });
   const eliminados = borrador

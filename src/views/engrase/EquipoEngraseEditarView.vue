@@ -351,13 +351,23 @@ function agregarFiltroTemporalDesdeOverlay(
               (parentLocalId, subsistema, aceite) =>
                 editor.agregarSubsistema({ parentLocalId, subsistema, aceite })
             "
-            @update-oil="
-              (localId, aceite) =>
-                editor.actualizarAceiteNodo({ localId, aceite })
+            @update-node="
+              (localId, catalogo, aceite, aceiteNuevoNombre) =>
+                editor.actualizarNodoEstructura({
+                  localId,
+                  catalogo,
+                  aceite,
+                  aceiteNuevoNombre,
+                })
             "
-            @move="
-              (localId, nuevoPadreLocalId) =>
-                editor.moverNodo({ localId, nuevoPadreLocalId })
+            @create-node="
+              (localId, nombre, aceite, aceiteNuevoNombre) =>
+                editor.crearYActualizarCatalogoNodo({
+                  localId,
+                  nombre,
+                  aceite,
+                  aceiteNuevoNombre,
+                })
             "
             @remove="editor.confirmarEliminarNodo"
             @restore="editor.deshacerEliminacionNodo"

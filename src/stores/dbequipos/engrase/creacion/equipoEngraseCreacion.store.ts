@@ -29,10 +29,17 @@ import {
   agregarHijoEstructura,
   agregarRaizEstructura,
   actualizarAceiteNodo,
+  actualizarCatalogoNodo,
+  deshacerEliminacionNodo as deshacerEliminacionNodoEstructura,
   marcarNodoParaEliminar,
   obtenerSubarbolActivo,
 } from "../shared/estructuraLubricacion.draft";
-import type { CatalogoActivo } from "../shared/estructuraLubricacion.types";
+import type {
+  ActualizarCatalogoNodoInput,
+  CatalogoEstructura,
+  CatalogoEstructuraNuevo,
+  ResultadoMutacionEstructura,
+} from "../shared/estructuraLubricacion.draft.types";
 import {
   agregarFiltroExistenteLocal,
   agregarFiltroLocal,
@@ -99,6 +106,13 @@ const normalizarError = (error: Error): CrearEquipoError => ({
       ? error.codigo
       : "ERROR_CARGA_AUXILIARES",
   mensaje: error.message || "No se pudieron cargar los auxiliares.",
+});
+
+const crearCatalogoTemporal = (nombre: string): CatalogoEstructuraNuevo => ({
+  id: null,
+  tempId: crearTempId("catalogo_estructura"),
+  nombre: normalizarTextoCreacion(nombre),
+  activo: true,
 });
 
 export const useEquipoEngraseCreacionStore = defineStore(
@@ -760,8 +774,8 @@ export const useEquipoEngraseCreacionStore = defineStore(
     }
 
     function agregarSistemaRaiz(
-      sistema: CatalogoActivo,
-      aceite: CatalogoActivo | null,
+      sistema: CatalogoEstructura,
+      aceite: CatalogoEstructura | null,
     ): boolean {
       if (!puedeMutarBorrador() || !auxiliares.value) return false;
       const resultado = agregarRaizEstructura(
@@ -783,8 +797,8 @@ export const useEquipoEngraseCreacionStore = defineStore(
 
     function agregarSubsistema(
       parentLocalId: string,
-      subsistema: CatalogoActivo,
-      aceite: CatalogoActivo | null,
+      subsistema: CatalogoEstructura,
+      aceite: CatalogoEstructura | null,
     ): boolean {
       if (!puedeMutarBorrador() || !auxiliares.value) return false;
       const resultado = agregarHijoEstructura(
@@ -811,7 +825,7 @@ export const useEquipoEngraseCreacionStore = defineStore(
 
     function asignarAceiteNodo(
       localId: string,
-      aceite: CatalogoActivo | null,
+      aceite: CatalogoEstructura | null,
     ): boolean {
       if (!puedeMutarBorrador() || !auxiliares.value) return false;
       const resultado = actualizarAceiteNodo(
@@ -835,6 +849,89 @@ export const useEquipoEngraseCreacionStore = defineStore(
       return true;
     }
 
+    function aplicarMutacionEstructura(
+      resultado: ResultadoMutacionEstructura,
+      fieldId?: string,
+    ): boolean {
+      if (!resultado.ok) {
+        registrarErrorMutacionEstructura(
+          resultado.codigo,
+          resultado.mensaje,
+          fieldId,
+        );
+        return false;
+      }
+      draft.value.estructuraSistemas = resultado.nodos;
+      actualizarErroresPasoEstructura();
+      return true;
+    }
+
+    function crearSistemaYAgregarRaiz(input: {
+      nombre: string;
+      aceite: CatalogoEstructura | null;
+    }): boolean {
+      return agregarSistemaRaiz(
+        crearCatalogoTemporal(input.nombre),
+        input.aceite,
+      );
+    }
+
+    function crearSubsistemaYAgregarHijo(input: {
+      parentLocalId: string;
+      nombre: string;
+      aceite: CatalogoEstructura | null;
+    }): boolean {
+      return agregarSubsistema(
+        input.parentLocalId,
+        crearCatalogoTemporal(input.nombre),
+        input.aceite,
+      );
+    }
+
+    function actualizarNodoEstructura(input: {
+      localId: string;
+      catalogo: CatalogoEstructura;
+      aceite: CatalogoEstructura | null;
+      aceiteNuevoNombre: string | null;
+    }): boolean {
+      return actualizarCatalogoNodoEstructura({
+        localId: input.localId,
+        catalogo: input.catalogo,
+        aceite: input.aceiteNuevoNombre
+          ? crearCatalogoTemporal(input.aceiteNuevoNombre)
+          : input.aceite,
+      });
+    }
+
+    function crearYActualizarCatalogoNodo(input: {
+      localId: string;
+      nombre: string;
+      aceite: CatalogoEstructura | null;
+      aceiteNuevoNombre: string | null;
+    }): boolean {
+      return actualizarCatalogoNodoEstructura({
+        localId: input.localId,
+        catalogo: crearCatalogoTemporal(input.nombre),
+        aceite: input.aceiteNuevoNombre
+          ? crearCatalogoTemporal(input.aceiteNuevoNombre)
+          : input.aceite,
+      });
+    }
+
+    function actualizarCatalogoNodoEstructura(
+      input: ActualizarCatalogoNodoInput,
+    ): boolean {
+      if (!puedeMutarBorrador() || !auxiliares.value) return false;
+      return aplicarMutacionEstructura(
+        actualizarCatalogoNodo(
+          draft.value.estructuraSistemas,
+          input,
+          auxiliares.value,
+        ),
+        input.localId,
+      );
+    }
+
     function subarbolNodo(localId: string) {
       return obtenerSubarbolActivo(draft.value.estructuraSistemas, localId);
     }
@@ -846,6 +943,17 @@ export const useEquipoEngraseCreacionStore = defineStore(
         localId,
       ).nodos;
       actualizarErroresPasoEstructura();
+    }
+
+    function deshacerEliminacionNodo(localId: string): boolean {
+      if (!puedeMutarBorrador()) return false;
+      return aplicarMutacionEstructura(
+        deshacerEliminacionNodoEstructura(
+          draft.value.estructuraSistemas,
+          localId,
+        ),
+        localId,
+      );
     }
 
     function registrarEquipoCreado(equipo: EquipoEngraseListItem): void {
@@ -1161,8 +1269,13 @@ export const useEquipoEngraseCreacionStore = defineStore(
       agregarSistemaRaiz,
       agregarSubsistema,
       asignarAceiteNodo,
+      crearSistemaYAgregarRaiz,
+      crearSubsistemaYAgregarHijo,
+      actualizarNodoEstructura,
+      crearYActualizarCatalogoNodo,
       subarbolNodo,
       eliminarNodo,
+      deshacerEliminacionNodo,
       registrarEquipoCreado,
       crearEquipo,
       actualizarImagenEquipoCreado,
