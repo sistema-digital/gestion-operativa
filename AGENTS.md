@@ -42,4 +42,4 @@ cada vez que se te de la indicaion de actualizar verison js debes modificar todo
 
 calquier cambio o creacin debe tene ren cuenta el arhcivo promptfilesProject.md [/workspaces/gestion-operativa/documentacion/promptFilesProject.md]
 
-al terminar de ejecutar un cambio o crearcio de un archivo ejecuta 'pnpm lint' sobe cada archvio para validar qu eno haya errores con ts
+al terminar de ejecutar un cambio o crearcio de un archivo ejecuta 'pnpm lint' sobe cada archvio para validar qu eno haya errores con ts, si hay gneera un reusmen de esos erroes para en la siguein eejcutaicon reseolverlos
