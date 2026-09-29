@@ -41,3 +41,5 @@ CADA VEZ QUE TERMINAS DE HACER CAMBIOS PREGUTNA SI VAS ACUTALIZAR version.json p
 cada vez que se te de la indicaion de actualizar verison js debes modificar todos los parametoe de acuerso a los cambios que tdaoia estan en local sin enviar a main origin
 
 calquier cambio o creacin debe tene ren cuenta el arhcivo promptfilesProject.md [/workspaces/gestion-operativa/documentacion/promptFilesProject.md]
+
+al terminar de ejecutar un cambio o crearcio de un archivo ejecuta 'pnpm lint' sobe cada archvio para validar qu eno haya errores con ts
