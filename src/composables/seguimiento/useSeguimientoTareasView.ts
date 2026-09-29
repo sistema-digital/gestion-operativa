@@ -24,5 +24,12 @@ export function useSeguimientoTareasView() {
     setMapError: store.setMapError,
     toggleMapTool: store.toggleMapTool,
     loadTrackerHistory: store.loadTrackerHistory,
+    beginControlZoneEdit: store.beginControlZoneEdit,
+    beginControlZoneGeometryEdit: store.beginControlZoneGeometryEdit,
+    cancelControlZoneEdit: store.cancelControlZoneEdit,
+    updateControlZones: store.updateControlZones,
+    dismissDudaZoneEvent: store.dismissDudaZoneEvent,
+    acceptDudaZoneSuggestion: store.acceptDudaZoneSuggestion,
+    discardDudaZoneSuggestion: store.discardDudaZoneSuggestion,
   };
 }

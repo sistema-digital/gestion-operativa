@@ -3,8 +3,15 @@ import { mount } from "@vue/test-utils";
 import TaskCard from "./TaskCard.vue";
 import TaskDetailPanel from "./TaskDetailPanel.vue";
 import TaskListPanel from "./TaskListPanel.vue";
+import TaskControlZoneEditor from "./TaskDetailSections/TaskControlZoneEditor.vue";
+import TaskDudaZoneSuggestion from "./TaskDetailSections/TaskDudaZoneSuggestion.vue";
 import TaskZoneDetailCard from "./TaskDetailSections/TaskZoneDetailCard.vue";
-import type { TareaSeguimientoListItem } from "@/stores/seguimiento/tareas/tareasSeguimiento.types";
+import type { TareaDudaZonaRealtimeEvent } from "@/seguimiento/shared/tareas/tareaRealtime.service";
+import type {
+  TareaSeguimientoDetail,
+  TareaSeguimientoListItem,
+  TareaRastreoZonaDetalleDto,
+} from "@/stores/seguimiento/tareas/tareasSeguimiento.types";
 
 const task = (
   overrides: Partial<TareaSeguimientoListItem> = {},
@@ -32,7 +39,110 @@ const task = (
   ...overrides,
 });
 
+const controlZoneDetail = (id: string): TareaRastreoZonaDetalleDto => ({
+  id,
+  rol: "control",
+  tipo_zona: "control",
+  origen: "tarea_supervisor",
+  tiempo: {
+    cantidad_visitas: 0,
+    segundos_visitas_cerradas: 0,
+    segundos_visita_abierta: 0,
+    segundos_totales: 0,
+    visita_abierta: false,
+    visita_actual_id: null,
+    llegada_actual_en: null,
+    primera_llegada_en: null,
+    ultima_salida_en: null,
+    ultima_actualizacion_tracker_en: null,
+    segundos_sin_datos: 0,
+  },
+  visitas: [],
+});
+
+const taskDetail = (
+  overrides: Partial<TareaSeguimientoDetail> = {},
+): TareaSeguimientoDetail => ({
+  ...task(),
+  version: 1,
+  companionNames: [],
+  controlLine: null,
+  controlZones: [
+    {
+      type: "MultiPolygon",
+      coordinates: [[[[-82.59, 8.39]]]],
+    },
+  ],
+  controlZoneReferences: [
+    {
+      id: "zone-1",
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [[[[-82.59, 8.39]]]],
+      },
+    },
+  ],
+  visualLocation: null,
+  permanenceZones: [],
+  administrativeStatusLabel: "Pendiente",
+  operationalStatusLabel: "Sin iniciar",
+  priorityLabel: "Normal",
+  time: {
+    cantidad_visitas: 0,
+    segundos_totales: 0,
+    segundos_visita_abierta: 0,
+    segundos_sin_datos: 0,
+    visita_abierta: false,
+    llegada_actual_en: null,
+    primera_llegada_en: null,
+    ultima_salida_en: null,
+  },
+  visits: [],
+  zoneDetails: [controlZoneDetail("zone-1")],
+  observations: [],
+  route: { id: null, estado_calculo: null },
+  permissions: {
+    puede_editar: true,
+    puede_editar_punto: true,
+    puede_editar_geometria_control: true,
+    puede_reordenar: true,
+    geometria_bloqueada: false,
+    puede_cancelar: true,
+    puede_eliminar: true,
+  },
+  updatedAt: "2026-09-29T12:00:00Z",
+  ...overrides,
+});
+
 describe("paneles de seguimiento de tareas", () => {
+  it("emite la decisión de reutilizar una zona sugerida sin duplicar geometría", async () => {
+    const suggestion: Extract<
+      TareaDudaZonaRealtimeEvent,
+      { tipo: "duda_zona_sugerida" }
+    > = {
+      tipo: "duda_zona_sugerida",
+      tarea_id: "task-zona-1",
+      duda_tarea_id: "task-duda-1",
+      zona_id: "zone-duda-1",
+      distancia_metros: 185.2,
+      automatica: false,
+      requiere_revision: true,
+      finalizada: true,
+      puede_descartar: true,
+      acciones: ["agregar", "descartar"],
+      ocurrido_en: "2026-09-29T16:45:00Z",
+    };
+    const wrapper = mount(TaskDudaZoneSuggestion, {
+      props: { suggestion, submitting: false },
+    });
+
+    expect(wrapper.text()).toContain("185 m");
+    await wrapper.get("button").trigger("click");
+    expect(wrapper.emitted("accept")).toEqual([[suggestion]]);
+    await wrapper.findAll("button")[1]?.trigger("click");
+    expect(wrapper.emitted("discard")).toEqual([[suggestion]]);
+  });
+
   it("diferencia una duda y comunica la selección de la card", async () => {
     const wrapper = mount(TaskCard, {
       props: {
@@ -126,6 +236,108 @@ describe("paneles de seguimiento de tareas", () => {
     expect(wrapper.text()).toContain("No se pudo cargar el detalle.");
     await wrapper.findAll("button").at(-1)!.trigger("click");
     expect(wrapper.emitted("retry")).toHaveLength(1);
+  });
+
+  it("expone el editor de zona sólo con permiso de editar geometría", async () => {
+    const wrapper = mount(TaskDetailPanel, {
+      props: {
+        task: taskDetail(),
+        loading: false,
+        error: null,
+      },
+    });
+
+    await wrapper
+      .get("button[aria-label='Reemplazar zona de control 1']")
+      .trigger("click");
+    expect(wrapper.emitted("beginControlZoneEdit")).toEqual([["zone-1"]]);
+
+    await wrapper.setProps({ editingControlZoneId: "zone-1" });
+    expect(wrapper.text()).toContain("Reemplazar zona");
+    await wrapper
+      .get("button[aria-label='Cancelar edición de zona']")
+      .trigger("click");
+    expect(wrapper.emitted("cancelControlZoneEdit")).toHaveLength(1);
+
+    await wrapper.setProps({
+      task: taskDetail({
+        permissions: {
+          ...taskDetail().permissions,
+          puede_editar_geometria_control: false,
+        },
+      }),
+    });
+    expect(
+      wrapper
+        .find("button[aria-label='Reemplazar zona de control 1']")
+        .exists(),
+    ).toBe(false);
+  });
+
+  it("permite editar una geometría sin visitas y bloquea la que tiene historial", async () => {
+    const editableZone = {
+      ...controlZoneDetail("zone-1"),
+      tiempo: {
+        ...controlZoneDetail("zone-1").tiempo,
+        cantidad_visitas: 0,
+      },
+      visitas: [],
+    };
+    const editableWrapper = mount(TaskZoneDetailCard, {
+      props: {
+        index: 0,
+        zone: editableZone,
+        editable: true,
+        submitting: false,
+      },
+    });
+
+    await editableWrapper
+      .get("button[aria-label='Editar geometría de la zona de control 1']")
+      .trigger("click");
+    expect(editableWrapper.emitted("editGeometry")).toEqual([["zone-1"]]);
+
+    const historicalWrapper = mount(TaskZoneDetailCard, {
+      props: {
+        index: 0,
+        zone: {
+          ...controlZoneDetail("zone-1"),
+          tiempo: {
+            ...controlZoneDetail("zone-1").tiempo,
+            cantidad_visitas: 1,
+          },
+        },
+        editable: true,
+        submitting: false,
+      },
+    });
+    const editButton = historicalWrapper.get(
+      "button[aria-label='Editar geometría de la zona de control 1']",
+    );
+    expect(editButton.attributes("disabled")).toBeDefined();
+    await editButton.trigger("click");
+    expect(historicalWrapper.emitted("editGeometry")).toBeUndefined();
+  });
+
+  it("confirma un retiro mediante una operación explícita", async () => {
+    const wrapper = mount(TaskControlZoneEditor, {
+      props: {
+        mode: "remove",
+        zone: taskDetail().controlZoneReferences[0]!,
+        zoneDetail: controlZoneDetail("zone-1"),
+        replacementZones: taskDetail().controlZoneReferences,
+        controlZoneCount: 2,
+        submitting: false,
+      },
+    });
+
+    expect(wrapper.text()).toContain("evidencia histórica");
+    await wrapper
+      .get("button[aria-label='Confirmar retiro de zona']")
+      .trigger("click");
+    expect(wrapper.emitted("submit")).toEqual([
+      [[{ accion: "quitar", id: "zone-1" }]],
+    ]);
   });
 
   it("muestra el resumen y despliega el detalle de una zona asociada", async () => {

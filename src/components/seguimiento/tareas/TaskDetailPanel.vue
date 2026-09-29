@@ -17,9 +17,15 @@ import {
   X,
 } from "lucide-vue-next";
 import TaskDoubtSection from "./TaskDetailSections/TaskDoubtSection.vue";
+import TaskDudaZoneSuggestion from "./TaskDetailSections/TaskDudaZoneSuggestion.vue";
 import TaskGeometrySection from "./TaskDetailSections/TaskGeometrySection.vue";
 import type { SeguimientoCoordinates } from "@/seguimiento/shared/seguimiento.types";
-import type { TareaSeguimientoDetail } from "@/stores/seguimiento/tareas/tareasSeguimiento.types";
+import type { TareaDudaZonaRealtimeEvent } from "@/seguimiento/shared/tareas/tareaRealtime.service";
+import type {
+  TareaRastreoCambioZonaControl,
+  TareaSeguimientoDetail,
+} from "@/stores/seguimiento/tareas/tareasSeguimiento.types";
+import { formatCompactPanamaTime } from "@/utils/formatCompactPanamaDate";
 
 const props = defineProps<{
   task: TareaSeguimientoDetail | null;
@@ -27,11 +33,25 @@ const props = defineProps<{
   error: string | null;
   livePermanence?: { seconds: number; startedAt: number };
   liveNow?: number | null;
+  dudaZoneEvents?: TareaDudaZonaRealtimeEvent[];
+  applyingDudaZoneEventKey?: string | null;
+  editingControlZoneId?: string | null;
+  updatingControlZones?: boolean;
 }>();
 const emit = defineEmits<{
   close: [];
   focus: [coordinates: SeguimientoCoordinates | null];
   retry: [];
+  acceptDudaZoneSuggestion: [
+    event: Extract<TareaDudaZonaRealtimeEvent, { tipo: "duda_zona_sugerida" }>,
+  ];
+  discardDudaZoneSuggestion: [
+    event: Extract<TareaDudaZonaRealtimeEvent, { tipo: "duda_zona_sugerida" }>,
+  ];
+  beginControlZoneEdit: [zoneId: string];
+  beginControlZoneGeometryEdit: [zoneId: string];
+  cancelControlZoneEdit: [];
+  updateControlZones: [changes: TareaRastreoCambioZonaControl[]];
 }>();
 
 const isDoubt = computed(() => props.task?.type === "duda");
@@ -126,6 +146,20 @@ const liveTotalSeconds = computed(() => {
       liveCurrentVisitSeconds.value,
   );
 });
+const dudaZoneSuggestions = computed(() =>
+  (props.dudaZoneEvents ?? []).filter(
+    (
+      event,
+    ): event is Extract<
+      TareaDudaZonaRealtimeEvent,
+      { tipo: "duda_zona_sugerida" }
+    > =>
+      event.tipo === "duda_zona_sugerida" && event.tarea_id === props.task?.id,
+  ),
+);
+function getDudaZoneEventKey(event: TareaDudaZonaRealtimeEvent): string {
+  return `${event.tipo}:${event.duda_tarea_id}:${"zona_id" in event ? event.zona_id : "sin-zona"}`;
+}
 
 function formatDuration(seconds: number): string {
   const totalMinutes = Math.max(0, Math.floor(seconds / 60));
@@ -146,14 +180,7 @@ function formatDate(value: string | null): string {
 }
 
 function formatTime(value: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "—"
-    : new Intl.DateTimeFormat("es-PA", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(date);
+  return formatCompactPanamaTime(value);
 }
 
 function visitDuration(
@@ -200,14 +227,14 @@ function visitDuration(
         </div>
         <button
           v-if="task?.routePoint || task?.visualLocation"
-          class="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border border-main px-2.5 text-[10px] font-extrabold text-main transition hover:bg-second focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-main xl:hidden"
+          class="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-main px-2.5 text-[10px] font-extrabold text-main transition hover:bg-second focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-main xl:hidden"
           type="button"
           @click="emit('focus', task.routePoint ?? task.visualLocation)"
         >
           <MapPinned class="size-3.5" aria-hidden="true" />Ver mapa
         </button>
         <button
-          class="grid size-7 shrink-0 place-items-center rounded-[0.4375rem] bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-main"
+          class="grid size-7 shrink-0 cursor-pointer place-items-center rounded-[0.4375rem] bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-main"
           aria-label="Cerrar detalle"
           type="button"
           @click="emit('close')"
@@ -269,6 +296,18 @@ function visitDuration(
       </div>
       <template v-else-if="task">
         <TaskDoubtSection v-if="isDoubt" class="mb-2" :task="task" />
+        <div v-if="dudaZoneSuggestions.length" class="mb-2 grid gap-2">
+          <TaskDudaZoneSuggestion
+            v-for="suggestion in dudaZoneSuggestions"
+            :key="getDudaZoneEventKey(suggestion)"
+            :suggestion="suggestion"
+            :submitting="
+              applyingDudaZoneEventKey === getDudaZoneEventKey(suggestion)
+            "
+            @accept="emit('acceptDudaZoneSuggestion', $event)"
+            @discard="emit('discardDudaZoneSuggestion', $event)"
+          />
+        </div>
 
         <section
           class="mb-2 rounded-[10px] border border-slate-100 bg-white p-3"
@@ -577,7 +616,15 @@ function visitDuration(
         <TaskGeometrySection
           class="mb-2"
           :task="task"
+          :editing-control-zone-id="editingControlZoneId"
+          :updating-control-zones="updatingControlZones"
           @focus="emit('focus', $event)"
+          @begin-control-zone-edit="emit('beginControlZoneEdit', $event)"
+          @begin-control-zone-geometry-edit="
+            emit('beginControlZoneGeometryEdit', $event)
+          "
+          @cancel-control-zone-edit="emit('cancelControlZoneEdit')"
+          @update-control-zones="emit('updateControlZones', $event)"
         />
 
         <section

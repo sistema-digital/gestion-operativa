@@ -174,13 +174,122 @@ export interface TareaRastreoZonaTiempoDto {
   segundos_sin_datos: number;
 }
 
+/** Origen de la evidencia temporal incluida en el historial de una zona. */
+export type TareaRastreoZonaVisitaOrigenTiempo =
+  "visita_zona" | "duda_asociada" | "visita_tarea_historica";
+
+/**
+ * Visita de una zona de control.
+ *
+ * Los campos de trazabilidad son opcionales mientras se mantiene la
+ * compatibilidad con el contrato anterior de `obtener_tarea_detalle_v2`.
+ */
+export interface TareaRastreoZonaVisitaDto {
+  id: string;
+  entrada_en: string;
+  salida_en: string | null;
+  numero_visita?: number;
+  duracion_segundos?: number;
+  estado?: "abierta" | "cerrada";
+  source_id?: number;
+  tracker_id?: number;
+  usuario_id?: string | null;
+  actualizado_en?: string;
+  origen_tiempo?: TareaRastreoZonaVisitaOrigenTiempo;
+}
+
 export interface TareaRastreoZonaDetalleDto {
   id: string;
   rol: string;
   tipo_zona: string;
   origen: string;
   tiempo: TareaRastreoZonaTiempoDto;
-  visitas: Array<{ id: string; entrada_en: string; salida_en: string | null }>;
+  visitas: TareaRastreoZonaVisitaDto[];
+}
+
+/** Zona de control del detalle, conservando su identidad para editarla. */
+export interface TareaSeguimientoZonaControl {
+  id: string;
+  geometry: SeguimientoZoneGeometry;
+}
+
+export type TareaRastreoCambioZonaControl =
+  | { accion: "mantener"; id: string }
+  | { accion: "agregar"; id: string }
+  | { accion: "agregar"; geom: SeguimientoZoneGeometry }
+  | { accion: "actualizar"; id: string; geom: SeguimientoZoneGeometry }
+  | { accion: "quitar"; id: string }
+  | { accion: "reemplazar"; id: string; nueva_zona_id: string }
+  | { accion: "reemplazar"; id: string; geom: SeguimientoZoneGeometry };
+
+/** Parámetros públicos de `actualizar_tarea_v2` para una tarea operativa. */
+export interface ActualizarTareaV2Params {
+  p_tarea_id: string;
+  p_version_esperada: number;
+  p_tipo_codigo: Extract<TareaRastreoTipoCodigo, "finca" | "zona">;
+  p_usuario_asignado_id: string;
+  p_tracker_id: number;
+  p_source_id: number;
+  p_tracker_label: string;
+  p_acompanantes: string[];
+  p_indicaciones: string;
+  p_fecha_programada: string;
+  p_prioridad_id: number;
+  p_tiempo_estimado_minutos: number;
+  p_ubicacion_id: string | null;
+  p_punto_latitud: number;
+  p_punto_longitud: number;
+  p_linea_control_geojson: SeguimientoLineGeometry | null;
+  p_zona_control_geojson: TareaRastreoCambioZonaControl[];
+  p_orden_ruta: number | null;
+}
+
+export interface ActualizarTareaV2Respuesta {
+  id: string;
+  version: number;
+  area_id: string;
+  tipo: Extract<TareaRastreoTipoCodigo, "finca" | "zona">;
+  usuario_asignado_id: string;
+  tracker_id: number;
+  source_id: number;
+  tracker_label: string;
+  fecha_programada: string;
+  ubicacion_id: string | null;
+  zona_control_ids: string[];
+  orden_ruta: number | null;
+  estado_tarea_id: number;
+  estado_operativo_tarea_id: number;
+  actualizado_en: string;
+}
+
+/** Parámetros públicos para descartar una duda ya finalizada. */
+export interface DescartarDudaV2Params {
+  p_duda_tarea_id: string;
+  p_version_esperada: number;
+  p_motivo: string | null;
+}
+
+export interface DescartarDudaV2AsociacionConservada {
+  tarea_id: string;
+  zona_id: string;
+  metodo: "automatico" | "manual";
+  ocurrido_en: string;
+}
+
+/** Respuesta confirmada por `descartar_duda_v2`. */
+export interface DescartarDudaV2Respuesta {
+  tipo: "duda_descartada";
+  duda_tarea_id: string;
+  version: number;
+  source_id: number;
+  fecha_programada: string;
+  cancelada_en: string;
+  motivo_cancelacion: string | null;
+  zonas_permanencia_desvinculadas: string[];
+  zonas_desactivadas: string[];
+  asociaciones_conservadas: DescartarDudaV2AsociacionConservada[];
+  estado_detencion_reiniciado: boolean;
+  ocurrido_en: string;
 }
 
 /** DTO JSON de public.obtener_tarea_detalle_v2. */
@@ -309,9 +418,11 @@ export interface TareaSeguimientoListItem {
 }
 
 export interface TareaSeguimientoDetail extends TareaSeguimientoListItem {
+  version: number;
   companionNames: string[];
   controlLine: SeguimientoLineGeometry | null;
   controlZones: SeguimientoZoneGeometry[];
+  controlZoneReferences: TareaSeguimientoZonaControl[];
   /** Punto de referencia de una duda automática cuando no existe punto enrutable. */
   visualLocation: SeguimientoCoordinates | null;
   /** Polígonos detectados por permanencia; no son zonas de control de la tarea. */

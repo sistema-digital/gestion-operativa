@@ -1,11 +1,30 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ChevronDown, Clock3, History } from "lucide-vue-next";
+import {
+  ChevronDown,
+  Clock3,
+  History,
+  Pencil,
+  Replace,
+  Trash2,
+} from "lucide-vue-next";
 import type { TareaRastreoZonaDetalleDto } from "@/stores/seguimiento/tareas/tareasSeguimiento.types";
+import {
+  formatCompactPanamaDateTime,
+  formatCompactPanamaTime,
+} from "@/utils/formatCompactPanamaDate";
 
 const props = defineProps<{
   zone: TareaRastreoZonaDetalleDto;
   index: number;
+  editable?: boolean;
+  canRemove?: boolean;
+  submitting?: boolean;
+}>();
+const emit = defineEmits<{
+  editGeometry: [zoneId: string];
+  remove: [zoneId: string];
+  replace: [zoneId: string];
 }>();
 
 const zoneDescription = computed(() => {
@@ -15,6 +34,19 @@ const zoneDescription = computed(() => {
   return `${role} · ${type} · origen: ${origin}`;
 });
 const visitHistory = computed(() => [...props.zone.visitas].reverse());
+const hasVisitHistory = computed(
+  () =>
+    Boolean(props.zone.visitas.length) ||
+    props.zone.tiempo.cantidad_visitas > 0,
+);
+const canEditGeometry = computed(
+  () => !hasVisitHistory.value && !props.submitting,
+);
+const timeOriginLabels = {
+  visita_zona: "Visita de zona",
+  duda_asociada: "Duda asociada",
+  visita_tarea_historica: "Visita histórica",
+} as const;
 
 function formatDuration(seconds: number): string {
   const totalMinutes = Math.max(0, Math.floor(seconds / 60));
@@ -23,27 +55,17 @@ function formatDuration(seconds: number): string {
 }
 
 function formatTime(value: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "—"
-    : new Intl.DateTimeFormat("es-PA", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(date);
+  return formatCompactPanamaTime(value);
 }
 
 function formatDateTime(value: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "—"
-    : new Intl.DateTimeFormat("es-PA", {
-        day: "2-digit",
-        month: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(date);
+  return formatCompactPanamaDateTime(value);
+}
+
+function formatTimeOrigin(
+  origin: TareaRastreoZonaDetalleDto["visitas"][number]["origen_tiempo"],
+): string | null {
+  return origin ? timeOriginLabels[origin] : null;
 }
 
 function visitDuration(
@@ -242,11 +264,56 @@ function visitDuration(
                 }}</b>
               </div>
             </div>
+            <p
+              v-if="formatTimeOrigin(visit.origen_tiempo)"
+              class="mt-1.5 text-[8px] font-bold text-slate-500"
+            >
+              {{ formatTimeOrigin(visit.origen_tiempo) }}
+            </p>
           </article>
         </div>
         <p v-else class="mt-2 text-[9px] text-slate-500">
           No hay visitas registradas para esta zona.
         </p>
+      </div>
+
+      <div v-if="editable" class="mt-3 border-t border-slate-100 pt-3">
+        <p
+          v-if="hasVisitHistory"
+          class="mb-2 text-[9px] leading-4 text-slate-500"
+        >
+          La geometría no se puede editar porque esta zona conserva visitas
+          históricas.
+        </p>
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <button
+            class="inline-flex min-h-9 cursor-pointer items-center justify-center gap-1 rounded-md border border-main/30 bg-white px-2 text-[10px] font-extrabold text-main transition hover:bg-second focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-main disabled:cursor-not-allowed disabled:opacity-55"
+            type="button"
+            :disabled="!canEditGeometry"
+            :aria-label="`Editar geometría de la zona de control ${index + 1}`"
+            @click="emit('editGeometry', zone.id)"
+          >
+            <Pencil class="size-3.5" aria-hidden="true" />Editar geometría
+          </button>
+          <button
+            class="inline-flex min-h-9 cursor-pointer items-center justify-center gap-1 rounded-md border border-danger/30 bg-white px-2 text-[10px] font-extrabold text-danger transition hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed disabled:opacity-55"
+            type="button"
+            :disabled="!canRemove || submitting"
+            :aria-label="`Quitar zona de control ${index + 1}`"
+            @click="emit('remove', zone.id)"
+          >
+            <Trash2 class="size-3.5" aria-hidden="true" />Quitar
+          </button>
+          <button
+            class="inline-flex min-h-9 cursor-pointer items-center justify-center gap-1 rounded-md border border-main/30 bg-white px-2 text-[10px] font-extrabold text-main transition hover:bg-second focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-main disabled:cursor-not-allowed disabled:opacity-55"
+            type="button"
+            :disabled="submitting"
+            :aria-label="`Reemplazar zona de control ${index + 1}`"
+            @click="emit('replace', zone.id)"
+          >
+            <Replace class="size-3.5" aria-hidden="true" />Reemplazar
+          </button>
+        </div>
       </div>
     </div>
   </details>

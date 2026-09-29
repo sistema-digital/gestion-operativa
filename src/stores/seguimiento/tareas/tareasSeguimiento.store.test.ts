@@ -4,6 +4,8 @@ import { createPinia, setActivePinia } from "pinia";
 const loadWorkspaceContext = vi.hoisted(() => vi.fn());
 const loadTasks = vi.hoisted(() => vi.fn());
 const loadPlannedRoutes = vi.hoisted(() => vi.fn());
+const loadDetail = vi.hoisted(() => vi.fn());
+const discardDoubt = vi.hoisted(() => vi.fn());
 const realtimeSync = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const realtimeClear = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
@@ -12,6 +14,8 @@ vi.mock("./tareasSeguimiento.service", () => ({
     loadWorkspaceContext,
     loadTasks,
     loadPlannedRoutes,
+    loadDetail,
+    discardDoubt,
   },
 }));
 vi.mock("@/seguimiento/shared/trackers/trackerCurrentLocation.service", () => ({
@@ -61,6 +65,8 @@ describe("carga de rutas planificadas", () => {
     loadWorkspaceContext.mockReset();
     loadTasks.mockReset();
     loadPlannedRoutes.mockReset();
+    loadDetail.mockReset();
+    discardDoubt.mockReset();
     realtimeSync.mockClear();
     realtimeClear.mockClear();
     loadWorkspaceContext.mockResolvedValue(context);
@@ -115,8 +121,125 @@ describe("carga de rutas planificadas", () => {
       expect.objectContaining({
         onPermanencia: expect.any(Function),
         onObservacion: expect.any(Function),
+        onDudaZona: expect.any(Function),
       }),
     );
+  });
+
+  it("conserva una sugerencia de duda para que la UI solicite decisión", async () => {
+    loadWorkspaceContext.mockResolvedValue({
+      ...context,
+      catalog: {
+        areas: [{ id: "area-1", label: "Área 1", workers: [], companions: [] }],
+      },
+    });
+    const store = useTareasSeguimientoStore();
+
+    await store.loadWorkspace();
+    const handlers = realtimeSync.mock.calls[0]?.[1];
+    handlers.onDudaZona({
+      tipo: "duda_zona_sugerida",
+      tarea_id: "task-zona-1",
+      duda_tarea_id: "task-duda-1",
+      zona_id: "zone-duda-1",
+      distancia_metros: 185.2,
+      automatica: false,
+      requiere_revision: true,
+      finalizada: true,
+      puede_descartar: true,
+      acciones: ["agregar", "descartar"],
+      ocurrido_en: "2026-09-29T16:45:00Z",
+    });
+
+    expect(store.dudaZoneEvents).toMatchObject([
+      {
+        tipo: "duda_zona_sugerida",
+        tarea_id: "task-zona-1",
+        zona_id: "zone-duda-1",
+      },
+    ]);
+    store.dismissDudaZoneEvent(
+      "duda_zona_sugerida",
+      "task-duda-1",
+      "zone-duda-1",
+    );
+    expect(store.dudaZoneEvents).toEqual([]);
+  });
+
+  it("descarta la duda mediante el RPC y luego recarga el workspace", async () => {
+    const suggestion = {
+      tipo: "duda_zona_sugerida" as const,
+      tarea_id: "task-zona-1",
+      duda_tarea_id: "task-duda-1",
+      zona_id: "zone-duda-1",
+      distancia_metros: 185.2,
+      automatica: false as const,
+      requiere_revision: true as const,
+      finalizada: true as const,
+      puede_descartar: true,
+      acciones: ["agregar", "descartar"] as const,
+      ocurrido_en: "2026-09-29T16:45:00Z",
+    };
+    loadDetail.mockResolvedValue({
+      id: suggestion.duda_tarea_id,
+      type: "duda",
+      version: 3,
+    });
+    discardDoubt.mockResolvedValue({ tipo: "duda_descartada" });
+    const store = useTareasSeguimientoStore();
+
+    await store.loadWorkspace();
+    const handlers = realtimeSync.mock.calls[0]?.[1];
+    handlers.onDudaZona(suggestion);
+
+    await store.discardDudaZoneSuggestion(suggestion);
+
+    expect(discardDoubt).toHaveBeenCalledWith({
+      p_duda_tarea_id: "task-duda-1",
+      p_version_esperada: 3,
+      p_motivo: null,
+    });
+    expect(store.dudaZoneEvents).toEqual([]);
+    expect(loadTasks).toHaveBeenCalledTimes(2);
+  });
+
+  it("elimina la sugerencia y recarga al recibir duda_descartada", async () => {
+    const store = useTareasSeguimientoStore();
+
+    await store.loadWorkspace();
+    const handlers = realtimeSync.mock.calls[0]?.[1];
+    handlers.onDudaZona({
+      tipo: "duda_descartada",
+      duda_tarea_id: "task-duda-1",
+    });
+
+    await vi.waitFor(() => expect(loadTasks).toHaveBeenCalledTimes(2));
+  });
+
+  it("refresca el listado al asociar automáticamente una duda", async () => {
+    loadWorkspaceContext.mockResolvedValue({
+      ...context,
+      catalog: {
+        areas: [{ id: "area-1", label: "Área 1", workers: [], companions: [] }],
+      },
+    });
+    const store = useTareasSeguimientoStore();
+
+    await store.loadWorkspace();
+    const handlers = realtimeSync.mock.calls[0]?.[1];
+    handlers.onDudaZona({
+      tipo: "duda_zona_asociada_automaticamente",
+      tarea_id: "task-zona-1",
+      duda_tarea_id: "task-duda-1",
+      zona_id: "zone-duda-1",
+      distancia_metros: 47.5,
+      metodo: "automatico",
+      requiere_revision: false,
+      zonas_control_ids: ["zone-original-1", "zone-duda-1"],
+      ocurrido_en: "2026-09-29T16:45:00Z",
+    });
+
+    await vi.waitFor(() => expect(loadTasks).toHaveBeenCalledTimes(2));
   });
 
   it("parchea la card sin recargar el listado cuando inicia una permanencia", async () => {

@@ -58,11 +58,63 @@ const observationEventSchema = z.object({
   area_id: z.string().min(1),
 });
 
+const dudaZonaEventSchema = z.discriminatedUnion("tipo", [
+  z.object({
+    tipo: z.literal("duda_zona_cercana_detectada"),
+    tarea_id: z.string().min(1),
+    duda_tarea_id: z.string().min(1),
+    zona_id: z.string().min(1),
+    distancia_metros: z.number().nonnegative(),
+    automatica: z.literal(true),
+    se_asociara_al_cerrar: z.literal(true),
+    requiere_revision: z.literal(false),
+    ocurrido_en: z.string().min(1),
+  }),
+  z.object({
+    tipo: z.literal("duda_zona_asociada_automaticamente"),
+    tarea_id: z.string().min(1),
+    duda_tarea_id: z.string().min(1),
+    zona_id: z.string().min(1),
+    distancia_metros: z.number().nonnegative(),
+    metodo: z.literal("automatico"),
+    requiere_revision: z.literal(false),
+    zonas_control_ids: z.array(z.string().min(1)).min(1),
+    ocurrido_en: z.string().min(1),
+  }),
+  z.object({
+    tipo: z.literal("duda_zona_sugerida"),
+    tarea_id: z.string().min(1),
+    duda_tarea_id: z.string().min(1),
+    zona_id: z.string().min(1),
+    distancia_metros: z.number().nonnegative(),
+    automatica: z.literal(false),
+    requiere_revision: z.literal(true),
+    finalizada: z.literal(true),
+    puede_descartar: z.boolean(),
+    acciones: z.array(z.enum(["agregar", "descartar"])).min(1),
+    ocurrido_en: z.string().min(1),
+  }),
+  z.object({
+    tipo: z.literal("duda_descartada"),
+    duda_tarea_id: z.string().min(1),
+  }),
+  z.object({
+    tipo: z.literal("duda_zona_ambigua"),
+    duda_tarea_id: z.string().min(1),
+    zona_id: z.string().min(1),
+    candidatos: z.number().int().min(2),
+    requiere_revision: z.literal(true),
+    finalizada: z.literal(true),
+    ocurrido_en: z.string().min(1),
+  }),
+]);
+
 export type TareaPermanenciaRealtimeEvent =
   z.infer<typeof taskEventSchema> | z.infer<typeof zoneEventSchema>;
 export type TareaObservacionRealtimeEvent = z.infer<
   typeof observationEventSchema
 >;
+export type TareaDudaZonaRealtimeEvent = z.infer<typeof dudaZonaEventSchema>;
 
 export function parseTareaPermanenciaRealtimeEvent(
   payload: unknown,
@@ -80,9 +132,17 @@ export function parseTareaObservacionRealtimeEvent(
   return event.success ? event.data : null;
 }
 
+export function parseTareaDudaZonaRealtimeEvent(
+  payload: object,
+): TareaDudaZonaRealtimeEvent | null {
+  const event = dudaZonaEventSchema.safeParse(payload);
+  return event.success ? event.data : null;
+}
+
 type RealtimeHandlers = {
   onPermanencia: (event: TareaPermanenciaRealtimeEvent) => void;
   onObservacion: (event: TareaObservacionRealtimeEvent) => void;
+  onDudaZona?: (event: TareaDudaZonaRealtimeEvent) => void;
 };
 
 const areaChannels = new Map<string, RealtimeChannel>();
@@ -108,6 +168,10 @@ async function subscribeArea(
     .on("broadcast", { event: "observacion_tarea" }, ({ payload }) => {
       const event = parseTareaObservacionRealtimeEvent(payload);
       if (event?.area_id === areaId) handlers.onObservacion(event);
+    })
+    .on("broadcast", { event: "cambio_operacion" }, ({ payload }) => {
+      const event = parseTareaDudaZonaRealtimeEvent(payload);
+      if (event) handlers.onDudaZona?.(event);
     });
   areaChannels.set(areaId, channel);
   await new Promise<void>((resolve, reject) => {

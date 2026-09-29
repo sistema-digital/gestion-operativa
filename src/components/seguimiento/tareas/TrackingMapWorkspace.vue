@@ -35,6 +35,7 @@ import type {
   SeguimientoTaskExclusionZone,
   TareaSeguimientoDetail,
   TareaSeguimientoListItem,
+  SeguimientoZoneGeometry,
 } from "@/stores/seguimiento/tareas/tareasSeguimiento.types";
 
 const props = defineProps<{
@@ -61,6 +62,7 @@ const props = defineProps<{
   trackerHistory?: SeguimientoTrackerHistoryPoint[];
   trackerHistoryNow?: number | null;
   selectedTaskDetail?: TareaSeguimientoDetail | null;
+  editingControlZoneId?: string | null;
 }>();
 const emit = defineEmits<{
   ready: [];
@@ -69,6 +71,10 @@ const emit = defineEmits<{
   "capture:control-line": [coordinates: number[][][]];
   "capture:control-zone": [coordinates: number[][][][]];
   "update:control-zone": [index: number, coordinates: number[][][][]];
+  "update:existing-control-zone": [
+    zoneId: string,
+    geometry: SeguimientoZoneGeometry,
+  ];
   "select:control-zone": [index: number];
   "capture:blocked": [];
   "creation:vertices-change": [count: number];
@@ -671,26 +677,56 @@ function renderLayers(): void {
         }),
       );
     });
-    props.selectedTaskDetail.controlZones.forEach((zone) => {
-      const paths = zone.coordinates.map((polygon) =>
+    props.selectedTaskDetail.controlZoneReferences.forEach((zone) => {
+      const paths = zone.geometry.coordinates.map((polygon) =>
         polygon[0].map(([longitude, latitude]) => ({
           lat: latitude,
           lng: longitude,
         })),
       );
-      creationOverlays.push(
-        new maps.Polygon({
-          map,
-          paths,
-          clickable: false,
-          strokeColor: "#004643",
-          strokeOpacity: 1,
-          strokeWeight: 2.5,
-          fillColor: "#20A39E",
-          fillOpacity: 0.26,
-          zIndex: seguimientoMapZIndex.selected + 2,
-        }),
-      );
+      const isEditingControlZone =
+        props.editingControlZoneId === zone.id &&
+        props.selectedTaskDetail.permissions.puede_editar_geometria_control;
+      const polygon = new maps.Polygon({
+        map,
+        paths,
+        clickable: isEditingControlZone,
+        editable: isEditingControlZone,
+        strokeColor: isEditingControlZone ? "#D4A853" : "#004643",
+        strokeOpacity: 1,
+        strokeWeight: isEditingControlZone ? 3 : 2.5,
+        fillColor: isEditingControlZone ? "#D4A853" : "#20A39E",
+        fillOpacity: isEditingControlZone ? 0.34 : 0.26,
+        zIndex: seguimientoMapZIndex.selected + 2,
+      });
+      if (isEditingControlZone) {
+        let geometryChanged = false;
+        const markGeometryChanged = () => {
+          geometryChanged = true;
+        };
+        polygon.getPaths().forEach((path) => {
+          path.addListener("set_at", markGeometryChanged);
+          path.addListener("insert_at", markGeometryChanged);
+          path.addListener("remove_at", markGeometryChanged);
+        });
+        polygon.addListener("mouseup", () => {
+          if (!geometryChanged) return;
+          geometryChanged = false;
+          const coordinates = polygon
+            .getPaths()
+            .getArray()
+            .map((path) => [
+              path
+                .getArray()
+                .map((position) => [position.lng(), position.lat()]),
+            ]);
+          emit("update:existing-control-zone", zone.id, {
+            type: "MultiPolygon",
+            coordinates,
+          });
+        });
+      }
+      creationOverlays.push(polygon);
     });
     props.selectedTaskDetail.permanenceZones.forEach((zone) => {
       const paths = zone.coordinates.map((polygon) =>
@@ -932,6 +968,7 @@ watch(
     props.trackerHistory,
     props.trackerHistoryNow,
     props.selectedTaskDetail,
+    props.editingControlZoneId,
   ],
   renderLayers,
   { deep: true },

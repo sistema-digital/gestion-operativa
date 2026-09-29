@@ -5,6 +5,10 @@ import {
   getSeguimientoToday,
   toErrorMessage,
 } from "./tareasSeguimiento.helpers";
+import {
+  toAgregarZonaDudaParams,
+  toActualizarZonasControlParams,
+} from "./tareasSeguimiento.mappers";
 import { tareasSeguimientoService } from "./tareasSeguimiento.service";
 import type {
   SeguimientoTracker,
@@ -23,6 +27,7 @@ import {
 } from "@/seguimiento/shared/trackers/trackerHistoryWindow";
 import {
   tareaRealtimeService,
+  type TareaDudaZonaRealtimeEvent,
   type TareaObservacionRealtimeEvent,
   type TareaPermanenciaRealtimeEvent,
 } from "@/seguimiento/shared/tareas/tareaRealtime.service";
@@ -34,6 +39,7 @@ import type {
   SeguimientoMapToolState,
   SeguimientoRutaPlanificada,
   TareaSeguimientoDetail,
+  TareaRastreoCambioZonaControl,
   SeguimientoTaskExclusionZone,
   TareaSeguimientoListItem,
   TareasSeguimientoFilters,
@@ -64,6 +70,8 @@ export const useTareasSeguimientoStore = defineStore(
     const liveTaskPermanences = ref<
       Record<string, { seconds: number; startedAt: number }>
     >({});
+    const dudaZoneEvents = ref<TareaDudaZonaRealtimeEvent[]>([]);
+    const applyingDudaZoneEventKey = shallowRef<string | null>(null);
     const catalog = ref<SeguimientoTaskCatalog>({ areas: [] });
     const geography = ref<SeguimientoOperationalGeography[]>([]);
     const mapConfiguration = shallowRef<SeguimientoMapConfiguration | null>(
@@ -80,6 +88,8 @@ export const useTareasSeguimientoStore = defineStore(
     const loadingDetail = shallowRef(false);
     const initialError = shallowRef<string | null>(null);
     const detailError = shallowRef<string | null>(null);
+    const editingControlZoneId = shallowRef<string | null>(null);
+    const updatingControlZones = shallowRef(false);
     let initialRequest: Promise<void> | null = null;
     let detailRequestId = 0;
     let plannedRoutesRequestId = 0;
@@ -279,6 +289,115 @@ export const useTareasSeguimientoStore = defineStore(
       void refreshOpenDetail(event.tarea_id);
     }
 
+    function getDudaZoneEventKey(event: TareaDudaZonaRealtimeEvent): string {
+      return `${event.tipo}:${event.duda_tarea_id}:${"zona_id" in event ? event.zona_id : "sin-zona"}`;
+    }
+
+    function dismissDudaZoneEvent(
+      type: TareaDudaZonaRealtimeEvent["tipo"],
+      dudaTaskId: string,
+      zoneId: string,
+    ): void {
+      const eventKey = `${type}:${dudaTaskId}:${zoneId}`;
+      dudaZoneEvents.value = dudaZoneEvents.value.filter(
+        (event) => getDudaZoneEventKey(event) !== eventKey,
+      );
+    }
+
+    function dismissDudaZoneEventsForDoubt(dudaTaskId: string): void {
+      dudaZoneEvents.value = dudaZoneEvents.value.filter(
+        (event) => event.duda_tarea_id !== dudaTaskId,
+      );
+    }
+
+    function enqueueDudaZoneEvent(event: TareaDudaZonaRealtimeEvent): void {
+      const eventKey = getDudaZoneEventKey(event);
+      dudaZoneEvents.value = [
+        ...dudaZoneEvents.value.filter(
+          (pendingEvent) => getDudaZoneEventKey(pendingEvent) !== eventKey,
+        ),
+        event,
+      ];
+    }
+
+    function handleDudaZoneRealtime(event: TareaDudaZonaRealtimeEvent): void {
+      if (event.tipo === "duda_descartada") {
+        dismissDudaZoneEventsForDoubt(event.duda_tarea_id);
+        if (selectedTaskId.value === event.duda_tarea_id) closeDetail();
+        void loadWorkspace(true);
+        return;
+      }
+      if (event.tipo === "duda_zona_asociada_automaticamente") {
+        dismissDudaZoneEvent(
+          "duda_zona_cercana_detectada",
+          event.duda_tarea_id,
+          event.zona_id,
+        );
+        enqueueDudaZoneEvent(event);
+        void refreshOpenDetail(event.tarea_id);
+        void loadWorkspace(true);
+        return;
+      }
+      enqueueDudaZoneEvent(event);
+      if ("tarea_id" in event) void refreshOpenDetail(event.tarea_id);
+    }
+
+    async function acceptDudaZoneSuggestion(
+      event: Extract<
+        TareaDudaZonaRealtimeEvent,
+        { tipo: "duda_zona_sugerida" }
+      >,
+    ): Promise<void> {
+      const eventKey = getDudaZoneEventKey(event);
+      if (applyingDudaZoneEventKey.value === eventKey) return;
+      applyingDudaZoneEventKey.value = eventKey;
+      try {
+        const targetDetail =
+          detail.value?.id === event.tarea_id
+            ? detail.value
+            : await tareasSeguimientoService.loadDetail(event.tarea_id);
+        await tareasSeguimientoService.updateTask(
+          toAgregarZonaDudaParams(targetDetail, event.zona_id),
+        );
+        dismissDudaZoneEvent(event.tipo, event.duda_tarea_id, event.zona_id);
+        await loadWorkspace(true);
+        if (selectedTaskId.value === event.tarea_id)
+          await selectTask(event.tarea_id);
+      } finally {
+        applyingDudaZoneEventKey.value = null;
+      }
+    }
+
+    async function discardDudaZoneSuggestion(
+      event: Extract<
+        TareaDudaZonaRealtimeEvent,
+        { tipo: "duda_zona_sugerida" }
+      >,
+    ): Promise<void> {
+      const eventKey = getDudaZoneEventKey(event);
+      if (applyingDudaZoneEventKey.value === eventKey) return;
+      applyingDudaZoneEventKey.value = eventKey;
+      try {
+        const doubtDetail = await tareasSeguimientoService.loadDetail(
+          event.duda_tarea_id,
+        );
+        if (doubtDetail.type !== "duda") {
+          throw new Error(
+            "La sugerencia no corresponde a una duda automática.",
+          );
+        }
+        await tareasSeguimientoService.discardDoubt({
+          p_duda_tarea_id: doubtDetail.id,
+          p_version_esperada: doubtDetail.version,
+          p_motivo: null,
+        });
+        dismissDudaZoneEventsForDoubt(event.duda_tarea_id);
+        await loadWorkspace(true);
+      } finally {
+        applyingDudaZoneEventKey.value = null;
+      }
+    }
+
     function syncRealtime(): Promise<void> {
       realtimeSyncRequest = realtimeSyncRequest
         .catch(() => undefined)
@@ -287,6 +406,7 @@ export const useTareasSeguimientoStore = defineStore(
             await tareaRealtimeService.sync(realtimeAreaIds.value, {
               onPermanencia: handlePermanenciaRealtime,
               onObservacion: handleObservacionRealtime,
+              onDudaZona: handleDudaZoneRealtime,
             });
             realtimeError.value = null;
           } catch (error) {
@@ -593,6 +713,7 @@ export const useTareasSeguimientoStore = defineStore(
     }
 
     async function selectTask(taskId: string): Promise<void> {
+      editingControlZoneId.value = null;
       selectedTaskId.value = taskId;
       panelMode.value = "view";
       detailError.value = null;
@@ -624,7 +745,76 @@ export const useTareasSeguimientoStore = defineStore(
       selectedTaskId.value = null;
       detail.value = null;
       detailError.value = null;
+      editingControlZoneId.value = null;
       panelMode.value = "closed";
+    }
+
+    function beginControlZoneEdit(zoneId: string): boolean {
+      const currentDetail = detail.value;
+      if (
+        !currentDetail ||
+        currentDetail.type === "duda" ||
+        !currentDetail.permissions.puede_editar_geometria_control ||
+        !currentDetail.controlZoneReferences.some((zone) => zone.id === zoneId)
+      )
+        return false;
+      editingControlZoneId.value = zoneId;
+      return true;
+    }
+
+    function beginControlZoneGeometryEdit(zoneId: string): boolean {
+      const currentDetail = detail.value;
+      if (
+        !currentDetail ||
+        currentDetail.type === "duda" ||
+        !currentDetail.permissions.puede_editar_geometria_control ||
+        !currentDetail.controlZoneReferences.some((zone) => zone.id === zoneId)
+      )
+        return false;
+      const zoneDetail = currentDetail.zoneDetails.find(
+        (zone) => zone.id === zoneId,
+      );
+      if (
+        zoneDetail &&
+        (zoneDetail.visitas.length > 0 ||
+          zoneDetail.tiempo.cantidad_visitas > 0)
+      )
+        return false;
+      editingControlZoneId.value = zoneId;
+      return true;
+    }
+
+    function cancelControlZoneEdit(): void {
+      if (updatingControlZones.value) return;
+      editingControlZoneId.value = null;
+    }
+
+    async function updateControlZones(
+      changes: TareaRastreoCambioZonaControl[],
+    ): Promise<void> {
+      const currentDetail = detail.value;
+      if (!currentDetail)
+        throw new Error("Selecciona una tarea antes de editar sus zonas.");
+      if (currentDetail.type === "duda")
+        throw new Error(
+          "Las tareas de duda no permiten editar zonas de control.",
+        );
+      if (!currentDetail.permissions.puede_editar_geometria_control)
+        throw new Error("No tienes permiso para editar las zonas de control.");
+      if (updatingControlZones.value) return;
+
+      const taskId = currentDetail.id;
+      updatingControlZones.value = true;
+      try {
+        await tareasSeguimientoService.updateTask(
+          toActualizarZonasControlParams(currentDetail, changes),
+        );
+        await loadWorkspace(true);
+        if (selectedTaskId.value === taskId) await selectTask(taskId);
+        editingControlZoneId.value = null;
+      } finally {
+        updatingControlZones.value = false;
+      }
     }
 
     function setFilters(next: Partial<TareasSeguimientoFilters>): void {
@@ -675,6 +865,8 @@ export const useTareasSeguimientoStore = defineStore(
       realtimeError,
       liveBadgeNow,
       liveTaskPermanences,
+      dudaZoneEvents,
+      applyingDudaZoneEventKey,
       catalog,
       geography,
       mapConfiguration,
@@ -691,15 +883,24 @@ export const useTareasSeguimientoStore = defineStore(
       loadingDetail,
       initialError,
       detailError,
+      editingControlZoneId,
+      updatingControlZones,
       loadWorkspace,
       refreshPlannedRoutes,
       loadTrackerHistory,
       selectTask,
       closeDetail,
+      beginControlZoneEdit,
+      beginControlZoneGeometryEdit,
+      cancelControlZoneEdit,
+      updateControlZones,
       setFilters,
       setMapReady,
       setMapError,
       toggleMapTool,
+      dismissDudaZoneEvent,
+      acceptDudaZoneSuggestion,
+      discardDudaZoneSuggestion,
       clearTrackerLocationSubscriptions,
     };
   },

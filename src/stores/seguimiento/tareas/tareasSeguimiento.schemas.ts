@@ -1,6 +1,12 @@
 import { z } from "zod";
-import type { TareaRastreoDetalleDto } from "./tareasSeguimiento.types";
-import type { RutaPlanificadaDto } from "./tareasSeguimiento.types";
+import type {
+  ActualizarTareaV2Params,
+  ActualizarTareaV2Respuesta,
+  DescartarDudaV2Params,
+  DescartarDudaV2Respuesta,
+  RutaPlanificadaDto,
+  TareaRastreoDetalleDto,
+} from "./tareasSeguimiento.types";
 
 const lineGeometrySchema = z.object({
   type: z.literal("MultiLineString"),
@@ -16,6 +22,97 @@ const taskCoordinateSchema = z.object({
   lat: z.number().finite(),
   lng: z.number().finite(),
 });
+
+const controlZoneChangeSchema = z.union([
+  z.object({ accion: z.literal("mantener"), id: z.string().uuid() }),
+  z.object({ accion: z.literal("agregar"), id: z.string().uuid() }),
+  z.object({ accion: z.literal("agregar"), geom: zoneGeometrySchema }),
+  z.object({
+    accion: z.literal("actualizar"),
+    id: z.string().uuid(),
+    geom: zoneGeometrySchema,
+  }),
+  z.object({ accion: z.literal("quitar"), id: z.string().uuid() }),
+  z.object({
+    accion: z.literal("reemplazar"),
+    id: z.string().uuid(),
+    nueva_zona_id: z.string().uuid(),
+  }),
+  z.object({
+    accion: z.literal("reemplazar"),
+    id: z.string().uuid(),
+    geom: zoneGeometrySchema,
+  }),
+]);
+
+export const actualizarTareaV2ParamsSchema = z.object({
+  p_tarea_id: z.string().uuid(),
+  p_version_esperada: z.number().int().nonnegative(),
+  p_tipo_codigo: z.enum(["finca", "zona"]),
+  p_usuario_asignado_id: z.string().uuid(),
+  p_tracker_id: z.number().int().positive(),
+  p_source_id: z.number().int().positive(),
+  p_tracker_label: z.string().min(1),
+  p_acompanantes: z.array(z.string()),
+  p_indicaciones: z.string(),
+  p_fecha_programada: z.string().min(1),
+  p_prioridad_id: z.number().int(),
+  p_tiempo_estimado_minutos: z.number().int().positive(),
+  p_ubicacion_id: z.string().uuid().nullable(),
+  p_punto_latitud: z.number().finite(),
+  p_punto_longitud: z.number().finite(),
+  p_linea_control_geojson: lineGeometrySchema.nullable(),
+  p_zona_control_geojson: z.array(controlZoneChangeSchema).min(1),
+  p_orden_ruta: z.number().int().nullable(),
+}) satisfies z.ZodType<ActualizarTareaV2Params>;
+
+export const actualizarTareaV2RespuestaSchema = z
+  .object({
+    id: z.string().uuid(),
+    version: z.number().int().nonnegative(),
+    area_id: z.string().uuid(),
+    tipo: z.enum(["finca", "zona"]),
+    usuario_asignado_id: z.string().uuid(),
+    tracker_id: z.number().int().positive(),
+    source_id: z.number().int().positive(),
+    tracker_label: z.string(),
+    fecha_programada: z.string(),
+    ubicacion_id: z.string().uuid().nullable(),
+    zona_control_ids: z.array(z.string().uuid()).min(1),
+    orden_ruta: z.number().int().nullable(),
+    estado_tarea_id: z.number().int(),
+    estado_operativo_tarea_id: z.number().int(),
+    actualizado_en: z.string(),
+  })
+  .passthrough() satisfies z.ZodType<ActualizarTareaV2Respuesta>;
+
+export const descartarDudaV2ParamsSchema = z.object({
+  p_duda_tarea_id: z.string().uuid(),
+  p_version_esperada: z.number().int().nonnegative(),
+  p_motivo: z.string().trim().min(1).nullable(),
+}) satisfies z.ZodType<DescartarDudaV2Params>;
+
+export const descartarDudaV2RespuestaSchema = z.object({
+  tipo: z.literal("duda_descartada"),
+  duda_tarea_id: z.string().uuid(),
+  version: z.number().int().nonnegative(),
+  source_id: z.number().int().positive(),
+  fecha_programada: z.string().min(1),
+  cancelada_en: z.string().min(1),
+  motivo_cancelacion: z.string().nullable(),
+  zonas_permanencia_desvinculadas: z.array(z.string().uuid()),
+  zonas_desactivadas: z.array(z.string().uuid()),
+  asociaciones_conservadas: z.array(
+    z.object({
+      tarea_id: z.string().uuid(),
+      zona_id: z.string().uuid(),
+      metodo: z.enum(["automatico", "manual"]),
+      ocurrido_en: z.string().min(1),
+    }),
+  ),
+  estado_detencion_reiniciado: z.boolean(),
+  ocurrido_en: z.string().min(1),
+}) satisfies z.ZodType<DescartarDudaV2Respuesta>;
 
 export const tareasRastreoListadoSchema = z.array(
   z.object({
@@ -153,6 +250,16 @@ export const tareaRastreoDetalleSchema = z.object({
             id: z.string(),
             entrada_en: z.string(),
             salida_en: z.string().nullable(),
+            numero_visita: z.number().int().positive().optional(),
+            duracion_segundos: z.number().nonnegative().optional(),
+            estado: z.enum(["abierta", "cerrada"]).optional(),
+            source_id: z.number().int().positive().optional(),
+            tracker_id: z.number().int().positive().optional(),
+            usuario_id: z.string().nullable().optional(),
+            actualizado_en: z.string().optional(),
+            origen_tiempo: z
+              .enum(["visita_zona", "duda_asociada", "visita_tarea_historica"])
+              .optional(),
           }),
         ),
       }),

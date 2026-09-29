@@ -95,6 +95,102 @@ describe("tareasSeguimientoService", () => {
     expect(workspace.tasks[0]?.type).toBe("duda");
   });
 
+  it("actualiza una tarea zona únicamente mediante actualizar_tarea_v2", async () => {
+    const payload = {
+      p_tarea_id: "11111111-1111-4111-8111-111111111111",
+      p_version_esperada: 4,
+      p_tipo_codigo: "zona" as const,
+      p_usuario_asignado_id: "22222222-2222-4222-8222-222222222222",
+      p_tracker_id: 10_488_914,
+      p_source_id: 10_319_800,
+      p_tracker_label: "450002 - Engrase",
+      p_acompanantes: [],
+      p_indicaciones: "Engrasar equipos del sector",
+      p_fecha_programada: "2026-09-29",
+      p_prioridad_id: 1,
+      p_tiempo_estimado_minutos: 60,
+      p_ubicacion_id: null,
+      p_punto_latitud: 8.4001,
+      p_punto_longitud: -82.6102,
+      p_linea_control_geojson: null,
+      p_zona_control_geojson: [
+        {
+          accion: "agregar" as const,
+          id: "33333333-3333-4333-8333-333333333333",
+        },
+      ],
+      p_orden_ruta: 3,
+    };
+    rpc.mockResolvedValue({
+      data: {
+        id: payload.p_tarea_id,
+        version: 5,
+        area_id: "44444444-4444-4444-8444-444444444444",
+        tipo: "zona",
+        usuario_asignado_id: payload.p_usuario_asignado_id,
+        tracker_id: payload.p_tracker_id,
+        source_id: payload.p_source_id,
+        tracker_label: payload.p_tracker_label,
+        fecha_programada: payload.p_fecha_programada,
+        ubicacion_id: null,
+        zona_control_ids: [
+          "55555555-5555-4555-8555-555555555555",
+          payload.p_zona_control_geojson[0].id,
+        ],
+        orden_ruta: 3,
+        estado_tarea_id: 1,
+        estado_operativo_tarea_id: 3,
+        actualizado_en: "2026-09-29T16:00:00Z",
+      },
+      error: null,
+    });
+
+    await expect(
+      tareasSeguimientoService.updateTask(payload),
+    ).resolves.toMatchObject({
+      version: 5,
+      zona_control_ids: expect.arrayContaining([
+        "33333333-3333-4333-8333-333333333333",
+      ]),
+    });
+    expect(rpc).toHaveBeenCalledWith("actualizar_tarea_v2", payload);
+  });
+
+  it("descarta una duda únicamente mediante descartar_duda_v2", async () => {
+    const payload = {
+      p_duda_tarea_id: "11111111-1111-4111-8111-111111111111",
+      p_version_esperada: 4,
+      p_motivo: null,
+    };
+    rpc.mockResolvedValue({
+      data: {
+        tipo: "duda_descartada",
+        duda_tarea_id: payload.p_duda_tarea_id,
+        version: 5,
+        source_id: 10_319_800,
+        fecha_programada: "2026-09-29",
+        cancelada_en: "2026-09-29T20:10:00Z",
+        motivo_cancelacion: null,
+        zonas_permanencia_desvinculadas: [
+          "22222222-2222-4222-8222-222222222222",
+        ],
+        zonas_desactivadas: ["22222222-2222-4222-8222-222222222222"],
+        asociaciones_conservadas: [],
+        estado_detencion_reiniciado: false,
+        ocurrido_en: "2026-09-29T20:10:00Z",
+      },
+      error: null,
+    });
+
+    await expect(
+      tareasSeguimientoService.discardDoubt(payload),
+    ).resolves.toMatchObject({
+      tipo: "duda_descartada",
+      version: 5,
+    });
+    expect(rpc).toHaveBeenCalledWith("descartar_duda_v2", payload);
+  });
+
   it("carga y mapea las rutas planificadas mediante su RPC", async () => {
     rpc.mockResolvedValue({
       data: {

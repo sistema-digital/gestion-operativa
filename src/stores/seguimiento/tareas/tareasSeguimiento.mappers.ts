@@ -8,6 +8,8 @@ import type {
 } from "@/seguimiento/shared/trackers/tracker.types";
 import { z } from "zod";
 import type {
+  ActualizarTareaV2Params,
+  TareaRastreoCambioZonaControl,
   TareaRastreoDetalleDto,
   TareaRastreoListadoDto,
   TareaSeguimientoDetail,
@@ -15,6 +17,7 @@ import type {
   RutaPlanificadaDto,
   SeguimientoRutaPlanificada,
 } from "./tareasSeguimiento.types";
+import { actualizarTareaV2ParamsSchema } from "./tareasSeguimiento.schemas";
 
 const mapTaskType = (
   type: TareaRastreoListadoDto["tipo_tarea_codigo"],
@@ -80,7 +83,8 @@ export function mapTareaSeguimientoDetail(
   const routePoint = tarea.punto_enrutado;
   return {
     id: tarea.id,
-    type: mapTaskType(tarea.tipo_codigo, estado.estado_tarea_codigo),
+    version: tarea.version,
+    type: mapTaskType(tarea.tipo_codigo),
     status: mapTaskStatus(
       estado.estado_operativo_codigo,
       estado.estado_tarea_codigo,
@@ -110,6 +114,10 @@ export function mapTareaSeguimientoDetail(
     routeOrder: tarea.orden_ruta,
     controlLine: tarea.linea_control,
     controlZones: tarea.zonas_control.map((zone) => zone.geom),
+    controlZoneReferences: tarea.zonas_control.map((zone) => ({
+      id: zone.id,
+      geometry: zone.geom,
+    })),
     visualLocation: mapRoutePoint(
       tarea.ubicacion_visual?.lat,
       tarea.ubicacion_visual?.lng,
@@ -131,6 +139,52 @@ export function mapTareaSeguimientoDetail(
     permissions: response.permisos,
     updatedAt: tarea.actualizado_en,
   };
+}
+
+/** Construye el payload incremental sin interpretar omisiones como bajas. */
+export function toActualizarZonasControlParams(
+  task: TareaSeguimientoDetail,
+  changes: TareaRastreoCambioZonaControl[],
+): ActualizarTareaV2Params {
+  if (task.type === "duda") {
+    throw new Error(
+      "Una duda automática no admite edición de zonas de control.",
+    );
+  }
+
+  return actualizarTareaV2ParamsSchema.parse({
+    p_tarea_id: task.id,
+    p_version_esperada: task.version,
+    p_tipo_codigo: task.type,
+    p_usuario_asignado_id: task.assignedUserId,
+    p_tracker_id: task.trackerId,
+    p_source_id: task.sourceId,
+    p_tracker_label: task.trackerLabel,
+    p_acompanantes: task.companionNames,
+    p_indicaciones: task.instructions ?? "",
+    p_fecha_programada: task.scheduledDate,
+    p_prioridad_id: task.priorityId,
+    p_tiempo_estimado_minutos: task.estimatedMinutes,
+    p_ubicacion_id: task.type === "finca" ? task.locationId : null,
+    p_punto_latitud: task.routePoint?.latitude,
+    p_punto_longitud: task.routePoint?.longitude,
+    p_linea_control_geojson: task.type === "finca" ? task.controlLine : null,
+    p_zona_control_geojson: changes,
+    p_orden_ruta: task.routeOrder,
+  });
+}
+
+/** Reutiliza la zona de una duda sin reenviar ni eliminar otros controles. */
+export function toAgregarZonaDudaParams(
+  task: TareaSeguimientoDetail,
+  doubtZoneId: string,
+): ActualizarTareaV2Params {
+  if (task.type !== "zona") {
+    throw new Error("Solo una tarea zona puede recibir una zona de duda.");
+  }
+  return toActualizarZonasControlParams(task, [
+    { accion: "agregar", id: doubtZoneId },
+  ]);
 }
 
 export function mapRutaPlanificada(

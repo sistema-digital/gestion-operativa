@@ -3,10 +3,12 @@ import {
   mapSeguimientoTracker,
   mapTareaSeguimientoDetail,
   mapTareaSeguimientoListItem,
+  toAgregarZonaDudaParams,
 } from "./tareasSeguimiento.mappers";
 import type {
   TareaRastreoDetalleDto,
   TareaRastreoListadoDto,
+  TareaRastreoZonaDetalleDto,
 } from "./tareasSeguimiento.types";
 
 const taskRow = (
@@ -206,8 +208,42 @@ describe("tareasSeguimiento mappers", () => {
     });
   });
 
+  it("crea una operación incremental para asociar la zona existente de una duda", () => {
+    const detail = mapTareaSeguimientoDetail(
+      taskDetail({
+        tarea: {
+          ...taskDetail().tarea,
+          id: "11111111-1111-4111-8111-111111111111",
+          version: 4,
+          punto_enrutado: { lat: 8.4, lng: -82.5 },
+        },
+        asignacion: {
+          ...taskDetail().asignacion,
+          usuario_id: "22222222-2222-4222-8222-222222222222",
+          source_id: 10_319_800,
+          tracker_id: 10_488_914,
+          tracker_label: "450002 - Engrase",
+        },
+      }),
+    );
+
+    expect(
+      toAgregarZonaDudaParams(detail, "33333333-3333-4333-8333-333333333333"),
+    ).toMatchObject({
+      p_tarea_id: "11111111-1111-4111-8111-111111111111",
+      p_version_esperada: 4,
+      p_tipo_codigo: "zona",
+      p_zona_control_geojson: [
+        {
+          accion: "agregar",
+          id: "33333333-3333-4333-8333-333333333333",
+        },
+      ],
+    });
+  });
+
   it("preserva el desglose de tiempo e historial de cada zona asociada", () => {
-    const zoneDetail = {
+    const zoneDetail: TareaRastreoZonaDetalleDto = {
       id: "control-zone-1",
       rol: "control",
       tipo_zona: "control",
@@ -228,8 +264,16 @@ describe("tareasSeguimiento mappers", () => {
       visitas: [
         {
           id: "visit-1",
+          numero_visita: 1,
           entrada_en: "2026-08-29T12:00:00Z",
           salida_en: "2026-08-29T12:10:00Z",
+          duracion_segundos: 600,
+          estado: "cerrada",
+          source_id: 10319800,
+          tracker_id: 10488914,
+          usuario_id: "user-1",
+          actualizado_en: "2026-08-29T12:10:00Z",
+          origen_tiempo: "duda_asociada",
         },
       ],
     };
@@ -238,6 +282,14 @@ describe("tareasSeguimiento mappers", () => {
       mapTareaSeguimientoDetail(taskDetail({ zonas_detalle: [zoneDetail] }))
         .zoneDetails,
     ).toEqual([zoneDetail]);
+    expect(
+      mapTareaSeguimientoDetail(taskDetail({ zonas_detalle: [zoneDetail] }))
+        .zoneDetails[0]?.visitas[0],
+    ).toMatchObject({
+      origen_tiempo: "duda_asociada",
+      numero_visita: 1,
+      duracion_segundos: 600,
+    });
   });
 
   it("preserva la ubicación y zona de permanencia de una duda automática", () => {

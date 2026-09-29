@@ -8,11 +8,18 @@ import {
   mapTareaSeguimientoListItem,
 } from "./tareasSeguimiento.mappers";
 import {
+  actualizarTareaV2RespuestaSchema,
+  descartarDudaV2ParamsSchema,
+  descartarDudaV2RespuestaSchema,
   listarRutasPlanificadasSchema,
   tareaRastreoDetalleSchema,
   tareasRastreoListadoSchema,
 } from "./tareasSeguimiento.schemas";
 import type {
+  ActualizarTareaV2Params,
+  ActualizarTareaV2Respuesta,
+  DescartarDudaV2Params,
+  DescartarDudaV2Respuesta,
   ListarTareasRastreoV2Params,
   ListarRutasPlanificadasV2Params,
   TareaSeguimientoDetail,
@@ -178,6 +185,29 @@ export const tareasSeguimientoService = {
     );
     if (error) throw error;
     return mapTareaSeguimientoDetail(tareaRastreoDetalleSchema.parse(data));
+  },
+
+  async updateTask(
+    params: ActualizarTareaV2Params,
+  ): Promise<ActualizarTareaV2Respuesta> {
+    const { data, error } = await supabaseRastreoTareas.rpc(
+      "actualizar_tarea_v2",
+      params,
+    );
+    if (error) throw error;
+    return actualizarTareaV2RespuestaSchema.parse(data);
+  },
+
+  async discardDoubt(
+    params: DescartarDudaV2Params,
+  ): Promise<DescartarDudaV2Respuesta> {
+    const payload = descartarDudaV2ParamsSchema.parse(params);
+    const { data, error } = await supabaseRastreoTareas.rpc(
+      "descartar_duda_v2",
+      payload,
+    );
+    if (error) throw error;
+    return descartarDudaV2RespuestaSchema.parse(data);
   },
 };
 

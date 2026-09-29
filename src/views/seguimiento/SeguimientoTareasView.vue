@@ -23,6 +23,7 @@ import { useSeguimientoTareasView } from "@/composables/seguimiento/useSeguimien
 import { useSeguimientoTareaCreacion } from "@/composables/seguimiento/useSeguimientoTareaCreacion";
 import { SEGUIMIENTO_FEATURES } from "@/seguimiento/shared/seguimiento.permissions";
 import type { SeguimientoCoordinates } from "@/seguimiento/shared/seguimiento.types";
+import type { TareaDudaZonaRealtimeEvent } from "@/seguimiento/shared/tareas/tareaRealtime.service";
 import { isValidControlZone } from "@/stores/seguimiento/tareas/creacion/tareaCreacion.geometry";
 import {
   resolveDominantFarm,
@@ -34,7 +35,9 @@ import { getSeguimientoToday } from "@/stores/seguimiento/tareas/tareasSeguimien
 import type {
   SeguimientoCrossFilter,
   SeguimientoMapTool,
+  TareaRastreoCambioZonaControl,
   TareasSeguimientoFilters,
+  SeguimientoZoneGeometry,
 } from "@/stores/seguimiento/tareas/tareasSeguimiento.types";
 
 const featureAccess = useFeatureAccessStore();
@@ -42,6 +45,8 @@ const toast = useToast();
 const {
   detail,
   detailError,
+  dudaZoneEvents,
+  applyingDudaZoneEventKey,
   filters,
   initialError,
   liveBadgeNow,
@@ -73,6 +78,15 @@ const {
   plannedRoutes,
   refreshPlannedRoutes,
   loadTrackerHistory,
+  editingControlZoneId,
+  updatingControlZones,
+  beginControlZoneEdit: beginTaskControlZoneEdit,
+  beginControlZoneGeometryEdit: beginTaskControlZoneGeometryEdit,
+  cancelControlZoneEdit: cancelTaskControlZoneEdit,
+  updateControlZones,
+  dismissDudaZoneEvent,
+  acceptDudaZoneSuggestion,
+  discardDudaZoneSuggestion,
 } = useSeguimientoTareasView();
 const {
   draft: createDraft,
@@ -150,6 +164,7 @@ const creationLockedFilter = shallowRef<SeguimientoCrossFilter>({
 type CompactTrackingView = "map" | "filters" | "list" | "view" | "map-focus";
 
 const mobileView = shallowRef<CompactTrackingView>("map");
+const notifiedDudaZoneEvents = new Set<string>();
 const compactViewFocusTarget: Record<CompactTrackingView, string> = {
   map: "tracking-compact-map-actions",
   filters: "tracking-compact-filters",
@@ -538,6 +553,138 @@ function notifyCreateSubmitBlocked(reasons: string[]): void {
   });
 }
 
+function getDudaZoneEventKey(event: TareaDudaZonaRealtimeEvent): string {
+  return `${event.tipo}:${event.duda_tarea_id}:${event.zona_id}`;
+}
+
+function notifyDudaZoneEvent(event: TareaDudaZonaRealtimeEvent): void {
+  if (event.tipo === "duda_zona_cercana_detectada") {
+    toast.add({
+      severity: "info",
+      summary: "Permanencia cercana detectada",
+      detail: `La permanencia está a ${Math.round(event.distancia_metros)} m y se asociará al cerrarse.`,
+      life: 5000,
+    });
+    return;
+  }
+  if (event.tipo === "duda_zona_asociada_automaticamente") {
+    toast.add({
+      severity: "success",
+      summary: "Zona asociada automáticamente",
+      detail: `La permanencia a ${Math.round(event.distancia_metros)} m ahora forma parte de la tarea zona.`,
+      life: 5000,
+    });
+    return;
+  }
+  if (event.tipo === "duda_zona_ambigua") {
+    toast.add({
+      severity: "warn",
+      summary: "Permanencia con varias tareas cercanas",
+      detail: "No se realizó ninguna asociación automática.",
+      life: 5000,
+    });
+  }
+}
+
+async function handleAcceptDudaZoneSuggestion(
+  event: Extract<TareaDudaZonaRealtimeEvent, { tipo: "duda_zona_sugerida" }>,
+): Promise<void> {
+  try {
+    await acceptDudaZoneSuggestion(event);
+    toast.add({
+      severity: "success",
+      summary: "Zona agregada",
+      detail: "La permanencia se reutilizó como zona de control de la tarea.",
+      life: 4500,
+    });
+  } catch {
+    toast.add({
+      severity: "error",
+      summary: "No se pudo agregar la zona",
+      detail: "Revisa los datos actuales de la tarea e inténtalo nuevamente.",
+      life: 5500,
+    });
+  }
+}
+
+async function handleDiscardDudaZoneSuggestion(
+  event: Extract<TareaDudaZonaRealtimeEvent, { tipo: "duda_zona_sugerida" }>,
+): Promise<void> {
+  try {
+    await discardDudaZoneSuggestion(event);
+    toast.add({
+      severity: "success",
+      summary: "Duda descartada",
+      detail: "La duda fue descartada y el mapa se actualizó.",
+      life: 4500,
+    });
+  } catch {
+    toast.add({
+      severity: "error",
+      summary: "No se pudo descartar la duda",
+      detail:
+        "La duda pudo cambiar mientras la revisabas. Actualiza e inténtalo nuevamente.",
+      life: 5500,
+    });
+  }
+}
+
+function handleBeginTaskControlZoneEdit(zoneId: string): void {
+  if (beginTaskControlZoneEdit(zoneId)) return;
+  toast.add({
+    severity: "warn",
+    summary: "Edición no disponible",
+    detail: "No tienes permiso o la zona ya no está disponible para edición.",
+    life: 4500,
+  });
+}
+
+function handleBeginTaskControlZoneGeometryEdit(zoneId: string): void {
+  if (beginTaskControlZoneGeometryEdit(zoneId)) return;
+  toast.add({
+    severity: "warn",
+    summary: "Edición bloqueada",
+    detail:
+      "La zona tiene visitas históricas, no tienes permiso o ya no está disponible.",
+    life: 4500,
+  });
+}
+
+function handleCancelTaskControlZoneEdit(): void {
+  cancelTaskControlZoneEdit();
+}
+
+async function handleUpdateControlZones(
+  changes: TareaRastreoCambioZonaControl[],
+): Promise<void> {
+  try {
+    await updateControlZones(changes);
+    toast.add({
+      severity: "success",
+      summary: "Zonas actualizadas",
+      detail: "La tarea se recargó con las zonas de control vigentes.",
+      life: 4500,
+    });
+  } catch {
+    toast.add({
+      severity: "error",
+      summary: "No se pudieron actualizar las zonas",
+      detail:
+        "La tarea pudo cambiar mientras la editabas. Recarga el detalle e inténtalo nuevamente.",
+      life: 5500,
+    });
+  }
+}
+
+async function handleExistingControlZoneGeometryUpdate(
+  zoneId: string,
+  geometry: SeguimientoZoneGeometry,
+): Promise<void> {
+  await handleUpdateControlZones([
+    { accion: "actualizar", id: zoneId, geom: geometry },
+  ]);
+}
+
 watch(mobileView, (view) => {
   void nextTick(() => {
     const targetId =
@@ -545,6 +692,16 @@ watch(mobileView, (view) => {
         ? "tracking-compact-task-create"
         : compactViewFocusTarget[view];
     document.getElementById(targetId)?.focus();
+  });
+});
+watch(dudaZoneEvents, (events) => {
+  events.forEach((event) => {
+    if (event.tipo === "duda_zona_sugerida") return;
+    const eventKey = getDudaZoneEventKey(event);
+    if (notifiedDudaZoneEvents.has(eventKey)) return;
+    notifiedDudaZoneEvents.add(eventKey);
+    notifyDudaZoneEvent(event);
+    dismissDudaZoneEvent(event.tipo, event.duda_tarea_id, event.zona_id);
   });
 });
 </script>
@@ -576,6 +733,7 @@ watch(mobileView, (view) => {
       :tracker-history="trackerHistory"
       :tracker-history-now="trackerHistoryNow"
       :selected-task-detail="detail"
+      :editing-control-zone-id="editingControlZoneId"
       @ready="setMapReady"
       @error="setMapError"
       @capture:route-point="captureRoutePoint"
@@ -588,6 +746,7 @@ watch(mobileView, (view) => {
         captureControlZone({ type: 'MultiPolygon', coordinates: $event })
       "
       @update:control-zone="handleControlZoneUpdate"
+      @update:existing-control-zone="handleExistingControlZoneGeometryUpdate"
       @select:control-zone="beginControlZoneEdit"
       @capture:blocked="notifyBlockedZoneCapture"
     />
@@ -839,9 +998,19 @@ watch(mobileView, (view) => {
       :live-permanence="
         selectedTaskId ? liveTaskPermanences[selectedTaskId] : undefined
       "
+      :duda-zone-events="dudaZoneEvents"
+      :applying-duda-zone-event-key="applyingDudaZoneEventKey"
+      :editing-control-zone-id="editingControlZoneId"
+      :updating-control-zones="updatingControlZones"
       @close="closeTaskDetail"
       @focus="focusTaskOnMap"
       @retry="selectedTaskId && selectTask(selectedTaskId)"
+      @accept-duda-zone-suggestion="handleAcceptDudaZoneSuggestion"
+      @discard-duda-zone-suggestion="handleDiscardDudaZoneSuggestion"
+      @begin-control-zone-edit="handleBeginTaskControlZoneEdit"
+      @begin-control-zone-geometry-edit="handleBeginTaskControlZoneGeometryEdit"
+      @cancel-control-zone-edit="handleCancelTaskControlZoneEdit"
+      @update-control-zones="handleUpdateControlZones"
     />
     <TaskCreatePanel
       v-if="isCreatePanelOpen"
