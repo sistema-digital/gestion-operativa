@@ -39,3 +39,5 @@ cualqeuri valor con fecha y hora utc debe ser formataedo por la fucion del archv
 
 CADA VEZ QUE TERMINAS DE HACER CAMBIOS PREGUTNA SI VAS ACUTALIZAR version.json para los datso de la nueva actualiza
 cada vez que se te de la indicaion de actualizar verison js debes modificar todos los parametoe de acuerso a los cambios que tdaoia estan en local sin enviar a main origin
+
+calquier cambio o creacin debe tene ren cuenta el arhcivo promptfilesProject.md [/workspaces/gestion-operativa/documentacion/promptFilesProject.md]
