@@ -237,10 +237,15 @@ onUnmounted(() => {
           : 'overflow-y-auto px-4 pb-[76px] md:px-6 md:pb-8 md:pt-0 lg:px-10 lg:pb-10 lg:pt-0'
       "
     >
-      <component
-        :is="activeSlide.component"
-        v-bind="getSlideLoadProps(activeSlide.id)"
-      />
+      <KeepAlive
+        :max="2"
+        :include="['SlideMantenimiento', 'SlideProductividadSemanal']"
+      >
+        <component
+          :is="activeSlide.component"
+          v-bind="getSlideLoadProps(activeSlide.id)"
+        />
+      </KeepAlive>
       <div
         v-if="activeSlide.id !== 'productividad_semanal'"
         class="h-10 w-full flex-shrink-0 lg:hidden"

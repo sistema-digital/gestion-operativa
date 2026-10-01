@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
-import { supabase } from "@/lib/supabase";
+import {
+  ref,
+  onMounted,
+  onActivated,
+  onDeactivated,
+  onBeforeUnmount,
+  computed,
+  watch,
+} from "vue";
 import {
   useMaintenanceStore,
   type OrdenMantenimiento,
 } from "@/stores/maintenanceStore";
+import { useUserStore } from "@/stores/userStore";
 import {
   useHorasTrabajoStore,
   type HorasPerdidasPersonalRow,
@@ -31,6 +39,8 @@ interface DeferredDashboardLoadProps {
   loadImmediately: boolean;
 }
 
+defineOptions({ name: "SlideMantenimiento" });
+
 const props = withDefaults(defineProps<DeferredDashboardLoadProps>(), {
   isActive: false,
   loadImmediately: false,
@@ -38,6 +48,7 @@ const props = withDefaults(defineProps<DeferredDashboardLoadProps>(), {
 
 const maintenanceStore = useMaintenanceStore();
 const horasTrabajoStore = useHorasTrabajoStore();
+const userStore = useUserStore();
 const {
   allOrders,
   isLoading: isStoreLoading,
@@ -51,7 +62,7 @@ const { data: horasTrabajoData, horasPerdidasPersonal } =
 const { setStatusFilter, setWeekFilter } = maintenanceStore;
 
 const isRefreshing = ref(false);
-const userArea = ref("");
+const userArea = ref(userStore.getArea());
 const targetLabel = "META 2.94% MIN";
 const defaultEtapa = "Zafra";
 
@@ -1107,17 +1118,8 @@ const fetchData = async (forceRefresh = false) => {
 
   try {
     if (!userArea.value) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user && user.email) {
-        const { data: profile } = await supabase
-          .from("PROFILE")
-          .select("area")
-          .eq("email", user.email)
-          .maybeSingle();
-        userArea.value = profile?.area || "ALL";
-      }
+      const profile = await userStore.fetchCurrentUserProfile();
+      userArea.value = profile?.area || userStore.getArea() || "ALL";
     }
 
     await maintenanceStore.fetchAllOrders(forceRefresh);
@@ -1204,6 +1206,16 @@ const handleWindowClick = (e: MouseEvent) => {
 onMounted(() => {
   window.addEventListener("click", handleWindowClick);
   window.addEventListener("resize", handleWindowResize);
+});
+
+onActivated(() => {
+  window.addEventListener("click", handleWindowClick);
+  window.addEventListener("resize", handleWindowResize);
+});
+
+onDeactivated(() => {
+  window.removeEventListener("click", handleWindowClick);
+  window.removeEventListener("resize", handleWindowResize);
 });
 
 onBeforeUnmount(() => {

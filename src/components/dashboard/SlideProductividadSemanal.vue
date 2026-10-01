@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import {
   computed,
+  onActivated,
+  onDeactivated,
   onMounted,
   onUnmounted,
   ref,
@@ -22,6 +24,8 @@ interface DeferredDashboardLoadProps {
   isActive: boolean;
   loadImmediately: boolean;
 }
+
+defineOptions({ name: "SlideProductividadSemanal" });
 
 const props = withDefaults(defineProps<DeferredDashboardLoadProps>(), {
   isActive: false,
@@ -264,6 +268,14 @@ watch(
 
 onMounted(() => {
   window.addEventListener("keydown", handleKeyNavigation);
+});
+
+onActivated(() => {
+  window.addEventListener("keydown", handleKeyNavigation);
+});
+
+onDeactivated(() => {
+  window.removeEventListener("keydown", handleKeyNavigation);
 });
 
 onUnmounted(() => {

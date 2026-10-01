@@ -17,7 +17,7 @@ const historicalZafraOrderTotalsByArea: MaintenanceAreaTotalsMap = {
   "COSECHA MECANIZADA": 3799,
   "COSECHA AGRICOLA": 3316,
   "EQUIPO PESADO": 5569,
-  "ENGRASE": 212,
+  ENGRASE: 212,
   "MECANICA DE TRANSPORTE": 437,
 };
 
@@ -35,6 +35,8 @@ export const useMaintenanceStore = defineStore("maintenance", () => {
   const error = ref<string | null>(null);
   const hasLoaded = ref(false);
   const loadedArea = ref<string | null>(null);
+  let ordersLoadPromise: Promise<void> | null = null;
+  let loadingArea: string | null = null;
 
   const activeFilters = ref({
     serie: null as string | null,
@@ -88,89 +90,112 @@ export const useMaintenanceStore = defineStore("maintenance", () => {
       throw new Error("No se pudo identificar el área del usuario autenticado");
     }
 
+    if (ordersLoadPromise) {
+      if (loadingArea === userArea && !forceRefresh) {
+        return ordersLoadPromise;
+      }
+      await ordersLoadPromise;
+    }
+
     if (hasLoaded.value && loadedArea.value === userArea && !forceRefresh) {
       return;
     }
 
-    isLoading.value = true;
-    loadingProgress.value = 0;
-    error.value = null;
+    loadingArea = userArea;
+    const request = (async () => {
+      isLoading.value = true;
+      loadingProgress.value = 0;
+      error.value = null;
 
-    try {
-      // Mock Data Generation in Dev Mode
-      if (import.meta.env.VITE_DATA_DEV === "TRUE") {
-        const mockData = generateMockMaintenanceData(500);
+      try {
+        // Mock Data Generation in Dev Mode
+        if (import.meta.env.VITE_DATA_DEV === "TRUE") {
+          const mockData = generateMockMaintenanceData(500);
 
-        // Simulate delay & progress realistically
-        for (let i = 1; i <= 5; i++) {
-          await new Promise((resolve) => setTimeout(resolve, 200));
-          loadingProgress.value = (i / 5) * 100;
-        }
-
-        allOrders.value = mockData.filter(
-          (order) =>
-            !order["ID_Orden mantenimiento"].startsWith("SG-") &&
-            (userArea === "all" ||
-              normalizeAreaForQuery(order.Área) === userArea),
-        );
-        loadedArea.value = userArea;
-        hasLoaded.value = true;
-        return;
-      }
-
-      // Real Supabase Fetching
-      const batchSize = 1000;
-      let offset = 0;
-      let allData: OrdenMantenimiento[] = [];
-      let hasMore = true;
-
-      while (hasMore) {
-        let query = supabase
-          .from("ORDEN_MANTENIMIENTO")
-          .select("*", { count: "exact" })
-          .not("ID_Orden mantenimiento", "ilike", "SG-%")
-          .not("ID_Orden mantenimiento", "ilike", "OM-TEST-%");
-
-        if (userArea && userArea !== "all") {
-          query = query.ilike("Área", userArea);
-        }
-
-        const {
-          data,
-          error: fetchError,
-          count,
-        } = await query
-          .range(offset, offset + batchSize - 1)
-          .order("Fecha inicio", { ascending: false })
-          .order("ID_Orden mantenimiento", { ascending: false });
-
-        if (fetchError) throw fetchError;
-
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          offset += batchSize;
-
-          if (count) {
-            loadingProgress.value = Math.round(
-              (allData.length / (count || 1)) * 100,
-            );
+          // Simulate delay & progress realistically
+          for (let i = 1; i <= 5; i++) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            loadingProgress.value = (i / 5) * 100;
           }
 
-          hasMore = data.length === batchSize;
-        } else {
-          hasMore = false;
+          allOrders.value = mockData.filter(
+            (order) =>
+              !order["ID_Orden mantenimiento"].startsWith("SG-") &&
+              (userArea === "all" ||
+                normalizeAreaForQuery(order.Área) === userArea),
+          );
+          loadedArea.value = userArea;
+          hasLoaded.value = true;
+          return;
         }
-      }
 
-      allOrders.value = allData;
-      loadedArea.value = userArea;
-      loadingProgress.value = 100;
-      hasLoaded.value = true;
-    } catch (e: any) {
-      console.error("Error fetching batch orders:", e);
-      error.value = e.message;
+        // Real Supabase Fetching
+        const batchSize = 1000;
+        let offset = 0;
+        let allData: OrdenMantenimiento[] = [];
+        let hasMore = true;
+
+        while (hasMore) {
+          let query = supabase
+            .from("ORDEN_MANTENIMIENTO")
+            .select("*", { count: "exact" })
+            .not("ID_Orden mantenimiento", "ilike", "SG-%")
+            .not("ID_Orden mantenimiento", "ilike", "OM-TEST-%");
+
+          if (userArea && userArea !== "all") {
+            query = query.ilike("Área", userArea);
+          }
+
+          const {
+            data,
+            error: fetchError,
+            count,
+          } = await query
+            .range(offset, offset + batchSize - 1)
+            .order("Fecha inicio", { ascending: false })
+            .order("ID_Orden mantenimiento", { ascending: false });
+
+          if (fetchError) throw fetchError;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            offset += batchSize;
+
+            if (count) {
+              loadingProgress.value = Math.round(
+                (allData.length / (count || 1)) * 100,
+              );
+            }
+
+            hasMore = data.length === batchSize;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        allOrders.value = allData;
+        loadedArea.value = userArea;
+        loadingProgress.value = 100;
+        hasLoaded.value = true;
+      } catch (e) {
+        console.error("Error fetching batch orders:", e);
+        hasLoaded.value = false;
+        loadedArea.value = null;
+        error.value =
+          e instanceof Error ? e.message : "No se pudieron cargar las órdenes";
+      } finally {
+        isLoading.value = false;
+      }
+    })();
+
+    ordersLoadPromise = request;
+    try {
+      await request;
     } finally {
-      isLoading.value = false;
+      if (ordersLoadPromise === request) {
+        ordersLoadPromise = null;
+        loadingArea = null;
+      }
     }
   };
 

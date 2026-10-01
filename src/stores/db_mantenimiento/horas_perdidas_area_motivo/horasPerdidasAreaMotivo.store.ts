@@ -1,64 +1,99 @@
-import { defineStore } from 'pinia';
-import { horasPerdidasAreaMotivoService } from './horasPerdidasAreaMotivo.service';
-import type {
-  HorasPerdidasAreaMotivoState,
-  ObtenerHorasPerdidasPersonalResumenResponse,
-} from './horasPerdidasAreaMotivo.types';
+import { defineStore } from "pinia";
+import { ref } from "vue";
+import { horasPerdidasAreaMotivoService } from "./horasPerdidasAreaMotivo.service";
+import type { ObtenerHorasPerdidasPersonalResumenResponse } from "./horasPerdidasAreaMotivo.types";
 
-export const useHorasPerdidasAreaMotivoStore = defineStore('horasPerdidasAreaMotivo', {
-  state: (): HorasPerdidasAreaMotivoState => ({
-    resumen: null,
-    fechaConsultada: null,
-    isLoading: false,
-    isLoaded: false,
-    error: null,
-  }),
+export const useHorasPerdidasAreaMotivoStore = defineStore(
+  "horasPerdidasAreaMotivo",
+  () => {
+    const resumen = ref<ObtenerHorasPerdidasPersonalResumenResponse | null>(
+      null,
+    );
+    const fechaConsultada = ref<string | null>(null);
+    const isLoading = ref(false);
+    const isLoaded = ref(false);
+    const error = ref<string | null>(null);
+    let resumenLoadPromise: Promise<ObtenerHorasPerdidasPersonalResumenResponse> | null =
+      null;
+    let loadingFecha: string | null = null;
 
-  actions: {
-    async cargarResumen(
+    const cargarResumen = async (
       fechaDesde: string,
-      force = false
-    ): Promise<ObtenerHorasPerdidasPersonalResumenResponse> {
+      force = false,
+    ): Promise<ObtenerHorasPerdidasPersonalResumenResponse> => {
+      if (resumenLoadPromise) {
+        if (loadingFecha === fechaDesde && !force) {
+          return resumenLoadPromise;
+        }
+        try {
+          await resumenLoadPromise;
+        } catch {
+          // Una carga anterior fallida no impide consultar otra fecha.
+        }
+      }
+
       if (
-        this.isLoaded &&
-        this.resumen &&
-        this.fechaConsultada === fechaDesde &&
+        isLoaded.value &&
+        resumen.value &&
+        fechaConsultada.value === fechaDesde &&
         !force
       ) {
-        return this.resumen;
+        return resumen.value;
       }
 
-      this.isLoading = true;
-      this.error = null;
+      loadingFecha = fechaDesde;
+      const request = (async () => {
+        isLoading.value = true;
+        error.value = null;
 
+        try {
+          const response = await horasPerdidasAreaMotivoService.obtenerResumen({
+            p_fecha_desde: fechaDesde,
+          });
+          resumen.value = response;
+          fechaConsultada.value = fechaDesde;
+          isLoaded.value = true;
+          return response;
+        } catch (err) {
+          isLoaded.value = false;
+          fechaConsultada.value = null;
+          error.value =
+            err instanceof Error
+              ? err.message
+              : "No se pudo cargar el resumen de horas perdidas por area y motivo";
+          throw err;
+        } finally {
+          isLoading.value = false;
+        }
+      })();
+
+      resumenLoadPromise = request;
       try {
-        const resumen = await horasPerdidasAreaMotivoService.obtenerResumen({
-          p_fecha_desde: fechaDesde,
-        });
-
-        this.resumen = resumen;
-        this.fechaConsultada = fechaDesde;
-        this.isLoaded = true;
-
-        return resumen;
-      } catch (error) {
-        const message = error instanceof Error
-          ? error.message
-          : 'No se pudo cargar el resumen de horas perdidas por area y motivo';
-
-        this.error = message;
-        throw error;
+        return await request;
       } finally {
-        this.isLoading = false;
+        if (resumenLoadPromise === request) {
+          resumenLoadPromise = null;
+          loadingFecha = null;
+        }
       }
-    },
+    };
 
-    reset(): void {
-      this.resumen = null;
-      this.fechaConsultada = null;
-      this.isLoading = false;
-      this.isLoaded = false;
-      this.error = null;
-    },
+    const reset = () => {
+      resumen.value = null;
+      fechaConsultada.value = null;
+      isLoading.value = false;
+      isLoaded.value = false;
+      error.value = null;
+    };
+
+    return {
+      resumen,
+      fechaConsultada,
+      isLoading,
+      isLoaded,
+      error,
+      cargarResumen,
+      reset,
+    };
   },
-});
+);

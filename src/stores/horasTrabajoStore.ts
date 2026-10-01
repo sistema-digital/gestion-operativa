@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { z } from "zod";
 import { supabase } from "@/lib/supabase";
 import { getLocalDateInputValue } from "./horasTrabajo.helpers";
 import { horasTrabajoService } from "./horasTrabajo.service";
@@ -27,6 +28,10 @@ export type {
 export type { ProductividadDashboardTableItem } from "./productividadSemanalDashboard.types";
 
 type DashboardRawRow = Record<string, unknown>;
+const dashboardAreaSchema = z
+  .string()
+  .trim()
+  .min(1, "No se pudo identificar el área del usuario autenticado");
 
 const readString = (row: DashboardRawRow, key: string): string | undefined => {
   const value = row[key];
@@ -49,6 +54,10 @@ export const useHorasTrabajoStore = defineStore("horasTrabajo", () => {
   );
   const loading = ref(false);
   const error = ref<string | null>(null);
+  const hasLoadedData = ref(false);
+  const loadedDataArea = ref<string | null>(null);
+  let dataLoadPromise: Promise<void> | null = null;
+  let loadingDataArea: string | null = null;
 
   const todayWorkOrders = ref<WorkOrderTodayRow[]>([]);
   const todayWorkOrdersLoading = ref(false);
@@ -58,6 +67,10 @@ export const useHorasTrabajoStore = defineStore("horasTrabajo", () => {
   const productividadSemanal = ref<ProductividadSemanalResponse | null>(null);
   const productividadSemanalLoading = ref(false);
   const productividadSemanalError = ref<string | null>(null);
+  let loadedProductividadKey: string | null = null;
+  let loadingProductividadKey: string | null = null;
+  let productividadLoadPromise: Promise<ProductividadSemanalResponse> | null =
+    null;
   const productividadSemanalDashboardTablas = computed<
     ProductividadDashboardTableItem[]
   >(() =>
@@ -136,50 +149,90 @@ export const useHorasTrabajoStore = defineStore("horasTrabajo", () => {
     horas_calculadas: readNumber(row, "horas_asignadas"),
   });
 
-  const fetchData = async () => {
-    loading.value = true;
-    error.value = null;
-
+  const fetchData = async (forceRefresh = false) => {
+    let userArea: string;
     try {
       const userStore = useUserStore();
       const profile = await userStore.fetchCurrentUserProfile();
-      const userArea = (profile?.area || userStore.getArea()).trim();
-
-      if (!userArea) {
-        throw new Error(
-          "No se pudo identificar el área del usuario autenticado",
-        );
-      }
-
-      const dashboardArea = userArea.toUpperCase() === "ALL" ? null : userArea;
-      const [
-        retrasadasData,
-        otrosEstadosData,
-        personalData,
-        personalDisponibilidadData,
-      ] = await Promise.all([
-        fetchDashboardTable("vw_ot_retrasadas_dashboard", dashboardArea),
-        fetchDashboardTable("vw_ot_otros_estados_dashboard", dashboardArea),
-        horasTrabajoService.fetchHorasPerdidasPersonalSemanal(),
-        horasTrabajoService.fetchPersonalDisponibilidadSemanal(),
-      ]);
-
-      const retrasadas = retrasadasData.map(mapRetrasada);
-      const otrosEstados = otrosEstadosData.map((row, index) =>
-        mapOtroEstado(row, retrasadas.length + index),
+      userArea = dashboardAreaSchema.parse(
+        profile?.area || userStore.getArea(),
       );
-
-      data.value = [...retrasadas, ...otrosEstados];
-      horasPerdidasPersonal.value = personalData;
-      personalDisponibilidadSemanal.value = personalDisponibilidadData;
     } catch (err) {
-      console.error("Error fetching horas de trabajo:", err);
       error.value =
-        err instanceof Error
-          ? err.message
-          : "There was an error loading the data.";
+        err instanceof z.ZodError
+          ? err.issues[0]?.message || "No se pudo identificar el área"
+          : err instanceof Error
+            ? err.message
+            : "No se pudo cargar el perfil";
+      return;
+    }
+
+    const areaKey = userArea.toLowerCase();
+    if (dataLoadPromise) {
+      if (loadingDataArea === areaKey && !forceRefresh) {
+        return dataLoadPromise;
+      }
+      await dataLoadPromise;
+    }
+
+    if (
+      hasLoadedData.value &&
+      loadedDataArea.value === areaKey &&
+      !forceRefresh
+    ) {
+      return;
+    }
+
+    loadingDataArea = areaKey;
+    const request = (async () => {
+      loading.value = true;
+      error.value = null;
+
+      try {
+        const dashboardArea = areaKey === "all" ? null : userArea;
+        const [
+          retrasadasData,
+          otrosEstadosData,
+          personalData,
+          personalDisponibilidadData,
+        ] = await Promise.all([
+          fetchDashboardTable("vw_ot_retrasadas_dashboard", dashboardArea),
+          fetchDashboardTable("vw_ot_otros_estados_dashboard", dashboardArea),
+          horasTrabajoService.fetchHorasPerdidasPersonalSemanal(),
+          horasTrabajoService.fetchPersonalDisponibilidadSemanal(),
+        ]);
+
+        const retrasadas = retrasadasData.map(mapRetrasada);
+        const otrosEstados = otrosEstadosData.map((row, index) =>
+          mapOtroEstado(row, retrasadas.length + index),
+        );
+
+        data.value = [...retrasadas, ...otrosEstados];
+        horasPerdidasPersonal.value = personalData;
+        personalDisponibilidadSemanal.value = personalDisponibilidadData;
+        loadedDataArea.value = areaKey;
+        hasLoadedData.value = true;
+      } catch (err) {
+        console.error("Error fetching horas de trabajo:", err);
+        hasLoadedData.value = false;
+        loadedDataArea.value = null;
+        error.value =
+          err instanceof Error
+            ? err.message
+            : "There was an error loading the data.";
+      } finally {
+        loading.value = false;
+      }
+    })();
+
+    dataLoadPromise = request;
+    try {
+      await request;
     } finally {
-      loading.value = false;
+      if (dataLoadPromise === request) {
+        dataLoadPromise = null;
+        loadingDataArea = null;
+      }
     }
   };
 
@@ -205,25 +258,78 @@ export const useHorasTrabajoStore = defineStore("horasTrabajo", () => {
   const fetchProductividadSemanalPorEquipo = async (
     semana: string,
     topLimit = 3,
+    forceRefresh = false,
   ) => {
-    productividadSemanalLoading.value = true;
-    productividadSemanalError.value = null;
-
+    let areaKey: string;
     try {
-      const response = await horasTrabajoService.fetchProductividadSemanal(
-        semana,
-        topLimit,
-      );
-      productividadSemanal.value = response;
-      return response;
+      const userStore = useUserStore();
+      const profile = await userStore.fetchCurrentUserProfile();
+      areaKey = dashboardAreaSchema
+        .parse(profile?.area || userStore.getArea())
+        .toLowerCase();
     } catch (err) {
       productividadSemanalError.value =
-        err instanceof Error
-          ? err.message
-          : "No se pudo cargar la productividad semanal por equipo";
+        err instanceof z.ZodError
+          ? err.issues[0]?.message || "No se pudo identificar el área"
+          : err instanceof Error
+            ? err.message
+            : "No se pudo cargar el perfil";
       throw err;
+    }
+
+    const requestKey = JSON.stringify([areaKey, semana, topLimit]);
+    if (productividadLoadPromise) {
+      if (loadingProductividadKey === requestKey && !forceRefresh) {
+        return productividadLoadPromise;
+      }
+      try {
+        await productividadLoadPromise;
+      } catch {
+        // Una solicitud anterior fallida no impide cargar otra clave.
+      }
+    }
+
+    if (
+      productividadSemanal.value &&
+      loadedProductividadKey === requestKey &&
+      !forceRefresh
+    ) {
+      return productividadSemanal.value;
+    }
+
+    loadingProductividadKey = requestKey;
+    const request = (async () => {
+      productividadSemanalLoading.value = true;
+      productividadSemanalError.value = null;
+
+      try {
+        const response = await horasTrabajoService.fetchProductividadSemanal(
+          semana,
+          topLimit,
+        );
+        productividadSemanal.value = response;
+        loadedProductividadKey = requestKey;
+        return response;
+      } catch (err) {
+        loadedProductividadKey = null;
+        productividadSemanalError.value =
+          err instanceof Error
+            ? err.message
+            : "No se pudo cargar la productividad semanal por equipo";
+        throw err;
+      } finally {
+        productividadSemanalLoading.value = false;
+      }
+    })();
+
+    productividadLoadPromise = request;
+    try {
+      return await request;
     } finally {
-      productividadSemanalLoading.value = false;
+      if (productividadLoadPromise === request) {
+        productividadLoadPromise = null;
+        loadingProductividadKey = null;
+      }
     }
   };
 
@@ -254,6 +360,7 @@ export const useHorasTrabajoStore = defineStore("horasTrabajo", () => {
     personalDisponibilidadSemanal,
     loading,
     error,
+    hasLoadedData,
     todayWorkOrders,
     todayWorkOrdersLoading,
     todayWorkOrdersError,
