@@ -69,12 +69,12 @@ const isLoading = computed(() => store.isLoading);
 const allInspections = computed(() => store.normalizedInspections);
 const allSupervisors = computed(() => store.validSupervisors);
 
-const timeFilter = ref("Esta semana"); // Todas, Esta semana, La semana pasada, El último mes
+const timeFilter = ref("Esta semana");
 const timeFilters = [
-  "Todas",
+  "Histórico",
   "Esta semana",
   "La semana pasada",
-  "El último mes",
+  "Últimas 4 semanas",
 ];
 
 const supervisorFilter = ref<string | number>("Todos");
@@ -97,7 +97,7 @@ const endOfLastWeek = new Date(new Date(today).setDate(diff - 1))
   .toISOString()
   .split("T")[0];
 
-const lastMonth = new Date(new Date(today).setDate(today.getDate() - 30))
+const startOfFourWeeks = new Date(new Date(today).setDate(diff - 21))
   .toISOString()
   .split("T")[0];
 
@@ -117,58 +117,108 @@ onMounted(async () => {
   criteria.value = await ratingsService.fetchCriterios().catch(() => []);
 });
 
-const filteredInspections = computed(() => {
+const periodInspections = computed(() => {
   return allInspections.value.filter((i) => {
-    // Check Supervisor filter
-    if (
-      supervisorFilter.value !== "Todos" &&
-      i.final_supervisor_id !== supervisorFilter.value
-    ) {
-      return false;
-    }
-
-    // Check Time filter
     if (timeFilter.value === "Esta semana") {
       return i.fecha >= startOfThisWeek && i.fecha <= todayStr;
     } else if (timeFilter.value === "La semana pasada") {
       return i.fecha >= startOfLastWeek && i.fecha <= endOfLastWeek;
-    } else if (timeFilter.value === "El último mes") {
-      return i.fecha >= lastMonth && i.fecha <= todayStr;
+    } else if (timeFilter.value === "Últimas 4 semanas") {
+      return i.fecha >= startOfFourWeeks && i.fecha <= todayStr;
     }
-    return true; // "Todas"
+    return true; // "Histórico"
   });
 });
 
-const chartData = computed(() => {
-  // Group by date
-  const grouped: Record<string, { total: number; count: number }> = {};
-
-  // Sort inspections by date ascending to show chronological order
-  const sorted = [...filteredInspections.value].sort((a, b) =>
-    a.fecha.localeCompare(b.fecha),
+const availableSupervisors = computed(() => {
+  const supervisorIds = new Set(
+    periodInspections.value.map((inspection) => inspection.final_supervisor_id),
   );
 
-  sorted.forEach((i) => {
-    const f = i.fecha;
-    if (!grouped[f]) grouped[f] = { total: 0, count: 0 };
-    grouped[f].total += i.puntuacion_promedio || 0;
-    grouped[f].count++;
+  return allSupervisors.value.filter((supervisor) =>
+    supervisorIds.has(supervisor.id_empleado),
+  );
+});
+
+watch(availableSupervisors, (supervisors) => {
+  if (
+    supervisorFilter.value !== "Todos" &&
+    !supervisors.some(
+      (supervisor) => supervisor.id_empleado === supervisorFilter.value,
+    )
+  ) {
+    supervisorFilter.value = "Todos";
+  }
+});
+
+const filteredInspections = computed(() => {
+  if (supervisorFilter.value === "Todos") return periodInspections.value;
+
+  return periodInspections.value.filter(
+    (inspection) => inspection.final_supervisor_id === supervisorFilter.value,
+  );
+});
+
+type ChartGrouping = "day" | "week" | "month" | "year";
+
+const chartGrouping = computed<ChartGrouping>(() => {
+  if (timeFilter.value === "Últimas 4 semanas") return "week";
+  if (timeFilter.value !== "Histórico") return "day";
+
+  const years = new Set(
+    filteredInspections.value.map((inspection) => inspection.fecha.slice(0, 4)),
+  );
+  return years.size > 1 ? "year" : "month";
+});
+
+const getChartGroupKey = (date: string): string => {
+  if (chartGrouping.value === "year") return date.slice(0, 4);
+  if (chartGrouping.value === "month") return date.slice(0, 7);
+  if (chartGrouping.value === "day") return date;
+
+  const [year, month, dayOfMonth] = date.split("-").map(Number);
+  const weekStart = new Date(Date.UTC(year, month - 1, dayOfMonth));
+  const dayOfWeek = weekStart.getUTCDay();
+  weekStart.setUTCDate(weekStart.getUTCDate() - ((dayOfWeek + 6) % 7));
+  return weekStart.toISOString().slice(0, 10);
+};
+
+const getChartGroupLabel = (key: string): string => {
+  if (chartGrouping.value === "year") return key;
+  if (chartGrouping.value === "month")
+    return `${key.slice(5, 7)}/${key.slice(0, 4)}`;
+  if (chartGrouping.value === "week") {
+    return `Semana ${key.slice(8, 10)}/${key.slice(5, 7)}/${key.slice(0, 4)}`;
+  }
+  return key;
+};
+
+const chartGroups = computed(() => {
+  const grouped = new Map<string, { total: number; count: number }>();
+
+  filteredInspections.value.forEach((inspection) => {
+    const key = getChartGroupKey(inspection.fecha);
+    const current = grouped.get(key) ?? { total: 0, count: 0 };
+    current.total += inspection.puntuacion_promedio || 0;
+    current.count += 1;
+    grouped.set(key, current);
   });
 
-  const labels = Object.keys(grouped);
-  const data = labels.map((l) => {
-    const avg = grouped[l].total / grouped[l].count;
-    const perc = (avg / 5) * 100;
-    return Number(perc.toFixed(1)); // Rounded single decimal percentage
-  });
+  return [...grouped.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, group]) => ({
+      key,
+      label: getChartGroupLabel(key),
+      percentage: Number(((group.total / group.count / 5) * 100).toFixed(1)),
+    }));
+});
 
-  // Highlight color if selectedDate is active
-  const backgroundColors = labels.map((l) => {
-    if (selectedDate.value && selectedDate.value === l) {
-      return "#FACC15"; // Yellow-400 for focused/filtered bar
-    }
-    return "#1E293B"; // Default Slate-800
-  });
+const chartData = computed(() => {
+  const labels = chartGroups.value.map((group) => group.label);
+  const data = chartGroups.value.map((group) => group.percentage);
+  const backgroundColors = chartGroups.value.map((group) =>
+    selectedDate.value === group.key ? "#FACC15" : "#1E293B",
+  );
 
   return {
     labels,
@@ -236,7 +286,8 @@ const chartOptions = {
   onClick: (event: any, elements: any[]) => {
     if (elements.length > 0) {
       const idx = elements[0].index;
-      const clickedDate = chartData.value.labels[idx];
+      const clickedDate = chartGroups.value[idx]?.key;
+      if (!clickedDate) return;
       if (selectedDate.value === clickedDate) {
         selectedDate.value = "";
       } else {
@@ -251,13 +302,18 @@ const chartOptions = {
 const displayedInspections = computed(() => {
   if (selectedDate.value) {
     return filteredInspections.value
-      .filter((i) => i.fecha === selectedDate.value)
+      .filter((i) => getChartGroupKey(i.fecha) === selectedDate.value)
       .sort((a, b) => b.fecha.localeCompare(a.fecha));
   }
   return [...filteredInspections.value].sort((a, b) =>
     b.fecha.localeCompare(a.fecha),
   );
 });
+
+const selectedPeriodLabel = computed(
+  () =>
+    chartGroups.value.find((group) => group.key === selectedDate.value)?.label,
+);
 
 const getSupName = (id: number) => {
   const sup = allSupervisors.value.find((s) => s.id_empleado === id);
@@ -612,7 +668,7 @@ const getInspectionObservationText = (observation?: string | null) => {
           v-for="f in timeFilters"
           :key="f"
           @click="timeFilter = f"
-          class="px-4 py-2 text-xs font-bold rounded-full whitespace-nowrap transition-colors border"
+          class="cursor px-4 py-2 text-xs font-bold rounded-full whitespace-nowrap transition-colors border"
           :class="
             timeFilter === f
               ? 'bg-gray-800 text-white border-gray-800 shadow-sm'
@@ -630,7 +686,7 @@ const getInspectionObservationText = (observation?: string | null) => {
         <button
           v-if="canViewAllSupervisors"
           @click="supervisorFilter = 'Todos'"
-          class="px-4 py-2 text-xs font-bold rounded-full whitespace-nowrap transition-colors border"
+          class="cursor px-4 py-2 text-xs font-bold rounded-full whitespace-nowrap transition-colors border"
           :class="
             supervisorFilter === 'Todos'
               ? 'bg-main text-white border-main shadow-sm'
@@ -640,10 +696,10 @@ const getInspectionObservationText = (observation?: string | null) => {
           Todos los Supervisores
         </button>
         <button
-          v-for="sup in allSupervisors"
+          v-for="sup in availableSupervisors"
           :key="sup.id_empleado"
           @click="supervisorFilter = sup.id_empleado"
-          class="px-4 py-2 text-xs font-bold rounded-full whitespace-nowrap transition-colors border"
+          class="cursor px-4 py-2 text-xs font-bold rounded-full whitespace-nowrap transition-colors border"
           :class="
             supervisorFilter === sup.id_empleado
               ? 'bg-main text-white border-main shadow-sm'
@@ -700,12 +756,14 @@ const getInspectionObservationText = (observation?: string | null) => {
           class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50"
         >
           <h4 class="font-bold text-gray-800 text-sm">
-            Detalle de Inspecciones{{ selectedDate ? `: ${selectedDate}` : "" }}
+            Detalle de Inspecciones{{
+              selectedPeriodLabel ? `: ${selectedPeriodLabel}` : ""
+            }}
           </h4>
           <button
             v-if="selectedDate"
             @click="selectedDate = ''"
-            class="text-gray-400 hover:text-gray-600"
+            class="cursor text-gray-400 hover:text-gray-600"
           >
             <X class="w-4 h-4" />
           </button>
