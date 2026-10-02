@@ -1,4 +1,5 @@
 import { supabase, supabaseRatings } from "@/lib/supabase";
+import { z } from "zod";
 import type {
   DeleteMeetingRatingPayload,
   RatingsFetchScope,
@@ -8,11 +9,28 @@ import type {
   RatingsEmpleado,
   RatingsInspeccion,
   UpsertMeetingRatingPayload,
+  UpsertMeetingRatingResult,
 } from "./ratingsStore.types";
 import { removeMeetingObservationBlock } from "@/utils/meetingRatings";
 
 const SUPABASE_BATCH_SIZE = 1000;
 const DETAIL_ID_CHUNK_SIZE = 200;
+
+const meetingInspectionSchema = z.object({
+  id_inspeccion: z.number(),
+  fecha: z.string(),
+  hora: z.string(),
+  foto_url: z.string().nullable(),
+  observacion: z.string().nullable(),
+  id_supervisor: z.number(),
+  id_inspector: z.number(),
+});
+
+const meetingDetailSchema = z.object({
+  id_inspeccion: z.number(),
+  id_criterio: z.number(),
+  puntuacion: z.number(),
+});
 
 type PagedQueryResponse<T> = Promise<{
   data: T[] | null;
@@ -255,21 +273,29 @@ export const ratingsService = {
 
   async upsertMeetingRating(
     payload: UpsertMeetingRatingPayload,
-  ): Promise<number> {
+  ): Promise<UpsertMeetingRatingResult> {
     const observation = payload.observacion.trim() || null;
-
-    if (!payload.inspectionId) {
-      throw new Error(
-        "La reunion debe asociarse a una inspeccion base existente",
-      );
-    }
-
-    const { error: inspectionError } = await supabaseRatings
-      .from("inspecciones")
-      .update({
-        observacion: observation,
-      })
-      .eq("id_inspeccion", payload.inspectionId);
+    const inspectionId = payload.inspectionId || Date.now();
+    const inspectionQuery = payload.inspectionId
+      ? supabaseRatings
+          .from("inspecciones")
+          .update({ observacion: observation })
+          .eq("id_inspeccion", inspectionId)
+      : supabaseRatings.from("inspecciones").insert({
+          id_inspeccion: inspectionId,
+          fecha: payload.fecha,
+          hora: payload.hora,
+          foto_url: null,
+          observacion: observation,
+          id_supervisor: payload.id_supervisor,
+          id_inspector: payload.id_inspector,
+        });
+    const { data: inspectionData, error: inspectionError } =
+      await inspectionQuery
+        .select(
+          "id_inspeccion, fecha, hora, foto_url, observacion, id_supervisor, id_inspector",
+        )
+        .single();
 
     if (inspectionError) {
       throw new Error(
@@ -277,51 +303,36 @@ export const ratingsService = {
       );
     }
 
-    const { data: existingDetail, error: detailFetchError } =
-      await supabaseRatings
-        .from("inspecciones_detalle")
-        .select("id_inspeccion, id_criterio")
-        .eq("id_inspeccion", payload.inspectionId)
-        .eq("id_criterio", payload.meetingCriterionId)
-        .maybeSingle();
+    const { data: detailData, error: detailError } = await supabaseRatings
+      .from("inspecciones_detalle")
+      .upsert(
+        {
+          id_inspeccion: inspectionId,
+          id_criterio: payload.meetingCriterionId,
+          puntuacion: payload.puntuacion,
+        },
+        { onConflict: "id_inspeccion,id_criterio" },
+      )
+      .select("id_inspeccion, id_criterio, puntuacion")
+      .single();
 
-    if (detailFetchError) {
+    if (detailError) {
+      if (!payload.inspectionId) {
+        await supabaseRatings
+          .from("inspecciones")
+          .delete()
+          .eq("id_inspeccion", inspectionId);
+      }
+
       throw new Error(
-        detailFetchError.message || "No se pudo validar el detalle de reunion",
+        detailError.message || "No se pudo guardar la puntuacion de reunion",
       );
     }
 
-    if (existingDetail) {
-      const { error: detailUpdateError } = await supabaseRatings
-        .from("inspecciones_detalle")
-        .update({ puntuacion: payload.puntuacion })
-        .eq("id_inspeccion", payload.inspectionId)
-        .eq("id_criterio", payload.meetingCriterionId);
-
-      if (detailUpdateError) {
-        throw new Error(
-          detailUpdateError.message ||
-            "No se pudo actualizar la puntuacion de reunion",
-        );
-      }
-    } else {
-      const { error: detailInsertError } = await supabaseRatings
-        .from("inspecciones_detalle")
-        .insert({
-          id_inspeccion: payload.inspectionId,
-          id_criterio: payload.meetingCriterionId,
-          puntuacion: payload.puntuacion,
-        });
-
-      if (detailInsertError) {
-        throw new Error(
-          detailInsertError.message ||
-            "No se pudo crear la puntuacion de reunion",
-        );
-      }
-    }
-
-    return payload.inspectionId;
+    return {
+      inspection: meetingInspectionSchema.parse(inspectionData),
+      detail: meetingDetailSchema.parse(detailData),
+    };
   },
 
   async deleteMeetingRating(

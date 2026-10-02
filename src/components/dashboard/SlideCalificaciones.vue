@@ -315,15 +315,15 @@ const selectedPeriodLabel = computed(
     chartGroups.value.find((group) => group.key === selectedDate.value)?.label,
 );
 
-const getSupName = (id: number) => {
+const getSupName = (id: number): string => {
   const sup = allSupervisors.value.find((s) => s.id_empleado === id);
-  return sup ? sup.nombre_completo || sup.correo : "Desconocido";
+  return sup ? sup.nombre_completo || sup.correo || sup.email : "Desconocido";
 };
 
-const getEmployeeName = (id: number) => {
+const getEmployeeName = (id: number): string => {
   const employee = store.empleados.find((item) => item.id_empleado === id);
   return employee
-    ? employee.nombre_completo || employee.correo
+    ? employee.nombre_completo || employee.correo || employee.email
     : "No disponible";
 };
 

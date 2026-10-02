@@ -132,6 +132,18 @@ const getDateWeekdayIndex = (dateString: string) => {
   return weekday === 0 ? 7 : weekday;
 };
 
+const addDaysToDateString = (dateString: string, days: number): string => {
+  const [year, month, date] = dateString.split("-").map(Number);
+  const result = new Date(Date.UTC(year, month - 1, date));
+  result.setUTCDate(result.getUTCDate() + days);
+  return result.toISOString().split("T")[0];
+};
+
+const getMeetingDateForWeekday = (
+  weekStart: string,
+  weekdayIndex: number,
+): string => addDaysToDateString(weekStart, weekdayIndex - 1);
+
 const getInspectionSortValue = (fecha: string, hora: string) => {
   const date = new Date(`${fecha}T${hora || "00:00"}`);
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
@@ -261,6 +273,7 @@ const diff = d.getDate() - day + (day === 0 ? -6 : 1);
 const startOfWeek = new Date(new Date().setDate(diff))
   .toISOString()
   .split("T")[0];
+const endOfWeek = addDaysToDateString(startOfWeek, 6);
 const startOfLastWeek = new Date(new Date(startOfWeek).getTime() - 7 * 86400000)
   .toISOString()
   .split("T")[0];
@@ -301,7 +314,7 @@ const getRatingsFetchScope = (): RatingsFetchScope => {
   return {
     mode: "date-range",
     from: startOfLastWeek,
-    to: todayDate,
+    to: endOfWeek,
   };
 };
 
@@ -518,26 +531,10 @@ const previousRatingsButtonLabel = computed(() => {
 const canManageMeetingBatch = computed(() => currentUserArea.value === "ALL");
 
 const meetingBatchRange = computed(() => {
-  if (selectedDate.value) {
-    return {
-      from: selectedDate.value,
-      to: selectedDate.value,
-      label: `Fecha ${selectedDate.value}`,
-    };
-  }
-
-  if (timeFilter.value === "Semana pasada") {
-    return {
-      from: startOfLastWeek,
-      to: endOfLastWeek,
-      label: `Semana del ${startOfLastWeek} al ${endOfLastWeek}`,
-    };
-  }
-
   return {
     from: startOfWeek,
-    to: todayDate,
-    label: `Semana actual (${startOfWeek} a ${todayDate})`,
+    to: endOfWeek,
+    label: `Semana actual (${startOfWeek} a ${endOfWeek})`,
   };
 });
 
@@ -554,6 +551,13 @@ const weeklyMeetingBatchItems = computed<MeetingBatchItem[]>(() => {
   const employees = ratingsStore.empleados;
   const rawInspections = ratingsStore.inspecciones;
   const details = ratingsStore.detalles;
+  const currentInspector = employees.find((employee) => {
+    const employeeEmail = employee.email || employee.correo || "";
+    return (
+      employeeEmail.trim().toLowerCase() ===
+      currentUserEmail.value.trim().toLowerCase()
+    );
+  });
 
   return supervisors.value
     .filter((supervisor) => supervisor.meetingWeekday !== "Sin asignar")
@@ -595,6 +599,9 @@ const weeklyMeetingBatchItems = computed<MeetingBatchItem[]>(() => {
 
       const baseInspection =
         inspectionWithMeeting || assignedDayInspection || null;
+      const meetingDate =
+        baseInspection?.fecha ||
+        getMeetingDateForWeekday(startOfWeek, assignedWeekdayIndex || 1);
       const inspectionId =
         baseInspection?.id_inspeccion || baseInspection?.id || null;
       const meetingDetail = inspectionId
@@ -606,20 +613,25 @@ const weeklyMeetingBatchItems = computed<MeetingBatchItem[]>(() => {
       const parsedObservation = parseMeetingObservation(
         baseInspection?.observacion || "",
       );
-      const inspectorRecord = employees.find(
-        (employee) =>
-          employee.id_empleado ===
-          (baseInspection?.id_inspector || baseInspection?.inspector_id),
-      );
+      const inspectorRecord = baseInspection
+        ? employees.find(
+            (employee) =>
+              employee.id_empleado ===
+              (baseInspection.id_inspector || baseInspection.inspector_id),
+          )
+        : currentInspector;
 
       return {
         supervisorId: supervisor.id,
         supervisorName: supervisor.name,
         assignedMeetingWeekday: assignedWeekday,
-        evaluatedDate: baseInspection?.fecha || null,
+        meetingDate,
         inspectionId,
         inspectorId:
-          baseInspection?.id_inspector || baseInspection?.inspector_id || null,
+          baseInspection?.id_inspector ||
+          baseInspection?.inspector_id ||
+          currentInspector?.id_empleado ||
+          null,
         inspectorName:
           inspectorRecord?.nombre_completo || "Sin inspector registrado",
         currentMeetingScore: meetingDetail?.puntuacion ?? null,
@@ -1456,12 +1468,12 @@ const openEditModal = async (insp: any) => {
         (i) => (i.id_inspeccion || i.id) === insp.id_inspeccion,
       );
       if (mainRecord) {
-        form.value.id_supervisor = (
-          mainRecord.id_supervisor || mainRecord.supervisor_id
-        ).toString();
-        form.value.id_inspector = (
-          mainRecord.id_inspector || mainRecord.inspector_id
-        ).toString();
+        form.value.id_supervisor = String(
+          mainRecord.id_supervisor || mainRecord.supervisor_id || "",
+        );
+        form.value.id_inspector = String(
+          mainRecord.id_inspector || mainRecord.inspector_id || "",
+        );
       }
     }
     const niveles = formNiveles.value;
@@ -1603,12 +1615,6 @@ const openEditMeetingModal = async (inspection: Inspeccion) => {
 };
 
 const saveMeeting = async () => {
-  if (!meetingEditingInspection.value) {
-    meetingErrorMsg.value =
-      "La reunion debe asociarse a una inspeccion existente";
-    return;
-  }
-
   if (!meetingForm.value.id_supervisor || !meetingForm.value.id_inspector) {
     meetingErrorMsg.value =
       "Debe seleccionar supervisor e inspector para la reunion";
@@ -1636,7 +1642,7 @@ const saveMeeting = async () => {
     );
 
     await ratingsStore.upsertMeetingRating({
-      inspectionId: meetingEditingInspection.value.id_inspeccion,
+      inspectionId: meetingEditingInspection.value?.id_inspeccion || null,
       fecha: meetingForm.value.fecha,
       hora: meetingForm.value.hora,
       id_supervisor: Number.parseInt(meetingForm.value.id_supervisor, 10),
@@ -1647,7 +1653,7 @@ const saveMeeting = async () => {
     });
 
     resetMeetingModalState();
-    await loadData({ forceStore: true, background: true });
+    await loadData({ background: true, useCachedStoreOnly: true });
   } catch (error: any) {
     meetingErrorMsg.value = error.message || "No se pudo guardar la reunion";
   } finally {
@@ -1664,11 +1670,11 @@ const saveMeetingBatchItem = async (payload: MeetingBatchDraftPayload) => {
     return;
   }
 
-  if (!batchItem.hasBaseInspection || !batchItem.inspectionId) {
+  if (!batchItem.inspectorId) {
     meetingBatchErrorBySupervisor.value = {
       ...meetingBatchErrorBySupervisor.value,
       [payload.supervisorId]:
-        "No existe inspeccion diaria base para registrar la reunion en este rango.",
+        "El usuario actual no está registrado como inspector en empleados.",
     };
     return;
   }
@@ -1708,16 +1714,16 @@ const saveMeetingBatchItem = async (payload: MeetingBatchDraftPayload) => {
 
     await ratingsStore.upsertMeetingRating({
       inspectionId: batchItem.inspectionId,
-      fecha: batchItem.evaluatedDate || meetingBatchRange.value.to,
+      fecha: batchItem.meetingDate,
       hora: "00:00",
       id_supervisor: batchItem.supervisorId,
-      id_inspector: batchItem.inspectorId || 0,
+      id_inspector: batchItem.inspectorId,
       meetingCriterionId: meetingCriterionId.value,
       puntuacion: payload.puntuacion,
       observacion: mergedObservation,
     });
 
-    await loadData({ forceStore: true, background: true });
+    await loadData({ background: true, useCachedStoreOnly: true });
     meetingBatchSuccessBySupervisor.value = {
       ...meetingBatchSuccessBySupervisor.value,
       [payload.supervisorId]: successMessage,
@@ -2076,28 +2082,40 @@ const deleteInspeccion = async () => {
 
 // --- Carga de datos principales ---
 
-const loadData = async ({ forceStore = false, background = false } = {}) => {
+interface LoadDataOptions {
+  forceStore?: boolean;
+  background?: boolean;
+  useCachedStoreOnly?: boolean;
+}
+
+const loadData = async ({
+  forceStore = false,
+  background = false,
+  useCachedStoreOnly = false,
+}: LoadDataOptions = {}) => {
   if (!background) isLoading.value = true;
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    if (!useCachedStoreOnly) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (user) {
-      currentUserEmail.value = user.email || "";
-      const { data: profile } = await supabase
-        .from("PROFILE")
-        .select("*")
-        .eq("email", currentUserEmail.value)
-        .maybeSingle();
-      if (profile) {
-        currentUserArea.value = profile.area?.toUpperCase() || "ALL";
-        currentUserName.value = profile.nombre || "";
+      if (user) {
+        currentUserEmail.value = user.email || "";
+        const { data: profile } = await supabase
+          .from("PROFILE")
+          .select("*")
+          .eq("email", currentUserEmail.value)
+          .maybeSingle();
+        if (profile) {
+          currentUserArea.value = profile.area?.toUpperCase() || "ALL";
+          currentUserName.value = profile.nombre || "";
+        }
       }
-    }
 
-    await ensureRatingsCatalogsLoaded();
-    await ratingsStore.fetchAll(forceStore, getRatingsFetchScope());
+      await ensureRatingsCatalogsLoaded();
+      await ratingsStore.fetchAll(forceStore, getRatingsFetchScope());
+    }
 
     let sups = ratingsStore.validSupervisors;
     const emps = ratingsStore.empleados;

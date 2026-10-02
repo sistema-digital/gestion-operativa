@@ -173,7 +173,35 @@ export const useRatingsStore = defineStore("ratings", () => {
   };
 
   const upsertMeetingRating = async (payload: UpsertMeetingRatingPayload) => {
-    return ratingsService.upsertMeetingRating(payload);
+    const result = await ratingsService.upsertMeetingRating(payload);
+    const inspectionIndex = inspecciones.value.findIndex(
+      (inspection) =>
+        (inspection.id_inspeccion || inspection.id) ===
+        result.inspection.id_inspeccion,
+    );
+    const detailIndex = detalles.value.findIndex(
+      (detail) =>
+        detail.id_inspeccion === result.detail.id_inspeccion &&
+        detail.id_criterio === result.detail.id_criterio,
+    );
+
+    if (inspectionIndex === -1) {
+      inspecciones.value = [result.inspection, ...inspecciones.value];
+    } else {
+      inspecciones.value = inspecciones.value.map((inspection, index) =>
+        index === inspectionIndex ? result.inspection : inspection,
+      );
+    }
+
+    if (detailIndex === -1) {
+      detalles.value = [...detalles.value, result.detail];
+    } else {
+      detalles.value = detalles.value.map((detail, index) =>
+        index === detailIndex ? result.detail : detail,
+      );
+    }
+
+    return result;
   };
 
   const deleteMeetingRating = async (payload: DeleteMeetingRatingPayload) => {

@@ -2,7 +2,7 @@ export interface MeetingBatchItem {
   supervisorId: number;
   supervisorName: string;
   assignedMeetingWeekday: string;
-  evaluatedDate: string | null;
+  meetingDate: string;
   inspectionId: number | null;
   inspectorId: number | null;
   inspectorName: string;

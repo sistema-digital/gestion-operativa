@@ -2,9 +2,10 @@ export interface RatingsEmpleado {
   id?: number;
   id_empleado: number;
   nombre_completo: string;
-  correo: string;
+  correo?: string;
   email: string;
   rol: string;
+  activo?: boolean;
   area?: string;
   departamento?: string;
 }
@@ -14,12 +15,12 @@ export interface RatingsInspeccion {
   id_inspeccion: number;
   fecha: string;
   hora: string;
-  foto_url: string;
-  observacion: string;
+  foto_url: string | null;
+  observacion: string | null;
   id_supervisor: number;
-  supervisor_id: number;
+  supervisor_id?: number;
   id_inspector: number;
-  inspector_id: number;
+  inspector_id?: number;
 }
 
 export interface RatingsDetalle {
@@ -27,6 +28,11 @@ export interface RatingsDetalle {
   id_inspeccion: number;
   id_criterio: number;
   puntuacion: number;
+}
+
+export interface UpsertMeetingRatingResult {
+  inspection: RatingsInspeccion;
+  detail: RatingsDetalle;
 }
 
 export interface RatingsCriterio {
