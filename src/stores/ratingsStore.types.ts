@@ -40,6 +40,24 @@ export interface RatingsCriterio {
   descripcion_tarea: string;
 }
 
+export interface RatingsNivel {
+  puntuacion: number;
+  etiqueta: string;
+}
+
+export interface RatingsSnapshot {
+  empleados: RatingsEmpleado[];
+  criterios: RatingsCriterio[];
+  niveles: RatingsNivel[];
+  inspecciones: RatingsInspeccion[];
+  detalles: RatingsDetalle[];
+}
+
+export interface RatingsDateRange {
+  from: string;
+  to: string;
+}
+
 export interface UpsertMeetingRatingPayload {
   inspectionId?: number | null;
   fecha: string;
@@ -97,6 +115,8 @@ export interface RatingsInspeccionNormalizada extends RatingsInspeccion {
 
 export interface RatingsStoreState {
   empleados: RatingsEmpleado[];
+  criterios: RatingsCriterio[];
+  niveles: RatingsNivel[];
   inspecciones: RatingsInspeccion[];
   detalles: RatingsDetalle[];
   puntuacionSupervisoresOt: PuntuacionSupervisoresOtResponse | null;
@@ -105,6 +125,9 @@ export interface RatingsStoreState {
   isLoading: boolean;
   isPuntuacionSupervisoresOtLoading: boolean;
   errorPuntuacionSupervisoresOt: string | null;
+  loadedInspectionRangesByAccess: Record<string, RatingsDateRange[]>;
+  fullHistoryAccessKey: string | null;
+  activeAccessKey: string | null;
 }
 
 export interface PuntuacionSupervisorOtPayload {

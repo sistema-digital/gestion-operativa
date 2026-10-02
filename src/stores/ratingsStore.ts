@@ -4,7 +4,10 @@ import { ratingsService } from "./ratingsStore.service";
 import type {
   DeleteMeetingRatingPayload,
   RatingsAccessScope,
+  RatingsCriterio,
+  RatingsDateRange,
   RatingsFetchScope,
+  RatingsNivel,
   PuntuacionSupervisoresOtResponse,
   RatingsDetalle,
   RatingsEmpleado,
@@ -13,8 +16,87 @@ import type {
   UpsertMeetingRatingPayload,
 } from "./ratingsStore.types";
 
+const addDaysToDateString = (dateString: string, days: number): string => {
+  const [year, month, day] = dateString.split("-").map(Number);
+  const result = new Date(Date.UTC(year, month - 1, day));
+  result.setUTCDate(result.getUTCDate() + days);
+  return result.toISOString().slice(0, 10);
+};
+
+const mergeDateRanges = (ranges: RatingsDateRange[]): RatingsDateRange[] => {
+  const sortedRanges = [...ranges].sort((left, right) =>
+    left.from.localeCompare(right.from),
+  );
+  const mergedRanges: RatingsDateRange[] = [];
+
+  sortedRanges.forEach((range) => {
+    const previousRange = mergedRanges.at(-1);
+
+    if (
+      !previousRange ||
+      range.from > addDaysToDateString(previousRange.to, 1)
+    ) {
+      mergedRanges.push({ ...range });
+      return;
+    }
+
+    if (range.to > previousRange.to) {
+      previousRange.to = range.to;
+    }
+  });
+
+  return mergedRanges;
+};
+
+const getMissingDateRanges = (
+  targetRange: RatingsDateRange,
+  coveredRanges: RatingsDateRange[],
+): RatingsDateRange[] => {
+  const missingRanges: RatingsDateRange[] = [];
+  let nextDate = targetRange.from;
+
+  mergeDateRanges(coveredRanges).forEach((coveredRange) => {
+    if (coveredRange.to < nextDate || coveredRange.from > targetRange.to) {
+      return;
+    }
+
+    if (coveredRange.from > nextDate) {
+      missingRanges.push({
+        from: nextDate,
+        to: addDaysToDateString(coveredRange.from, -1),
+      });
+    }
+
+    if (coveredRange.to >= nextDate) {
+      nextDate = addDaysToDateString(coveredRange.to, 1);
+    }
+  });
+
+  if (nextDate <= targetRange.to) {
+    missingRanges.push({ from: nextDate, to: targetRange.to });
+  }
+
+  return missingRanges;
+};
+
+const getScopeDateRange = (
+  scope: RatingsFetchScope,
+): RatingsDateRange | null => {
+  if (scope.mode === "single-date") {
+    return { from: scope.date, to: scope.date };
+  }
+
+  if (scope.mode === "date-range") {
+    return { from: scope.from, to: scope.to };
+  }
+
+  return null;
+};
+
 export const useRatingsStore = defineStore("ratings", () => {
   const empleados = ref<RatingsEmpleado[]>([]);
+  const criterios = ref<RatingsCriterio[]>([]);
+  const niveles = ref<RatingsNivel[]>([]);
   const inspecciones = ref<RatingsInspeccion[]>([]);
   const detalles = ref<RatingsDetalle[]>([]);
   const puntuacionSupervisoresOt = ref<PuntuacionSupervisoresOtResponse | null>(
@@ -26,62 +108,164 @@ export const useRatingsStore = defineStore("ratings", () => {
   const isLoading = ref(false);
   const isPuntuacionSupervisoresOtLoading = ref(false);
   const errorPuntuacionSupervisoresOt = ref<string | null>(null);
-  const loadedScopeKey = ref("");
+  const loadedInspectionRangesByAccess = ref<
+    Record<string, RatingsDateRange[]>
+  >({});
+  const fullHistoryAccessKey = ref<string | null>(null);
+  const activeAccessKey = ref<string | null>(null);
+
+  const sortRatingsState = (): void => {
+    criterios.value = [...criterios.value].sort(
+      (left, right) => left.id_criterio - right.id_criterio,
+    );
+    niveles.value = [...niveles.value].sort(
+      (left, right) => left.puntuacion - right.puntuacion,
+    );
+    inspecciones.value = [...inspecciones.value].sort((left, right) =>
+      `${right.fecha}T${right.hora}`.localeCompare(
+        `${left.fecha}T${left.hora}`,
+      ),
+    );
+    detalles.value = [...detalles.value].sort(
+      (left, right) =>
+        right.id_inspeccion - left.id_inspeccion ||
+        left.id_criterio - right.id_criterio,
+    );
+  };
+
+  const mergeSnapshot = (
+    snapshot: Awaited<ReturnType<typeof ratingsService.fetchSnapshot>>,
+  ): void => {
+    empleados.value = snapshot.empleados;
+    criterios.value = snapshot.criterios;
+    niveles.value = snapshot.niveles;
+
+    const inspectionsById = new Map(
+      inspecciones.value.map((inspection) => [
+        inspection.id_inspeccion,
+        inspection,
+      ]),
+    );
+    snapshot.inspecciones.forEach((inspection) => {
+      inspectionsById.set(inspection.id_inspeccion, inspection);
+    });
+    inspecciones.value = [...inspectionsById.values()];
+
+    const detailsByKey = new Map(
+      detalles.value.map((detail) => [
+        `${detail.id_inspeccion}-${detail.id_criterio}`,
+        detail,
+      ]),
+    );
+    snapshot.detalles.forEach((detail) => {
+      detailsByKey.set(`${detail.id_inspeccion}-${detail.id_criterio}`, detail);
+    });
+    detalles.value = [...detailsByKey.values()];
+
+    sortRatingsState();
+  };
+
+  const replaceSnapshotRange = (range: RatingsDateRange): void => {
+    const inspectionIdsToReplace = new Set(
+      inspecciones.value
+        .filter(
+          (inspection) =>
+            inspection.fecha >= range.from && inspection.fecha <= range.to,
+        )
+        .map((inspection) => inspection.id_inspeccion),
+    );
+
+    inspecciones.value = inspecciones.value.filter(
+      (inspection) => !inspectionIdsToReplace.has(inspection.id_inspeccion),
+    );
+    detalles.value = detalles.value.filter(
+      (detail) => !inspectionIdsToReplace.has(detail.id_inspeccion),
+    );
+  };
+
+  const clearRatingsState = (): void => {
+    empleados.value = [];
+    criterios.value = [];
+    niveles.value = [];
+    inspecciones.value = [];
+    detalles.value = [];
+    loadedInspectionRangesByAccess.value = {};
+    fullHistoryAccessKey.value = null;
+    isLoaded.value = false;
+  };
 
   const fetchAll = async (
     force = false,
     scope: RatingsFetchScope = { mode: "all" },
     access: RatingsAccessScope = { mode: "all" },
   ) => {
-    const nextScopeKey = JSON.stringify({ scope, access });
+    const accessKey = JSON.stringify(access);
+    const targetRange = getScopeDateRange(scope);
 
-    if (isLoaded.value && !force && loadedScopeKey.value === nextScopeKey)
+    if (activeAccessKey.value && activeAccessKey.value !== accessKey) {
+      clearRatingsState();
+    }
+    activeAccessKey.value = accessKey;
+
+    if (
+      !force &&
+      (scope.mode === "all"
+        ? fullHistoryAccessKey.value === accessKey
+        : fullHistoryAccessKey.value === accessKey ||
+          (targetRange !== null &&
+            getMissingDateRanges(
+              targetRange,
+              loadedInspectionRangesByAccess.value[accessKey] || [],
+            ).length === 0))
+    ) {
       return;
+    }
 
     isLoading.value = true;
     try {
-      const [empleadosData, inspeccionesData] =
-        access.mode === "all"
-          ? await Promise.all([
-              ratingsService.fetchEmpleados(),
-              ratingsService.fetchInspecciones(scope),
-            ])
-          : await loadCurrentEmployeeRatings(scope, access.email);
-      const detallesData = await ratingsService.fetchDetalles(
-        inspeccionesData.map(
-          (inspeccion) => inspeccion.id_inspeccion || inspeccion.id || 0,
-        ),
-      );
+      if (scope.mode === "all") {
+        const snapshot = await ratingsService.fetchSnapshot(scope, access);
 
-      empleados.value = empleadosData;
-      inspecciones.value = inspeccionesData;
-      detalles.value = detallesData;
+        empleados.value = snapshot.empleados;
+        criterios.value = snapshot.criterios;
+        niveles.value = snapshot.niveles;
+        inspecciones.value = snapshot.inspecciones;
+        detalles.value = snapshot.detalles;
+        sortRatingsState();
+        fullHistoryAccessKey.value = accessKey;
+      } else if (targetRange !== null) {
+        const coveredRanges =
+          loadedInspectionRangesByAccess.value[accessKey] || [];
+        const rangesToFetch = force
+          ? [targetRange]
+          : getMissingDateRanges(targetRange, coveredRanges);
+        let nextCoveredRanges = coveredRanges;
+
+        for (const range of rangesToFetch) {
+          const snapshot = await ratingsService.fetchSnapshot(
+            { mode: "date-range", from: range.from, to: range.to },
+            access,
+          );
+
+          if (force) {
+            replaceSnapshotRange(range);
+          }
+
+          mergeSnapshot(snapshot);
+          nextCoveredRanges = mergeDateRanges([...nextCoveredRanges, range]);
+          loadedInspectionRangesByAccess.value = {
+            ...loadedInspectionRangesByAccess.value,
+            [accessKey]: nextCoveredRanges,
+          };
+        }
+      }
 
       isLoaded.value = true;
-      loadedScopeKey.value = nextScopeKey;
     } catch (e) {
       console.error("Error fetching ratings state", e);
     } finally {
       isLoading.value = false;
     }
-  };
-
-  const loadCurrentEmployeeRatings = async (
-    scope: RatingsFetchScope,
-    email: string,
-  ): Promise<[RatingsEmpleado[], RatingsInspeccion[]]> => {
-    const employee = await ratingsService.fetchEmpleadoActivoPorEmail(email);
-
-    if (!employee) {
-      return [[], []];
-    }
-
-    const inspections = await ratingsService.fetchInspecciones(
-      scope,
-      employee.id_empleado,
-    );
-
-    return [[employee], inspections];
   };
 
   const fetchPuntuacionSupervisoresOt = async (
@@ -210,6 +394,8 @@ export const useRatingsStore = defineStore("ratings", () => {
 
   return {
     empleados,
+    criterios,
+    niveles,
     inspecciones,
     detalles,
     puntuacionSupervisoresOt,
@@ -218,6 +404,9 @@ export const useRatingsStore = defineStore("ratings", () => {
     isLoading,
     isPuntuacionSupervisoresOtLoading,
     errorPuntuacionSupervisoresOt,
+    loadedInspectionRangesByAccess,
+    fullHistoryAccessKey,
+    activeAccessKey,
     fetchAll,
     fetchPuntuacionSupervisoresOt,
     deleteInspection,

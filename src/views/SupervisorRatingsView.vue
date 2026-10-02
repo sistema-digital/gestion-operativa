@@ -2,11 +2,12 @@
 import { ref, computed, shallowRef, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
-import { supabaseRatings, supabase } from "@/lib/supabase";
+import { VueDatePicker } from "@vuepic/vue-datepicker";
+import { es } from "date-fns/locale";
+import { supabaseRatings } from "@/lib/supabase";
 import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 import {
   Users,
-  Search,
   Filter,
   ChevronRight,
   Star,
@@ -22,7 +23,9 @@ import {
   Trash,
   Presentation,
 } from "lucide-vue-next";
+import { z } from "zod";
 import { useRatingsStore } from "@/stores/ratingsStore";
+import { useUserStore } from "@/stores/userStore";
 import { useAssignedHoursStore } from "@/stores/assignedHoursStore";
 import { useOmsgAssignmentComplianceStore } from "@/stores/omsgAssignmentComplianceStore";
 import { useMecanicosStore } from "@/stores/db_mantenimiento/mecanicos/mecanicos.store";
@@ -37,8 +40,13 @@ import { useDashboardHeaderNav } from "@/composables/useDashboardHeaderNav";
 import MeetingBatchPanel from "@/components/ratings/MeetingBatchPanel.vue";
 import SupervisorOtCompliancePanel from "@/components/ratings/SupervisorOtCompliancePanel.vue";
 import OmsgAssignmentCompliancePanel from "@/components/ratings/OmsgAssignmentCompliancePanel.vue";
-import type { PuntuacionSupervisorOtArea } from "@/stores/ratingsStore.types";
-import type { RatingsFetchScope } from "@/stores/ratingsStore.types";
+import type {
+  PuntuacionSupervisorOtArea,
+  RatingsCriterio,
+  RatingsEmpleado,
+  RatingsFetchScope,
+  RatingsNivel,
+} from "@/stores/ratingsStore.types";
 import type { MecanicoMantenimiento } from "@/stores/db_mantenimiento/mecanicos/mecanicos.types";
 import type { OmsgAssignmentComplianceItem } from "@/stores/omsgAssignmentCompliance.types";
 import type {
@@ -54,6 +62,8 @@ import {
   resolveMeetingCriterionId,
   upsertMeetingObservationBlock,
 } from "@/utils/meetingRatings";
+import { formatCompactDate } from "@/utils/formatCompactPanamaDate";
+import "@vuepic/vue-datepicker/dist/main.css";
 
 type InspectionKind = "normal" | "meeting";
 
@@ -162,6 +172,7 @@ const buildMeetingObservationText = (
 };
 
 const ratingsStore = useRatingsStore();
+const userStore = useUserStore();
 const assignedHoursStore = useAssignedHoursStore();
 const omsgAssignmentComplianceStore = useOmsgAssignmentComplianceStore();
 const mecanicosStore = useMecanicosStore();
@@ -281,65 +292,115 @@ const endOfLastWeek = new Date(new Date(startOfWeek).getTime() - 1 * 86400000)
   .toISOString()
   .split("T")[0];
 
-const selectedDate = ref("");
+type DateRangeSelection = [Date, Date];
+
+const dateRangeSchema = z.tuple([z.date(), z.date()]);
+const selectedDateRange = shallowRef<DateRangeSelection | null>(null);
 const timeFilter = ref("Hoy");
 
 const currentUserArea = ref("ALL");
 
-const getDefaultTimeFilterForArea = (area: string) =>
-  area !== "ALL" && area !== "EVALUADOR" ? "Esta semana" : "Hoy";
+const getDefaultTimeFilterForArea = () => "Hoy";
+
+const toIsoDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const selectedDateRangeIso = computed(() => {
+  if (!selectedDateRange.value) return null;
+
+  const [firstDate, secondDate] = selectedDateRange.value;
+  const firstIsoDate = toIsoDate(firstDate);
+  const secondIsoDate = toIsoDate(secondDate);
+
+  return firstIsoDate <= secondIsoDate
+    ? { from: firstIsoDate, to: secondIsoDate }
+    : { from: secondIsoDate, to: firstIsoDate };
+});
+
+const formatDateRange = (value: Date | Date[]): string => {
+  const dates = Array.isArray(value) ? value : [value];
+
+  return dates.map(formatCompactDate).join(" - ");
+};
 
 // Re-evaluate default filter once user role is loaded
 watch(
   currentUserArea,
-  (newArea) => {
-    if (selectedDate.value) return;
-    timeFilter.value = getDefaultTimeFilterForArea(newArea);
+  () => {
+    if (selectedDateRangeIso.value) return;
+    timeFilter.value = getDefaultTimeFilterForArea();
   },
   { immediate: true },
 );
 
 const getRatingsFetchScope = (): RatingsFetchScope => {
-  if (selectedDate.value) {
+  if (selectedDateRangeIso.value) {
     return {
-      mode: "single-date",
-      date: selectedDate.value,
+      mode: "date-range",
+      from: selectedDateRangeIso.value.from,
+      to: selectedDateRangeIso.value.to,
     };
   }
 
-  if (timeFilter.value === "Todas") {
-    return { mode: "all" };
+  if (timeFilter.value === "Ayer") {
+    return {
+      mode: "single-date",
+      date: resolvedPreviousRatingsDate.value || yesterdayDate,
+    };
+  }
+
+  if (timeFilter.value === "Esta semana") {
+    return {
+      mode: "date-range",
+      from: startOfWeek,
+      to: todayDate,
+    };
+  }
+
+  if (timeFilter.value === "Semana pasada") {
+    return {
+      mode: "date-range",
+      from: startOfLastWeek,
+      to: endOfLastWeek,
+    };
   }
 
   return {
     mode: "date-range",
-    from: startOfLastWeek,
-    to: endOfWeek,
+    from: yesterdayDate,
+    to: todayDate,
   };
 };
 
 const setTimeFilter = async (f: string) => {
   if (f === "Ayer" && !canUsePreviousRatingsFilter.value) return;
 
-  const previousFilter = timeFilter.value;
-  const hadSelectedDate = selectedDate.value !== "";
-
   timeFilter.value = f;
-  selectedDate.value = "";
+  selectedDateRange.value = null;
 
-  if (f === "Todas" || previousFilter === "Todas" || hadSelectedDate) {
-    await loadData({ forceStore: true, background: true });
-  }
+  await loadData({ background: true });
 };
 
-const onDateSelect = async () => {
-  if (!selectedDate.value) {
-    timeFilter.value = getDefaultTimeFilterForArea(currentUserArea.value);
-  } else {
-    timeFilter.value = "Custom";
+const onDateRangeSelect = async (value: Date | Date[] | null) => {
+  if (value === null) {
+    selectedDateRange.value = null;
+    timeFilter.value = getDefaultTimeFilterForArea();
+    await loadData({ background: true });
+    return;
   }
 
-  await loadData({ forceStore: true, background: true });
+  const parsedRange = dateRangeSchema.safeParse(value);
+  if (!parsedRange.success) return;
+
+  selectedDateRange.value = parsedRange.data;
+  timeFilter.value = "Custom";
+
+  await loadData({ background: true });
 };
 
 const showPhotosModal = ref(false);
@@ -380,13 +441,14 @@ const deleteCandidateSupervisorName = computed(() => {
 
 const filteredSupervisors = computed(() => {
   const yesterdayFilterDate = resolvedPreviousRatingsDate.value;
+  const dateRange = selectedDateRangeIso.value;
 
   let result = supervisors.value.map((sup) => {
     let filteredInsps = sup.inspecciones;
 
-    if (selectedDate.value) {
+    if (dateRange) {
       filteredInsps = filteredInsps.filter(
-        (i) => i.fecha === selectedDate.value,
+        (i) => i.fecha >= dateRange.from && i.fecha <= dateRange.to,
       );
     } else {
       if (timeFilter.value === "Hoy") {
@@ -431,7 +493,7 @@ const filteredSupervisors = computed(() => {
         if (
           timeFilter.value === "Hoy" ||
           timeFilter.value === "Ayer" ||
-          selectedDate.value !== ""
+          dateRange !== null
         ) {
           label = "Registros"; // Flat
         } else if (
@@ -444,14 +506,7 @@ const filteredSupervisors = computed(() => {
           } else {
             label = "Registros"; // Flat
           }
-        } else {
-          // timeFilter === 'Todas' -> group by week (default)
-          const d = new Date(i.fecha + "T00:00:00");
-          const day = d.getDay();
-          const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-          const start = new Date(new Date(d).setDate(diff));
-          label = `Semana del ${start.toISOString().split("T")[0]}`;
-        }
+        } else label = "Registros";
       } else {
         // DEFAULT logic for Evaluador and ALL: group by week
         const d = new Date(i.fecha + "T00:00:00");
@@ -475,9 +530,7 @@ const filteredSupervisors = computed(() => {
     return { ...sup, inspecciones: filteredInsps, filteredAvg, groupedInsps };
   });
 
-  if (timeFilter.value !== "Todas" || selectedDate.value !== "") {
-    result = result.filter((sup) => sup.inspecciones.length > 0);
-  }
+  result = result.filter((sup) => sup.inspecciones.length > 0);
 
   return result;
 });
@@ -703,9 +756,9 @@ const meetingEditingInspection = ref<Inspeccion | null>(null);
 const deleteCandidate = ref<Inspeccion | null>(null);
 const deletingInspectionId = ref<number | null>(null);
 
-const formEmpleados = ref<any[]>([]);
-const formCriterios = ref<any[]>([]);
-const formNiveles = ref<any[]>([]);
+const formEmpleados = ref<RatingsEmpleado[]>([]);
+const formCriterios = ref<RatingsCriterio[]>([]);
+const formNiveles = ref<RatingsNivel[]>([]);
 const meetingCriterionId = ref<number | null>(null);
 
 const resolveMeetingCriterionIdFromCatalog = () => {
@@ -740,37 +793,13 @@ const meetingCriterionDescription = computed(() => {
 });
 
 const ensureRatingsCatalogsLoaded = async () => {
-  let shouldLoadProfiles = false;
+  const shouldLoadProfiles = formEmpleados.value.length === 0;
 
-  if (formEmpleados.value.length === 0) {
-    const { data: empleadosData, error } = await supabaseRatings
-      .from("empleados")
-      .select("*");
-    if (error) throw error;
-    formEmpleados.value = empleadosData || [];
-    shouldLoadProfiles = true;
-  }
+  formEmpleados.value = ratingsStore.empleados;
+  formNiveles.value = ratingsStore.niveles;
+  formCriterios.value = ratingsStore.criterios;
 
-  if (formNiveles.value.length === 0) {
-    const { data: nivelesData, error } = await supabaseRatings
-      .from("niveles_calificacion")
-      .select("*")
-      .order("puntuacion", { ascending: true });
-
-    if (error) throw error;
-    formNiveles.value = nivelesData || [];
-  }
-
-  if (formCriterios.value.length === 0) {
-    const { data: criteriosData, error } = await supabaseRatings
-      .from("criterios_evaluacion")
-      .select("*");
-
-    if (error) throw error;
-    formCriterios.value = criteriosData || [];
-  }
-
-  if (shouldLoadProfiles) {
+  if (shouldLoadProfiles && formEmpleados.value.length > 0) {
     await loadProfilesForForm(formEmpleados.value);
   }
 
@@ -1045,10 +1074,8 @@ const availableOtherSupervisors = computed(() => {
   return formEmpleados.value.filter((e) => {
     // Determine the area from API string or Store Cache reliably
     const cachedArea =
-      e.email || e.correo
-        ? assignedHoursStore.areaCache[e.email] ||
-          assignedHoursStore.areaCache[e.correo]
-        : "";
+      assignedHoursStore.areaCache[e.email] ||
+      (e.correo ? assignedHoursStore.areaCache[e.correo] : "");
     const eArea = (e.area || cachedArea || "").toUpperCase();
     const eDept = (e.departamento || "").toUpperCase();
     const isSG =
@@ -1350,7 +1377,7 @@ const formatFileSize = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
-const loadProfilesForForm = async (emps: any[]) => {
+const loadProfilesForForm = async (emps: RatingsEmpleado[]) => {
   // Pre-load area cache for everyone so the computed properties have real area data immediately
   for (const e of emps) {
     if (e.rol?.toUpperCase().includes("SUPERVISOR")) {
@@ -2096,25 +2123,13 @@ const loadData = async ({
   if (!background) isLoading.value = true;
   try {
     if (!useCachedStoreOnly) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const profile = await userStore.fetchCurrentUserProfile();
+      currentUserEmail.value = userStore.getEmail();
+      currentUserArea.value = profile?.area?.toUpperCase() || "ALL";
+      currentUserName.value = profile?.nombre || "";
 
-      if (user) {
-        currentUserEmail.value = user.email || "";
-        const { data: profile } = await supabase
-          .from("PROFILE")
-          .select("*")
-          .eq("email", currentUserEmail.value)
-          .maybeSingle();
-        if (profile) {
-          currentUserArea.value = profile.area?.toUpperCase() || "ALL";
-          currentUserName.value = profile.nombre || "";
-        }
-      }
-
-      await ensureRatingsCatalogsLoaded();
       await ratingsStore.fetchAll(forceStore, getRatingsFetchScope());
+      await ensureRatingsCatalogsLoaded();
     }
 
     let sups = ratingsStore.validSupervisors;
@@ -2245,7 +2260,7 @@ const loadData = async ({
               : "Desconocido",
             kind: "meeting",
             meetingBadgeLabel: getMeetingBadgeLabel(
-              selectedDate.value ? "Custom" : timeFilter.value,
+              selectedDateRangeIso.value ? "Custom" : timeFilter.value,
               insp.fecha,
             ),
             assignedMeetingWeekday: getMeetingAssignedWeekday(
@@ -2411,21 +2426,25 @@ onUnmounted(() => {
               class="p-5 border-b border-gray-100 flex flex-col md:flex-row items-center justify-between bg-gray-50/50 gap-4"
             >
               <div class="relative flex-1 w-full max-w-sm px-1 flex gap-2">
-                <div class="relative flex-1">
-                  <span class="absolute left-4 top-2.5 text-gray-400">
-                    <Search class="w-4 h-4" />
-                  </span>
-                  <input
-                    v-model="selectedDate"
-                    @change="onDateSelect"
-                    type="date"
-                    class="w-full pl-11 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-main focus:border-main bg-white"
+                <div class="flex-1">
+                  <VueDatePicker
+                    class="w-full"
+                    :model-value="selectedDateRange"
+                    range
+                    :enable-time-picker="false"
+                    auto-apply
+                    :config="{ closeOnAutoApply: false }"
+                    :formats="{ input: formatDateRange }"
+                    :locale="es"
+                    input-class-name="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs focus:border-main focus:ring-1 focus:ring-main"
+                    placeholder="Rango de fechas"
+                    @update:model-value="onDateRangeSelect"
                   />
                 </div>
                 <button
                   @click="loadData({ forceStore: true })"
                   :disabled="isLoading"
-                  class="flex-shrink-0 p-2 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 hover:text-main transition-colors disabled:opacity-50"
+                  class="flex-shrink-0 cursor-pointer p-2 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 hover:text-main transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   title="Actualizar datos"
                 >
                   <RefreshCw
@@ -2438,17 +2457,6 @@ onUnmounted(() => {
                 class="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0"
               >
                 <button
-                  @click="setTimeFilter('Todas')"
-                  :class="
-                    timeFilter === 'Todas'
-                      ? 'bg-accent text-main-dark'
-                      : 'bg-gray-200 text-gray-500'
-                  "
-                  class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors"
-                >
-                  Todas
-                </button>
-                <button
                   v-if="!isRegularSup"
                   @click="setTimeFilter('Hoy')"
                   :class="
@@ -2456,7 +2464,7 @@ onUnmounted(() => {
                       ? 'bg-accent text-main-dark'
                       : 'bg-gray-200 text-gray-500'
                   "
-                  class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors"
+                  class="cursor-pointer px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors"
                 >
                   Hoy
                 </button>
@@ -2469,7 +2477,7 @@ onUnmounted(() => {
                       ? 'bg-accent text-main-dark'
                       : 'bg-gray-200 text-gray-500'
                   "
-                  class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="cursor-pointer px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {{ previousRatingsButtonLabel }}
                 </button>
@@ -2480,7 +2488,7 @@ onUnmounted(() => {
                       ? 'bg-accent text-main-dark'
                       : 'bg-gray-200 text-gray-500'
                   "
-                  class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors"
+                  class="cursor-pointer px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors"
                 >
                   Esta semana
                 </button>
@@ -2491,7 +2499,7 @@ onUnmounted(() => {
                       ? 'bg-accent text-main-dark'
                       : 'bg-gray-200 text-gray-500'
                   "
-                  class="px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors"
+                  class="cursor-pointer px-3 py-1 text-[10px] font-bold uppercase rounded-full whitespace-nowrap transition-colors"
                 >
                   Semana pasada
                 </button>

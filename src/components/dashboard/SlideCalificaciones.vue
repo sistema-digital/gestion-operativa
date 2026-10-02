@@ -14,7 +14,6 @@ import { useUserStore } from "@/stores/userStore";
 import ImageZoomViewer from "@/components/common/ImageZoomViewer.vue";
 import InspectionReadOnlyPanel from "@/components/dashboard/InspectionReadOnlyPanel.vue";
 import { parseMeetingObservation } from "@/utils/meetingRatings";
-import { ratingsService } from "@/stores/ratingsStore.service";
 import { useOmsgAssignmentComplianceStore } from "@/stores/omsgAssignmentComplianceStore";
 import type {
   PuntuacionSupervisorOtArea,
@@ -114,7 +113,6 @@ onMounted(async () => {
       ? { mode: "all" }
       : { mode: "current-employee", email: userEmail },
   );
-  criteria.value = await ratingsService.fetchCriterios().catch(() => []);
 });
 
 const periodInspections = computed(() => {
@@ -235,7 +233,7 @@ const chartData = computed(() => {
 
 const selectedDate = ref<string>("");
 const selectedInspection = ref<RatingsInspeccionNormalizada | null>(null);
-const criteria = ref<RatingsCriterio[]>([]);
+const criteria = computed<RatingsCriterio[]>(() => store.criterios);
 const assignedHoursArea = ref("");
 const assignedHours = ref<AssignedHoursWorkOrder[]>([]);
 const isAssignedHoursLoading = ref(false);
