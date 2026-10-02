@@ -2379,7 +2379,7 @@ onUnmounted(() => {
           <BaseButton
             v-if="canManageMeetingBatch"
             variant="outline"
-            class="border-gray-200 text-amber-700 shadow-sm bg-white cursor-pointer hover:bg-amber-50 hover:cursor-pointer"
+            class="mb-2 border-gray-200 text-amber-700 shadow-sm bg-white cursor-pointer hover:bg-amber-50 hover:cursor-pointer"
             @click="showMeetingBatchModal = true"
           >
             Revisión Reunión
@@ -2387,7 +2387,7 @@ onUnmounted(() => {
           <BaseButton
             v-if="['ALL', 'EVALUADOR'].includes(currentUserArea)"
             variant="secondary"
-            class="cursor-pointer hover:cursor-pointer"
+            class="cursor-pointer hover:cursor-pointer hidden lg:block mb-2"
             @click="openNewModal"
           >
             Nueva Calificación

@@ -1,11 +1,10 @@
 {
-  "version": "0.2.6",
-  "summary": "Mejoras en la consulta de filtros y aceites por equipo.",
+  "version": "0.2.7",
+  "summary": "Ajustes de interfaz en calificaciones de supervisores.",
   "changes": [
-    "Se separó la consulta de filtros y aceites en pestañas.",
-    "La estructura de aceites ahora organiza los subsistemas dentro de sus sistemas."
+    "Se mejoró la disposición de las acciones de revisión y creación de calificaciones."
   ],
   "required": true,
   "appliesToAllUsers": false,
-  "affectedFeatures": ["ver_filtros_engrase"]
+  "affectedFeatures": []
 }
