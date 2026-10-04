@@ -2,9 +2,11 @@
 import { computed, nextTick, onMounted, shallowRef, useTemplateRef } from "vue";
 import { Plus } from "lucide-vue-next";
 import VueMultiselect from "vue-multiselect";
+import { crearTempId } from "@/stores/dbequipos/engrase/shared/equipoEngraseDraft.tempIds";
 import type { CatalogoActivo } from "@/stores/dbequipos/engrase/shared/estructuraLubricacion.types";
 import type {
   CatalogoEstructura,
+  CatalogoEstructuraNuevo,
   ErrorValidacionEstructura,
   NodoEstructuraArbol,
 } from "@/stores/dbequipos/engrase/shared/estructuraLubricacion.draft.types";
@@ -70,7 +72,7 @@ const props = defineProps<{
 const emit = defineEmits<{ close: []; confirm: [DrawerConfirm] }>();
 const selectedCatalog = shallowRef<CatalogOption | null>(
   props.mode === "catalog"
-    ? (props.node?.sistema ?? props.node?.subsistema)
+    ? (props.node?.sistema ?? props.node?.subsistema ?? null)
     : null,
 );
 const noOilOption: NoOilOption = {
@@ -134,7 +136,9 @@ const catalogOptions = computed<CatalogOption[]>(() =>
     ? [
         ...catalogBaseOptions.value,
         ...catalogosLocales.value,
-        ...(selectedCatalog.value?.id === null ? [selectedCatalog.value] : []),
+        ...(selectedCatalog.value && isCatalogoNuevo(selectedCatalog.value)
+          ? [selectedCatalog.value]
+          : []),
         ...(pendingCatalog.value ? [pendingCatalog.value] : []),
         ...(tagSearch.value.trim() &&
         !pendingCatalog.value &&
@@ -197,6 +201,14 @@ function crearOpcionCatalogo(name: string): PendingCatalogOption {
     pendingCreation: true,
   };
 }
+function crearCatalogoTemporal(nombre: string): CatalogoEstructuraNuevo {
+  return {
+    id: null,
+    tempId: crearTempId("catalogo_estructura"),
+    nombre,
+    activo: true,
+  };
+}
 function normalizarNombreCatalogo(name: string): string {
   return name.trim().replace(/\s+/gu, " ").toLocaleUpperCase("es");
 }
@@ -221,6 +233,11 @@ function selectedOilValue(): CatalogoEstructura | null {
   return isNoOil(selectedOil.value) || isPendingOil(selectedOil.value)
     ? null
     : selectedOil.value;
+}
+function aceiteParaCrearNodo(): CatalogoEstructura | null {
+  return isPendingOil(selectedOil.value)
+    ? crearCatalogoTemporal(selectedOil.value.nombre)
+    : selectedOilValue();
 }
 function aceiteNuevoNombre(): string | null {
   return isPendingOil(selectedOil.value) ? selectedOil.value.nombre : null;
@@ -254,19 +271,19 @@ function confirm(): void {
       emit("confirm", {
         mode: "root-new-system",
         nombre: selectedCatalog.value.nombre,
-        aceite: selectedOilValue(),
+        aceite: aceiteParaCrearNodo(),
       });
     else if (isCatalogoNuevo(selectedCatalog.value))
       emit("confirm", {
         mode: "root-new-system",
         nombre: selectedCatalog.value.nombre,
-        aceite: selectedOilValue(),
+        aceite: aceiteParaCrearNodo(),
       });
     else
       emit("confirm", {
         mode: "root",
         sistema: selectedCatalog.value,
-        aceite: selectedOilValue(),
+        aceite: aceiteParaCrearNodo(),
       });
   }
   if (props.mode === "child" && selectedCatalog.value && props.node) {
@@ -275,21 +292,21 @@ function confirm(): void {
         mode: "child-new-subsystem",
         parentLocalId: props.node.localId,
         nombre: selectedCatalog.value.nombre,
-        aceite: selectedOilValue(),
+        aceite: aceiteParaCrearNodo(),
       });
     else if (isCatalogoNuevo(selectedCatalog.value))
       emit("confirm", {
         mode: "child-new-subsystem",
         parentLocalId: props.node.localId,
         nombre: selectedCatalog.value.nombre,
-        aceite: selectedOilValue(),
+        aceite: aceiteParaCrearNodo(),
       });
     else
       emit("confirm", {
         mode: "child",
         parentLocalId: props.node.localId,
         subsistema: selectedCatalog.value,
-        aceite: selectedOilValue(),
+        aceite: aceiteParaCrearNodo(),
       });
   }
   if (props.mode === "catalog" && selectedCatalog.value && props.node) {
@@ -410,7 +427,7 @@ function confirm(): void {
             ><VueMultiselect
               v-model="selectedOil"
               :options="oilOptions"
-              track-by="id"
+              track-by="nombre"
               label="nombre"
               :allow-empty="false"
               :close-on-select="true"
