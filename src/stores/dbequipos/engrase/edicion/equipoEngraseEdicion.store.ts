@@ -34,6 +34,10 @@ import type {
   CatalogoEstructura,
   CatalogoEstructuraNuevo,
 } from "../shared/estructuraLubricacion.draft.types";
+import type {
+  CatalogoActivo,
+  CatalogoEstructuraTempIds,
+} from "../shared/estructuraLubricacion.types";
 import type { ImagenSyncState } from "./equipoEngraseImagen.types";
 import type {
   AuxiliaresEdicionEquipo,
@@ -184,6 +188,19 @@ const crearBorrador = (
     estructuraSistemas: "existente",
   },
 });
+const reconciliarCatalogoPersistido = (
+  catalogo: CatalogoEstructura | null,
+  catalogoTempIds: CatalogoEstructuraTempIds,
+): CatalogoActivo | null => {
+  if (!catalogo) return null;
+  if (catalogo.id !== null) return { ...catalogo };
+  const id = catalogoTempIds[catalogo.tempId];
+  if (id === undefined)
+    throw new Error(
+      `No se recibió el ID persistido para el catálogo temporal ${catalogo.tempId}.`,
+    );
+  return { id, nombre: catalogo.nombre, activo: catalogo.activo };
+};
 const crearSnapshotPersistido = (
   borrador: EquipoEdicionDraft,
   respuesta: ActualizarEquipoCompletoRespuesta,
@@ -222,9 +239,18 @@ const crearSnapshotPersistido = (
             (nodo.parentTempId
               ? (respuesta.estructuraTempIds?.[nodo.parentTempId] ?? null)
               : null),
-          sistema: nodo.sistema ? { ...nodo.sistema } : null,
-          subsistema: nodo.subsistema ? { ...nodo.subsistema } : null,
-          aceite: nodo.aceite ? { ...nodo.aceite } : null,
+          sistema: reconciliarCatalogoPersistido(
+            nodo.sistema,
+            respuesta.catalogoTempIds ?? {},
+          ),
+          subsistema: reconciliarCatalogoPersistido(
+            nodo.subsistema,
+            respuesta.catalogoTempIds ?? {},
+          ),
+          aceite: reconciliarCatalogoPersistido(
+            nodo.aceite,
+            respuesta.catalogoTempIds ?? {},
+          ),
         },
       ];
     }),
@@ -325,7 +351,7 @@ export const useEquipoEngraseEdicionStore = defineStore(
         draft.value?.estructuraSistemas.filter(
           (nodo) =>
             nodo.estadoLocal !== "pendiente_eliminacion" &&
-            nodo.aceiteId !== null,
+            nodo.aceite !== null,
         ).length ?? 0,
     );
 

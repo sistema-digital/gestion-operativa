@@ -418,6 +418,11 @@ con la respuesta confirmada por backend. Si la respuesta contiene
 respuesta o mediante una recarga explícita y validada del equipo; no inventar
 IDs locales.
 
+Cuando la respuesta incluya `catalogo_temp_ids`, el store debe reconciliar los
+`tempId` de sistema, subsistema y aceite con sus IDs persistidos antes de
+reconstruir el snapshot. Un catálogo temporal sin mapeo no puede tratarse como
+persistido ni convertirse mediante cast; debe tratarse como respuesta incompleta.
+
 ## Componentes y responsabilidades
 
 La vista de ruta sigue siendo una superficie de composición. Puede reutilizar

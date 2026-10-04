@@ -29,3 +29,7 @@ export interface NodoEstructuraTemporal {
 export interface EstructuraSistemasTempIds {
   [tempId: string]: number;
 }
+
+export interface CatalogoEstructuraTempIds {
+  [tempId: string]: number;
+}

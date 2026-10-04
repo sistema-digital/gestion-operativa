@@ -6,11 +6,11 @@ import type {
   EquipoParaEdicion,
   ActualizarEquipoCompletoRespuesta,
 } from "./equipoEngraseEdicion.types";
+import type { CatalogoEstructuraNuevo } from "../shared/estructuraLubricacion.draft.types";
 
 const obtenerEquipo = vi.hoisted(() => vi.fn());
 const obtenerAuxiliares = vi.hoisted(() => vi.fn());
 const actualizarEquipoCompleto = vi.hoisted(() => vi.fn());
-const guardarSubsistema = vi.hoisted(() => vi.fn());
 vi.mock("./equipoEngraseEdicion.service", () => ({
   equipoEngraseEdicionService: {
     obtenerEquipoParaEdicion: obtenerEquipo,
@@ -18,10 +18,6 @@ vi.mock("./equipoEngraseEdicion.service", () => ({
     actualizarEquipoCompleto,
   },
 }));
-vi.mock("../catalogo/subsistemasCatalogo.service", () => ({
-  subsistemasCatalogoService: { guardar: guardarSubsistema },
-}));
-
 import { useEquipoEngraseEdicionStore } from "./equipoEngraseEdicion.store";
 import { useFiltrosEngraseStore } from "../filtrosEngrase.store";
 
@@ -353,9 +349,6 @@ describe("store de edición de equipo", () => {
         aceite: { id: 2, nombre: "Hy-Tran", activo: true },
       }),
     ).toBe(true);
-    guardarSubsistema.mockResolvedValue({
-      item: { id: 4, nombre: "Enfriador", activo: true },
-    });
     expect(
       await store.crearSubsistemaYAgregarHijo({
         parentLocalId: root.localId,
@@ -363,12 +356,16 @@ describe("store de edición de equipo", () => {
         aceite: null,
       }),
     ).toBe(true);
-    expect(guardarSubsistema).toHaveBeenCalledWith({
-      id: null,
-      nombre: "ENFRIADOR",
-      activo: true,
-    });
-    expect(store.auxiliares?.subsistemas).toContainEqual({
+    expect(store.draft?.estructuraSistemas).toContainEqual(
+      expect.objectContaining({
+        estadoLocal: "nuevo",
+        subsistema: expect.objectContaining({
+          id: null,
+          nombre: "ENFRIADOR",
+        }),
+      }),
+    );
+    expect(store.auxiliares?.subsistemas).not.toContainEqual({
       id: 4,
       nombre: "Enfriador",
       activo: true,
@@ -433,6 +430,71 @@ describe("store de edición de equipo", () => {
     expect(listado.equipos[0]?.subtipo).toBe("Bus urbano");
     expect(listado.filtrosAplicados.modelo).toBe("urbano");
     expect(listado.equipoSeleccionadoId).toBe(6);
+  });
+  it("reconcilia los IDs de nodos y catálogos temporales después de guardar", async () => {
+    obtenerEquipo.mockResolvedValue({
+      ...equipo,
+      filtros: [
+        {
+          id: 9,
+          equipoId: 6,
+          tipoFiltro: { id: 2, nombre: "Aire" },
+          filtro: { id: 4, codigo: "AF-1", estaEnListaCompras: true },
+          cantidad: 1,
+          cantidadEquivalencias: 0,
+        },
+      ],
+    });
+    obtenerAuxiliares.mockResolvedValue(auxiliares);
+    const store = useEquipoEngraseEdicionStore();
+    await store.cargar("410002");
+    const aceite: CatalogoEstructuraNuevo = {
+      id: null,
+      tempId: "tmp_catalogo_aceite_1",
+      nombre: "15W40",
+      activo: true,
+    };
+
+    expect(store.crearSistemaYAgregarRaiz({ nombre: "MOTOR", aceite })).toBe(
+      true,
+    );
+    const nodoTemporal = store.draft?.estructuraSistemas.find(
+      (node) => node.estadoLocal === "nuevo",
+    );
+    if (
+      !nodoTemporal?.tempId ||
+      !nodoTemporal.sistema ||
+      nodoTemporal.sistema.id !== null
+    )
+      throw new Error("No se creó el nodo temporal con su sistema.");
+
+    actualizarEquipoCompleto.mockResolvedValue({
+      ...respuestaActualizacion(),
+      estructuraTempIds: { [nodoTemporal.tempId]: 300 },
+      catalogoTempIds: {
+        [nodoTemporal.sistema.tempId]: 7,
+        [aceite.tempId]: 3,
+      },
+    });
+
+    const resultado = await store.guardar(async (): Promise<void> => {});
+
+    expect(resultado.kind).toBe("success");
+    expect(store.draft?.estructuraSistemas).toContainEqual({
+      localId: expect.any(String),
+      estadoLocal: "existente",
+      id: 300,
+      tempId: null,
+      parentId: null,
+      parentTempId: null,
+      sistemaId: 7,
+      subsistemaId: null,
+      aceiteId: 3,
+      sistema: { id: 7, nombre: "MOTOR", activo: true },
+      subsistema: null,
+      aceite: { id: 3, nombre: "15W40", activo: true },
+    });
+    expect(store.assignedOilsCount).toBe(1);
   });
 
   it("guarda referencias provenientes de proxies reactivos de Vue", async () => {

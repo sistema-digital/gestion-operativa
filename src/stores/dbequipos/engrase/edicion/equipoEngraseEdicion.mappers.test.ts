@@ -105,6 +105,11 @@ const actualizacionDto: ActualizarEquipoCompletoDto = {
     subsistemas_agregados: 2,
   },
   estructura_temp_ids: { estructura_1: 300, estructura_2: 301 },
+  catalogo_temp_ids: {
+    tmp_catalogo_sistema_1: 7,
+    tmp_catalogo_subsistema_1: 6,
+    tmp_catalogo_aceite_1: 3,
+  },
 };
 
 describe("mappers de edición de equipos", () => {
@@ -245,6 +250,11 @@ describe("mappers de edición de equipos", () => {
     expect(resultado.estructuraTempIds).toEqual({
       estructura_1: 300,
       estructura_2: 301,
+    });
+    expect(resultado.catalogoTempIds).toEqual({
+      tmp_catalogo_sistema_1: 7,
+      tmp_catalogo_subsistema_1: 6,
+      tmp_catalogo_aceite_1: 3,
     });
   });
   it("mapea la respuesta de imagen y conserva código de error funcional", () => {

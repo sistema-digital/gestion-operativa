@@ -64,7 +64,7 @@ const activeNodes = computed(() =>
   props.nodos.filter((node) => node.estadoLocal !== "pendiente_eliminacion"),
 );
 const assignedOilsCount = computed(
-  () => activeNodes.value.filter((node) => node.aceiteId !== null).length,
+  () => activeNodes.value.filter((node) => node.aceite !== null).length,
 );
 const systemsCount = computed(
   () =>

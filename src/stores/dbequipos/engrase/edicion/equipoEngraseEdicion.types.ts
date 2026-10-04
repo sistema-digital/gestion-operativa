@@ -1,5 +1,6 @@
 import type { EquipoEngraseListItem } from "../filtrosEngrase.types";
 import type {
+  CatalogoEstructuraTempIds,
   CatalogoActivo,
   EstructuraSistemasTempIds,
   NodoEstructuraLubricacion,
@@ -312,6 +313,7 @@ export interface ActualizarEquipoCompletoRespuesta {
   cambiosDetalle: CambiosDetalleEquipo;
   resumenOperaciones: ResumenOperacionesEquipo;
   estructuraTempIds?: EstructuraSistemasTempIds;
+  catalogoTempIds?: CatalogoEstructuraTempIds;
 }
 
 export type OperacionImagenEquipo = "agregar" | "actualizar" | "eliminar";
@@ -454,6 +456,7 @@ export interface ActualizarEquipoCompletoDto {
     subsistemas_agregados?: number;
   };
   estructura_temp_ids?: Record<string, number>;
+  catalogo_temp_ids?: Record<string, number>;
 }
 export interface AdministrarImagenEquipoDto {
   ok: boolean;

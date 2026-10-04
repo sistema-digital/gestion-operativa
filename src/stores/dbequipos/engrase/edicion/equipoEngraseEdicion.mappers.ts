@@ -187,6 +187,7 @@ export const mapActualizarEquipoCompleto = (
     cambiosDetalle: detalle,
     resumenOperaciones: resumen,
     estructuraTempIds: dto.estructura_temp_ids ?? {},
+    catalogoTempIds: dto.catalogo_temp_ids ?? {},
   };
 };
 export const mapAdministrarImagenEquipo = (
