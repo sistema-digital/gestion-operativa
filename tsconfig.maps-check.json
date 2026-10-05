@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["google.maps", "node", "vite/client"]
+  },
+  "include": [
+    "src/components/seguimiento/tareas/TrackingMapWorkspace.vue",
+    "src/seguimiento/shared/maps/mapsProvider.loader.ts",
+    "src/seguimiento/shared/trackers/trackerMapMarker.helpers.ts"
+  ]
+}

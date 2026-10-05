@@ -11,8 +11,8 @@ export interface TrackerMarkerVisualState {
 }
 
 interface MapsMarkerPrimitives {
-  Size: new (width: number, height: number) => unknown;
-  Point: new (x: number, y: number) => unknown;
+  Size: typeof google.maps.Size;
+  Point: typeof google.maps.Point;
 }
 
 const markerColors: Record<TrackerMarkerColor, string> = {
@@ -96,7 +96,7 @@ export function createTrackerMarkerIcon(
   tracker: SeguimientoTracker,
   displayMode: Exclude<TrackerMarkerDisplayMode, "hidden">,
   maps: MapsMarkerPrimitives,
-): { url: string; scaledSize: unknown; anchor: unknown } {
+): google.maps.Icon {
   const visual = getTrackerMarkerVisualState(tracker);
   const isDot = displayMode === "dot";
   const isDetailed = displayMode === "detailed";

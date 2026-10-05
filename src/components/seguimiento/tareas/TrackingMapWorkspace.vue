@@ -80,24 +80,33 @@ const emit = defineEmits<{
   "creation:vertices-change": [count: number];
 }>();
 const mapCanvas = useTemplateRef<HTMLDivElement>("mapCanvas");
-let map: any = null;
-let taskMarkers: { marker: any; selected: boolean }[] = [];
-let trackerMarkers: { marker: any; tracker: SeguimientoTracker }[] = [];
-let routeLines: any[] = [];
-let farmBoundaries: any[] = [];
-let farmRoads: { halo: any; surface: any }[] = [];
-let shelterBoundaries: { halo: any; surface: any }[] = [];
-let shelterMarkers: any[] = [];
-let geographyLabels: any[] = [];
-let shelterInfoWindow: any = null;
-let zoomListener: any = null;
-let creationClickListener: any = null;
-let creationMoveListener: any = null;
-let creationVertices: number[][] = [];
-let creationOverlays: any[] = [];
-let creationSketchLine: any = null;
-let creationVertexMarkers: any[] = [];
-let creationHoverCoordinate: number[] | null = null;
+let map: google.maps.Map | null = null;
+let taskMarkers: { marker: google.maps.Marker; selected: boolean }[] = [];
+let trackerMarkers: {
+  marker: google.maps.Marker;
+  tracker: SeguimientoTracker;
+}[] = [];
+let routeLines: google.maps.Polyline[] = [];
+let farmBoundaries: google.maps.Polygon[] = [];
+let farmRoads: { halo: google.maps.Polyline; surface: google.maps.Polyline }[] =
+  [];
+let shelterBoundaries: {
+  halo: google.maps.Polygon;
+  surface: google.maps.Polygon;
+}[] = [];
+let shelterMarkers: google.maps.Marker[] = [];
+let geographyLabels: google.maps.Marker[] = [];
+let shelterInfoWindow: google.maps.InfoWindow | null = null;
+let zoomListener: google.maps.MapsEventListener | null = null;
+let creationClickListener: google.maps.MapsEventListener | null = null;
+let creationMoveListener: google.maps.MapsEventListener | null = null;
+let creationVertices: [number, number][] = [];
+let creationOverlays: (
+  google.maps.Marker | google.maps.Polygon | google.maps.Polyline
+)[] = [];
+let creationSketchLine: google.maps.Polyline | null = null;
+let creationVertexMarkers: google.maps.Marker[] = [];
+let creationHoverCoordinate: [number, number] | null = null;
 
 const isToolEnabled = (tool: SeguimientoMapToolState["tool"]): boolean =>
   props.mapTools.find((item) => item.tool === tool)?.enabled ?? false;
@@ -149,17 +158,12 @@ const mapThemeColor = (token: "--color-main" | "--color-main-light"): string =>
 
 const taskPinSize = { width: 29, height: 38 };
 
-interface MapIconFactory {
-  Size: new (width: number, height: number) => object;
-  Point: new (x: number, y: number) => object;
-}
-
 function createTaskPinIcon(
-  maps: any,
+  maps: typeof google.maps,
   color: string,
   selected = false,
   routeOrder: number | null = null,
-): object {
+): google.maps.Icon {
   const routeOrderLabel = routeOrder?.toString() ?? "";
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${taskPinSize.width}" height="${taskPinSize.height}" viewBox="0 0 32 42"><path d="M16 1.5C8.5 1.5 2.5 7.6 2.5 15.1c0 10.1 13.5 25.4 13.5 25.4s13.5-15.3 13.5-25.4C29.5 7.6 23.5 1.5 16 1.5Z" fill="${color}" stroke="#fff" stroke-width="${selected ? 3 : 2.5}" stroke-linejoin="round"/><circle cx="16" cy="15" r="7" fill="#fff"/><text x="16" y="18.25" fill="#000" font-family="sans-serif" font-size="${routeOrderLabel.length > 1 ? 8 : 10}" font-weight="700" text-anchor="middle">${routeOrderLabel}</text></svg>`;
   return {
@@ -238,7 +242,7 @@ function renderCreationSketch(): void {
   });
 }
 
-function isCloseToFirstVertex(coordinate: number[]): boolean {
+function isCloseToFirstVertex(coordinate: [number, number]): boolean {
   const [firstLongitude, firstLatitude] = creationVertices[0] ?? [];
   if (!Number.isFinite(firstLongitude) || !Number.isFinite(firstLatitude))
     return false;
@@ -292,7 +296,10 @@ const escapeXml = (value: string): string =>
       })[character] ?? character,
   );
 
-function createFarmLabelIcon(name: string, maps: any): object {
+function createFarmLabelIcon(
+  name: string,
+  maps: typeof google.maps,
+): google.maps.Icon {
   const width = Math.min(200, name.length * 6.2 + 8);
   const safeName = escapeXml(name);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="26" viewBox="0 0 ${width} 26"><rect x=".5" y=".5" width="${width - 1}" height="25" rx="6" fill="#fffaf0" fill-opacity=".82" stroke="#31544d" stroke-opacity=".5"/><text x="${width / 2}" y="17" text-anchor="middle" font-family="sans-serif" font-size="10" font-weight="700" fill="#173d35">${safeName}</text></svg>`;
@@ -303,7 +310,7 @@ function createFarmLabelIcon(name: string, maps: any): object {
   };
 }
 
-function createShelterIcon(maps: any): object {
+function createShelterIcon(maps: typeof google.maps): google.maps.Icon {
   const svg =
     '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="13" fill="#fffaf0" fill-opacity=".94" stroke="#004643" stroke-width="2"/><path d="M8.5 14.2 15 9l6.5 5.2v7.3h-4.2v-4.7h-4.6v4.7H8.5z" fill="none" stroke="#004643" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   return {
@@ -315,8 +322,8 @@ function createShelterIcon(maps: any): object {
 
 function createLucideCircleStopIcon(
   durationMinutes: number,
-  maps: MapIconFactory,
-): object {
+  maps: typeof google.maps,
+): google.maps.Icon {
   const label = `${durationMinutes} min`;
   const width = Math.max(66, label.length * 6.4 + 34);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="30" viewBox="0 0 ${width} 30"><rect x="14.5" y="2.5" width="${width - 17}" height="25" rx="7" fill="#fff7f5" stroke="#dc2626" stroke-opacity=".85"/><circle cx="14" cy="15" r="11" fill="#dc2626"/><circle cx="14" cy="15" r="6.5" fill="none" stroke="#fff" stroke-width="2"/><rect x="11" y="12" width="6" height="6" rx="1" fill="#fff"/><text x="${width / 2 + 8}" y="18.5" text-anchor="middle" font-family="sans-serif" font-size="10" font-weight="700" fill="#991b1b">${label}</text></svg>`;
@@ -660,8 +667,9 @@ function renderLayers(): void {
         );
       });
   }
-  if (props.selectedTaskDetail?.id === props.selectedTaskId) {
-    props.selectedTaskDetail.controlLine?.coordinates.forEach((line) => {
+  const selectedTaskDetail = props.selectedTaskDetail;
+  if (selectedTaskDetail?.id === props.selectedTaskId) {
+    selectedTaskDetail.controlLine?.coordinates.forEach((line) => {
       creationOverlays.push(
         new maps.Polyline({
           map,
@@ -677,7 +685,7 @@ function renderLayers(): void {
         }),
       );
     });
-    props.selectedTaskDetail.controlZoneReferences.forEach((zone) => {
+    selectedTaskDetail.controlZoneReferences.forEach((zone) => {
       const paths = zone.geometry.coordinates.map((polygon) =>
         polygon[0].map(([longitude, latitude]) => ({
           lat: latitude,
@@ -686,7 +694,7 @@ function renderLayers(): void {
       );
       const isEditingControlZone =
         props.editingControlZoneId === zone.id &&
-        props.selectedTaskDetail.permissions.puede_editar_geometria_control;
+        selectedTaskDetail.permissions.puede_editar_geometria_control;
       const polygon = new maps.Polygon({
         map,
         paths,
@@ -704,21 +712,26 @@ function renderLayers(): void {
         const markGeometryChanged = () => {
           geometryChanged = true;
         };
-        polygon.getPaths().forEach((path) => {
-          path.addListener("set_at", markGeometryChanged);
-          path.addListener("insert_at", markGeometryChanged);
-          path.addListener("remove_at", markGeometryChanged);
-        });
+        polygon
+          .getPaths()
+          .forEach((path: google.maps.MVCArray<google.maps.LatLng>) => {
+            path.addListener("set_at", markGeometryChanged);
+            path.addListener("insert_at", markGeometryChanged);
+            path.addListener("remove_at", markGeometryChanged);
+          });
         polygon.addListener("mouseup", () => {
           if (!geometryChanged) return;
           geometryChanged = false;
           const coordinates = polygon
             .getPaths()
             .getArray()
-            .map((path) => [
+            .map((path: google.maps.MVCArray<google.maps.LatLng>) => [
               path
                 .getArray()
-                .map((position) => [position.lng(), position.lat()]),
+                .map((position: google.maps.LatLng) => [
+                  position.lng(),
+                  position.lat(),
+                ]),
             ]);
           emit("update:existing-control-zone", zone.id, {
             type: "MultiPolygon",
@@ -728,7 +741,7 @@ function renderLayers(): void {
       }
       creationOverlays.push(polygon);
     });
-    props.selectedTaskDetail.permanenceZones.forEach((zone) => {
+    selectedTaskDetail.permanenceZones.forEach((zone) => {
       const paths = zone.coordinates.map((polygon) =>
         polygon[0].map(([longitude, latitude]) => ({
           lat: latitude,
@@ -759,13 +772,13 @@ function renderLayers(): void {
           title: "Ubicación de la tarea seleccionada",
           zIndex: seguimientoMapZIndex.selected + 3,
           icon:
-            props.selectedTaskDetail.type === "duda"
+            selectedTaskDetail.type === "duda"
               ? createTaskPinIcon(maps, warningColor, true)
               : {
                   path: maps.SymbolPath.CIRCLE,
                   scale: 8,
                   fillColor:
-                    props.selectedTaskDetail.status === "visitada"
+                    selectedTaskDetail.status === "visitada"
                       ? mainLightColor
                       : mainColor,
                   fillOpacity: 1,
@@ -845,17 +858,22 @@ function renderLayers(): void {
           polygon
             .getPaths()
             .getArray()
-            .map((path: any) => [
+            .map((path: google.maps.MVCArray<google.maps.LatLng>) => [
               path
                 .getArray()
-                .map((position: any) => [position.lng(), position.lat()]),
+                .map((position: google.maps.LatLng) => [
+                  position.lng(),
+                  position.lat(),
+                ]),
             ]),
         );
-      polygon.getPaths().forEach((path: any) => {
-        path.addListener("set_at", emitZoneUpdate);
-        path.addListener("insert_at", emitZoneUpdate);
-        path.addListener("remove_at", emitZoneUpdate);
-      });
+      polygon
+        .getPaths()
+        .forEach((path: google.maps.MVCArray<google.maps.LatLng>) => {
+          path.addListener("set_at", emitZoneUpdate);
+          path.addListener("insert_at", emitZoneUpdate);
+          path.addListener("remove_at", emitZoneUpdate);
+        });
     }
     polygon.addListener("click", () => emit("select:control-zone", zoneIndex));
     creationOverlays.push(polygon);
@@ -893,58 +911,64 @@ async function initializeMap(): Promise<void> {
       clickableIcons: false,
     });
     zoomListener = map.addListener("zoom_changed", updateZoomDrivenLayers);
-    creationClickListener = map.addListener("click", (event: any) => {
-      const latLng = event.latLng;
-      if (
-        !latLng ||
-        !props.creationGeometryMode ||
-        props.creationGeometryMode === "zone-edit"
-      )
-        return;
-      const coordinate = [latLng.lng(), latLng.lat()];
-      if (
-        props.creationGeometryMode === "zone" &&
-        props.creationLockedBoundary &&
-        !booleanPointInPolygon(
-          point([coordinate[0], coordinate[1]]),
-          multiPolygon(props.creationLockedBoundary.coordinates),
+    creationClickListener = map.addListener(
+      "click",
+      (event: google.maps.MapMouseEvent) => {
+        const latLng = event.latLng;
+        if (
+          !latLng ||
+          !props.creationGeometryMode ||
+          props.creationGeometryMode === "zone-edit"
         )
-      ) {
-        emit("capture:blocked");
-        return;
-      }
-      if (props.creationGeometryMode === "point") {
-        emit("capture:route-point", {
-          latitude: coordinate[1],
-          longitude: coordinate[0],
-        });
-        return;
-      }
-      if (
-        props.creationGeometryMode === "zone" &&
-        creationVertices.length >= 3 &&
-        isCloseToFirstVertex(coordinate)
-      ) {
-        completeCreationZone();
-        return;
-      }
-      creationVertices = [...creationVertices, coordinate];
-      creationHoverCoordinate = null;
-      emit("creation:vertices-change", creationVertices.length);
-      if (props.creationGeometryMode === "line")
-        emit("capture:control-line", [creationVertices]);
-      renderCreationSketch();
-    });
-    creationMoveListener = map.addListener("mousemove", (event: any) => {
-      if (
-        !event.latLng ||
-        !props.creationGeometryMode ||
-        !creationVertices.length
-      )
-        return;
-      creationHoverCoordinate = [event.latLng.lng(), event.latLng.lat()];
-      renderCreationSketch();
-    });
+          return;
+        const coordinate: [number, number] = [latLng.lng(), latLng.lat()];
+        if (
+          props.creationGeometryMode === "zone" &&
+          props.creationLockedBoundary &&
+          !booleanPointInPolygon(
+            point([coordinate[0], coordinate[1]]),
+            multiPolygon(props.creationLockedBoundary.coordinates),
+          )
+        ) {
+          emit("capture:blocked");
+          return;
+        }
+        if (props.creationGeometryMode === "point") {
+          emit("capture:route-point", {
+            latitude: coordinate[1],
+            longitude: coordinate[0],
+          });
+          return;
+        }
+        if (
+          props.creationGeometryMode === "zone" &&
+          creationVertices.length >= 3 &&
+          isCloseToFirstVertex(coordinate)
+        ) {
+          completeCreationZone();
+          return;
+        }
+        creationVertices = [...creationVertices, coordinate];
+        creationHoverCoordinate = null;
+        emit("creation:vertices-change", creationVertices.length);
+        if (props.creationGeometryMode === "line")
+          emit("capture:control-line", [creationVertices]);
+        renderCreationSketch();
+      },
+    );
+    creationMoveListener = map.addListener(
+      "mousemove",
+      (event: google.maps.MapMouseEvent) => {
+        if (
+          !event.latLng ||
+          !props.creationGeometryMode ||
+          !creationVertices.length
+        )
+          return;
+        creationHoverCoordinate = [event.latLng.lng(), event.latLng.lat()];
+        renderCreationSketch();
+      },
+    );
     renderLayers();
     focusMap();
     emit("ready");
