@@ -605,7 +605,7 @@ export const registroJornadaService = {
   async registrarImplemento(
     payload: ImplementoCrearPayload,
   ): Promise<RegistroImplementoResponse> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseCapturaOperador
       .rpc("rpc_admin_registrar_implemento", {
         p_numero: payload.numero,
         p_tipo_implemento_id: payload.tipoImplementoId,
