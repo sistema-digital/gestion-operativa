@@ -30,6 +30,7 @@ import {
   filterMaintenanceTabs,
   type MaintenanceTabDefinition,
 } from "@/maintenance/maintenanceTabs";
+import { PANEL_ADMIN_FEATURES } from "@/constants/panelAdminPermissions";
 import { SEGUIMIENTO_FEATURES } from "@/seguimiento/shared/seguimiento.permissions";
 import {
   BarChart3,
@@ -65,7 +66,9 @@ const isSidebarOpen = shallowRef(false);
 const sidebarNav = useTemplateRef<HTMLElement>("sidebarNav");
 const isSidebarNavAtTop = shallowRef(true);
 const isSidebarNavAtBottom = shallowRef(true);
-const desktopFloatingGroup = shallowRef<"engrase" | "seguimiento" | null>(null);
+const desktopFloatingGroup = shallowRef<
+  "engrase" | "seguimiento" | "panel-admin" | null
+>(null);
 const desktopFloatingPanelTop = shallowRef(0);
 const sidebarTooltipLabel = shallowRef<string | null>(null);
 const sidebarTooltipTop = shallowRef(0);
@@ -89,7 +92,6 @@ const VIEW_CALIFICACIONES_DASHBOARD_FEATURE = "ver_dashboard_calificaciones";
 const MODULE_REPARACIONES_FEATURE = "module_reparaciones";
 const MODULE_MANTENIMIENTO_FEATURE = "module_mantenimiento";
 const MODULE_COMPRAS_FEATURE = "module_compras";
-const PANEL_ADMIN_FEATURE = "panel_admin";
 const MODULE_CATALOG_FEATURE = "module_catalog";
 const CREATE_SOLICITUD_FEATURE = "crear_solicitud_compra";
 const VIEW_PROFILE_FEATURE = "ver_datos_perfil";
@@ -100,7 +102,9 @@ const engraseDesktopOpen = ref(false);
 const mobileMoreOpen = ref(false);
 const mobileEngraseOpen = ref(false);
 const mobileSeguimientoOpen = ref(false);
+const mobilePanelAdminOpen = ref(false);
 const seguimientoDesktopOpen = ref(false);
+const panelAdminDesktopOpen = ref(false);
 
 const allMenuItems = [
   {
@@ -144,7 +148,7 @@ const allMenuItems = [
     name: "Panel Admin",
     path: "/panel-admin",
     icon: ShieldCheck,
-    requiredFeature: PANEL_ADMIN_FEATURE,
+    requiredFeature: PANEL_ADMIN_FEATURES.module,
   },
 ];
 
@@ -166,6 +170,18 @@ const canSeeSeguimiento = computed(
   () =>
     isFeatureAccessLoaded.value &&
     featureAccessStore.tieneFuncionalidad(SEGUIMIENTO_FEATURES.module),
+);
+const canSeePanelAdmin = computed(
+  () =>
+    isFeatureAccessLoaded.value &&
+    featureAccessStore.tieneFuncionalidad(PANEL_ADMIN_FEATURES.module),
+);
+const canSeePanelAdminMaintenancePlan = computed(
+  () =>
+    canSeePanelAdmin.value &&
+    featureAccessStore.tieneFuncionalidad(
+      PANEL_ADMIN_FEATURES.viewMaintenancePlan,
+    ),
 );
 const canSeeSeguimientoTareas = computed(
   () =>
@@ -224,6 +240,10 @@ const canViewProfile = computed(
 const isSeguimientoRoute = computed(() =>
   route.path.startsWith("/seguimiento"),
 );
+const isPanelAdminRoute = computed(() => route.path.startsWith("/panel-admin"));
+const isPanelAdminMaintenancePlanRoute = computed(() =>
+  route.path.startsWith("/panel-admin/plan-mantenimiento"),
+);
 const isSeguimientoReportesRoute = computed(() =>
   route.path.startsWith("/seguimiento/reportes"),
 );
@@ -247,7 +267,7 @@ const updateSidebarNavScrollState = (): void => {
 };
 
 const toggleDesktopNavigationGroup = (
-  group: "engrase" | "seguimiento",
+  group: "engrase" | "seguimiento" | "panel-admin",
   event: MouseEvent,
 ): void => {
   sidebarTooltipLabel.value = null;
@@ -270,11 +290,20 @@ const toggleDesktopNavigationGroup = (
   if (group === "engrase") {
     engraseDesktopOpen.value = !engraseDesktopOpen.value;
     seguimientoDesktopOpen.value = false;
+    panelAdminDesktopOpen.value = false;
     return;
   }
 
-  seguimientoDesktopOpen.value = !seguimientoDesktopOpen.value;
+  if (group === "seguimiento") {
+    seguimientoDesktopOpen.value = !seguimientoDesktopOpen.value;
+    engraseDesktopOpen.value = false;
+    panelAdminDesktopOpen.value = false;
+    return;
+  }
+
+  panelAdminDesktopOpen.value = !panelAdminDesktopOpen.value;
   engraseDesktopOpen.value = false;
+  seguimientoDesktopOpen.value = false;
 };
 
 const closeDesktopFloatingGroup = (): void => {
@@ -331,9 +360,6 @@ const managementMenuItems = computed(() =>
     ["/compras", "/catalogo"].includes(item.path),
   ),
 );
-const systemMenuItems = computed(() =>
-  menuItems.value.filter((item) => item.path === "/panel-admin"),
-);
 const mobilePrimaryItems = computed(() => {
   const primaryPaths = ["/dashboard", "/mantenimiento", "/compras"];
   const primaryItems = menuItems.value.filter((item) =>
@@ -361,7 +387,10 @@ const mobilePrimaryItems = computed(() => {
 });
 const mobileMoreItems = computed(() => {
   return menuItems.value.filter(
-    (item) => !["/dashboard", "/mantenimiento", "/compras"].includes(item.path),
+    (item) =>
+      !["/dashboard", "/mantenimiento", "/compras", "/panel-admin"].includes(
+        item.path,
+      ),
   );
 });
 
@@ -399,7 +428,8 @@ const mobileModuleCount = computed(
   () =>
     mobilePrimaryItems.value.length +
     mobileMoreItems.value.length +
-    Number(canSeeEngrase.value),
+    Number(canSeeEngrase.value) +
+    Number(canSeePanelAdmin.value),
 );
 const shouldShowMobileMore = computed(() => mobileModuleCount.value > 3);
 const mobilePrimaryEmptySlots = computed(() =>
@@ -416,6 +446,7 @@ const mobileBottomNavColumnsClass = computed(() => {
 const isMobileMoreActive = computed(
   () =>
     isEngraseRoute.value ||
+    isPanelAdminRoute.value ||
     mobileMoreItems.value.some((item) => isActive(item.path)),
 );
 
@@ -469,6 +500,21 @@ const maintenanceTabs = computed(() =>
 );
 const showMaintenanceHeaderNav = computed(
   () => isMaintenanceRoute.value && maintenanceTabs.value.length > 0,
+);
+const panelAdminTabs = computed(() =>
+  featureAccessStore.tieneFuncionalidad(PANEL_ADMIN_FEATURES.viewWorkHours)
+    ? [
+        {
+          label: "Horas de trabajo",
+          mobileLabel: "Horas trabajo",
+          path: "/panel-admin/plan-mantenimiento/horas-trabajo",
+        },
+      ]
+    : [],
+);
+const showPanelAdminHeaderNav = computed(
+  () =>
+    isPanelAdminMaintenancePlanRoute.value && panelAdminTabs.value.length > 0,
 );
 const maintenancePrimaryTabs = computed(() =>
   maintenanceTabs.value.length >= DASHBOARD_DESKTOP_OVERFLOW_THRESHOLD
@@ -549,6 +595,7 @@ const isDashboardMobileOverflowSlideActive = computed(
 const mobileTopBarSpacerClass = computed(() =>
   showDashboardHeaderNav.value ||
   showMaintenanceHeaderNav.value ||
+  showPanelAdminHeaderNav.value ||
   showSeguimientoReportsHeaderNav.value
     ? "h-[124px]"
     : "h-[68px]",
@@ -614,6 +661,12 @@ const selectMaintenanceTab = (tab: MaintenanceTabDefinition): void => {
       maint_slide: tab.id,
     },
   });
+};
+
+const selectPanelAdminTab = (path: string): void => {
+  if (route.path === path || route.path.startsWith(`${path}/`)) return;
+
+  void router.push(path);
 };
 
 const closeDashboardOverflowMenu = (event: MouseEvent): void => {
@@ -1055,33 +1108,66 @@ const isActive = (path: string) =>
             </router-link>
           </div>
 
-          <div v-if="systemMenuItems.length" class="space-y-2">
+          <div v-if="canSeePanelAdmin" class="space-y-2">
             <p
               v-if="isSidebarOpen"
               class="px-4 text-[10px] font-bold uppercase tracking-[0.18em] text-second-deep"
             >
               Sistema
             </p>
-            <router-link
-              v-for="item in systemMenuItems"
-              :key="item.path"
-              :to="item.path"
-              class="group relative flex items-center rounded-xl transition-all"
-              @mouseenter="showSidebarTooltip(item.name, $event)"
-              @mouseleave="hideSidebarTooltip"
-              :class="[
-                isSidebarOpen ? 'gap-3 px-4 py-3' : 'justify-center p-3',
-                isActive(item.path)
-                  ? 'bg-main text-accent'
-                  : 'text-gray-400 hover:bg-main hover:text-white',
-              ]"
+            <div
+              v-if="canSeePanelAdmin"
+              class="desktop-navigation-group relative space-y-1"
             >
-              <component :is="item.icon" class="w-5 h-5 flex-shrink-0" />
-              <span v-if="isSidebarOpen" class="font-medium text-sm">{{
-                item.name
-              }}</span>
-              <span v-else class="sidebar-tooltip">{{ item.name }}</span>
-            </router-link>
+              <button
+                type="button"
+                class="group relative flex w-full cursor-pointer items-center rounded-xl transition-all"
+                @mouseenter="showSidebarTooltip('Panel Admin', $event)"
+                @mouseleave="hideSidebarTooltip"
+                :class="[
+                  isSidebarOpen ? 'gap-3 px-4 py-3' : 'justify-center p-3',
+                  isPanelAdminRoute
+                    ? 'bg-main text-accent'
+                    : 'text-gray-400 hover:bg-main hover:text-white',
+                ]"
+                @click.stop="
+                  toggleDesktopNavigationGroup('panel-admin', $event)
+                "
+                :aria-expanded="panelAdminDesktopOpen"
+              >
+                <ShieldCheck class="w-5 h-5 flex-shrink-0" />
+                <span
+                  v-if="isSidebarOpen"
+                  class="flex-1 text-left text-sm font-medium"
+                  >Panel Admin</span
+                >
+                <ChevronDown
+                  v-if="isSidebarOpen"
+                  class="w-4 h-4 transition-transform"
+                  :class="{ 'rotate-180': panelAdminDesktopOpen }"
+                />
+                <span v-if="!isSidebarOpen" class="sidebar-tooltip"
+                  >Panel Admin</span
+                >
+              </button>
+              <div
+                v-if="isSidebarOpen && panelAdminDesktopOpen"
+                class="ml-5 space-y-1"
+              >
+                <router-link
+                  v-if="canSeePanelAdminMaintenancePlan"
+                  to="/panel-admin/plan-mantenimiento"
+                  class="flex cursor-pointer items-center rounded-lg px-4 py-2.5 text-sm"
+                  :class="
+                    isPanelAdminMaintenancePlanRoute
+                      ? 'bg-white/10 text-white'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                  "
+                  @click="panelAdminDesktopOpen = false"
+                  >Plan de mantenimiento</router-link
+                >
+              </div>
+            </div>
           </div>
         </nav>
         <div
@@ -1111,7 +1197,13 @@ const isActive = (path: string) =>
         <p
           class="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-second-deep"
         >
-          {{ desktopFloatingGroup === "engrase" ? "Engrase" : "Seguimiento" }}
+          {{
+            desktopFloatingGroup === "engrase"
+              ? "Engrase"
+              : desktopFloatingGroup === "panel-admin"
+                ? "Panel Admin"
+                : "Seguimiento"
+          }}
         </p>
         <div v-if="desktopFloatingGroup === 'engrase'" class="space-y-1">
           <router-link
@@ -1129,6 +1221,21 @@ const isActive = (path: string) =>
             :class="isCatalogoEngraseRoute ? 'bg-white/10 text-white' : ''"
             @click="closeDesktopFloatingGroup"
             >Catálogo</router-link
+          >
+        </div>
+        <div
+          v-else-if="desktopFloatingGroup === 'panel-admin'"
+          class="space-y-1"
+        >
+          <router-link
+            v-if="canSeePanelAdminMaintenancePlan"
+            to="/panel-admin/plan-mantenimiento"
+            class="flex cursor-pointer rounded-lg px-3 py-2.5 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+            :class="
+              isPanelAdminMaintenancePlanRoute ? 'bg-white/10 text-white' : ''
+            "
+            @click="closeDesktopFloatingGroup"
+            >Plan de mantenimiento</router-link
           >
         </div>
         <div v-else class="space-y-1">
@@ -1350,6 +1457,30 @@ const isActive = (path: string) =>
               </button>
             </div>
           </div>
+        </nav>
+
+        <nav
+          v-else-if="showPanelAdminHeaderNav"
+          class="flex min-w-0 max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-gray-200/20 bg-gray-100 p-1 shadow-inner hide-scrollbar"
+          aria-label="Secciones del panel administrativo"
+        >
+          <button
+            v-for="tab in panelAdminTabs"
+            :key="tab.path"
+            type="button"
+            class="cursor-pointer whitespace-nowrap rounded-lg px-4 py-1.5 text-center text-[11px] font-bold transition-all"
+            :class="
+              route.path === tab.path || route.path.startsWith(`${tab.path}/`)
+                ? 'bg-white text-main shadow-md'
+                : 'text-gray-400 hover:text-gray-600'
+            "
+            :aria-pressed="
+              route.path === tab.path || route.path.startsWith(`${tab.path}/`)
+            "
+            @click="selectPanelAdminTab(tab.path)"
+          >
+            {{ tab.label }}
+          </button>
         </nav>
 
         <nav
@@ -1671,6 +1802,30 @@ const isActive = (path: string) =>
             </div>
           </div>
         </div>
+        <div v-else-if="showPanelAdminHeaderNav" class="px-4 pb-3">
+          <nav
+            class="flex items-center justify-center gap-1 overflow-x-auto rounded-xl border border-gray-200/20 bg-gray-100 p-1 shadow-inner hide-scrollbar"
+            aria-label="Secciones del panel administrativo"
+          >
+            <button
+              v-for="tab in panelAdminTabs"
+              :key="tab.path"
+              type="button"
+              class="flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg px-3 py-1.5 text-center text-[10px] font-bold transition-all"
+              :class="
+                route.path === tab.path || route.path.startsWith(`${tab.path}/`)
+                  ? 'bg-white text-main shadow-md'
+                  : 'text-gray-400 hover:text-gray-600'
+              "
+              :aria-pressed="
+                route.path === tab.path || route.path.startsWith(`${tab.path}/`)
+              "
+              @click="selectPanelAdminTab(tab.path)"
+            >
+              {{ tab.mobileLabel }}
+            </button>
+          </nav>
+        </div>
         <nav
           v-else-if="showSeguimientoReportsHeaderNav"
           class="flex items-center gap-1 overflow-x-auto border border-gray-200/20 bg-gray-100 p-1 shadow-inner hide-scrollbar"
@@ -1735,6 +1890,7 @@ const isActive = (path: string) =>
               mobileMoreOpen = true;
               mobileSeguimientoOpen = true;
               mobileEngraseOpen = false;
+              mobilePanelAdminOpen = false;
             "
           >
             <component :is="item.icon" class="h-5 w-5 shrink-0" />
@@ -1770,6 +1926,7 @@ const isActive = (path: string) =>
             mobileMoreOpen = true;
             mobileEngraseOpen = false;
             mobileSeguimientoOpen = false;
+            mobilePanelAdminOpen = false;
           "
         >
           <MoreHorizontal class="h-5 w-5" />
@@ -1784,6 +1941,7 @@ const isActive = (path: string) =>
           mobileMoreOpen = false;
           mobileEngraseOpen = false;
           mobileSeguimientoOpen = false;
+          mobilePanelAdminOpen = false;
         "
       >
         <section
@@ -1806,7 +1964,9 @@ const isActive = (path: string) =>
                     ? "Seguimiento"
                     : mobileEngraseOpen
                       ? "Engrase"
-                      : "Más módulos"
+                      : mobilePanelAdminOpen
+                        ? "Panel Admin"
+                        : "Más módulos"
                 }}
               </h3>
             </div>
@@ -1818,6 +1978,7 @@ const isActive = (path: string) =>
                 mobileMoreOpen = false;
                 mobileEngraseOpen = false;
                 mobileSeguimientoOpen = false;
+                mobilePanelAdminOpen = false;
               "
             >
               <X class="h-5 w-5" />
@@ -1831,6 +1992,7 @@ const isActive = (path: string) =>
               @click="
                 mobileMoreOpen = false;
                 mobileSeguimientoOpen = false;
+                mobilePanelAdminOpen = false;
               "
             >
               <ChevronDown class="h-4 w-4 rotate-90" /> Volver a módulos
@@ -1844,6 +2006,7 @@ const isActive = (path: string) =>
               @click="
                 mobileMoreOpen = false;
                 mobileSeguimientoOpen = false;
+                mobilePanelAdminOpen = false;
               "
             >
               <component :is="item.icon" class="h-5 w-5" /> {{ item.name }}
@@ -1867,6 +2030,7 @@ const isActive = (path: string) =>
                 mobileMoreOpen = false;
                 mobileEngraseOpen = false;
                 mobileSeguimientoOpen = false;
+                mobilePanelAdminOpen = false;
               "
               >Filtros</router-link
             >
@@ -1879,9 +2043,36 @@ const isActive = (path: string) =>
                 mobileMoreOpen = false;
                 mobileEngraseOpen = false;
                 mobileSeguimientoOpen = false;
+                mobilePanelAdminOpen = false;
               "
               >Catálogo</router-link
             >
+          </div>
+
+          <div v-else-if="mobilePanelAdminOpen" class="space-y-2">
+            <button
+              type="button"
+              class="mb-1 flex cursor-pointer items-center gap-2 text-sm font-semibold text-gray-500"
+              @click="mobilePanelAdminOpen = false"
+            >
+              <ChevronDown class="h-4 w-4 rotate-90" /> Volver a módulos
+            </button>
+            <router-link
+              v-if="canSeePanelAdminMaintenancePlan"
+              to="/panel-admin/plan-mantenimiento"
+              class="flex cursor-pointer items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700"
+              :class="
+                isPanelAdminMaintenancePlanRoute ? 'bg-main/10 text-main' : ''
+              "
+              @click="
+                mobileMoreOpen = false;
+                mobileEngraseOpen = false;
+                mobileSeguimientoOpen = false;
+                mobilePanelAdminOpen = false;
+              "
+            >
+              <Wrench class="h-5 w-5" /> Plan de mantenimiento
+            </router-link>
           </div>
 
           <div v-else class="grid grid-cols-2 gap-3">
@@ -1903,9 +2094,23 @@ const isActive = (path: string) =>
               @click="
                 mobileEngraseOpen = true;
                 mobileSeguimientoOpen = false;
+                mobilePanelAdminOpen = false;
               "
             >
               <Droplets class="h-5 w-5" /> Engrase
+            </button>
+            <button
+              v-if="canSeePanelAdmin"
+              type="button"
+              class="flex cursor-pointer items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 text-left text-sm font-semibold text-gray-700"
+              :class="isPanelAdminRoute ? 'bg-main/10 text-main' : ''"
+              @click="
+                mobilePanelAdminOpen = true;
+                mobileEngraseOpen = false;
+                mobileSeguimientoOpen = false;
+              "
+            >
+              <ShieldCheck class="h-5 w-5" /> Panel Admin
             </button>
           </div>
         </section>

@@ -11,6 +11,11 @@ import {
   SEGUIMIENTO_FEATURES,
   SEGUIMIENTO_TASK_ROUTE_FEATURES,
 } from "@/seguimiento/shared/seguimiento.permissions";
+import {
+  PANEL_ADMIN_FEATURES,
+  PANEL_ADMIN_MAINTENANCE_PLAN_ROUTE_FEATURES,
+  PANEL_ADMIN_WORK_HOURS_ROUTE_FEATURES,
+} from "@/constants/panelAdminPermissions";
 
 const EmptyRouteComponent = { template: "<div></div>" };
 
@@ -52,7 +57,10 @@ const moduleHomeRoutes: readonly ModuleHomeRoute[] = [
     path: "/engrase/filtros",
     requiredFeatures: ["module_engrase", "ver_filtros_engrase"],
   },
-  { path: "/panel-admin", requiredFeatures: ["panel_admin"] },
+  {
+    path: "/panel-admin",
+    requiredFeatures: [PANEL_ADMIN_FEATURES.module],
+  },
 ];
 
 const getRequiredFeatures = (to: RouteLocationNormalized): string[] => {
@@ -329,7 +337,29 @@ const router = createRouter({
           path: "panel-admin",
           name: "PanelAdmin",
           component: () => import("@/views/PanelAdminView.vue"),
-          meta: { requiredFeature: "panel_admin" },
+          meta: { requiredFeature: PANEL_ADMIN_FEATURES.module },
+          children: [
+            {
+              path: "plan-mantenimiento",
+              name: "PanelAdminMaintenancePlan",
+              component: () =>
+                import("@/views/PanelAdminMaintenancePlanView.vue"),
+              meta: {
+                requiredFeatures: PANEL_ADMIN_MAINTENANCE_PLAN_ROUTE_FEATURES,
+              },
+              children: [
+                {
+                  path: "horas-trabajo",
+                  name: "PanelAdminWorkHours",
+                  component: () =>
+                    import("@/components/admin/work-orders/AdminTodayWorkHoursSection.vue"),
+                  meta: {
+                    requiredFeatures: PANEL_ADMIN_WORK_HOURS_ROUTE_FEATURES,
+                  },
+                },
+              ],
+            },
+          ],
         },
         {
           path: "perfil",

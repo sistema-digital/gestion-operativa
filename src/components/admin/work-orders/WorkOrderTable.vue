@@ -1,19 +1,22 @@
 <script setup lang="ts">
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import Button from 'primevue/button';
-import Tag from 'primevue/tag';
-import Skeleton from 'primevue/skeleton';
+import DataTable from "primevue/datatable";
+import Column from "primevue/column";
+import Button from "primevue/button";
+import Tag from "primevue/tag";
+import Skeleton from "primevue/skeleton";
+import { Eye, Pencil, Trash2 } from "lucide-vue-next";
 import {
   emptyText,
   formatWorkOrderDate,
   getWorkOrderStatusSeverity,
-} from '@/stores/horasTrabajo.helpers';
-import type { WorkOrderTodayRow } from '@/stores/horasTrabajo.types';
+} from "@/stores/horasTrabajo.helpers";
+import type { WorkOrderTodayRow } from "@/stores/horasTrabajo.types";
 
 defineProps<{
   rows: WorkOrderTodayRow[];
   loading: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -25,12 +28,14 @@ const emit = defineEmits<{
 const getReferenceId = (row: WorkOrderTodayRow): string => {
   if (row.idOm) return row.idOm;
   if (row.idSg) return row.idSg.slice(0, 8);
-  return '—';
+  return "—";
 };
 </script>
 
 <template>
-  <div class="admin-work-order-table overflow-hidden rounded-lg border border-gray-100 bg-white">
+  <div
+    class="admin-work-order-table overflow-hidden rounded-lg border border-gray-100 bg-white"
+  >
     <div v-if="loading" class="space-y-3 p-4">
       <Skeleton v-for="item in 6" :key="item" height="2.5rem" />
     </div>
@@ -64,7 +69,12 @@ const getReferenceId = (row: WorkOrderTodayRow): string => {
         </template>
       </Column>
 
-      <Column header="Mecánico" frozen style="min-width: 12rem" class="font-bold">
+      <Column
+        header="Mecánico"
+        frozen
+        style="min-width: 12rem"
+        class="font-bold"
+      >
         <template #body="{ data }">
           {{ emptyText(data.mecanicoNombre) }}
         </template>
@@ -83,20 +93,21 @@ const getReferenceId = (row: WorkOrderTodayRow): string => {
       </Column>
 
       <Column header="Duración">
-        <template #body="{ data }">
-          {{ data.duracionHoras }} h
-        </template>
+        <template #body="{ data }"> {{ data.duracionHoras }} h </template>
       </Column>
 
       <Column header="Estatus">
         <template #body="{ data }">
-          <Tag :value="data.estatus || 'Sin estatus'" :severity="getWorkOrderStatusSeverity(data.estatus)" />
+          <Tag
+            :value="data.estatus || 'Sin estatus'"
+            :severity="getWorkOrderStatusSeverity(data.estatus)"
+          />
         </template>
       </Column>
 
       <Column header="Retraso">
         <template #body="{ data }">
-          {{ data.retrasoHoras ? `${data.retrasoHoras} h` : '—' }}
+          {{ data.retrasoHoras ? `${data.retrasoHoras} h` : "—" }}
         </template>
       </Column>
 
@@ -109,16 +120,36 @@ const getReferenceId = (row: WorkOrderTodayRow): string => {
       <Column header="Acciones" frozen align-frozen="right">
         <template #body="{ data }">
           <div class="flex items-center justify-end gap-1">
-            <Button icon="pi pi-eye" variant="text" rounded aria-label="Ver" @click="emit('view', data)" />
-            <Button icon="pi pi-pencil" variant="text" rounded aria-label="Editar" @click="emit('edit', data)" />
             <Button
-              icon="pi pi-trash"
+              variant="text"
+              rounded
+              aria-label="Ver"
+              class="cursor-pointer"
+              @click="emit('view', data)"
+            >
+              <Eye class="size-3.5" />
+            </Button>
+            <Button
+              v-if="canEdit"
+              variant="text"
+              rounded
+              aria-label="Editar"
+              class="cursor-pointer"
+              @click="emit('edit', data)"
+            >
+              <Pencil class="size-3.5" />
+            </Button>
+            <Button
+              v-if="canDelete"
               variant="text"
               rounded
               severity="danger"
               aria-label="Eliminar"
+              class="cursor-pointer"
               @click="emit('delete', data)"
-            />
+            >
+              <Trash2 class="size-3.5" />
+            </Button>
           </div>
         </template>
       </Column>
@@ -208,7 +239,6 @@ const getReferenceId = (row: WorkOrderTodayRow): string => {
   color: currentColor !important;
   font-size: 0.85rem;
 }
-
 
 .admin-work-order-table :deep(.p-paginator) {
   border: 0;
