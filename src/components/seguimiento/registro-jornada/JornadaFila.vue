@@ -59,6 +59,7 @@ const emit = defineEmits<{
 
 const controlesInsercionVisibles = shallowRef(false);
 const dispositivoSinHover = shallowRef(false);
+const filaEditada = shallowRef(false);
 let temporizadorHover: ReturnType<typeof setTimeout> | null = null;
 
 const filaCompletaParaInsertar = computed(() =>
@@ -294,6 +295,19 @@ function aplicarCodigoResuelto(): void {
 
 watch(() => model.value.codigo, aplicarCodigoResuelto, { immediate: true });
 watch(
+  () =>
+    [
+      model.value.inicio,
+      model.value.fin,
+      model.value.codigo,
+      model.value.actividadId,
+      model.value.implementoId,
+    ] as const,
+  () => {
+    filaEditada.value = true;
+  },
+);
+watch(
   () => model.value.inicio,
   (inicio) => {
     if (model.value.fin && inicio && model.value.fin < inicio) {
@@ -329,7 +343,7 @@ const filaTieneError = computed(
 );
 
 const mostrarErrorDeFila = computed(
-  () => props.mostrarErrores && filaTieneError.value,
+  () => (props.mostrarErrores || filaEditada.value) && filaTieneError.value,
 );
 
 const duracion = computed(() => {

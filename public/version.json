@@ -1,10 +1,10 @@
 {
-  "version": "0.2.7",
-  "summary": "Ajustes de interfaz en calificaciones de supervisores.",
+  "version": "0.2.8",
+  "summary": "Mejora en el registro administrativo. SONIA REGISTRE SIN PROBLEMA 'DE MOMENTO'",
   "changes": [
-    "Se mejoró la disposición de las acciones de revisión y creación de calificaciones."
+    "Ahora puedes cambiar el implemento mientras la jornada está en parada."
   ],
   "required": true,
   "appliesToAllUsers": false,
-  "affectedFeatures": []
+  "affectedFeatures": ["jornadas_admin_ver"]
 }

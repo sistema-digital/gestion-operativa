@@ -330,7 +330,9 @@ async function finalizarJornada(): Promise<void> {
             esEdicionFinalizada.value ? "edicion" : "finalizada",
           )
         : crearResultadoErrorGeneral(
-            error.value ?? "No se pudo completar el registro.",
+            capturado instanceof Error
+              ? capturado.message
+              : "No se pudo completar el registro.",
             esEdicionFinalizada.value ? "edicion" : "finalizada",
           );
   }
@@ -347,7 +349,9 @@ async function guardarBorrador(): Promise<void> {
       capturado instanceof RegistroEventosLoteFallidoError
         ? crearResultadoErrorDeLote(capturado, "borrador")
         : crearResultadoErrorGeneral(
-            error.value ?? "No se pudo completar el registro.",
+            capturado instanceof Error
+              ? capturado.message
+              : "No se pudo completar el registro.",
             "borrador",
           );
   }
@@ -399,12 +403,12 @@ function crearResultadoErrorGeneral(
     estado: "error",
     modo,
     codigo,
-    mensaje: describirErrorRegistro(codigo ?? mensaje),
+    mensaje: codigo ? describirErrorRegistro(codigo) : mensaje,
   };
 }
 
 function extraerCodigoError(mensaje: string): string | undefined {
-  return mensaje.match(/[A-Z][A-Z0-9_]+/)?.[0];
+  return mensaje.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1];
 }
 
 function describirErrorRegistro(codigo: string): string {
@@ -598,10 +602,15 @@ onMounted(() => {
           >
             <p
               class="flex items-center gap-2 text-xs font-medium"
-              :class="validacionFilas.ok ? 'text-success' : 'text-gray-600'"
-              role="status"
+              :class="validacionFilas.ok ? 'text-success' : 'text-danger'"
+              :role="validacionFilas.ok ? 'status' : 'alert'"
             >
-              <CheckCircle2 class="size-4 shrink-0" aria-hidden="true" />
+              <CheckCircle2
+                v-if="validacionFilas.ok"
+                class="size-4 shrink-0"
+                aria-hidden="true"
+              />
+              <CircleAlert v-else class="size-4 shrink-0" aria-hidden="true" />
               {{ validacionFilas.mensaje }}
             </p>
             <JornadaAcciones
