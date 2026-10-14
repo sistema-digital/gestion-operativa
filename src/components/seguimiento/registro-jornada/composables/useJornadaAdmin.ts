@@ -331,12 +331,6 @@ export function construirEventosLote(
     const implementoCambio =
       filaAnterior.implementoId !== filaActual.implementoId;
 
-    if (implementoCambio && filaAnterior.tipoActividad !== "labor") {
-      throw new Error(
-        `No puedes cambiar el implemento en la fila ${index + 1} mientras la jornada está en parada.`,
-      );
-    }
-
     if (implementoCambio) {
       agregarEvento("confirmar_cambio_implemento", ocurrioEnFila, {
         nuevo_implemento_id: filaActual.implementoId,

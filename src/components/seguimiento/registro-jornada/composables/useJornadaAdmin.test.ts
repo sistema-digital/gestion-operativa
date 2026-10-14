@@ -275,20 +275,29 @@ describe("finalizarDesdeFilas", () => {
     ]);
   });
 
-  it("impide cambiar el implemento mientras la fila anterior está en parada", async () => {
-    await expect(
-      useJornadaAdmin().finalizarDesdeFilas(
-        crearJornada([
-          fila("06:00", "07:00", "labor", "labor-1", "implemento-1"),
-          fila("07:00", "08:00", "parada", "parada-1", "implemento-1"),
-          fila("08:00", "09:00", "labor", "labor-1", "implemento-2"),
-        ]),
-      ),
-    ).rejects.toThrow(
-      "No puedes cambiar el implemento en la fila 3 mientras la jornada está en parada.",
+  it("cambia el implemento durante una parada y luego reanuda la labor", async () => {
+    await useJornadaAdmin().finalizarDesdeFilas(
+      crearJornada([
+        fila("06:00", "06:41", "parada", "parada-1"),
+        fila("06:41", "06:55", "parada", "parada-2", "implemento-1"),
+        fila("06:55", "07:00", "labor", "labor-1", "implemento-1"),
+      ]),
     );
 
-    expect(registroJornadaService.registrarEventosLote).not.toHaveBeenCalled();
+    const lote = vi.mocked(registroJornadaService.registrarEventosLote).mock
+      .calls[0]?.[0];
+    expect(lote?.p_eventos.map((evento) => evento.tipo_evento)).toEqual([
+      "inicio_jornada",
+      "inicio_parada",
+      "confirmar_cambio_implemento",
+      "cambio_causa",
+      "reanudar",
+      "finalizar_jornada",
+    ]);
+    expect(lote?.p_eventos[2]?.payload).toEqual({
+      nuevo_implemento_id: "implemento-1",
+      labor_id: null,
+    });
   });
 
   it("expone el error y libera el estado de guardado cuando falla un RPC", async () => {
