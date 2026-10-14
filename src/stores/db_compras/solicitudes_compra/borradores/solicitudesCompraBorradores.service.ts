@@ -1,14 +1,14 @@
-import { supabaseCompras } from '@/lib/supabase';
+import { supabaseCompras } from "@/lib/supabase";
 
 import type {
   SolicitudCompraBorradorCreatePayload,
   SolicitudCompraBorradorListadoItem,
   SolicitudCompraBorradorRow,
   SolicitudCompraBorradorUpdatePayload,
-} from './solicitudesCompraBorradores.types';
+} from "./solicitudesCompraBorradores.types";
 
-const BORRADORES_TABLE = 'solicitud_compra_borrador';
-const BORRADORES_LIST_RPC = 'rpc_obtener_mis_borradores_solicitud_compra';
+const BORRADORES_TABLE = "solicitud_compra_borrador";
+const BORRADORES_LIST_RPC = "rpc_obtener_mis_borradores_solicitud_compra";
 const BORRADOR_SELECT = `
   id,
   creado_por_user_id,
@@ -19,6 +19,7 @@ const BORRADOR_SELECT = `
   schema_version,
   current_step,
   tipo_solicitud,
+  etapa_codigo,
   fecha_entrega,
   observacion,
   solicitar_urgente,
@@ -32,16 +33,17 @@ const BORRADOR_SELECT = `
 `;
 
 const mapRowToListadoItem = (
-  row: SolicitudCompraBorradorRow
+  row: SolicitudCompraBorradorRow,
 ): SolicitudCompraBorradorListadoItem => ({
   id: row.id,
   schemaVersion: row.schema_version,
   currentStep: row.current_step,
   tipoSolicitud: row.tipo_solicitud,
+  etapaCodigo: row.etapa_codigo,
   fechaEntrega: row.fecha_entrega,
   observacion: row.observacion,
   solicitarUrgente: row.solicitar_urgente,
-  motivoUrgencia: row.motivo_urgencia ?? '',
+  motivoUrgencia: row.motivo_urgencia ?? "",
   destinos: row.destinos,
   productos: row.productos,
   servicios: row.servicios,
@@ -54,22 +56,24 @@ export const solicitudesCompraBorradoresService = {
     const { data, error } = await supabaseCompras.rpc(BORRADORES_LIST_RPC);
 
     if (error) {
-      throw new Error(error.message || 'No se pudieron obtener los borradores');
+      throw new Error(error.message || "No se pudieron obtener los borradores");
     }
 
     const rows = Array.isArray(data)
-      ? data as SolicitudCompraBorradorRow[]
+      ? (data as SolicitudCompraBorradorRow[])
       : [];
 
     return rows
       .map(mapRowToListadoItem)
-      .sort((left, right) => (
-        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
-      ));
+      .sort(
+        (left, right) =>
+          new Date(right.updatedAt).getTime() -
+          new Date(left.updatedAt).getTime(),
+      );
   },
 
   async crearBorrador(
-    payload: SolicitudCompraBorradorCreatePayload
+    payload: SolicitudCompraBorradorCreatePayload,
   ): Promise<SolicitudCompraBorradorRow> {
     const { data, error } = await supabaseCompras
       .from(BORRADORES_TABLE)
@@ -78,7 +82,7 @@ export const solicitudesCompraBorradoresService = {
       .single();
 
     if (error) {
-      throw new Error(error.message || 'No se pudo guardar el borrador');
+      throw new Error(error.message || "No se pudo guardar el borrador");
     }
 
     return data as SolicitudCompraBorradorRow;
@@ -86,32 +90,34 @@ export const solicitudesCompraBorradoresService = {
 
   async actualizarBorrador(
     draftId: string,
-    payload: SolicitudCompraBorradorUpdatePayload
+    payload: SolicitudCompraBorradorUpdatePayload,
   ): Promise<SolicitudCompraBorradorRow> {
     const { data, error } = await supabaseCompras
       .from(BORRADORES_TABLE)
       .update(payload)
-      .eq('id', draftId)
+      .eq("id", draftId)
       .select(BORRADOR_SELECT)
       .single();
 
     if (error) {
-      throw new Error(error.message || 'No se pudo actualizar el borrador');
+      throw new Error(error.message || "No se pudo actualizar el borrador");
     }
 
     return data as SolicitudCompraBorradorRow;
   },
 
-  async desactivarBorrador(draftId: string): Promise<SolicitudCompraBorradorRow> {
+  async desactivarBorrador(
+    draftId: string,
+  ): Promise<SolicitudCompraBorradorRow> {
     const { data, error } = await supabaseCompras
       .from(BORRADORES_TABLE)
       .update({ activo: false })
-      .eq('id', draftId)
+      .eq("id", draftId)
       .select(BORRADOR_SELECT)
       .single();
 
     if (error) {
-      throw new Error(error.message || 'No se pudo desactivar el borrador');
+      throw new Error(error.message || "No se pudo desactivar el borrador");
     }
 
     return data as SolicitudCompraBorradorRow;

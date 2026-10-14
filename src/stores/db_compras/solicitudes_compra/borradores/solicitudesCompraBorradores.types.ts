@@ -2,17 +2,22 @@ import type {
   DestinoSeleccionado,
   ProductoSolicitudItem,
   ServicioSolicitudItem,
+  SolicitudCompraEtapaCodigo,
   SolicitudCompraCreateStep,
   SolicitudCompraTipoSolicitud,
-} from '../crear_solicitud/solicitudesCompraCrear.types';
+} from "../crear_solicitud/solicitudesCompraCrear.types";
 
-export const SOLICITUD_COMPRA_BORRADOR_SCHEMA_VERSION = 1;
+export const SOLICITUD_COMPRA_BORRADOR_SCHEMA_VERSION = 2;
 
-export type SolicitudCompraBorradorStep = Extract<SolicitudCompraCreateStep, 2 | 3 | 4>;
+export type SolicitudCompraBorradorStep = Extract<
+  SolicitudCompraCreateStep,
+  2 | 3 | 4
+>;
 
 export interface SolicitudCompraBorradorSnapshot {
   currentStep: SolicitudCompraBorradorStep;
   tipoSolicitud: SolicitudCompraTipoSolicitud;
+  etapaCodigo: SolicitudCompraEtapaCodigo;
   fechaEntrega: string;
   destinos: DestinoSeleccionado[];
   productos: ProductoSolicitudItem[];
@@ -32,6 +37,7 @@ export interface SolicitudCompraBorradorRow {
   schema_version: number;
   current_step: SolicitudCompraBorradorStep;
   tipo_solicitud: SolicitudCompraTipoSolicitud;
+  etapa_codigo: SolicitudCompraEtapaCodigo;
   fecha_entrega: string;
   observacion: string;
   solicitar_urgente: boolean;
@@ -49,6 +55,7 @@ export interface SolicitudCompraBorradorListadoItem {
   schemaVersion: number;
   currentStep: SolicitudCompraBorradorStep;
   tipoSolicitud: SolicitudCompraTipoSolicitud;
+  etapaCodigo: SolicitudCompraEtapaCodigo;
   fechaEntrega: string;
   observacion: string;
   solicitarUrgente: boolean;
@@ -68,6 +75,7 @@ export interface SolicitudCompraBorradorCreatePayload {
   schema_version: number;
   current_step: SolicitudCompraBorradorStep;
   tipo_solicitud: SolicitudCompraTipoSolicitud;
+  etapa_codigo: SolicitudCompraEtapaCodigo;
   fecha_entrega: string;
   observacion: string;
   solicitar_urgente: boolean;
@@ -82,6 +90,7 @@ export interface SolicitudCompraBorradorUpdatePayload {
   schema_version: number;
   current_step: SolicitudCompraBorradorStep;
   tipo_solicitud: SolicitudCompraTipoSolicitud;
+  etapa_codigo: SolicitudCompraEtapaCodigo;
   fecha_entrega: string;
   observacion: string;
   solicitar_urgente: boolean;

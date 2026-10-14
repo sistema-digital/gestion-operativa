@@ -1,12 +1,12 @@
-import { storeToRefs } from 'pinia';
-import { computed } from 'vue';
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
 
-import { useEquiposStore } from '@/stores/dbequipos/equipos/equipos.store';
-import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
+import { useEquiposStore } from "@/stores/dbequipos/equipos/equipos.store";
+import { useSolicitudesCompraCrearStore } from "@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store";
 import type {
   ProductoTemporalDraft,
   ServicioSolicitudDraft,
-} from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
+} from "@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types";
 
 export const useCrearSolicitudCompraWizard = () => {
   const store = useSolicitudesCompraCrearStore();
@@ -18,15 +18,15 @@ export const useCrearSolicitudCompraWizard = () => {
   const stepTitle = computed(() => {
     switch (storeRefs.currentStep.value) {
       case 1:
-        return 'Datos base';
+        return "Datos base";
       case 2:
-        return storeRefs.tipoSolicitud.value === 'servicio'
-          ? 'Servicios'
-          : 'Productos';
+        return storeRefs.tipoSolicitud.value === "servicio"
+          ? "Servicios"
+          : "Productos";
       case 3:
-        return 'Observaciones';
+        return "Observaciones";
       default:
-        return 'Resumen';
+        return "Resumen";
     }
   });
 
@@ -42,7 +42,7 @@ export const useCrearSolicitudCompraWizard = () => {
   const goToStep = (step: 1 | 2 | 3 | 4): boolean => store.goToStep(step);
 
   const onSubmit = async (): Promise<void> => {
-    await store.submit('send');
+    await store.submit("send");
   };
 
   const onSaveDraft = async (): Promise<void> => {
@@ -58,6 +58,10 @@ export const useCrearSolicitudCompraWizard = () => {
     fechaEntregaRulesLoading: storeRefs.fechaEntregaRulesLoading,
     isZafraActiva: storeRefs.isZafraActiva,
     tipoSolicitud: storeRefs.tipoSolicitud,
+    etapaCodigo: storeRefs.etapaCodigo,
+    tipoSolicitudOptions: storeRefs.tipoSolicitudOptions,
+    etapaOptions: storeRefs.etapaOptions,
+    catalogosLoading: storeRefs.catalogosLoading,
     fechaEntrega: storeRefs.fechaEntrega,
     destinos: storeRefs.destinos,
     productos: storeRefs.productos,
@@ -88,6 +92,7 @@ export const useCrearSolicitudCompraWizard = () => {
     onSubmit,
     onSaveDraft,
     setTipoSolicitud: store.setTipoSolicitud,
+    setEtapaCodigo: store.setEtapaCodigo,
     setFechaEntrega: store.setFechaEntrega,
     setObservacion: store.setObservacion,
     setSolicitarUrgente: store.setSolicitarUrgente,
@@ -102,11 +107,15 @@ export const useCrearSolicitudCompraWizard = () => {
     removerDestino: store.removerDestino,
     buscarProductos: store.buscarProductos,
     agregarProductoExistente: store.agregarProductoExistente,
-    agregarProductoTemporal: (item: ProductoTemporalDraft) => store.agregarProductoTemporal(item),
-    actualizarProductoTemporal: (localId: string, item: ProductoTemporalDraft) =>
-      store.actualizarProductoTemporal(localId, item),
+    agregarProductoTemporal: (item: ProductoTemporalDraft) =>
+      store.agregarProductoTemporal(item),
+    actualizarProductoTemporal: (
+      localId: string,
+      item: ProductoTemporalDraft,
+    ) => store.actualizarProductoTemporal(localId, item),
     removerProducto: store.removerProducto,
-    agregarServicio: (item: ServicioSolicitudDraft) => store.agregarServicio(item),
+    agregarServicio: (item: ServicioSolicitudDraft) =>
+      store.agregarServicio(item),
     actualizarServicio: (localId: string, item: ServicioSolicitudDraft) =>
       store.actualizarServicio(localId, item),
     removerServicio: store.removerServicio,

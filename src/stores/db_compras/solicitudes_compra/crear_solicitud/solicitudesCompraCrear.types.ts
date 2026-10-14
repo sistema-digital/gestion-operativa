@@ -1,25 +1,40 @@
 export type SolicitudCompraCreateStep = 1 | 2 | 3 | 4;
 
-export type SolicitudCompraSubmitMode = 'send' | null;
+export type SolicitudCompraSubmitMode = "send" | null;
 
-export type SolicitudCompraTipoSolicitud = 'zafra' | 'cultivo' | 'otros' | 'servicio';
+export type SolicitudCompraTipoSolicitud = "producto" | "servicio";
+
+export type SolicitudCompraEtapaCodigo = "zafra" | "cultivo" | "otros";
+
+export interface SolicitudCompraTipoSolicitudOption {
+  id: number;
+  codigo: SolicitudCompraTipoSolicitud;
+  nombre: string;
+}
+
+export interface SolicitudCompraEtapaOption {
+  id: number;
+  codigo: SolicitudCompraEtapaCodigo;
+  nombre: string;
+}
+
+export interface SolicitudCompraCrearCatalogos {
+  tiposSolicitud: SolicitudCompraTipoSolicitudOption[];
+  etapas: SolicitudCompraEtapaOption[];
+}
 
 export type ContextoDestinoTipoOrigen =
-  | 'equipo'
-  | 'area_operativa'
-  | 'instalacion_taller'
-  | 'grupo_equipo'
-  | 'otros';
+  "equipo" | "area_operativa" | "instalacion_taller" | "grupo_equipo" | "otros";
 
-export const OBSERVACION_PREFILL_PREFIX = 'PARA USO EN: ';
+export const OBSERVACION_PREFILL_PREFIX = "PARA USO EN: ";
 export const ADJUNTO_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 export const ADJUNTO_MAX_FILES = 5;
 export const ADJUNTO_MAX_NAME_LENGTH = 50;
-export const ADJUNTO_ERROR_MESSAGE = 'Archivo no valido';
-export const ADJUNTO_DUPLICATE_ERROR_MESSAGE = 'Archivo repetido';
-export const ADJUNTO_MAX_FILES_ERROR_MESSAGE = 'Maximo 5 archivos';
+export const ADJUNTO_ERROR_MESSAGE = "Archivo no valido";
+export const ADJUNTO_DUPLICATE_ERROR_MESSAGE = "Archivo repetido";
+export const ADJUNTO_MAX_FILES_ERROR_MESSAGE = "Maximo 5 archivos";
 
-export type CrearSolicitudAdjuntoKind = 'image' | 'pdf' | 'docx';
+export type CrearSolicitudAdjuntoKind = "image" | "pdf" | "docx";
 
 export interface CrearSolicitudHeaderContext {
   solicitanteNombre: string;
@@ -58,7 +73,7 @@ export interface ProductoCatalogoOption {
 
 export interface ProductoSolicitudExistenteItem {
   localId: string;
-  tipo: 'existente';
+  tipo: "existente";
   productoId: string;
   codProducto: string;
   nombre: string;
@@ -68,7 +83,7 @@ export interface ProductoSolicitudExistenteItem {
 
 export interface ProductoSolicitudTemporalItem {
   localId: string;
-  tipo: 'temporal';
+  tipo: "temporal";
   temporal: true;
   nombre: string;
   descripcion?: string | null;
@@ -84,8 +99,7 @@ export interface ProductoTemporalDraft {
 }
 
 export type ProductoSolicitudItem =
-  | ProductoSolicitudExistenteItem
-  | ProductoSolicitudTemporalItem;
+  ProductoSolicitudExistenteItem | ProductoSolicitudTemporalItem;
 
 export interface ServicioSolicitudDraft {
   cantidad: number;
@@ -145,6 +159,7 @@ export interface CrearSolicitudUploadSession {
 
 export interface SolicitudCompraCrearPayload {
   p_tipo_codigo: SolicitudCompraTipoSolicitud;
+  p_etapa_codigo: SolicitudCompraEtapaCodigo;
   p_fecha_entrega: string;
   p_observacion: string;
   p_contextos_destino: Array<{
@@ -154,17 +169,18 @@ export interface SolicitudCompraCrearPayload {
   p_productos: Array<
     | { cod_producto: string }
     | {
-      temporal: true;
-      nombre: string;
-      descripcion?: string | null;
-      unidad_codigo: string;
-    }
+        temporal: true;
+        nombre: string;
+        descripcion?: string | null;
+        unidad_codigo: string;
+      }
   >;
   p_servicios: Array<{
     descripcion: string;
     cantidad: number;
     unidad_codigo: string;
   }>;
+  p_observaciones: [];
   p_enviar: boolean;
   p_solicitar_urgente: boolean;
   p_motivo_urgencia: string | null;
@@ -176,11 +192,13 @@ export interface SolicitudCompraCrearResponse {
   solicitud_id: string;
   folio_sol: string | null;
   tipo_codigo: SolicitudCompraTipoSolicitud;
+  etapa_codigo: SolicitudCompraEtapaCodigo;
   estado_codigo: string;
   prioridad_codigo: string;
   ciclo_estado: number;
   productos_total: number;
   servicios_total: number;
+  observaciones_total: number;
   destinos_total: number;
   adjuntos_total: number;
   peticion_urgente_creada: boolean;
@@ -193,6 +211,7 @@ export interface SolicitudCompraGuardarBorradorResponse {
 
 export interface CrearSolicitudFieldErrors {
   tipoSolicitud?: string;
+  etapaCodigo?: string;
   fechaEntrega?: string;
   destinos?: string;
   productos?: string;
@@ -203,7 +222,7 @@ export interface CrearSolicitudFieldErrors {
 }
 
 export interface SolicitudCompraCrearState extends CrearSolicitudHeaderContext {
-  entryMode: 'new' | 'draft' | null;
+  entryMode: "new" | "draft" | null;
   continuedFromDraft: boolean;
   fechaEntregaRequiresReview: boolean;
   fechaEntregaAutoAdjustedMessage: string | null;
@@ -216,6 +235,10 @@ export interface SolicitudCompraCrearState extends CrearSolicitudHeaderContext {
   draftId: string | null;
   lastSavedDraftSnapshotHash: string | null;
   tipoSolicitud: SolicitudCompraTipoSolicitud | null;
+  etapaCodigo: SolicitudCompraEtapaCodigo | null;
+  tipoSolicitudOptions: SolicitudCompraTipoSolicitudOption[];
+  etapaOptions: SolicitudCompraEtapaOption[];
+  catalogosLoading: boolean;
   fechaEntrega: string | null;
   destinos: DestinoSeleccionado[];
   productos: ProductoSolicitudItem[];

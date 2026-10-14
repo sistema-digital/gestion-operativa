@@ -1,26 +1,34 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 
-import { useCatalogoContextoDestinoOptions } from '@/composables/compras/useCatalogoContextoDestinoOptions';
-import { useCalendarioFeriadosStore } from '@/stores/db_compras/calendario_feriados/calendarioFeriados.store';
-import type { CatalogoContextoDestinoOption } from '@/stores/db_compras/catalogo_contexto_destino/catalogoContextoDestino.types';
+import { useCatalogoContextoDestinoOptions } from "@/composables/compras/useCatalogoContextoDestinoOptions";
+import { useCalendarioFeriadosStore } from "@/stores/db_compras/calendario_feriados/calendarioFeriados.store";
+import type { CatalogoContextoDestinoOption } from "@/stores/db_compras/catalogo_contexto_destino/catalogoContextoDestino.types";
 import {
   isAllowedDeliveryDateInNormalMode,
   parseIsoDate,
-} from '@/stores/db_compras/solicitudes_compra/crear_solicitud/fechaEntregaRules';
+} from "@/stores/db_compras/solicitudes_compra/crear_solicitud/fechaEntregaRules";
 
-import CrearSolicitudContextosServicioSelector from './CrearSolicitudContextosServicioSelector.vue';
-import CrearSolicitudFechaField from './CrearSolicitudFechaField.vue';
-import CrearSolicitudTipoField from './CrearSolicitudTipoField.vue';
-import type { EquipoOption } from '@/stores/dbequipos/equipos/equipos.types';
+import CrearSolicitudContextosServicioSelector from "./CrearSolicitudContextosServicioSelector.vue";
+import CrearSolicitudEtapaField from "./CrearSolicitudEtapaField.vue";
+import CrearSolicitudFechaField from "./CrearSolicitudFechaField.vue";
+import CrearSolicitudTipoField from "./CrearSolicitudTipoField.vue";
+import type { EquipoOption } from "@/stores/dbequipos/equipos/equipos.types";
 import type {
   CrearSolicitudFieldErrors,
   DestinoSeleccionado,
+  SolicitudCompraEtapaCodigo,
+  SolicitudCompraEtapaOption,
   SolicitudCompraTipoSolicitud,
-} from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
+  SolicitudCompraTipoSolicitudOption,
+} from "@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types";
 
 const props = defineProps<{
   tipoSolicitud: SolicitudCompraTipoSolicitud | null;
+  etapaCodigo: SolicitudCompraEtapaCodigo | null;
+  tipoSolicitudOptions: SolicitudCompraTipoSolicitudOption[];
+  etapaOptions: SolicitudCompraEtapaOption[];
+  catalogosLoading: boolean;
   fechaEntrega: string | null;
   fechaEntregaRequiresReview: boolean;
   fechaEntregaMinima: string | null;
@@ -33,22 +41,29 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:tipoSolicitud', value: SolicitudCompraTipoSolicitud | null): void;
-  (e: 'update:fechaEntrega', value: string | null): void;
-  (e: 'search:equipos', value: string): void;
-  (e: 'add:equipo', item: EquipoOption): void;
-  (e: 'remove:destino', payload: { codigo: string; tipoOrigen?: string }): void;
-  (e: 'add:destino-contexto', item: CatalogoContextoDestinoOption): void;
+  (e: "update:tipoSolicitud", value: SolicitudCompraTipoSolicitud | null): void;
+  (e: "update:etapaCodigo", value: SolicitudCompraEtapaCodigo | null): void;
+  (e: "update:fechaEntrega", value: string | null): void;
+  (e: "search:equipos", value: string): void;
+  (e: "add:equipo", item: EquipoOption): void;
+  (e: "remove:destino", payload: { codigo: string; tipoOrigen?: string }): void;
+  (e: "add:destino-contexto", item: CatalogoContextoDestinoOption): void;
 }>();
 
 const emitTipoSolicitud = (
-  value: SolicitudCompraTipoSolicitud | null | undefined
+  value: SolicitudCompraTipoSolicitud | null | undefined,
 ): void => {
-  emit('update:tipoSolicitud', value ?? null);
+  emit("update:tipoSolicitud", value ?? null);
+};
+
+const emitEtapaCodigo = (
+  value: SolicitudCompraEtapaCodigo | null | undefined,
+): void => {
+  emit("update:etapaCodigo", value ?? null);
 };
 
 const emitFechaEntrega = (value: string | null | undefined): void => {
-  emit('update:fechaEntrega', value ?? null);
+  emit("update:fechaEntrega", value ?? null);
 };
 
 const {
@@ -80,7 +95,10 @@ const disabledDate = (date: Date): boolean => {
     return true;
   }
 
-  return !isAllowedDeliveryDateInNormalMode(normalized, calendarioFeriadosStore.holidaysByYear).isValid;
+  return !isAllowedDeliveryDateInNormalMode(
+    normalized,
+    calendarioFeriadosStore.holidaysByYear,
+  ).isValid;
 };
 
 const handleMonthYearUpdate = (payload: { year: number }): void => {
@@ -89,13 +107,25 @@ const handleMonthYearUpdate = (payload: { year: number }): void => {
 </script>
 
 <template>
-  <section class="flex h-full min-h-0 flex-col overflow-y-auto rounded-lg border border-stone-200 bg-white px-3 py-1 shadow-sm lg:overflow-hidden lg:px-4">
+  <section
+    class="flex h-full min-h-0 flex-col overflow-y-auto rounded-lg border border-stone-200 bg-white px-3 py-1 shadow-sm lg:overflow-hidden lg:px-4"
+  >
     <div class="mt-4 flex min-h-0 flex-1 flex-col gap-4">
-      <div class="grid gap-4 lg:grid-cols-2">
+      <div class="grid gap-4 lg:grid-cols-3">
         <CrearSolicitudTipoField
           :model-value="tipoSolicitud"
+          :options="tipoSolicitudOptions"
+          :loading="catalogosLoading"
           :error="validationErrors.tipoSolicitud"
           @update:model-value="emitTipoSolicitud"
+        />
+
+        <CrearSolicitudEtapaField
+          :model-value="etapaCodigo"
+          :options="etapaOptions"
+          :loading="catalogosLoading"
+          :error="validationErrors.etapaCodigo"
+          @update:model-value="emitEtapaCodigo"
         />
 
         <CrearSolicitudFechaField

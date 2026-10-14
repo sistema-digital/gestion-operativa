@@ -1,35 +1,35 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { shallowRef } from 'vue';
-import Toast from 'primevue/toast';
-import { useToast } from 'primevue/usetoast';
-import { useRouter } from 'vue-router';
+import { storeToRefs } from "pinia";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { shallowRef } from "vue";
+import Toast from "primevue/toast";
+import { useToast } from "primevue/usetoast";
+import { useRouter } from "vue-router";
 
-import { useCrearSolicitudCompraWizard } from '@/composables/compras/useCrearSolicitudCompraWizard';
-import type { CatalogoContextoDestinoOption } from '@/stores/db_compras/catalogo_contexto_destino/catalogoContextoDestino.types';
-import { useSolicitudesCompraCrearStore } from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store';
-import { useFeatureAccessStore } from '@/stores/db_mantenimiento/app_feature_access/featureAccess.store';
+import { useCrearSolicitudCompraWizard } from "@/composables/compras/useCrearSolicitudCompraWizard";
+import type { CatalogoContextoDestinoOption } from "@/stores/db_compras/catalogo_contexto_destino/catalogoContextoDestino.types";
+import { useSolicitudesCompraCrearStore } from "@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.store";
+import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 import type {
   CrearSolicitudAdjuntoDraftInput,
   ProductoSolicitudTemporalItem,
   ProductoTemporalDraft,
   ServicioSolicitudDraft,
   ServicioSolicitudItem,
-} from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
+} from "@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types";
 
-import CrearSolicitudCompraServicioBottomSheet from '@/components/compras/crear/CrearSolicitudCompraServicioBottomSheet.vue';
-import CrearSolicitudCompraActionConfirmModal from '@/components/compras/crear/CrearSolicitudCompraActionConfirmModal.vue';
-import CrearSolicitudCompraServicioDrawer from '@/components/compras/crear/CrearSolicitudCompraServicioDrawer.vue';
-import CrearSolicitudCompraFooterActions from '@/components/compras/crear/CrearSolicitudCompraFooterActions.vue';
-import CrearSolicitudCompraHeader from '@/components/compras/crear/CrearSolicitudCompraHeader.vue';
-import CrearSolicitudCompraProductoTemporalOverlay from '@/components/compras/crear/CrearSolicitudCompraProductoTemporalOverlay.vue';
-import CrearSolicitudCompraStepDatosBase from '@/components/compras/crear/CrearSolicitudCompraStepDatosBase.vue';
-import CrearSolicitudCompraStepObservaciones from '@/components/compras/crear/CrearSolicitudCompraStepObservaciones.vue';
-import CrearSolicitudCompraStepProductos from '@/components/compras/crear/CrearSolicitudCompraStepProductos.vue';
-import CrearSolicitudCompraStepResumen from '@/components/compras/crear/CrearSolicitudCompraStepResumen.vue';
-import CrearSolicitudCompraStepServicios from '@/components/compras/crear/CrearSolicitudCompraStepServicios.vue';
-import CrearSolicitudCompraStepper from '@/components/compras/crear/CrearSolicitudCompraStepper.vue';
+import CrearSolicitudCompraServicioBottomSheet from "@/components/compras/crear/CrearSolicitudCompraServicioBottomSheet.vue";
+import CrearSolicitudCompraActionConfirmModal from "@/components/compras/crear/CrearSolicitudCompraActionConfirmModal.vue";
+import CrearSolicitudCompraServicioDrawer from "@/components/compras/crear/CrearSolicitudCompraServicioDrawer.vue";
+import CrearSolicitudCompraFooterActions from "@/components/compras/crear/CrearSolicitudCompraFooterActions.vue";
+import CrearSolicitudCompraHeader from "@/components/compras/crear/CrearSolicitudCompraHeader.vue";
+import CrearSolicitudCompraProductoTemporalOverlay from "@/components/compras/crear/CrearSolicitudCompraProductoTemporalOverlay.vue";
+import CrearSolicitudCompraStepDatosBase from "@/components/compras/crear/CrearSolicitudCompraStepDatosBase.vue";
+import CrearSolicitudCompraStepObservaciones from "@/components/compras/crear/CrearSolicitudCompraStepObservaciones.vue";
+import CrearSolicitudCompraStepProductos from "@/components/compras/crear/CrearSolicitudCompraStepProductos.vue";
+import CrearSolicitudCompraStepResumen from "@/components/compras/crear/CrearSolicitudCompraStepResumen.vue";
+import CrearSolicitudCompraStepServicios from "@/components/compras/crear/CrearSolicitudCompraStepServicios.vue";
+import CrearSolicitudCompraStepper from "@/components/compras/crear/CrearSolicitudCompraStepper.vue";
 
 const router = useRouter();
 const toast = useToast();
@@ -37,7 +37,7 @@ const createStore = useSolicitudesCompraCrearStore();
 const featureAccessStore = useFeatureAccessStore();
 const { isLoaded: isFeatureAccessLoaded } = storeToRefs(featureAccessStore);
 const AUTO_SAVE_INTERVAL_MS = 5 * 60 * 1000;
-const VIEW_DRAFTS_FEATURE = 'ver_borradores_solicitud_compra';
+const VIEW_DRAFTS_FEATURE = "ver_borradores_solicitud_compra";
 
 const {
   currentStep,
@@ -48,6 +48,10 @@ const {
   fechaEntregaRulesLoading,
   isZafraActiva,
   tipoSolicitud,
+  etapaCodigo,
+  tipoSolicitudOptions,
+  etapaOptions,
+  catalogosLoading,
   fechaEntrega,
   destinos,
   productos,
@@ -77,6 +81,7 @@ const {
   onSaveDraft,
   goToStep,
   setTipoSolicitud,
+  setEtapaCodigo,
   setFechaEntrega,
   setObservacion,
   setSolicitarUrgente,
@@ -99,112 +104,121 @@ const {
   removerServicio,
 } = useCrearSolicitudCompraWizard();
 
-const createEmptyTemporalDraft = (nombre = ''): ProductoTemporalDraft => ({
+const createEmptyTemporalDraft = (nombre = ""): ProductoTemporalDraft => ({
   nombre,
   descripcion: null,
-  unidadCodigo: '',
-  unidadLabel: '',
+  unidadCodigo: "",
+  unidadLabel: "",
 });
 
 const createEmptyServicioDraft = (): ServicioSolicitudDraft => ({
   cantidad: 1,
-  descripcion: '',
-  unidadCodigo: '',
-  unidadLabel: '',
+  descripcion: "",
+  unidadCodigo: "",
+  unidadLabel: "",
 });
 
 const isProductoTemporalOverlayOpen = shallowRef(false);
-const productoTemporalOverlayMode = shallowRef<'create' | 'edit'>('create');
+const productoTemporalOverlayMode = shallowRef<"create" | "edit">("create");
 const editingTemporalLocalId = shallowRef<string | null>(null);
-const productoTemporalDraft = ref<ProductoTemporalDraft>(createEmptyTemporalDraft());
+const productoTemporalDraft = ref<ProductoTemporalDraft>(
+  createEmptyTemporalDraft(),
+);
 const isServicioOverlayOpen = shallowRef(false);
-const servicioOverlayMode = shallowRef<'create' | 'edit'>('create');
+const servicioOverlayMode = shallowRef<"create" | "edit">("create");
 const editingServicioLocalId = shallowRef<string | null>(null);
 const servicioDraft = ref<ServicioSolicitudDraft>(createEmptyServicioDraft());
-const viewportWidth = shallowRef(typeof window === 'undefined' ? 1280 : window.innerWidth);
+const viewportWidth = shallowRef(
+  typeof window === "undefined" ? 1280 : window.innerWidth,
+);
 const isDesktop = computed(() => viewportWidth.value >= 1024);
 const resumenHasDesktopOverflow = shallowRef(false);
 const resumenDesktopReachedBottom = shallowRef(false);
-const pendingAction = shallowRef<'send' | 'draft' | 'cancel' | null>(null);
-const postDraftAction = shallowRef<'stay' | 'leave' | null>(null);
+const pendingAction = shallowRef<"send" | "draft" | "cancel" | null>(null);
+const postDraftAction = shallowRef<"stay" | "leave" | null>(null);
 const lastAutoSavedAt = shallowRef<Date | null>(null);
 let autoSaveIntervalId: number | null = null;
 
 const shouldDisableNext = computed(() => !isCurrentStepValid.value);
 
-const shouldDisableSend = computed(() =>
-  currentStep.value === 4
-  && isDesktop.value
-  && resumenHasDesktopOverflow.value
-  && !resumenDesktopReachedBottom.value
+const shouldDisableSend = computed(
+  () =>
+    currentStep.value === 4 &&
+    isDesktop.value &&
+    resumenHasDesktopOverflow.value &&
+    !resumenDesktopReachedBottom.value,
 );
-const canUseDrafts = computed(() =>
-  isFeatureAccessLoaded.value
-  && featureAccessStore.tieneFuncionalidad(VIEW_DRAFTS_FEATURE)
+const canUseDrafts = computed(
+  () =>
+    isFeatureAccessLoaded.value &&
+    featureAccessStore.tieneFuncionalidad(VIEW_DRAFTS_FEATURE),
 );
 
 const autoSaveStatusLabel = computed(() => {
   if (!canUseDrafts.value || !lastAutoSavedAt.value) {
-    return '';
+    return "";
   }
 
-  const formattedTime = new Intl.DateTimeFormat('es-HN', {
-    hour: '2-digit',
-    minute: '2-digit',
+  const formattedTime = new Intl.DateTimeFormat("es-HN", {
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(lastAutoSavedAt.value);
 
   return `Ultima vez autoguardado borrador: ${formattedTime}`;
 });
 
 const pendingActionConfig = computed(() => {
-  if (pendingAction.value === 'send') {
+  if (pendingAction.value === "send") {
     return {
-      title: 'Enviar solicitud',
-      description: 'La solicitud quedara registrada y se enviara para continuar con el flujo correspondiente.',
-      confirmLabel: 'Si, enviar solicitud',
-      closeLabel: 'No, volver',
+      title: "Enviar solicitud",
+      description:
+        "La solicitud quedara registrada y se enviara para continuar con el flujo correspondiente.",
+      confirmLabel: "Si, enviar solicitud",
+      closeLabel: "No, volver",
       palette: {
-        badgeClass: 'bg-main/10 text-main',
-        borderClass: 'border-main/20',
-        confirmButtonClass: 'bg-main',
-        confirmButtonHoverClass: 'hover:bg-main-light',
-        confirmButtonTextClass: 'text-white',
+        badgeClass: "bg-main/10 text-main",
+        borderClass: "border-main/20",
+        confirmButtonClass: "bg-main",
+        confirmButtonHoverClass: "hover:bg-main-light",
+        confirmButtonTextClass: "text-white",
       },
     };
   }
 
-  if (pendingAction.value === 'draft') {
-    const draftDescription = adjuntosLocales.value.length > 0
-      ? 'Se conservara el avance actual para que puedas retomarlo mas tarde desde compras. Los adjuntos no se incluyen en el borrador.'
-      : 'Se conservara el avance actual para que puedas retomarlo mas tarde desde compras.';
+  if (pendingAction.value === "draft") {
+    const draftDescription =
+      adjuntosLocales.value.length > 0
+        ? "Se conservara el avance actual para que puedas retomarlo mas tarde desde compras. Los adjuntos no se incluyen en el borrador."
+        : "Se conservara el avance actual para que puedas retomarlo mas tarde desde compras.";
 
     return {
-      title: 'Guardar borrador',
+      title: "Guardar borrador",
       description: draftDescription,
-      confirmLabel: 'Si, guardar borrador',
-      closeLabel: 'No, seguir editando',
+      confirmLabel: "Si, guardar borrador",
+      closeLabel: "No, seguir editando",
       palette: {
-        badgeClass: 'bg-accent/25 text-main',
-        borderClass: 'border-white',
-        confirmButtonClass: 'bg-accent',
-        confirmButtonHoverClass: 'hover:bg-accent-light',
-        confirmButtonTextClass: 'text-main',
+        badgeClass: "bg-accent/25 text-main",
+        borderClass: "border-white",
+        confirmButtonClass: "bg-accent",
+        confirmButtonHoverClass: "hover:bg-accent-light",
+        confirmButtonTextClass: "text-main",
       },
     };
   }
 
-  if (pendingAction.value === 'cancel') {
+  if (pendingAction.value === "cancel") {
     return {
-      title: 'Cancelar creacion',
-      description: 'Se cerrara este flujo y perderas los cambios que no hayas enviado o guardado como borrador.',
-      confirmLabel: 'Si, cancelar',
-      closeLabel: 'No, continuar',
+      title: "Cancelar creacion",
+      description:
+        "Se cerrara este flujo y perderas los cambios que no hayas enviado o guardado como borrador.",
+      confirmLabel: "Si, cancelar",
+      closeLabel: "No, continuar",
       palette: {
-        badgeClass: 'bg-danger-bg text-danger',
-        borderClass: 'border-danger/20',
-        confirmButtonClass: 'bg-danger',
-        confirmButtonHoverClass: 'hover:bg-danger-light',
-        confirmButtonTextClass: 'text-white',
+        badgeClass: "bg-danger-bg text-danger",
+        borderClass: "border-danger/20",
+        confirmButtonClass: "bg-danger",
+        confirmButtonHoverClass: "hover:bg-danger-light",
+        confirmButtonTextClass: "text-white",
       },
     };
   }
@@ -218,25 +232,26 @@ const postDraftActionConfig = computed(() => {
   }
 
   return {
-    title: 'Borrador guardado',
-    description: 'Tu borrador se guardo correctamente. Puedes seguir editando este formulario o salir para volver mas tarde.',
-    confirmLabel: 'Salir del formulario',
-    closeLabel: 'Seguir editando',
+    title: "Borrador guardado",
+    description:
+      "Tu borrador se guardo correctamente. Puedes seguir editando este formulario o salir para volver mas tarde.",
+    confirmLabel: "Salir del formulario",
+    closeLabel: "Seguir editando",
     palette: {
-      badgeClass: 'bg-success/10 text-success',
-      borderClass: 'border-success/20',
-      confirmButtonClass: 'bg-main',
-      confirmButtonHoverClass: 'hover:bg-main-light',
-      confirmButtonTextClass: 'text-white',
+      badgeClass: "bg-success/10 text-success",
+      borderClass: "border-success/20",
+      confirmButtonClass: "bg-main",
+      confirmButtonHoverClass: "hover:bg-main-light",
+      confirmButtonTextClass: "text-white",
     },
   };
 });
 
 const closeView = (): void => {
-  void router.push({ name: 'Compras' });
+  void router.push({ name: "Compras" });
 };
 
-const openActionConfirmModal = (action: 'send' | 'draft' | 'cancel'): void => {
+const openActionConfirmModal = (action: "send" | "draft" | "cancel"): void => {
   pendingAction.value = action;
 };
 
@@ -257,13 +272,13 @@ const handleConfirmedAction = async (): Promise<void> => {
 
   closeActionConfirmModal();
 
-  if (action === 'cancel') {
+  if (action === "cancel") {
     closeView();
     return;
   }
 
-  if (action === 'draft' || action === 'send') {
-    if (action === 'draft') {
+  if (action === "draft" || action === "send") {
+    if (action === "draft") {
       await handleSaveDraft();
       return;
     }
@@ -274,27 +289,27 @@ const handleConfirmedAction = async (): Promise<void> => {
 
 const handleSubmit = async (): Promise<void> => {
   await onSubmit();
-  void router.push({ name: 'Compras' });
+  void router.push({ name: "Compras" });
 };
 
 const handleSaveDraft = async (): Promise<void> => {
   if (!canUseDrafts.value) {
     toast.add({
-      severity: 'warn',
-      summary: 'Acceso restringido',
-      detail: 'No tienes permiso para guardar borradores.',
+      severity: "warn",
+      summary: "Acceso restringido",
+      detail: "No tienes permiso para guardar borradores.",
       life: 3000,
     });
     return;
   }
 
   await onSaveDraft();
-  postDraftAction.value = 'stay';
+  postDraftAction.value = "stay";
 };
 
 const handleConfirmedPostDraftAction = (): void => {
   closePostDraftActionModal();
-  void router.push({ name: 'Compras' });
+  void router.push({ name: "Compras" });
 };
 
 const runAutoSave = async (): Promise<void> => {
@@ -309,8 +324,8 @@ const runAutoSave = async (): Promise<void> => {
   }
 
   toast.add({
-    severity: 'success',
-    summary: 'Borrador guardado correctamente',
+    severity: "success",
+    summary: "Borrador guardado correctamente",
     life: 2500,
   });
   lastAutoSavedAt.value = new Date();
@@ -328,27 +343,29 @@ const startAutoSave = (): void => {
 
 const closeProductoTemporalOverlay = (): void => {
   isProductoTemporalOverlayOpen.value = false;
-  productoTemporalOverlayMode.value = 'create';
+  productoTemporalOverlayMode.value = "create";
   editingTemporalLocalId.value = null;
   productoTemporalDraft.value = createEmptyTemporalDraft();
 };
 
 const closeServicioOverlay = (): void => {
   isServicioOverlayOpen.value = false;
-  servicioOverlayMode.value = 'create';
+  servicioOverlayMode.value = "create";
   editingServicioLocalId.value = null;
   servicioDraft.value = createEmptyServicioDraft();
 };
 
 const handleManualRequest = (initialNombre: string): void => {
-  productoTemporalOverlayMode.value = 'create';
+  productoTemporalOverlayMode.value = "create";
   editingTemporalLocalId.value = null;
   productoTemporalDraft.value = createEmptyTemporalDraft(initialNombre);
   isProductoTemporalOverlayOpen.value = true;
 };
 
-const handleEditProductoTemporal = (item: ProductoSolicitudTemporalItem): void => {
-  productoTemporalOverlayMode.value = 'edit';
+const handleEditProductoTemporal = (
+  item: ProductoSolicitudTemporalItem,
+): void => {
+  productoTemporalOverlayMode.value = "edit";
   editingTemporalLocalId.value = item.localId;
   productoTemporalDraft.value = {
     nombre: item.nombre,
@@ -360,7 +377,10 @@ const handleEditProductoTemporal = (item: ProductoSolicitudTemporalItem): void =
 };
 
 const handleSubmitProductoTemporal = (draft: ProductoTemporalDraft): void => {
-  if (productoTemporalOverlayMode.value === 'edit' && editingTemporalLocalId.value) {
+  if (
+    productoTemporalOverlayMode.value === "edit" &&
+    editingTemporalLocalId.value
+  ) {
     actualizarProductoTemporal(editingTemporalLocalId.value, draft);
   } else {
     agregarProductoTemporal(draft);
@@ -370,14 +390,14 @@ const handleSubmitProductoTemporal = (draft: ProductoTemporalDraft): void => {
 };
 
 const handleAddServicio = (): void => {
-  servicioOverlayMode.value = 'create';
+  servicioOverlayMode.value = "create";
   editingServicioLocalId.value = null;
   servicioDraft.value = createEmptyServicioDraft();
   isServicioOverlayOpen.value = true;
 };
 
 const handleEditServicio = (item: ServicioSolicitudItem): void => {
-  servicioOverlayMode.value = 'edit';
+  servicioOverlayMode.value = "edit";
   editingServicioLocalId.value = item.localId;
   servicioDraft.value = {
     cantidad: item.cantidad,
@@ -389,7 +409,7 @@ const handleEditServicio = (item: ServicioSolicitudItem): void => {
 };
 
 const handleSubmitServicio = (draft: ServicioSolicitudDraft): void => {
-  if (servicioOverlayMode.value === 'edit' && editingServicioLocalId.value) {
+  if (servicioOverlayMode.value === "edit" && editingServicioLocalId.value) {
     actualizarServicio(editingServicioLocalId.value, draft);
   } else {
     agregarServicio(draft);
@@ -398,7 +418,9 @@ const handleSubmitServicio = (draft: ServicioSolicitudDraft): void => {
   closeServicioOverlay();
 };
 
-const handleAddDestinoContexto = (item: CatalogoContextoDestinoOption): void => {
+const handleAddDestinoContexto = (
+  item: CatalogoContextoDestinoOption,
+): void => {
   agregarDestinoContexto(item);
 };
 
@@ -434,7 +456,7 @@ onMounted(() => {
     void createStore.prepareNewEntry();
   }
   startAutoSave();
-  window.addEventListener('resize', syncViewportWidth);
+  window.addEventListener("resize", syncViewportWidth);
 });
 
 onBeforeUnmount(() => {
@@ -443,14 +465,18 @@ onBeforeUnmount(() => {
     window.clearInterval(autoSaveIntervalId);
     autoSaveIntervalId = null;
   }
-  window.removeEventListener('resize', syncViewportWidth);
+  window.removeEventListener("resize", syncViewportWidth);
 });
 </script>
 
 <template>
-  <section class="min-h-screen overflow-y-auto bg-[#EEECE4] lg:h-screen lg:overflow-hidden">
+  <section
+    class="min-h-screen overflow-y-auto bg-[#EEECE4] lg:h-screen lg:overflow-hidden"
+  >
     <Toast />
-    <div class="mx-auto grid min-h-screen w-full max-w-7xl grid-cols-4 grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-1 px-3 py-1 lg:h-full lg:min-h-0 lg:px-4 lg:py-1">
+    <div
+      class="mx-auto grid min-h-screen w-full max-w-7xl grid-cols-4 grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-1 px-3 py-1 lg:h-full lg:min-h-0 lg:px-4 lg:py-1"
+    >
       <div class="col-span-4 row-start-1">
         <CrearSolicitudCompraHeader
           :solicitante-nombre="headerContext.solicitanteNombre"
@@ -500,6 +526,10 @@ onBeforeUnmount(() => {
         <CrearSolicitudCompraStepDatosBase
           v-if="currentStep === 1"
           :tipo-solicitud="tipoSolicitud"
+          :etapa-codigo="etapaCodigo"
+          :tipo-solicitud-options="tipoSolicitudOptions"
+          :etapa-options="etapaOptions"
+          :catalogos-loading="catalogosLoading"
           :fecha-entrega="fechaEntrega"
           :fecha-entrega-requires-review="fechaEntregaRequiresReview"
           :fecha-entrega-minima="fechaEntregaMinima"
@@ -510,6 +540,7 @@ onBeforeUnmount(() => {
           :is-searching="isSearching"
           :search-error="equiposSearchError"
           @update:tipo-solicitud="setTipoSolicitud"
+          @update:etapa-codigo="setEtapaCodigo"
           @update:fecha-entrega="setFechaEntrega"
           @search:equipos="buscarEquipos"
           @add:equipo="agregarEquipo"
@@ -568,6 +599,7 @@ onBeforeUnmount(() => {
         <CrearSolicitudCompraStepResumen
           v-else
           :tipo-solicitud="tipoSolicitud"
+          :etapa-codigo="etapaCodigo"
           :fecha-entrega="fechaEntrega"
           :destinos="destinos"
           :productos="productos"
@@ -580,10 +612,12 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <div class="col-span-4 row-start-5 shrink-0 rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm lg:px-4">
+      <div
+        class="col-span-4 row-start-5 shrink-0 rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm lg:px-4"
+      >
         <CrearSolicitudCompraFooterActions
           :current-step="currentStep"
-          :loading="loading || fechaEntregaRulesLoading"
+          :loading="loading || fechaEntregaRulesLoading || catalogosLoading"
           :disable-next="shouldDisableNext"
           :disable-send="shouldDisableSend"
           :show-draft-button="canSaveDraft && canUseDrafts"
