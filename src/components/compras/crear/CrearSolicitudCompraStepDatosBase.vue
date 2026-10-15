@@ -111,14 +111,16 @@ const handleMonthYearUpdate = (payload: { year: number }): void => {
     class="flex h-full min-h-0 flex-col overflow-y-auto rounded-lg border border-stone-200 bg-white px-3 py-1 shadow-sm lg:overflow-hidden lg:px-4"
   >
     <div class="mt-4 flex min-h-0 flex-1 flex-col gap-4">
-      <div class="grid gap-4 lg:grid-cols-3">
-        <CrearSolicitudTipoField
-          :model-value="tipoSolicitud"
-          :options="tipoSolicitudOptions"
-          :loading="catalogosLoading"
-          :error="validationErrors.tipoSolicitud"
-          @update:model-value="emitTipoSolicitud"
-        />
+      <div class="grid gap-4 lg:grid-cols-2">
+        <div class="lg:col-span-2">
+          <CrearSolicitudTipoField
+            :model-value="tipoSolicitud"
+            :options="tipoSolicitudOptions"
+            :loading="catalogosLoading"
+            :error="validationErrors.tipoSolicitud"
+            @update:model-value="emitTipoSolicitud"
+          />
+        </div>
 
         <CrearSolicitudEtapaField
           :model-value="etapaCodigo"

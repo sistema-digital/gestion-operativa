@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { Shapes, Sprout, Wheat } from "lucide-vue-next";
 import VueMultiselect from "vue-multiselect";
 
 import type {
@@ -45,7 +46,49 @@ const selectedOption = computed<SolicitudCompraEtapaOption | null>({
       }"
       placeholder="Selecciona la etapa"
       no-options="No hay etapas disponibles"
-    />
+    >
+      <template #singleLabel="{ option }">
+        <span class="flex items-center gap-2">
+          <Sprout
+            v-if="option.codigo === 'cultivo'"
+            class="etapa-option-icon h-4 w-4 shrink-0 text-main"
+            aria-hidden="true"
+          />
+          <Wheat
+            v-else-if="option.codigo === 'zafra'"
+            class="etapa-option-icon h-4 w-4 shrink-0 text-accent"
+            aria-hidden="true"
+          />
+          <Shapes
+            v-else
+            class="etapa-option-icon h-4 w-4 shrink-0 text-stone-500"
+            aria-hidden="true"
+          />
+          <span class="truncate">{{ option.nombre }}</span>
+        </span>
+      </template>
+
+      <template #option="{ option }">
+        <span class="flex items-center gap-2">
+          <Sprout
+            v-if="option.codigo === 'cultivo'"
+            class="etapa-option-icon h-4 w-4 shrink-0 text-main"
+            aria-hidden="true"
+          />
+          <Wheat
+            v-else-if="option.codigo === 'zafra'"
+            class="etapa-option-icon h-4 w-4 shrink-0 text-accent"
+            aria-hidden="true"
+          />
+          <Shapes
+            v-else
+            class="etapa-option-icon h-4 w-4 shrink-0 text-stone-500"
+            aria-hidden="true"
+          />
+          <span>{{ option.nombre }}</span>
+        </span>
+      </template>
+    </VueMultiselect>
 
     <p v-if="error" class="text-sm font-medium text-danger">
       {{ error }}
@@ -56,5 +99,10 @@ const selectedOption = computed<SolicitudCompraEtapaOption | null>({
 <style scoped>
 .crear-solicitud-multiselect :deep(.multiselect__select) {
   cursor: pointer;
+}
+
+.crear-solicitud-multiselect
+  :deep(.multiselect__option--highlight .etapa-option-icon) {
+  color: var(--color-white);
 }
 </style>

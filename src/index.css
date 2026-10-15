@@ -264,17 +264,21 @@
 }
 
 .crear-solicitud-datepicker,
-.crear-solicitud-datepicker .dp__main,
-.crear-solicitud-datepicker .dp__input_wrap {
+.crear-solicitud-datepicker .dp--main,
+.crear-solicitud-datepicker .dp--input-wrap {
   width: 100%;
 }
 
 .crear-solicitud-datepicker-input {
-  @apply text-sm;
+  @apply border border-stone-300 bg-white text-sm;
   height: 2rem;
   padding-top: 0;
   padding-bottom: 0;
   line-height: 2rem;
+}
+
+.crear-solicitud-datepicker-input-error {
+  @apply border-danger bg-danger-bg/30;
 }
 
 .multiselect {
@@ -287,6 +291,38 @@
   border-color: var(--color-gray-300);
   border-radius: var(--radius-md);
   padding: 0.4rem 2.5rem 0rem 0.75rem;
+}
+
+.crear-solicitud-multiselect,
+.crear-solicitud-multiselect .multiselect__tags {
+  min-height: 2rem;
+}
+
+.crear-solicitud-multiselect .multiselect__tags {
+  padding: 0.25rem 2.5rem 0.25rem 0.75rem;
+}
+
+.crear-solicitud-multiselect .multiselect__input,
+.crear-solicitud-multiselect .multiselect__single {
+  margin-bottom: 0;
+}
+
+.crear-solicitud-multiselect .multiselect__placeholder {
+  margin-bottom: 0;
+  padding-top: 0;
+}
+
+.crear-solicitud-multiselect .multiselect__select {
+  display: flex;
+  height: 1.875rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
+}
+
+.crear-solicitud-multiselect .multiselect__select::before {
+  top: auto;
+  margin-top: 0;
 }
 
 .multiselect--active .multiselect__tags {

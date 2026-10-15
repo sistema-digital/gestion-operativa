@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { VueDatePicker } from '@vuepic/vue-datepicker';
-import { computed } from 'vue';
-import { es } from 'date-fns/locale';
-import { formatLongSpanishDate } from '@/utils/formatterDateHelper';
+import { VueDatePicker } from "@vuepic/vue-datepicker";
+import { computed } from "vue";
+import { es } from "date-fns/locale";
+import { formatLongSpanishDate } from "@/utils/formatterDateHelper";
 
 interface DatepickerMonthYearChangePayload {
   instance: number;
@@ -28,11 +28,17 @@ const props = defineProps<{
   holidayHighlight?: DatepickerHighlightConfig;
 }>();
 const emit = defineEmits<{
-  (e: 'updateMonthYear', value: DatepickerMonthYearChangePayload): void;
+  (e: "updateMonthYear", value: DatepickerMonthYearChangePayload): void;
 }>();
 const inputFormats = {
   input: formatLongSpanishDate,
 };
+const datepickerUi = computed(() => ({
+  input: [
+    "crear-solicitud-datepicker-input",
+    ...(props.error ? ["crear-solicitud-datepicker-input-error"] : []),
+  ],
+}));
 
 const toDateValue = (value: string | null): Date | null => {
   if (!value) {
@@ -52,8 +58,8 @@ const displayValue = computed<Date | null>({
     }
 
     const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, '0');
-    const day = String(value.getDate()).padStart(2, '0');
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
     model.value = `${year}-${month}-${day}`;
   },
 });
@@ -65,38 +71,26 @@ const displayValue = computed<Date | null>({
       Fecha de entrega <span class="text-danger">*</span>
     </label>
 
-    <div
-      class="rounded-lg border bg-white px-2 py-1 transition "
-      :class="error ? 'border-danger bg-danger-bg/30' : 'border-stone-300'"
-    >
-      <VueDatePicker
-        v-model="displayValue"
-        :min-date="props.isZafraActiva ? undefined : (props.minDate ?? undefined)"
-        :disabled-dates="props.disabledDate"
-        :highlight="props.holidayHighlight"
-        :enable-time-picker="false"
-        :locale="es"
-        :formats="inputFormats"
-        auto-apply
-        placeholder="Selecciona la fecha de entrega"
-        class="crear-solicitud-datepicker "
-        input-class-name="crear-solicitud-datepicker-input"
-        @update-month-year="emit('updateMonthYear', $event)"
-      />
-    </div>
+    <VueDatePicker
+      v-model="displayValue"
+      :min-date="props.isZafraActiva ? undefined : (props.minDate ?? undefined)"
+      :disabled-dates="props.disabledDate"
+      :highlight="props.holidayHighlight"
+      :enable-time-picker="false"
+      :locale="es"
+      :formats="inputFormats"
+      auto-apply
+      placeholder="Selecciona la fecha de entrega"
+      class="crear-solicitud-datepicker"
+      :ui="datepickerUi"
+      @update-month-year="emit('updateMonthYear', $event)"
+    />
 
-    
-    <p
-      v-if="error"
-      class="text-sm font-medium text-danger"
-    >
+    <p v-if="error" class="text-sm font-medium text-danger">
       {{ error }}
     </p>
 
-    <p
-      v-if="showReviewWarning"
-      class="text-sm font-medium text-danger"
-    >
+    <p v-if="showReviewWarning" class="text-sm font-medium text-danger">
       Actualice la fecha de entrega.
     </p>
   </div>
