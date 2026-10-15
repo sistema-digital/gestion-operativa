@@ -9,6 +9,7 @@ import type {
   EquipmentStops,
 } from "./reporteEquipos.types";
 import type { z } from "zod";
+import { formatTotalHours } from "@/utils/formatTotalHours";
 import {
   contextSchema,
   equipmentListSchema,
@@ -26,7 +27,10 @@ export const mapEquipmentList = (
     code: item.cod_equipo,
     type: item.tipo,
     journeys: item.jornadas,
-    totalTime: item.tiempo_total,
+    totalTime: formatTotalHours(
+      item.tiempo_total_segundos,
+      item.tiempo_total ?? "—",
+    ),
     totalSeconds: item.tiempo_total_segundos,
   }));
 export const mapContext = (
@@ -36,7 +40,7 @@ export const mapContext = (
     engineOn: row.motor_encendido,
     state: row.estado,
     seconds: row.tiempo_segundos,
-    time: row.tiempo,
+    time: formatTotalHours(row.tiempo_segundos, row.tiempo),
     percentage: row.porcentaje,
     periods: row.periodos,
   }));
@@ -52,7 +56,7 @@ export const mapContext = (
           state === "encendido" ? true : state === "apagado" ? false : null,
         state,
         seconds: 0,
-        time: "00:00",
+        time: formatTotalHours(0),
         percentage: 0,
         periods: 0,
       },
@@ -64,7 +68,7 @@ export const mapContext = (
     firstActivity: dto.primera_actividad,
     lastActivity: dto.ultima_actividad,
     totalSeconds: dto.tiempo_total_segundos,
-    totalTime: dto.tiempo_total,
+    totalTime: formatTotalHours(dto.tiempo_total_segundos, dto.tiempo_total),
     engine,
   };
 };
@@ -84,27 +88,39 @@ export const mapSummary = (
       }
     : null,
   totalSeconds: dto.metricas.tiempo_total_segundos,
-  totalTime: dto.metricas.tiempo_total,
+  totalTime: formatTotalHours(
+    dto.metricas.tiempo_total_segundos,
+    dto.metricas.tiempo_total,
+  ),
   engineOnSeconds: dto.metricas.tiempo_motor_encendido_segundos,
-  engineOnTime: dto.metricas.tiempo_motor_encendido,
+  engineOnTime: formatTotalHours(
+    dto.metricas.tiempo_motor_encendido_segundos,
+    dto.metricas.tiempo_motor_encendido,
+  ),
   engineOnPercentage: dto.metricas.porcentaje_motor_encendido,
   engineOffSeconds: dto.metricas.tiempo_motor_apagado_segundos,
-  engineOffTime: dto.metricas.tiempo_motor_apagado,
+  engineOffTime: formatTotalHours(
+    dto.metricas.tiempo_motor_apagado_segundos,
+    dto.metricas.tiempo_motor_apagado,
+  ),
   engineOffPercentage: dto.metricas.porcentaje_motor_apagado,
   engineUndefinedSeconds: dto.metricas.tiempo_motor_sin_definir_segundos,
-  engineUndefinedTime: dto.metricas.tiempo_motor_sin_definir,
+  engineUndefinedTime: formatTotalHours(
+    dto.metricas.tiempo_motor_sin_definir_segundos,
+    dto.metricas.tiempo_motor_sin_definir,
+  ),
   engineUndefinedPercentage: dto.metricas.porcentaje_motor_sin_definir,
   classifications: dto.clasificaciones.map((row) => ({
     classification: row.clasificacion,
     seconds: row.tiempo_segundos,
-    time: row.tiempo,
+    time: formatTotalHours(row.tiempo_segundos, row.tiempo),
     percentage: row.porcentaje,
   })),
   mainStops: dto.principales_paradas.map((row) => ({
     reason: row.motivo,
     occurrences: row.ocurrencias,
     seconds: row.tiempo_segundos,
-    time: row.tiempo,
+    time: formatTotalHours(row.tiempo_segundos, row.tiempo),
     percentage: row.porcentaje_paradas,
   })),
   operators: dto.operadores.map((row) => ({
@@ -112,7 +128,7 @@ export const mapSummary = (
     operator: row.operador,
     journeys: row.jornadas,
     seconds: row.tiempo_segundos,
-    time: row.tiempo,
+    time: formatTotalHours(row.tiempo_segundos, row.tiempo),
     percentage: row.porcentaje,
   })),
   implements: dto.implementos.map((row) => ({
@@ -121,7 +137,7 @@ export const mapSummary = (
     description: row.descripcion,
     journeys: row.jornadas,
     seconds: row.tiempo_segundos,
-    time: row.tiempo,
+    time: formatTotalHours(row.tiempo_segundos, row.tiempo),
     percentage: row.porcentaje_uso,
   })),
   history: dto.historial.map((row) => ({
@@ -139,7 +155,10 @@ export const mapStops = (dto: z.infer<typeof stopsSchema>): EquipmentStops => ({
   code: dto.equipo_numero,
   metrics: {
     stoppedSeconds: dto.metricas.tiempo_parado_segundos,
-    stoppedTime: dto.metricas.tiempo_parado,
+    stoppedTime: formatTotalHours(
+      dto.metricas.tiempo_parado_segundos,
+      dto.metricas.tiempo_parado,
+    ),
     stoppedPercentage: dto.metricas.porcentaje_parado,
     stopCount: dto.metricas.cantidad_paradas,
     averageDurationSeconds: dto.metricas.duracion_promedio_segundos,
@@ -148,14 +167,14 @@ export const mapStops = (dto: z.infer<typeof stopsSchema>): EquipmentStops => ({
   classifications: dto.por_clasificacion.map((row) => ({
     classification: row.clasificacion,
     seconds: row.tiempo_segundos,
-    time: row.tiempo,
+    time: formatTotalHours(row.tiempo_segundos, row.tiempo),
     count: row.ocurrencias,
     percentage: row.porcentaje_paradas,
   })),
   origins: dto.por_origen.map((row) => ({
     origin: row.origen,
     seconds: row.tiempo_segundos,
-    time: row.tiempo,
+    time: formatTotalHours(row.tiempo_segundos, row.tiempo),
     count: row.ocurrencias,
     percentage: row.porcentaje_paradas,
   })),
@@ -163,7 +182,7 @@ export const mapStops = (dto: z.infer<typeof stopsSchema>): EquipmentStops => ({
     reason: row.motivo,
     occurrences: row.ocurrencias,
     seconds: row.tiempo_segundos,
-    time: row.tiempo,
+    time: formatTotalHours(row.tiempo_segundos, row.tiempo),
     percentage: row.porcentaje_paradas,
   })),
   details: dto.detalle.map((row) => ({
@@ -209,7 +228,10 @@ export const mapEquipmentOperators = (
   metrics: {
     uniqueOperators: dto.metricas.operadores_unicos,
     totalSeconds: dto.metricas.tiempo_total_segundos,
-    totalTime: dto.metricas.tiempo_total,
+    totalTime: formatTotalHours(
+      dto.metricas.tiempo_total_segundos,
+      dto.metricas.tiempo_total,
+    ),
     journeys: dto.metricas.jornadas,
     topParticipation: dto.metricas.mayor_participacion
       ? {
@@ -224,15 +246,24 @@ export const mapEquipmentOperators = (
     operator: row.operador,
     journeys: row.jornadas,
     totalSeconds: row.tiempo_total_segundos,
-    totalTime: row.tiempo_total,
+    totalTime: formatTotalHours(row.tiempo_total_segundos, row.tiempo_total),
     engineOnSeconds: row.tiempo_motor_encendido_segundos,
-    engineOnTime: row.tiempo_motor_encendido,
+    engineOnTime: formatTotalHours(
+      row.tiempo_motor_encendido_segundos,
+      row.tiempo_motor_encendido,
+    ),
     engineOnPercentage: row.porcentaje_motor_encendido,
     engineOffSeconds: row.tiempo_motor_apagado_segundos,
-    engineOffTime: row.tiempo_motor_apagado,
+    engineOffTime: formatTotalHours(
+      row.tiempo_motor_apagado_segundos,
+      row.tiempo_motor_apagado,
+    ),
     engineOffPercentage: row.porcentaje_motor_apagado,
     engineUndefinedSeconds: row.tiempo_motor_sin_definir_segundos,
-    engineUndefinedTime: row.tiempo_motor_sin_definir,
+    engineUndefinedTime: formatTotalHours(
+      row.tiempo_motor_sin_definir_segundos,
+      row.tiempo_motor_sin_definir,
+    ),
     engineUndefinedPercentage: row.porcentaje_motor_sin_definir,
     percentage: row.porcentaje_uso,
     firstActivity: row.primera_actividad,
@@ -247,26 +278,38 @@ export const mapOperatorDetail = (
   operatorLabel: dto.operador.label,
   journeys: dto.metricas.jornadas,
   totalSeconds: dto.metricas.tiempo_total_segundos,
-  totalTime: dto.metricas.tiempo_total,
+  totalTime: formatTotalHours(
+    dto.metricas.tiempo_total_segundos,
+    dto.metricas.tiempo_total,
+  ),
   engineOnSeconds: dto.metricas.tiempo_motor_encendido_segundos,
-  engineOnTime: dto.metricas.tiempo_motor_encendido,
+  engineOnTime: formatTotalHours(
+    dto.metricas.tiempo_motor_encendido_segundos,
+    dto.metricas.tiempo_motor_encendido,
+  ),
   engineOnPercentage: dto.metricas.porcentaje_motor_encendido,
   engineOffSeconds: dto.metricas.tiempo_motor_apagado_segundos,
-  engineOffTime: dto.metricas.tiempo_motor_apagado,
+  engineOffTime: formatTotalHours(
+    dto.metricas.tiempo_motor_apagado_segundos,
+    dto.metricas.tiempo_motor_apagado,
+  ),
   engineOffPercentage: dto.metricas.porcentaje_motor_apagado,
   engineUndefinedSeconds: dto.metricas.tiempo_motor_sin_definir_segundos,
-  engineUndefinedTime: dto.metricas.tiempo_motor_sin_definir,
+  engineUndefinedTime: formatTotalHours(
+    dto.metricas.tiempo_motor_sin_definir_segundos,
+    dto.metricas.tiempo_motor_sin_definir,
+  ),
   engineUndefinedPercentage: dto.metricas.porcentaje_motor_sin_definir,
   classificationDistribution: dto.distribucion_clasificacion.map((row) => ({
     classification: row.clasificacion,
     seconds: row.tiempo_segundos,
-    time: row.tiempo,
+    time: formatTotalHours(row.tiempo_segundos, row.tiempo),
     percentage: row.porcentaje,
   })),
   mainStops: dto.principales_paradas.map((row) => ({
     reason: row.motivo,
     seconds: row.tiempo_segundos,
-    time: row.tiempo,
+    time: formatTotalHours(row.tiempo_segundos, row.tiempo),
     percentage: row.porcentaje_paradas,
   })),
   history: dto.historial.map((row) => ({

@@ -153,7 +153,12 @@ describe("reporteEquipos schemas", () => {
     });
     const stops = mapStops(dto);
     expect(stops.metrics.stoppedSeconds).toBe(10800);
-    expect(stops.origins[0]).toMatchObject({ count: 2, percentage: 0.1 });
+    expect(stops.metrics.stoppedTime).toBe("3 hrs");
+    expect(stops.origins[0]).toMatchObject({
+      count: 2,
+      percentage: 0.1,
+      time: "0 hrs",
+    });
     expect(stops.details[0]).toMatchObject({
       duration: "00:00",
       engineOn: true,
@@ -210,9 +215,9 @@ describe("reporteEquipos schemas", () => {
     expect(operators.metrics.topParticipation).toBeNull();
     expect(operators.operators[0]).toMatchObject({
       journeys: null,
-      engineOnTime: "00:06",
-      engineOffTime: "00:03",
-      engineUndefinedTime: "00:01",
+      engineOnTime: "0.1 hrs",
+      engineOffTime: "0.05 hrs",
+      engineUndefinedTime: "0.02 hrs",
     });
   });
 
@@ -268,11 +273,12 @@ describe("reporteEquipos schemas", () => {
     );
     expect(detail.classificationDistribution[0]).toMatchObject({
       classification: "EFECTIVO",
-      time: "00:08",
+      time: "0.13 hrs",
     });
     expect(detail.mainStops[0]).toMatchObject({
       reason: "Combustible",
       percentage: 100,
+      time: "0.03 hrs",
     });
     expect(detail.history[0]).toMatchObject({
       detail: "Rastra pesada",
