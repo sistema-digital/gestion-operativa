@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Eraser, Sprout, Wheat } from 'lucide-vue-next';
+import { Check, Eraser, Sprout, Wheat } from "lucide-vue-next";
 import FiltroCodigoAutocomplete from "./FiltroCodigoAutocomplete.vue";
 import type {
   EtapaEngrase,
@@ -28,8 +28,8 @@ const emit = defineEmits<{
   closeDetail: [];
 }>();
 function clearAllFilters() {
-  emit('clearAll');
-  emit('closeDetail');
+  emit("clearAll");
+  emit("closeDetail");
 }
 const hayFiltrosAplicados = computed(
   () =>
@@ -43,13 +43,16 @@ const hayFiltrosAplicados = computed(
 function toggleEtapa(etapaId: number) {
   const etapaIds = new Set(props.filters.etapaIds);
   etapaIds.has(etapaId) ? etapaIds.delete(etapaId) : etapaIds.add(etapaId);
-  emit('updateFilters', { etapaIds: [...etapaIds] });
+  emit("updateFilters", { etapaIds: [...etapaIds] });
+}
+function etapaSeleccionada(etapaId: number): boolean {
+  return props.filters.etapaIds.includes(etapaId);
 }
 function esCultivo(nombre: string) {
-  return nombre.trim().toLocaleLowerCase() === 'cultivo';
+  return nombre.trim().toLocaleLowerCase() === "cultivo";
 }
 function esZafra(nombre: string) {
-  return nombre.trim().toLocaleLowerCase() === 'zafra';
+  return nombre.trim().toLocaleLowerCase() === "zafra";
 }
 </script>
 <template>
@@ -70,25 +73,51 @@ function esZafra(nombre: string) {
       @select="emit('selectCodeSuggestion', $event)"
       @clear="emit('clearCode')"
     />
-    <fieldset class="flex min-w-0 gap-1" aria-label="Etapas">
+    <fieldset class="flex min-w-0 items-start gap-1" aria-label="Etapas">
       <legend class="sr-only">Etapas</legend>
-      <button
+      <label
         v-for="item in etapas"
         :key="item.id"
-        type="button"
-        class="flex h-9 min-w-0 flex-1 items-center justify-center gap-1 truncate rounded-md border px-2 text-xs"
-        :class="
-          filters.etapaIds.includes(item.id)
-            ? 'border-main bg-main/10 text-main'
-            : 'border-gray-200 text-gray-500'
-        "
-        :aria-pressed="filters.etapaIds.includes(item.id)"
-        @click="toggleEtapa(item.id)"
+        class="relative inline-flex h-9 shrink-0 cursor-pointer items-center"
       >
-        <Sprout v-if="esCultivo(item.nombre)" class="h-3.5 w-3.5 shrink-0 text-main" />
-        <Wheat v-else-if="esZafra(item.nombre)" class="h-3.5 w-3.5 shrink-0 text-accent" />
-        {{ item.nombre }}
-      </button>
+        <input
+          :id="`etapa-${item.id}`"
+          :checked="etapaSeleccionada(item.id)"
+          :value="item.id"
+          type="checkbox"
+          name="etapas"
+          class="peer sr-only"
+          @change="toggleEtapa(item.id)"
+        />
+        <span
+          class="flex h-full w-auto items-center justify-start gap-1 whitespace-nowrap rounded-md border border-gray-200 px-2 text-xs text-gray-500 transition-colors peer-checked:border-main peer-checked:bg-main/10 peer-checked:text-main peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-main"
+        >
+          <span
+            class="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[3px] border transition-colors"
+            :class="
+              etapaSeleccionada(item.id)
+                ? 'border-main bg-main text-white'
+                : 'border-gray-400 bg-white text-transparent'
+            "
+            aria-hidden="true"
+          >
+            <Check
+              v-if="etapaSeleccionada(item.id)"
+              class="h-3 w-3"
+              stroke-width="3"
+            />
+          </span>
+          <Sprout
+            v-if="esCultivo(item.nombre)"
+            class="h-3.5 w-3.5 shrink-0 text-main"
+          />
+          <Wheat
+            v-else-if="esZafra(item.nombre)"
+            class="h-3.5 w-3.5 shrink-0 text-accent"
+          />
+          {{ item.nombre }}
+        </span>
+      </label>
     </fieldset>
     <div class="flex gap-1 border-l border-gray-200 pl-2">
       <button
@@ -121,7 +150,11 @@ function esZafra(nombre: string) {
             : 'border-gray-200 text-gray-500 hover:bg-main/5 hover:text-main'
         "
         aria-label="Limpiar todos los filtros"
-        :title="hayFiltrosAplicados ? 'Limpiar todos los filtros aplicados' : 'Sin filtros para limpiar'"
+        :title="
+          hayFiltrosAplicados
+            ? 'Limpiar todos los filtros aplicados'
+            : 'Sin filtros para limpiar'
+        "
         @click="clearAllFilters"
       >
         <Eraser class="h-4 w-4" />
