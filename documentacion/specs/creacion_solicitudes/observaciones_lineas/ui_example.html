@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Solicitud de compra · Productos y observaciones</title>
+  <style>
+    :root{--main:#004643;--main-light:#006b65;--main-dark:#002e2c;--second:#f0ede5;--second-dark:#e2ddd3;--accent:#d4a853;--danger:#c0392b;--ink:#172a32;--muted:#727a7c;--stroke:#e5e7e5;--white:#fff;--success:#2d8a4e;--shadow:0 2px 8px #19302a0e}
+    *{box-sizing:border-box}html{font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:var(--second)}body{margin:0;min-height:100vh;font-size:13px}button,input,textarea,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}:focus-visible{outline:2px solid var(--main-light);outline-offset:3px}
+    .shell{max-width:1132px;margin:0 auto;padding:8px 10px 12px;min-height:100vh;display:flex;flex-direction:column;gap:6px}.card{background:#fff;border:1px solid #ebece9;border-radius:10px;box-shadow:var(--shadow)}
+    .heading{min-height:80px;position:relative;padding:28px 18px 14px}.top-title{font-size:15px;font-weight:800;letter-spacing:-.35px;text-align:center;color:var(--main-dark);position:absolute;top:11px;left:0;right:0}.metadata{display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;gap:12px}.metadata .meta:last-child{justify-content:flex-end}.meta{display:flex;align-items:center;gap:9px;white-space:nowrap;font-size:12px}.meta strong{font-weight:700}.meta-symbol{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#eaf1ef;color:var(--main);flex-shrink:0}.meta svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+    .steps{height:63px;display:grid;grid-template-columns:repeat(4,1fr);align-items:center;padding:7px 42px 2px}.step{height:46px;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;font-size:10px;color:#646d70}.step::before{content:"";position:absolute;top:12px;left:calc(-50% + 12px);width:calc(100% - 24px);border-top:1px solid #d8dedb}.step:first-child::before{display:none}.step:nth-child(2)::before{border-color:var(--main);border-width:2px}.step-circle{width:23px;height:23px;z-index:1;border:1px solid #d5d9d7;border-radius:50%;display:grid;place-items:center;background:white;color:#737c7f;font-size:10px}.step.current{font-weight:700;color:var(--main)}.step.current .step-circle{color:#fff;background:var(--main);border-color:var(--main)}.step.done .step-circle{background:var(--success);border-color:var(--success);color:white}
+    .alert{padding:8px 12px;border-radius:8px;background:#f8f8f6;border:1px solid #ededeb;font-size:11px;color:#606b6d}
+    .content{flex:1;min-height:560px;padding:16px 15px 28px;overflow:hidden}.toolbar{display:flex;gap:10px;align-items:center}.search-wrap{position:relative;flex:1}.search-wrap svg{position:absolute;width:16px;height:16px;top:50%;left:13px;transform:translateY(-50%);stroke:#9ca4a3;fill:none;stroke-width:2}.search{width:100%;height:39px;border:1px solid #d9ddda;border-radius:7px;padding:0 34px 0 39px;outline:none;color:#253638;background:white}.search:focus{border-color:var(--main-light)}.search::placeholder{color:#a3aaaa}.clear-search{position:absolute;right:10px;top:8px;padding:5px;border:0;background:none;color:#838d8c;font-size:18px}.manual-btn{height:39px;display:flex;gap:8px;align-items:center;justify-content:center;white-space:nowrap;border:1px solid var(--main);color:var(--main);background:white;border-radius:7px;padding:0 15px;font-weight:700}.manual-btn svg{width:15px;height:15px}
+    .list{border:1px dashed #d8dcd8;background:#fbfaf8;margin-top:15px;padding:19px 15px 14px;border-radius:8px;min-height:145px}.line{position:relative;margin:8px 0 18px;background:white;border:1px solid #e1e4e1;border-radius:5px;transition:border-color .15s}.line:last-child{margin-bottom:3px}.line.selected{border-color:#bdcdca}.row-main{display:grid;grid-template-columns:47px 185px 1fr 1.22fr 43px;min-height:60px;align-items:center;gap:8px;padding:3px 12px}.checkbox{display:flex;align-items:center;justify-content:center}.checkbox input{appearance:none;width:19px;height:19px;margin:0;border:1.5px solid #a1adab;border-radius:3px;background:white;position:relative;cursor:pointer}.checkbox input:checked{background:var(--main);border-color:var(--main)}.checkbox input:checked::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid white;border-width:0 2px 2px 0;transform:rotate(45deg)}.code{font-weight:700;color:#172a32;letter-spacing:.1px}.unit{font-size:10px;color:#7e8382}.description{font-size:12px;color:#3c474a}.delete-item{justify-self:center;border:1px solid #e5e7e4;width:31px;height:31px;display:grid;place-items:center;border-radius:6px;background:white;color:#7c8583}.delete-item:hover{color:var(--danger);border-color:#efd0cc}.delete-item svg{width:15px;height:15px}
+    /* Acción inferior centrada sobre el borde: solo texto e icono, sin fondo. */
+    .line.no-note{margin-bottom:28px;border-bottom-color:transparent}
+    .line.no-note::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;pointer-events:none;background:linear-gradient(to right,#e1e4e1 calc(50% - 94px),transparent calc(50% - 94px),transparent calc(50% + 94px),#e1e4e1 calc(50% + 94px))}
+    .add-note{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);border:0;background:transparent;color:var(--main-light);font-weight:700;display:flex;align-items:center;gap:5px;white-space:nowrap;min-height:26px;padding:0 7px;font-size:11px;z-index:2}
+    .add-note:hover{text-decoration:underline}.add-note svg{width:14px;height:14px;stroke-width:2.2}
+    .line.has-note{margin-bottom:9px}.observations{padding:0 14px 8px 60px;display:flex;flex-direction:column;gap:3px}
+    .obs-row{display:block;text-align:left;white-space:normal;width:100%;padding:7px 8px;border:0;border-top:1px solid #edf0ef;background:transparent;color:#3b5254;line-height:1.45;font-size:12px;cursor:pointer}
+    .obs-row:hover{background:#f6f9f8}.obs-row strong{color:var(--main);font-weight:700}.empty{padding:35px;text-align:center;color:#85908d}
+    .scope-options{display:grid;gap:8px}.scope-choice{width:100%;text-align:left;border:1px solid #d9e4e0;background:#fff;padding:12px;border-radius:4px;display:flex;flex-direction:column;gap:4px;color:var(--main)}
+    .scope-choice:hover,.scope-choice:focus-visible{border-color:var(--main-light);background:#f4f9f7}
+    .scope-choice strong{font-size:12px}.scope-choice span{font-size:11px;color:#647572}
+    .footer{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;height:64px;gap:10px}.footer-left,.footer-right{display:flex;align-items:center;gap:12px}.action{font-weight:700;border-radius:6px;padding:0 17px;height:37px;border:1px solid transparent}.cancel{background:var(--danger);color:#fff}.draft{background:var(--accent);color:var(--main-dark)}.back{background:#fff;border-color:var(--main);color:var(--main)}.next,.primary{background:var(--main);color:#fff}.next:hover,.primary:hover{background:var(--main-light)}
+    .overlay{position:fixed;inset:0;z-index:10;background:#1a2b3035;display:grid;place-items:center;padding:18px}.dialog{width:min(455px,100%);border-radius:9px;background:white;box-shadow:0 20px 70px #1027252c;border:1px solid #e2e8e5;overflow:hidden}.dialog-head{padding:18px 19px 9px;display:flex;gap:12px;align-items:flex-start;justify-content:space-between}.dialog h2{font-size:19px;letter-spacing:-.35px;margin:0 0 5px}.dialog p{font-size:12px;color:#697577;margin:0;line-height:1.4}.icon-only{background:none;border:none;color:#788587;font-size:22px;padding:0;line-height:1;min-width:24px;min-height:24px}.dialog-body{padding:11px 19px 16px}.fields-label{font-size:12px;font-weight:700;display:block;margin-bottom:7px}.selected-chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px;max-height:80px;overflow-y:auto}.chip{display:inline-flex;align-items:center;gap:4px;background:#e9f2ef;border-radius:4px;color:var(--main);font-size:11px;font-weight:700;padding:5px 7px}.chip button{border:0;background:none;color:var(--main);padding:0 0 0 2px;font-size:14px;line-height:10px}.textarea-wrap{position:relative}textarea{resize:vertical;min-height:90px;width:100%;padding:11px 12px 23px;border:1px solid #cbd7d3;border-radius:5px;outline:none;line-height:1.4}textarea:focus{border-color:var(--main-light)}textarea.invalid{border-color:var(--danger)}.counter{position:absolute;bottom:12px;right:10px;color:#9da5a7;font-size:10px}.form-error{color:var(--danger);margin:6px 0 0;font-size:11px}.dialog-foot{border-top:1px solid #edf0ee;display:flex;align-items:center;gap:7px;justify-content:flex-end;padding:11px 19px}.dialog-foot .action{height:35px}.secondary{border:1px solid var(--main);color:var(--main);background:#fff}.flat-link{color:var(--main);border:0;background:transparent;font-size:11px;text-decoration:underline;margin-right:auto;padding:5px 0}.hidden{display:none!important}
+    .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#173d3a;color:white;padding:10px 17px;border-radius:5px;box-shadow:0 10px 35px #0002;z-index:22;font-size:12px;max-width:min(95vw,600px);text-align:center}.selection-hint{margin-top:9px;font-size:11px;background:#eef5f2;border:1px solid #c8ded6;border-radius:5px;padding:10px 11px;display:flex;justify-content:space-between;gap:10px;align-items:center;color:var(--main)}.hint-btn{background:var(--main);border:0;color:#fff;padding:7px 10px;border-radius:4px;font-weight:700;white-space:nowrap}
+    @media(max-width:760px){.shell{padding:5px}.heading{min-height:110px}.metadata{grid-template-columns:1fr 1fr;padding-top:3px;gap:10px}.metadata .meta:last-child{justify-content:flex-start;grid-column:span 2}.steps{padding:4px 12px}.content{padding:12px 9px;min-height:510px}.row-main{grid-template-columns:33px minmax(95px,auto) 60px 1fr 28px;gap:4px;padding:7px}.line{margin:13px 0 21px}.code,.description{font-size:11px}.unit{font-size:9px}.observations{padding-left:45px}.toolbar{flex-wrap:wrap}.manual-btn{padding:0 9px}.footer{flex-wrap:wrap;height:auto;padding:8px}.footer-left,.footer-right{gap:6px}.action{padding:0 9px}.list{padding:18px 7px}.modal{margin:auto}}@media(max-width:480px){.metadata{grid-template-columns:1fr}.metadata .meta:last-child{grid-column:auto}.heading{min-height:132px}.row-main{grid-template-columns:28px 1fr 55px 28px}.description{grid-column:2 / 4;grid-row:2;padding:1px 0 5px}.unit{grid-column:3;grid-row:1}.delete-item{grid-column:4;grid-row:1}.steps .step{font-size:9px}}
+  </style>
+</head>
+<body>
+<main class="shell">
+  <header class="heading card">
+    <div class="top-title">NUEVA SOLICITUD DE COMPRA</div>
+    <div class="metadata">
+      <div class="meta"><span class="meta-symbol"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/></svg></span><span><strong>Solicitante:</strong> TEST JL</span></div>
+      <div class="meta"><span class="meta-symbol"><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="13" rx="1"/><path d="M9 8V3h6v5M8 12h1m3 0h1m3 0h1M8 16h1m3 0h1m3 0h1"/></svg></span><span><strong>Área:</strong> ALL</span></div>
+      <div class="meta"><span class="meta-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 4h2m4 0h2m-8 4h2"/></svg></span><span><strong>Fecha de creación:</strong> 14 oct 2026 3:47 p. m.</span></div>
+    </div>
+  </header>
+  <nav class="steps card" aria-label="Pasos de solicitud">
+    <div class="step done"><span class="step-circle">✓</span><span>Datos base</span></div>
+    <div class="step current"><span class="step-circle">2</span><span>Productos</span></div>
+    <div class="step"><span class="step-circle">3</span><span>Observaciones</span></div>
+    <div class="step"><span class="step-circle">4</span><span>Resumen</span></div>
+  </nav>
+  <div class="alert">Los archivos adjuntos no se restauran al continuar un borrador.</div>
+  <section class="content card" aria-label="Productos de la solicitud">
+    <div class="toolbar">
+      <div class="search-wrap"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7"/><path d="m16 16 5 5"/></svg><input id="search" class="search" placeholder="Buscar por código, nombre o unidad" aria-label="Buscar productos"/><button id="clear-search" class="clear-search hidden" aria-label="Limpiar búsqueda">×</button></div>
+      <button id="add-manual" class="manual-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M4 12h16"/></svg>Producto manual</button>
+    </div>
+    <div id="selection-hint" class="selection-hint hidden" role="status"><span>Selecciona los productos que compartirán la observación.</span><button class="hint-btn" id="resume-editor">Continuar observación</button></div>
+    <div id="product-list" class="list" aria-live="polite"></div>
+  </section>
+  <footer class="footer card">
+    <div class="footer-left"><button id="cancel" class="action cancel">Cancelar</button><button id="save-draft" class="action draft">Guardar borrador</button></div>
+    <div class="footer-right"><button id="back" class="action back">Atrás</button><button id="next" class="action next">Siguiente</button></div>
+  </footer>
+</main>
+<div id="modal-host"></div><div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+<script>
+  // Maqueta aislada. En Vue, products/observations/selectedIds se conectan al store Pinia.
+  const INITIAL_PRODUCTS = [
+    { localId: 'p1', tipo: 'existente', codigo: 'T003-PT951', unidad: 'UNIDAD', descripcion: 'FILTRO, PT951' },
+    { localId: 'p2', tipo: 'existente', codigo: 'T003-BF1222', unidad: 'UNIDAD', descripcion: 'FILTRO BF1222' },
+    { localId: 'p3', tipo: 'existente', codigo: 'T009-711', unidad: 'UNIDAD', descripcion: 'BROCA CILINDRICA, 3/8' },
+  ];
+  const state = {
+    products: structuredClone(INITIAL_PRODUCTS),
+    observations: [{ localId: 'obs1', texto: 'Verificar compatibilidad de ambos filtros antes de realizar el pedido.', detalleLocalIds: ['p1', 'p2'] }],
+    selected: new Set(), query: '', composer: null, selectionMode: false,
+  };
+  const qs = selector => document.querySelector(selector);
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const newId = () => 'obs-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+  const notesFor = id => state.observations.filter(obs => obs.detalleLocalIds.includes(id));
+  const productFor = id => state.products.find(p => p.localId === id);
+  function toast(message) {
+    const box = qs('#toast'); box.textContent = message; box.classList.remove('hidden');
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => box.classList.add('hidden'), 3100);
+  }
+  const iconTrash = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 4h4m-8 3 1 14h10l1-14M10 11v6m4-6v6"/></svg>';
+  const iconPlus = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>';
+  function renderList() {
+    const q = state.query.toLocaleLowerCase('es').trim();
+    const matches = state.products.filter(p => [p.codigo, p.descripcion, p.unidad].join(' ').toLocaleLowerCase('es').includes(q));
+    qs('#product-list').innerHTML = matches.length ? matches.map(p => {
+      const notes = notesFor(p.localId), hasNotes = notes.length > 0;
+      const disabled = state.selectionMode && hasNotes ? 'disabled title="Ya tiene una observación"' : '';
+      return `<article class="line ${state.selected.has(p.localId) ? 'selected' : ''} ${hasNotes ? 'has-note' : 'no-note'}" data-id="${esc(p.localId)}">
+        <div class="row-main">
+          <label class="checkbox" title="Seleccionar ${esc(p.codigo)}">
+            <input type="checkbox" data-action="select" data-id="${esc(p.localId)}" ${state.selected.has(p.localId) ? 'checked' : ''} ${disabled} aria-label="Seleccionar ${esc(p.codigo)}" />
+          </label>
+          <div class="code">${esc(p.codigo)}</div><div class="unit">${esc(p.unidad)}</div>
+          <div class="description">${esc(p.descripcion)}</div>
+          <button type="button" class="delete-item" data-action="delete-product" data-id="${esc(p.localId)}" title="Quitar producto" aria-label="Quitar ${esc(p.codigo)}">${iconTrash}</button>
+        </div>
+        ${hasNotes ? `<div class="observations">${notes.map(o => `<button type="button" class="obs-row" data-action="edit-note" data-note="${esc(o.localId)}" data-id="${esc(p.localId)}" title="Editar observación de esta fila"><strong>Obs:</strong> ${esc(o.texto)}</button>`).join('')}</div>` : `<button type="button" class="add-note" data-action="add-note" data-id="${esc(p.localId)}" aria-label="Agregar observación a ${esc(p.codigo)}">${iconPlus} Agregar observación</button>`}
+      </article>`;
+    }).join('') : '<div class="empty">No se encontraron productos.</div>';
+    qs('#clear-search').classList.toggle('hidden', !state.query);
+  }
+  function modal({ title, subtitle = '', body = '', footer = '' }) {
+    qs('#modal-host').innerHTML = `<div class="overlay" role="presentation"><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="dialog-head"><div><h2 id="modal-title">${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ''}</div><button class="icon-only" data-action="close-modal" aria-label="Cerrar">×</button></div><div class="dialog-body">${body}</div><div class="dialog-foot">${footer}</div></section></div>`;
+    document.body.style.overflow = 'hidden';
+  }
+  function closeModal() { qs('#modal-host').innerHTML = ''; document.body.style.overflow = ''; }
+  function closeEditor() {
+    closeModal(); state.composer = null; state.selectionMode = false;
+    qs('#selection-hint').classList.add('hidden'); renderList();
+  }
+  function newComposer(clickedId) {
+    if (notesFor(clickedId).length) return;
+    // Las filas con observaciones previas no se sobrescriben accidentalmente.
+    const ids = [...new Set([clickedId, ...state.selected])].filter(id => productFor(id) && !notesFor(id).length);
+    state.selected = new Set(ids);
+    state.composer = { mode: 'new', noteId: null, rowId: clickedId, text: '', ids };
+    state.selectionMode = false; renderList(); renderComposer();
+  }
+  function requestEdit(noteId, rowId) {
+    const note = state.observations.find(o => o.localId === noteId);
+    if (!note || !note.detalleLocalIds.includes(rowId)) return;
+    if (note.detalleLocalIds.length === 1) return startEdit(noteId, rowId, 'edit-all');
+    modal({
+      title: 'Editar observación',
+      subtitle: `Esta observación está asociada a ${note.detalleLocalIds.length} filas.`,
+      body: `<div class="scope-options">
+        <button type="button" class="scope-choice" data-action="edit-all" data-note="${esc(noteId)}" data-id="${esc(rowId)}"><strong>Editar todas las filas asociadas</strong><span>Actualizar el mismo texto en las ${note.detalleLocalIds.length} filas.</span></button>
+        <button type="button" class="scope-choice" data-action="edit-one" data-note="${esc(noteId)}" data-id="${esc(rowId)}"><strong>Editar solo esta fila</strong><span>Separar ${esc(productFor(rowId)?.codigo)} sin cambiar las demás.</span></button>
+      </div>`,
+      footer: '<button class="action secondary" data-action="close-modal">Cancelar</button>',
+    });
+  }
+  function startEdit(noteId, rowId, mode) {
+    const note = state.observations.find(o => o.localId === noteId); if (!note) return;
+    const ids = mode === 'edit-one' ? [rowId] : [...note.detalleLocalIds];
+    state.composer = { mode, noteId, rowId, text: note.texto, ids };
+    state.selected = new Set(ids); state.selectionMode = false;
+    renderList(); renderComposer();
+  }
+  function renderComposer() {
+    const c = state.composer; if (!c) return;
+    const products = c.ids.map(productFor).filter(Boolean);
+    const title = c.mode === 'new' ? 'Agregar observación' : c.mode === 'edit-one' ? 'Editar solo esta fila' : 'Editar observación';
+    const subtitle = c.mode === 'edit-one'
+      ? 'Los demás productos conservarán su observación actual.'
+      : c.mode === 'edit-all'
+        ? `El texto se actualizará en las ${products.length} filas asociadas.`
+        : `Se asociará a ${products.length} ${products.length === 1 ? 'producto seleccionado' : 'productos seleccionados'}.`;
+    const chips = products.map(p => `<span class="chip">${esc(p.codigo)}${c.mode === 'new' ? ` <button data-action="remove-chip" data-id="${esc(p.localId)}" aria-label="Quitar ${esc(p.codigo)}">×</button>` : ''}</span>`).join('');
+    modal({
+      title, subtitle,
+      body: `<div class="selected-chips">${chips}</div><label class="fields-label" for="note-text">Observación del supervisor <span style="color:#c0392b">*</span></label><div class="textarea-wrap"><textarea id="note-text" maxlength="500" placeholder="Escribe la observación..."></textarea><span class="counter" id="note-counter">0/500</span></div><div class="form-error hidden" id="note-error"></div>`,
+      footer: `${c.mode === 'new' ? '<button class="flat-link" data-action="select-more">Cambiar selección</button>' : ''}<button class="action secondary" data-action="close-modal">Cancelar</button><button class="action primary" data-action="save-note">Guardar observación</button>`,
+    });
+    qs('#note-text').value = c.text;
+    qs('#note-counter').textContent = `${c.text.length}/500`;
+    qs('#note-text').focus();
+  }
+  function saveNote() {
+    const c = state.composer; if (!c) return;
+    const text = c.text.trim();
+    const error = !text ? 'Escribe una observación.' : !c.ids.length ? 'Selecciona al menos un producto.' : '';
+    if (error) { qs('#note-error').textContent = error; qs('#note-error').classList.remove('hidden'); return; }
+    const original = c.noteId && state.observations.find(o => o.localId === c.noteId);
+    if (c.mode === 'edit-all' && original) {
+      original.texto = text;
+    } else if (c.mode === 'edit-one' && original) {
+      // Rompe SOLO la asociación de esta fila; la observación agrupada sigue existiendo.
+      original.detalleLocalIds = original.detalleLocalIds.filter(id => id !== c.rowId);
+      if (!original.detalleLocalIds.length) state.observations = state.observations.filter(o => o.localId !== original.localId);
+      state.observations.push({ localId: newId(), texto: text, detalleLocalIds: [c.rowId] });
+    } else if (c.mode === 'new') {
+      // Un único registro puede referenciar varias filas, según p_observaciones.
+      state.observations.push({ localId: newId(), texto: text, detalleLocalIds: [...c.ids] });
+    }
+    state.selected.clear(); closeEditor(); toast('Observación guardada.');
+  }
+  function modalManual() {
+    modal({ title: 'Agregar producto manual', subtitle: 'Registra un producto que todavía no existe en el catálogo.', body: `<label class="fields-label" for="manual-name">Nombre del producto *</label><input id="manual-name" class="search" maxlength="56" placeholder="Ej. REPUESTO ESPECIAL" style="margin-bottom:13px"/><label class="fields-label" for="manual-desc">Descripción (opcional)</label><input id="manual-desc" class="search" placeholder="Descripción del material" style="margin-bottom:13px"/><label class="fields-label" for="manual-unit">Unidad de medida *</label><select id="manual-unit" class="search"><option value="UNIDAD">UNIDAD</option><option value="CAJA">CAJA</option><option value="METRO">METRO</option><option value="CUARTO">CUARTO</option></select><div class="form-error hidden" id="manual-error"></div>`, footer: '<button class="action secondary" data-action="close-modal">Cancelar</button><button class="action primary" data-action="save-manual">Agregar producto</button>' });
+    qs('#manual-name').focus();
+  }
+  function persist() {
+    try { localStorage.setItem('demo_compras_observaciones_v2', JSON.stringify({ products: state.products, observations: state.observations })); toast('Borrador guardado en este navegador.'); }
+    catch { toast('No se pudo guardar el borrador local.'); }
+  }
+  function removeItem(id) {
+    const product = productFor(id);
+    if (!product || !confirm(`¿Quitar ${product.codigo} de la solicitud?`)) return;
+    state.products = state.products.filter(p => p.localId !== id);
+    state.selected.delete(id);
+    state.observations = state.observations.map(o => ({ ...o, detalleLocalIds: o.detalleLocalIds.filter(x => x !== id) })).filter(o => o.detalleLocalIds.length);
+    renderList();
+  }
+  document.addEventListener('click', event => {
+    const el = event.target.closest('[data-action]'); if (!el) return;
+    const { action, id, note } = el.dataset;
+    if (action === 'add-note') newComposer(id);
+    if (action === 'edit-note') requestEdit(note, id);
+    if (action === 'edit-all' || action === 'edit-one') startEdit(note, id, action);
+    if (action === 'delete-product') removeItem(id);
+    if (action === 'close-modal') closeEditor();
+    if (action === 'remove-chip' && state.composer?.mode === 'new') {
+      state.composer.ids = state.composer.ids.filter(x => x !== id); state.selected.delete(id);
+      renderList(); renderComposer();
+    }
+    if (action === 'save-note') saveNote();
+    if (action === 'select-more' && state.composer?.mode === 'new') {
+      state.selectionMode = true;
+      closeModal(); qs('#selection-hint').classList.remove('hidden'); renderList();
+    }
+    if (action === 'save-manual') {
+      const name = qs('#manual-name').value.trim(), description = qs('#manual-desc').value.trim(), unit = qs('#manual-unit').value;
+      if (!name) { qs('#manual-error').textContent = 'El nombre es obligatorio.'; qs('#manual-error').classList.remove('hidden'); return; }
+      state.products.push({ localId: 'local-' + Date.now().toString(36), tipo: 'temporal', codigo: 'MANUAL', descripcion: description || name, unidad: unit, nombre: name });
+      closeModal(); renderList(); toast('Producto manual agregado.');
+    }
+  });
+  document.addEventListener('change', event => {
+    if (!event.target.matches('[data-action="select"]')) return;
+    const { id } = event.target.dataset;
+    if (event.target.checked) state.selected.add(id); else state.selected.delete(id);
+    if (state.composer && state.selectionMode) state.composer.ids = [...state.selected].filter(x => !notesFor(x).length);
+    renderList();
+  });
+  document.addEventListener('input', event => {
+    if (event.target.id === 'note-text' && state.composer) {
+      state.composer.text = event.target.value;
+      qs('#note-counter').textContent = `${event.target.value.length}/500`;
+      qs('#note-error')?.classList.add('hidden');
+    }
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && qs('.dialog')) closeEditor(); });
+  qs('#search').addEventListener('input', e => { state.query = e.target.value; renderList(); });
+  qs('#clear-search').addEventListener('click', () => { qs('#search').value = ''; state.query = ''; renderList(); });
+  qs('#add-manual').addEventListener('click', modalManual);
+  qs('#save-draft').addEventListener('click', persist);
+  qs('#resume-editor').addEventListener('click', () => {
+    if (!state.composer) return;
+    state.composer.ids = [...state.selected].filter(id => !notesFor(id).length);
+    state.selectionMode = false; qs('#selection-hint').classList.add('hidden'); renderComposer();
+  });
+  qs('#cancel').addEventListener('click', () => {
+    if (!confirm('¿Cancelar y reiniciar los cambios de esta vista de demostración?')) return;
+    state.products = structuredClone(INITIAL_PRODUCTS);
+    state.observations = [{ localId: 'obs1', texto: 'Verificar compatibilidad de ambos filtros antes de realizar el pedido.', detalleLocalIds: ['p1', 'p2'] }];
+    state.selected.clear(); state.composer = null; state.selectionMode = false; state.query = '';
+    qs('#search').value = ''; renderList(); toast('Formulario reiniciado.');
+  });
+  qs('#back').addEventListener('click', () => toast('La navegación se conecta desde el padre en Vue.'));
+  qs('#next').addEventListener('click', () => toast(`Vista previa: ${state.products.length} productos y ${state.observations.length} observaciones agrupadas.`));
+  renderList();
+</script>
+</body>
+</html>
