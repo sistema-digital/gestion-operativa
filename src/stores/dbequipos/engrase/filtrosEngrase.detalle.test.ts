@@ -58,51 +58,35 @@ describe("detalle de filtros y aceites del equipo", () => {
     });
   });
 
-  it("carga filtros y aceites en paralelo y conserva ambos en cache", async () => {
-    let resolverFiltros!: (value: []) => void;
-    let resolverAceites!: (
-      value: {
-        sistema: string;
-        subsistema: string | null;
-        ruta: string;
-        aceite: string;
-      }[],
-    ) => void;
-    obtenerFiltrosDeEquipo.mockReturnValue(
-      new Promise<[]>((resolve) => {
-        resolverFiltros = resolve;
-      }),
-    );
-    obtenerAceitesDeEquipo.mockReturnValue(
-      new Promise<
-        {
-          sistema: string;
-          subsistema: string | null;
-          ruta: string;
-          aceite: string;
-        }[]
-      >((resolve) => {
-        resolverAceites = resolve;
-      }),
-    );
+  it("carga cada recurso solamente al solicitar su pestaña y conserva cache", async () => {
     const store = useFiltrosEngraseStore();
     store.equipos = [equipo(123, "422017")];
 
-    const carga = store.seleccionarEquipo(123);
+    store.seleccionarEquipo(123);
+
+    expect(obtenerFiltrosDeEquipo).not.toHaveBeenCalled();
+    expect(obtenerAceitesDeEquipo).not.toHaveBeenCalled();
+    expect(obtenerDatosGeneralesEquipo).not.toHaveBeenCalled();
+
+    await store.cargarFiltrosEquipo(123);
 
     expect(obtenerFiltrosDeEquipo).toHaveBeenCalledWith(123);
-    expect(obtenerAceitesDeEquipo).toHaveBeenCalledWith(123);
-    expect(obtenerDatosGeneralesEquipo).toHaveBeenCalledWith("422017");
-    resolverFiltros([]);
-    resolverAceites([
-      { sistema: "Motor", subsistema: null, ruta: "Motor", aceite: "15W-40" },
-    ]);
-    await carga;
+    expect(obtenerAceitesDeEquipo).not.toHaveBeenCalled();
+    expect(obtenerDatosGeneralesEquipo).not.toHaveBeenCalled();
+
+    await store.cargarAceitesEquipo(123);
 
     expect(store.aceitesEquipo).toEqual([
       { sistema: "Motor", subsistema: null, ruta: "Motor", aceite: "15W-40" },
     ]);
+    expect(obtenerAceitesDeEquipo).toHaveBeenCalledWith(123);
+
+    await store.cargarDatosGeneralesEquipo(123, "422017");
+
+    expect(obtenerDatosGeneralesEquipo).toHaveBeenCalledWith("422017");
     await store.cargarFiltrosEquipo(123);
+    await store.cargarAceitesEquipo(123);
+    await store.cargarDatosGeneralesEquipo(123, "422017");
     expect(obtenerFiltrosDeEquipo).toHaveBeenCalledOnce();
     expect(obtenerAceitesDeEquipo).toHaveBeenCalledOnce();
     expect(obtenerDatosGeneralesEquipo).toHaveBeenCalledOnce();

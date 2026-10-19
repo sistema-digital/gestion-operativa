@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { GitBranch, Network, SquarePen } from "lucide-vue-next";
+import {
+  AlertTriangle,
+  GitBranch,
+  LoaderCircle,
+  Network,
+  SquarePen,
+} from "lucide-vue-next";
 import type { EquipoAceiteDetalle } from "@/stores/dbequipos/engrase/filtrosEngrase.types";
 
 type GrupoAceitesSubsistema = {
@@ -16,8 +22,10 @@ type GrupoAceitesSistema = {
 const props = defineProps<{
   aceites: EquipoAceiteDetalle[];
   canEdit: boolean;
+  loading: boolean;
+  error: string | null;
 }>();
-const emit = defineEmits<{ edit: [] }>();
+const emit = defineEmits<{ edit: []; retry: [] }>();
 
 const aceitesPorSistema = computed<GrupoAceitesSistema[]>(() => {
   const sistemas = new Map<
@@ -83,7 +91,35 @@ function textoAceites(aceites: readonly EquipoAceiteDetalle[]): string {
         <SquarePen class="h-4 w-4" />
       </button>
     </div>
-    <p v-if="!aceites.length" class="p-4 text-center text-xs text-gray-500">
+    <p
+      v-if="loading"
+      class="flex min-h-32 items-center justify-center gap-2 p-4 text-xs text-gray-500"
+      role="status"
+    >
+      <LoaderCircle class="h-4 w-4 animate-spin text-main" aria-hidden="true" />
+      Cargando aceites…
+    </p>
+    <div
+      v-else-if="error"
+      class="flex items-start gap-2 rounded-md border border-danger/30 bg-danger-bg p-3 text-xs text-danger"
+      role="alert"
+    >
+      <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      <p>
+        {{ error }}
+        <button
+          type="button"
+          class="ml-1 cursor-pointer font-semibold underline"
+          @click="emit('retry')"
+        >
+          Reintentar
+        </button>
+      </p>
+    </div>
+    <p
+      v-else-if="!aceites.length"
+      class="p-4 text-center text-xs text-gray-500"
+    >
       Sin aceites asignados en la estructura de lubricación.
     </p>
     <ul v-else class="space-y-2" aria-label="Estructura de lubricación">

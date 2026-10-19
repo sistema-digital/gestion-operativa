@@ -77,4 +77,24 @@ describe("EquipoEngraseListItem", () => {
     expect(wrapper.emitted("imageVisible")).toBeUndefined();
     wrapper.unmount();
   });
+
+  it("emite la apertura del visor sin seleccionar el equipo", async () => {
+    const wrapper = mount(EquipoEngraseListItem, {
+      props: {
+        equipo: {
+          ...equipo,
+          imageUrl: "https://example.com/equipos/422017/main.webp",
+        },
+        selected: false,
+      },
+    });
+
+    await wrapper
+      .get('button[aria-label="Ampliar imagen del equipo 422017"]')
+      .trigger("click");
+
+    expect(wrapper.emitted("viewImage")).toEqual([[123]]);
+    expect(wrapper.emitted("select")).toBeUndefined();
+    wrapper.unmount();
+  });
 });

@@ -1,4 +1,5 @@
 export type FiltrosEngraseEstadoEquipo = "activo" | "descartado";
+export type FiltrosEngrasePestanaEquipo = "general" | "filtros" | "aceites";
 export interface EquipoEngraseRow {
   id: number;
   codigo: string;

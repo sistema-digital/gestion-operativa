@@ -45,17 +45,18 @@ export const useFiltrosEngraseStore = defineStore(
       sugerenciasCodigo = ref<FiltroCodigoSugerencia[]>([]),
       equipoSeleccionadoId = ref<number | null>(null),
       filtroSeleccionadoId = ref<number | null>(null),
-      detalleEquipoPendienteRecargaId = ref<number | null>(null),
       filtrosAplicados = ref<FiltrosEngraseQuery>(initialFiltrosEngraseQuery()),
       loadingInicial = ref(false),
       loadingEquipos = ref(false),
       loadingDetalleEquipo = ref(false),
+      loadingAceitesEquipo = ref(false),
       loadingDatosGeneralesEquipo = ref(false),
       loadingCambioEstado = ref(false),
       loadingSugerencias = ref(false),
       errorInicial = ref<string | null>(null),
       errorEquipos = ref<string | null>(null),
       errorDetalle = ref<string | null>(null),
+      errorAceitesEquipo = ref<string | null>(null),
       errorDatosGeneralesEquipo = ref<string | null>(null),
       errorCambioEstado = ref<string | null>(null),
       errorIntegracionCreacion = ref<string | null>(null);
@@ -186,16 +187,19 @@ export const useFiltrosEngraseStore = defineStore(
       imagenesRequest.set(requestKey, solicitud);
       return solicitud;
     }
-    function limpiarSeleccionEquipo(): void {
-      equipoSeleccionadoId.value = null;
+    function limpiarDatosEquipoSeleccionado(): void {
       filtroSeleccionadoId.value = null;
       filtrosEquipo.value = [];
       aceitesEquipo.value = [];
       datosGeneralesEquipo.value = null;
       equivalenciasPorFiltroId.value = {};
-      detalleEquipoPendienteRecargaId.value = null;
       errorDetalle.value = null;
+      errorAceitesEquipo.value = null;
       errorDatosGeneralesEquipo.value = null;
+    }
+    function limpiarSeleccionEquipo(): void {
+      equipoSeleccionadoId.value = null;
+      limpiarDatosEquipoSeleccionado();
     }
     async function asegurarSeleccion() {
       if (
@@ -206,22 +210,17 @@ export const useFiltrosEngraseStore = defineStore(
       }
     }
     async function cargarFiltrosEquipo(id: number, force = false) {
+      if (equipoSeleccionadoId.value !== id) return;
       loadingDetalleEquipo.value = true;
       errorDetalle.value = null;
       try {
-        const [filtros, aceites] = await Promise.all([
+        const filtros =
           !force && filtrosCache.has(id)
-            ? Promise.resolve(filtrosCache.get(id)!)
-            : filtrosEngraseService.obtenerFiltrosDeEquipo(id),
-          !force && aceitesCache.has(id)
-            ? Promise.resolve(aceitesCache.get(id)!)
-            : filtrosEngraseService.obtenerAceitesDeEquipo(id),
-        ]);
+            ? filtrosCache.get(id)!
+            : await filtrosEngraseService.obtenerFiltrosDeEquipo(id);
         filtrosCache.set(id, filtros);
-        aceitesCache.set(id, aceites);
         if (equipoSeleccionadoId.value === id) {
           filtrosEquipo.value = filtros;
-          aceitesEquipo.value = aceites;
           const eq = await filtrosEngraseService.obtenerEquivalenciasActivas(
             filtros.map((x) => x.filtro_id),
           );
@@ -231,13 +230,41 @@ export const useFiltrosEngraseStore = defineStore(
             (a[x.filtro_original_id] ??= []).push(x);
             return a;
           }, {});
-          detalleEquipoPendienteRecargaId.value = null;
         }
       } catch (e) {
-        errorDetalle.value =
-          e instanceof Error ? e.message : "No se pudieron cargar los filtros";
+        if (equipoSeleccionadoId.value === id)
+          errorDetalle.value =
+            e instanceof Error
+              ? e.message
+              : "No se pudieron cargar los filtros";
       } finally {
-        loadingDetalleEquipo.value = false;
+        if (equipoSeleccionadoId.value === id)
+          loadingDetalleEquipo.value = false;
+      }
+    }
+    async function cargarAceitesEquipo(
+      id: number,
+      force = false,
+    ): Promise<void> {
+      if (equipoSeleccionadoId.value !== id) return;
+      loadingAceitesEquipo.value = true;
+      errorAceitesEquipo.value = null;
+      try {
+        const aceites =
+          !force && aceitesCache.has(id)
+            ? aceitesCache.get(id)!
+            : await filtrosEngraseService.obtenerAceitesDeEquipo(id);
+        aceitesCache.set(id, aceites);
+        if (equipoSeleccionadoId.value === id) aceitesEquipo.value = aceites;
+      } catch (e) {
+        if (equipoSeleccionadoId.value === id)
+          errorAceitesEquipo.value =
+            e instanceof Error
+              ? e.message
+              : "No se pudieron cargar los aceites";
+      } finally {
+        if (equipoSeleccionadoId.value === id)
+          loadingAceitesEquipo.value = false;
       }
     }
     async function cargarDatosGeneralesEquipo(
@@ -245,6 +272,7 @@ export const useFiltrosEngraseStore = defineStore(
       numeroEquipo: string,
       force = false,
     ): Promise<void> {
+      if (equipoSeleccionadoId.value !== id) return;
       loadingDatosGeneralesEquipo.value = true;
       errorDatosGeneralesEquipo.value = null;
       datosGeneralesEquipo.value = null;
@@ -276,12 +304,6 @@ export const useFiltrosEngraseStore = defineStore(
         errorInicial.value = null;
         try {
           await Promise.all([cargarEtapas(), cargarEquipos()]);
-          if (
-            detalleEquipoPendienteRecargaId.value !== null &&
-            detalleEquipoPendienteRecargaId.value === equipoSeleccionadoId.value
-          ) {
-            await cargarFiltrosEquipo(equipoSeleccionadoId.value, true);
-          }
         } catch (e) {
           errorInicial.value =
             e instanceof Error ? e.message : "No se pudo iniciar la vista";
@@ -342,16 +364,11 @@ export const useFiltrosEngraseStore = defineStore(
       limpiarSugerencias();
       await asegurarSeleccion();
     }
-    async function seleccionarEquipo(id: number) {
-      const equipo = equipos.value.find((item) => item.id === id);
-      if (!equipo) return;
+    function seleccionarEquipo(id: number): void {
+      if (!equipos.value.some((item) => item.id === id)) return;
       equipoSeleccionadoId.value = id;
-      filtroSeleccionadoId.value = null;
-      await Promise.all([
-        cargarFiltrosEquipo(id),
-        cargarImagenEquipo(id),
-        cargarDatosGeneralesEquipo(id, equipo.codigo),
-      ]);
+      limpiarDatosEquipoSeleccionado();
+      void cargarImagenEquipo(id);
     }
     function seleccionarFiltro(id: number | null) {
       filtroSeleccionadoId.value = id;
@@ -446,7 +463,9 @@ export const useFiltrosEngraseStore = defineStore(
       datosGeneralesEquipo.value = null;
       filtroSeleccionadoId.value = null;
       equivalenciasPorFiltroId.value = {};
-      detalleEquipoPendienteRecargaId.value = equipoId;
+      errorDetalle.value = null;
+      errorAceitesEquipo.value = null;
+      errorDatosGeneralesEquipo.value = null;
     }
     function actualizarImagenEquipo(
       equipoId: number,
@@ -477,7 +496,6 @@ export const useFiltrosEngraseStore = defineStore(
       limpiarSugerencias();
       equipoSeleccionadoId.value = null;
       filtroSeleccionadoId.value = null;
-      detalleEquipoPendienteRecargaId.value = null;
       filtrosAplicados.value = initialFiltrosEngraseQuery();
       etapasCargadas = false;
       filtrosCache.clear();
@@ -500,12 +518,14 @@ export const useFiltrosEngraseStore = defineStore(
       loadingInicial,
       loadingEquipos,
       loadingDetalleEquipo,
+      loadingAceitesEquipo,
       loadingDatosGeneralesEquipo,
       loadingCambioEstado,
       loadingSugerencias,
       errorInicial,
       errorEquipos,
       errorDetalle,
+      errorAceitesEquipo,
       errorDatosGeneralesEquipo,
       errorCambioEstado,
       errorIntegracionCreacion,
@@ -523,6 +543,7 @@ export const useFiltrosEngraseStore = defineStore(
       asegurarEquiposCargados,
       cargarImagenEquipo,
       cargarFiltrosEquipo,
+      cargarAceitesEquipo,
       cargarDatosGeneralesEquipo,
       buscarSugerencias,
       limpiarSugerencias,

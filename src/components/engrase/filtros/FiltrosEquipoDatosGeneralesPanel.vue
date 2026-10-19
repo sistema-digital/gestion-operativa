@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { LoaderCircle } from "lucide-vue-next";
 import type { EquipoDetalleFull } from "@/stores/dbequipos/engrase/filtrosEngrase.types";
+import { formatDateDisplay } from "@/utils/dateUtils";
 
 defineProps<{
   detalle: EquipoDetalleFull | null;
   loading: boolean;
   error: string | null;
 }>();
+const emit = defineEmits<{ retry: [] }>();
 
 function mostrarValor(value: string | number | null): string {
   if (value === null) return "No registrado";
@@ -37,6 +39,13 @@ function mostrarValor(value: string | number | null): string {
       role="alert"
     >
       {{ error }}
+      <button
+        type="button"
+        class="ml-1 cursor-pointer font-semibold underline"
+        @click="emit('retry')"
+      >
+        Reintentar
+      </button>
     </p>
     <p
       v-else-if="!detalle"
@@ -83,7 +92,7 @@ function mostrarValor(value: string | number | null): string {
         <div>
           <dt class="text-gray-500">Fecha de llegada</dt>
           <dd class="mt-0.5 font-semibold text-gray-700">
-            {{ mostrarValor(detalle.fecha_llegada) }}
+            {{ formatDateDisplay(detalle.fecha_llegada) }}
           </dd>
         </div>
         <div>

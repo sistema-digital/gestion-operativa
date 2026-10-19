@@ -7,9 +7,11 @@ import {
   SquarePen,
   ImageOff,
   LoaderCircle,
+  Maximize2,
 } from "lucide-vue-next";
 import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 import { obtenerIconoTipoFiltro } from "@/utils/filtrosEngraseIconos";
+import ImageZoomViewer from "@/components/common/ImageZoomViewer.vue";
 import FiltrosEquipoAceitesPanel from "./FiltrosEquipoAceitesPanel.vue";
 import FiltrosEquipoDatosGeneralesPanel from "./FiltrosEquipoDatosGeneralesPanel.vue";
 import EquipoEstadoConfirmDialog from "./EquipoEstadoConfirmDialog.vue";
@@ -20,7 +22,9 @@ import type {
   EquipoFiltroDetalle,
   FiltroEquivalenciaRow,
   FiltrosEngraseEstadoEquipo,
+  FiltrosEngrasePestanaEquipo,
 } from "@/stores/dbequipos/engrase/filtrosEngrase.types";
+
 const props = defineProps<{
   equipo: EquipoEngraseListItem | null;
   filtros: EquipoFiltroDetalle[];
@@ -30,15 +34,17 @@ const props = defineProps<{
   codigoBuscado: string | null;
   selectedFiltroId: number | null;
   loading: boolean;
+  loadingAceites: boolean;
   loadingDatosGenerales: boolean;
   error: string | null;
+  errorAceites: string | null;
   errorDatosGenerales: string | null;
   loadingCambioEstado: boolean;
   errorCambioEstado: string | null;
 }>();
 const emit = defineEmits<{
-  selectFiltro: [number];
-  retry: [];
+  selectFiltro: [number | null];
+  tabVisible: [tab: FiltrosEngrasePestanaEquipo, force?: boolean];
   backToEquipos: [];
   editarEquipo: [string];
   cambiarEstado: [codigo: string, estado: "activo" | "descartado"];
@@ -50,6 +56,26 @@ const canEditFiltrosEngrase = computed(
     isFeatureAccessLoaded.value &&
     featureAccessStore.tieneFuncionalidad("editar_filtros_engrase"),
 );
+const canViewDatosGenerales = computed(
+  () =>
+    isFeatureAccessLoaded.value &&
+    featureAccessStore.tieneFuncionalidad("equipo_datos_generales"),
+);
+const canViewFiltros = computed(
+  () =>
+    isFeatureAccessLoaded.value &&
+    featureAccessStore.tieneFuncionalidad("equipo_filtros"),
+);
+const canViewSistemasAceites = computed(
+  () =>
+    isFeatureAccessLoaded.value &&
+    featureAccessStore.tieneFuncionalidad("equipos_sistemas_aceites"),
+);
+const pestanasDisponibles = computed<FiltrosEngrasePestanaEquipo[]>(() => [
+  ...(canViewDatosGenerales.value ? (["general"] as const) : []),
+  ...(canViewFiltros.value ? (["filtros"] as const) : []),
+  ...(canViewSistemasAceites.value ? (["aceites"] as const) : []),
+]);
 function coincideConBusqueda(filtro: EquipoFiltroDetalle) {
   const codigo = props.codigoBuscado;
   return Boolean(
@@ -73,14 +99,47 @@ const soloConEquivalencias = shallowRef(false);
 const soloEnCompras = shallowRef(false);
 const opcionesDeListadoAbiertas = shallowRef(false);
 const imagenPrincipalFallida = shallowRef(false);
-const pestanaActiva = shallowRef<"general" | "filtros" | "aceites">("general");
+const visorImagenAbierto = shallowRef(false);
+const pestanaActiva = shallowRef<FiltrosEngrasePestanaEquipo | null>(null);
 const estadoPendiente = shallowRef<FiltrosEngraseEstadoEquipo | null>(null);
 const confirmacionEstadoEnviada = shallowRef(false);
 watch(
-  () => props.equipo?.imageUrl,
+  () => [props.equipo?.id, props.equipo?.imageUrl] as const,
   () => {
     imagenPrincipalFallida.value = false;
+    visorImagenAbierto.value = false;
   },
+);
+watch(
+  pestanasDisponibles,
+  (pestanas) => {
+    if (!pestanaActiva.value || !pestanas.includes(pestanaActiva.value))
+      seleccionarPestana(pestanas[0] ?? null);
+  },
+  { immediate: true },
+);
+watch(
+  () => props.equipo?.id,
+  (equipoId, equipoAnteriorId) => {
+    if (
+      equipoId !== undefined &&
+      equipoId !== equipoAnteriorId &&
+      pestanaActiva.value
+    )
+      emit("tabVisible", pestanaActiva.value);
+  },
+);
+watch(canViewFiltros, (canView) => {
+  if (
+    !isFeatureAccessLoaded.value ||
+    canView ||
+    props.selectedFiltroId === null
+  )
+    return;
+  emit("selectFiltro", null);
+});
+const puedeAmpliarImagen = computed(
+  () => Boolean(props.equipo?.imageUrl) && !imagenPrincipalFallida.value,
 );
 const cantidadFiltrosDeListadoActivos = computed(
   () =>
@@ -128,6 +187,18 @@ const filtrosVisibles = computed(() =>
 );
 function alternarGrupo(grupo: string) {
   grupoSeleccionado.value = grupoSeleccionado.value === grupo ? null : grupo;
+}
+function seleccionarPestana(pestana: FiltrosEngrasePestanaEquipo | null): void {
+  if (pestana === null || pestanaActiva.value === pestana) return;
+  pestanaActiva.value = pestana;
+  emit("tabVisible", pestana);
+}
+function reintentarPestanaActiva(): void {
+  if (pestanaActiva.value) emit("tabVisible", pestanaActiva.value, true);
+}
+function abrirVisorImagen(): void {
+  if (!puedeAmpliarImagen.value) return;
+  visorImagenAbierto.value = true;
 }
 function solicitarCambioEstado(): void {
   if (!props.equipo || props.loadingCambioEstado) return;
@@ -179,18 +250,31 @@ watch(
     <template v-if="equipo">
       <header class="flex items-start justify-between gap-3">
         <div class="flex min-w-0 items-start gap-3">
-          <div
-            class="grid aspect-square w-20 shrink-0 place-items-center overflow-hidden rounded-md bg-second-dark text-gray-400 sm:w-24"
+          <button
+            v-if="puedeAmpliarImagen"
+            type="button"
+            class="group relative grid aspect-square w-20 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-md bg-second-dark text-gray-400 outline-none focus-visible:ring-2 focus-visible:ring-main focus-visible:ring-offset-2 sm:w-24"
+            :aria-label="`Ampliar imagen del equipo ${equipo.codigo}`"
+            @click="abrirVisorImagen"
           >
             <img
-              v-if="equipo.imageUrl && !imagenPrincipalFallida"
-              class="h-full w-full object-cover"
-              :src="equipo.imageUrl"
+              class="h-full w-full object-cover transition duration-200 group-hover:scale-105"
+              :src="equipo.imageUrl!"
               :alt="`Imagen del equipo ${equipo.codigo}`"
               @error="imagenPrincipalFallida = true"
             />
+            <span
+              class="pointer-events-none absolute inset-0 grid place-items-center bg-main-dark/0 text-white opacity-0 transition group-hover:bg-main-dark/40 group-hover:opacity-100 group-focus-visible:bg-main-dark/40 group-focus-visible:opacity-100"
+              aria-hidden="true"
+            >
+              <Maximize2 class="h-4 w-4" />
+            </span>
+          </button>
+          <div
+            v-else
+            class="grid aspect-square w-20 shrink-0 place-items-center overflow-hidden rounded-md bg-second-dark text-gray-400 sm:w-24"
+          >
             <ImageOff
-              v-else
               class="h-5 w-5"
               :aria-label="`Sin imagen: ${equipo.codigo}`"
             />
@@ -272,11 +356,13 @@ watch(
         {{ errorCambioEstado }}
       </p>
       <div
+        v-if="pestanasDisponibles.length"
         class="mt-3 flex border-b border-gray-200"
         role="tablist"
         aria-label="Información del equipo"
       >
         <button
+          v-if="canViewDatosGenerales"
           type="button"
           id="tab-datos-generales-equipo"
           role="tab"
@@ -288,11 +374,12 @@ watch(
           "
           :aria-selected="pestanaActiva === 'general'"
           aria-controls="panel-datos-generales-equipo"
-          @click="pestanaActiva = 'general'"
+          @click="seleccionarPestana('general')"
         >
           Datos generales
         </button>
         <button
+          v-if="canViewFiltros"
           type="button"
           id="tab-filtros-equipo"
           role="tab"
@@ -304,11 +391,12 @@ watch(
           "
           :aria-selected="pestanaActiva === 'filtros'"
           aria-controls="panel-filtros-equipo"
-          @click="pestanaActiva = 'filtros'"
+          @click="seleccionarPestana('filtros')"
         >
           Filtros <span class="ml-1 text-gray-500">{{ filtros.length }}</span>
         </button>
         <button
+          v-if="canViewSistemasAceites"
           type="button"
           id="tab-aceites-equipo"
           role="tab"
@@ -320,7 +408,7 @@ watch(
           "
           :aria-selected="pestanaActiva === 'aceites'"
           aria-controls="panel-aceites-equipo"
-          @click="pestanaActiva = 'aceites'"
+          @click="seleccionarPestana('aceites')"
         >
           Aceites <span class="ml-1 text-gray-500">{{ aceites.length }}</span>
         </button>
@@ -330,6 +418,7 @@ watch(
         :detalle="datosGenerales"
         :loading="loadingDatosGenerales"
         :error="errorDatosGenerales"
+        @retry="reintentarPestanaActiva"
       />
       <section
         v-else-if="pestanaActiva === 'filtros'"
@@ -459,7 +548,7 @@ watch(
           {{ error }}
           <button
             class="cursor-pointer font-semibold underline"
-            @click="$emit('retry')"
+            @click="reintentarPestanaActiva"
           >
             Reintentar
           </button>
@@ -515,14 +604,23 @@ watch(
         </div>
       </section>
       <FiltrosEquipoAceitesPanel
-        v-else
+        v-else-if="pestanaActiva === 'aceites'"
         id="panel-aceites-equipo"
         :aceites="aceites"
         :can-edit="canEditFiltrosEngrase"
+        :loading="loadingAceites"
+        :error="errorAceites"
         role="tabpanel"
         aria-labelledby="tab-aceites-equipo"
         @edit="emit('editarEquipo', equipo.codigo)"
+        @retry="reintentarPestanaActiva"
       />
+      <p
+        v-else-if="isFeatureAccessLoaded"
+        class="mt-3 rounded-md bg-gray-50 p-3 text-xs text-gray-500"
+      >
+        No tienes permisos para ver información adicional de este equipo.
+      </p>
       <EquipoEstadoConfirmDialog
         v-if="estadoPendiente"
         :codigo-equipo="equipo.codigo"
@@ -530,6 +628,12 @@ watch(
         :saving="loadingCambioEstado"
         @cancel="cancelarCambioEstado"
         @confirm="confirmarCambioEstado"
+      />
+      <ImageZoomViewer
+        v-if="visorImagenAbierto && equipo.imageUrl"
+        :image-url="equipo.imageUrl"
+        :image-alt="`Imagen ampliada del equipo ${equipo.codigo}`"
+        @close="visorImagenAbierto = false"
       />
     </template>
     <p v-else class="p-4 text-center text-xs text-gray-500">

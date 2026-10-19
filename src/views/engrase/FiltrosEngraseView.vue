@@ -6,7 +6,10 @@ import EquiposEngrasePanel from "@/components/engrase/filtros/EquiposEngrasePane
 import FiltrosEquipoPanel from "@/components/engrase/filtros/FiltrosEquipoPanel.vue";
 import FiltroDetallePanel from "@/components/engrase/filtros/FiltroDetallePanel.vue";
 import { useFiltrosEngrase } from "@/composables/engrase/useFiltrosEngrase";
-import type { FiltrosEngraseQuery } from "@/stores/dbequipos/engrase/filtrosEngrase.types";
+import type {
+  FiltrosEngrasePestanaEquipo,
+  FiltrosEngraseQuery,
+} from "@/stores/dbequipos/engrase/filtrosEngrase.types";
 const f = useFiltrosEngrase(),
   mobileStage = shallowRef<"equipos" | "filtros">("equipos"),
   resetSignal = shallowRef(0);
@@ -21,8 +24,8 @@ const detalleFiltroAbierto = computed(() =>
   Boolean(f.filtroSeleccionado.value),
 );
 onMounted(() => f.inicializar());
-async function selectEquipo(id: number) {
-  await f.seleccionarEquipo(id);
+function selectEquipo(id: number): void {
+  f.seleccionarEquipo(id);
   mobileStage.value = "filtros";
 }
 async function update(filters: Partial<FiltrosEngraseQuery>) {
@@ -37,8 +40,22 @@ function crearEquipo(): void {
 function cargarImagenVisible(equipoId: number): void {
   void f.cargarImagenEquipo(equipoId);
 }
-async function retryDetalle() {
-  if (f.equipoSeleccionadoId.value) await f.reintentar();
+async function cargarPestanaEquipo(
+  pestana: FiltrosEngrasePestanaEquipo,
+  force = false,
+): Promise<void> {
+  const equipo = f.equipoSeleccionado.value;
+  if (!equipo) return;
+
+  if (pestana === "general") {
+    await f.cargarDatosGeneralesEquipo(equipo.id, equipo.codigo, force);
+    return;
+  }
+  if (pestana === "filtros") {
+    await f.cargarFiltrosEquipo(equipo.id, force);
+    return;
+  }
+  await f.cargarAceitesEquipo(equipo.id, force);
 }
 async function cambiarEstadoEquipo(
   codigo: string,
@@ -122,13 +139,15 @@ async function clearAllFilters() {
             :codigo-buscado="f.filtrosAplicados.value.codigoExactoSeleccionado"
             :selected-filtro-id="f.filtroSeleccionadoId.value"
             :loading="f.loadingDetalleEquipo.value"
+            :loading-aceites="f.loadingAceitesEquipo.value"
             :loading-datos-generales="f.loadingDatosGeneralesEquipo.value"
             :error="f.errorDetalle.value"
+            :error-aceites="f.errorAceitesEquipo.value"
             :error-datos-generales="f.errorDatosGeneralesEquipo.value"
             :loading-cambio-estado="f.loadingCambioEstado.value"
             :error-cambio-estado="f.errorCambioEstado.value"
             @select-filtro="f.seleccionarFiltro"
-            @retry="retryDetalle"
+            @tab-visible="cargarPestanaEquipo"
             @back-to-equipos="mobileStage = 'equipos'"
             @editar-equipo="editarEquipo"
             @cambiar-estado="cambiarEstadoEquipo"
@@ -144,7 +163,7 @@ async function clearAllFilters() {
           :loading-equivalencias="false"
           :error-equivalencias="null"
           @close="f.seleccionarFiltro(null)"
-          @retry-equivalencias="retryDetalle"
+          @retry-equivalencias="cargarPestanaEquipo('filtros', true)"
         />
       </div>
     </template>

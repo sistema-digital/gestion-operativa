@@ -1,13 +1,23 @@
 <script setup lang="ts">
 import { computed, shallowRef, watch } from "vue";
 import { storeToRefs } from "pinia";
-import { ArrowLeft, ChevronDown, ChevronUp, Eraser, Plus } from "lucide-vue-next";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Eraser,
+  Plus,
+} from "lucide-vue-next";
 import EquipoEngraseListItem from "./EquipoEngraseListItem.vue";
+import ImageZoomViewer from "@/components/common/ImageZoomViewer.vue";
 import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 import type {
   EquipoEngraseListItem as EquipoItem,
   FiltrosEngraseQuery,
 } from "@/stores/dbequipos/engrase/filtrosEngrase.types";
+
+defineOptions({ inheritAttrs: false });
+
 const props = defineProps<{
   equipos: EquipoItem[];
   selectedEquipoId: number | null;
@@ -28,12 +38,14 @@ const emit = defineEmits<{
 }>();
 const featureAccessStore = useFeatureAccessStore();
 const { isLoaded: isFeatureAccessLoaded } = storeToRefs(featureAccessStore);
-const canEditFiltrosEngrase = computed(() =>
-  isFeatureAccessLoaded.value
-  && featureAccessStore.tieneFuncionalidad("editar_filtros_engrase"),
+const canEditFiltrosEngrase = computed(
+  () =>
+    isFeatureAccessLoaded.value &&
+    featureAccessStore.tieneFuncionalidad("editar_filtros_engrase"),
 );
 const search = shallowRef(""),
   showCounts = shallowRef(false);
+const imagenEquipoAmpliada = shallowRef<EquipoItem | null>(null);
 const visible = computed(() => {
   const q = search.value.toLowerCase();
   return props.equipos.filter(
@@ -45,16 +57,19 @@ const visible = computed(() => {
   );
 });
 const tiposOrdenados = computed(() =>
-  Object.entries(visible.value.reduce<Record<string, number>>((counts, equipo) => {
-    counts[equipo.tipo_equipo] = (counts[equipo.tipo_equipo] ?? 0) + 1;
-    return counts;
-  }, {})).sort(([a], [b]) => a.localeCompare(b)),
+  Object.entries(
+    visible.value.reduce<Record<string, number>>((counts, equipo) => {
+      counts[equipo.tipo_equipo] = (counts[equipo.tipo_equipo] ?? 0) + 1;
+      return counts;
+    }, {}),
+  ).sort(([a], [b]) => a.localeCompare(b)),
 );
 const selectedTipoId = computed(() => props.filters.tipoEquipoId);
 const selectedTipoNombre = computed(
   () =>
-    visible.value.find((equipo) => equipo.tipo_equipo_id === selectedTipoId.value)
-      ?.tipo_equipo ?? "",
+    visible.value.find(
+      (equipo) => equipo.tipo_equipo_id === selectedTipoId.value,
+    )?.tipo_equipo ?? "",
 );
 const selectedModelo = computed(() => props.filters.modelo);
 const hayFiltrosDeChipsActivos = computed(
@@ -63,10 +78,12 @@ const hayFiltrosDeChipsActivos = computed(
 const hayFiltrosLocalesActivos = computed(
   () => Boolean(search.value) || hayFiltrosDeChipsActivos.value,
 );
-const tipoActivoId = computed(() =>
-  selectedTipoId.value ?? (tiposOrdenados.value.length === 1
-    ? visible.value[0]?.tipo_equipo_id ?? null
-    : null),
+const tipoActivoId = computed(
+  () =>
+    selectedTipoId.value ??
+    (tiposOrdenados.value.length === 1
+      ? (visible.value[0]?.tipo_equipo_id ?? null)
+      : null),
 );
 const mostrarModelos = computed(() => tipoActivoId.value !== null);
 const modelosVisibles = computed(() =>
@@ -88,10 +105,13 @@ const etiquetaCantidad = computed(() =>
         .filter(Boolean)
         .join(" · "),
 );
-watch(() => props.resetSignal, () => {
-  search.value = "";
-  showCounts.value = false;
-});
+watch(
+  () => props.resetSignal,
+  () => {
+    search.value = "";
+    showCounts.value = false;
+  },
+);
 function seleccionarTipo(id: number) {
   emit("filterTipo", id);
 }
@@ -111,9 +131,14 @@ function limpiarBusquedaYFiltros() {
 function cerrarChips() {
   showCounts.value = false;
 }
+function abrirImagenEquipo(equipoId: number): void {
+  const equipo = props.equipos.find((item) => item.id === equipoId);
+  if (equipo?.imageUrl) imagenEquipoAmpliada.value = equipo;
+}
 </script>
 <template>
   <section
+    v-bind="$attrs"
     class="flex min-h-0 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
   >
     <header class="flex shrink-0 items-center justify-between gap-2">
@@ -140,14 +165,18 @@ function cerrarChips() {
       />
       <button
         type="button"
-        class="absolute inset-y-0 right-0 flex w-8 items-center justify-center rounded-r-md transition"
+        class="absolute inset-y-0 right-0 flex w-8 cursor-pointer items-center justify-center rounded-r-md transition"
         :class="
           hayFiltrosLocalesActivos
             ? 'bg-accent-light/45 text-main-dark hover:bg-accent-light/70'
             : 'text-main hover:bg-main/10'
         "
         aria-label="Limpiar búsqueda y filtros de chips"
-        :title="hayFiltrosLocalesActivos ? 'Limpiar búsqueda y filtros aplicados' : 'Sin filtros locales para limpiar'"
+        :title="
+          hayFiltrosLocalesActivos
+            ? 'Limpiar búsqueda y filtros aplicados'
+            : 'Sin filtros locales para limpiar'
+        "
         @click="limpiarBusquedaYFiltros"
       >
         <Eraser class="h-4 w-4" />
@@ -155,15 +184,18 @@ function cerrarChips() {
     </div>
     <div v-if="tiposOrdenados.length" class="shrink-0">
       <div>
-      <button
-        type="button"
-        class="flex h-8 w-full items-center justify-between rounded-md border border-gray-200 bg-white px-2 text-xs font-semibold text-main hover:bg-main/5"
-        :aria-expanded="showCounts"
-        @click="showCounts = !showCounts"
-      >
-        <span>{{ etiquetaCantidad }}</span>
-        <ChevronDown class="h-4 w-4 transition-transform" :class="{ 'rotate-180': showCounts }" />
-      </button>
+        <button
+          type="button"
+          class="flex h-8 w-full cursor-pointer items-center justify-between rounded-md border border-gray-200 bg-white px-2 text-xs font-semibold text-main hover:bg-main/5"
+          :aria-expanded="showCounts"
+          @click="showCounts = !showCounts"
+        >
+          <span>{{ etiquetaCantidad }}</span>
+          <ChevronDown
+            class="h-4 w-4 transition-transform"
+            :class="{ 'rotate-180': showCounts }"
+          />
+        </button>
       </div>
       <Transition
         enter-active-class="transition duration-200 ease-out"
@@ -180,21 +212,25 @@ function cerrarChips() {
             <button
               v-if="selectedTipoId !== null"
               type="button"
-              class="rounded p-1 text-main hover:bg-main/10"
+              class="cursor-pointer rounded p-1 text-main hover:bg-main/10"
               aria-label="Volver a tipos"
               @click="volverTipos"
             >
               <ArrowLeft class="h-4 w-4" /></button
             ><button
               type="button"
-              class="rounded p-1 transition"
+              class="cursor-pointer rounded p-1 transition"
               :class="
                 hayFiltrosDeChipsActivos
                   ? 'bg-accent-light/45 text-main-dark hover:bg-accent-light/70'
                   : 'text-main hover:bg-main/10'
               "
               aria-label="Limpiar filtros de chips"
-              :title="hayFiltrosDeChipsActivos ? 'Limpiar filtros de chips' : 'Sin filtros de chips para limpiar'"
+              :title="
+                hayFiltrosDeChipsActivos
+                  ? 'Limpiar filtros de chips'
+                  : 'Sin filtros de chips para limpiar'
+              "
               @click="limpiarFiltros"
             >
               <Eraser class="h-4 w-4" />
@@ -214,7 +250,7 @@ function cerrarChips() {
                   v-for="[name, count] in tiposOrdenados"
                   :key="name"
                   type="button"
-                  class="rounded bg-white px-1.5 py-1 text-xs text-gray-600 shadow-sm hover:bg-main hover:text-white"
+                  class="cursor-pointer rounded bg-white px-1.5 py-1 text-xs text-gray-600 shadow-sm hover:bg-main hover:text-white"
                   @click="
                     seleccionarTipo(
                       equipos.find((x) => x.tipo_equipo === name)
@@ -229,8 +265,12 @@ function cerrarChips() {
                   v-for="[modelo, count] in modelos"
                   :key="modelo"
                   type="button"
-                  class="rounded px-1.5 py-1 text-xs shadow-sm hover:bg-main hover:text-white"
-                  :class="selectedModelo === modelo ? 'bg-main text-white' : 'bg-white text-gray-600'"
+                  class="cursor-pointer rounded px-1.5 py-1 text-xs shadow-sm hover:bg-main hover:text-white"
+                  :class="
+                    selectedModelo === modelo
+                      ? 'bg-main text-white'
+                      : 'bg-white text-gray-600'
+                  "
                   @click="seleccionarModelo(modelo)"
                 >
                   {{ modelo }} <b>{{ count }}</b>
@@ -240,21 +280,23 @@ function cerrarChips() {
           >
           <button
             type="button"
-            class="mt-2 flex h-7 w-full items-center justify-center rounded border border-gray-200 bg-white text-main hover:bg-main/5"
+            class="mt-2 flex h-7 w-full cursor-pointer items-center justify-center rounded border border-gray-200 bg-white text-main hover:bg-main/5"
             aria-label="Cerrar chips"
             @click="cerrarChips"
           >
             <ChevronUp class="h-4 w-4" />
-          </button>
-        </div></Transition
-      >
+          </button></div
+      ></Transition>
     </div>
     <p v-if="loading" class="p-3 text-center text-xs text-gray-500">
       Cargando equipos…
     </p>
     <p v-else-if="error" class="p-3 text-center text-xs text-danger">
       {{ error }}
-      <button class="font-semibold underline" @click="$emit('retry')">
+      <button
+        class="cursor-pointer font-semibold underline"
+        @click="$emit('retry')"
+      >
         Reintentar
       </button>
     </p>
@@ -264,7 +306,10 @@ function cerrarChips() {
     >
       No hay equipos con estos filtros.
     </p>
-    <div v-else class="grid min-h-0 flex-1 auto-rows-max content-start gap-2 overflow-y-auto pr-1">
+    <div
+      v-else
+      class="grid min-h-0 flex-1 auto-rows-max content-start gap-2 overflow-y-auto pr-1"
+    >
       <EquipoEngraseListItem
         v-for="equipo in visible"
         :key="equipo.id"
@@ -272,7 +317,14 @@ function cerrarChips() {
         :selected="equipo.id === selectedEquipoId"
         @select="$emit('selectEquipo', $event)"
         @image-visible="$emit('imageVisible', $event)"
+        @view-image="abrirImagenEquipo"
       />
     </div>
   </section>
+  <ImageZoomViewer
+    v-if="imagenEquipoAmpliada?.imageUrl"
+    :image-url="imagenEquipoAmpliada.imageUrl"
+    :image-alt="`Imagen ampliada del equipo ${imagenEquipoAmpliada.codigo}`"
+    @close="imagenEquipoAmpliada = null"
+  />
 </template>
