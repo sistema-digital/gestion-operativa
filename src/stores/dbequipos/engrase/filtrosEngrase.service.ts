@@ -1,6 +1,6 @@
 import { supabaseEquipos } from "@/lib/supabase";
 import { z } from "zod";
-import { mapCatalogo, mapEquipo, mapFiltro } from "./filtrosEngrase.mappers";
+import { mapCatalogo, mapEquipo } from "./filtrosEngrase.mappers";
 import type {
   EquipoEngraseListItem,
   EquipoAceiteDetalle,
@@ -22,6 +22,24 @@ const aceiteEquipoRutaSchema = z.array(
     subsistema: z.string().trim().min(1).nullable(),
     ruta: z.string().trim().min(1),
     aceite: z.string().trim().min(1),
+  }),
+);
+const equipoFiltrosSchema = z.array(
+  z.object({
+    id: z.number().int(),
+    equipo_id: z.number().int(),
+    tipo_filtro_id: z.number().int(),
+    filtro_id: z.number().int(),
+    cantidad: z.number().finite(),
+    tipo_filtro: z.object({
+      id: z.number().int(),
+      nombre: z.string().trim().min(1),
+    }),
+    filtro: z.object({
+      id: z.number().int(),
+      codigo: z.string().trim().min(1),
+      esta_en_lista_compras: z.boolean(),
+    }),
   }),
 );
 const equipoDetalleFullSchema = z
@@ -63,17 +81,19 @@ export const filtrosEngraseService = {
   async obtenerFiltrosDeEquipo(
     equipoId: number,
   ): Promise<EquipoFiltroDetalle[]> {
-    const { data, error } = await schema()
-      .from("equipo_filtro")
-      .select(
-        "id,equipo_id,tipo_filtro_id,filtro_id,cantidad,tipo_filtro:tipo_filtro_id(id,nombre),filtro:filtro_id(id,codigo,esta_en_lista_compras)",
-      )
-      .eq("equipo_id", equipoId);
+    const { data, error } = await schema().rpc("rpc_obtener_filtros_equipo", {
+      p_equipo_id: equipoId,
+    });
     raise(error, "No se pudieron obtener los filtros");
-    return (data ?? []).map((x: any) => ({
-      ...x,
-      tipoFiltro: x.tipo_filtro,
-      filtro: mapFiltro(x.filtro),
+    const result = equipoFiltrosSchema.safeParse(data);
+    if (!result.success)
+      throw new Error(
+        "La respuesta de filtros del equipo no tiene el formato esperado",
+      );
+    return result.data.map(({ tipo_filtro, filtro, ...item }) => ({
+      ...item,
+      tipoFiltro: tipo_filtro,
+      filtro,
     }));
   },
   async obtenerAceitesDeEquipo(

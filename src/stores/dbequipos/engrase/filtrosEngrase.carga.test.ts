@@ -39,6 +39,32 @@ describe("carga segura del listado de equipos", () => {
     expect(store.equipoSeleccionadoId).toBeNull();
   });
 
+  it("no selecciona un equipo automáticamente al cargar el listado", async () => {
+    const store = useFiltrosEngraseStore();
+
+    await store.cargarEquipos();
+
+    expect(store.equipos).toEqual([equipo]);
+    expect(store.equipoSeleccionadoId).toBeNull();
+  });
+
+  it("limpia la selección sin escoger otro equipo al aplicar filtros", async () => {
+    const store = useFiltrosEngraseStore();
+    const equipoVisible: EquipoEngraseListItem = {
+      ...equipo,
+      id: 2,
+      codigo: "EQ-2",
+      subtipo: "TRACTOR",
+    };
+    store.equipos = [equipo, equipoVisible];
+    store.equipoSeleccionadoId = equipo.id;
+
+    await store.actualizarFiltros({ modelo: "TRACTOR" });
+
+    expect(store.equiposVisibles).toEqual([equipoVisible]);
+    expect(store.equipoSeleccionadoId).toBeNull();
+  });
+
   it("no recarga si el store ya contiene equipos", async () => {
     const store = useFiltrosEngraseStore();
     store.equipos = [equipo];

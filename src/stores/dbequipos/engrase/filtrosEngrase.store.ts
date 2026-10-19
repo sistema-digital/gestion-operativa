@@ -186,14 +186,23 @@ export const useFiltrosEngraseStore = defineStore(
       imagenesRequest.set(requestKey, solicitud);
       return solicitud;
     }
+    function limpiarSeleccionEquipo(): void {
+      equipoSeleccionadoId.value = null;
+      filtroSeleccionadoId.value = null;
+      filtrosEquipo.value = [];
+      aceitesEquipo.value = [];
+      datosGeneralesEquipo.value = null;
+      equivalenciasPorFiltroId.value = {};
+      detalleEquipoPendienteRecargaId.value = null;
+      errorDetalle.value = null;
+      errorDatosGeneralesEquipo.value = null;
+    }
     async function asegurarSeleccion() {
       if (
+        equipoSeleccionadoId.value !== null &&
         !equiposVisibles.value.some((x) => x.id === equipoSeleccionadoId.value)
       ) {
-        equipoSeleccionadoId.value = equiposVisibles.value[0]?.id ?? null;
-        filtroSeleccionadoId.value = null;
-        if (equipoSeleccionadoId.value)
-          await cargarFiltrosEquipo(equipoSeleccionadoId.value);
+        limpiarSeleccionEquipo();
       }
     }
     async function cargarFiltrosEquipo(id: number, force = false) {
@@ -387,11 +396,7 @@ export const useFiltrosEngraseStore = defineStore(
           (item) => item.id === equipoSeleccionadoId.value,
         )
       ) {
-        equipoSeleccionadoId.value = equiposVisibles.value[0]?.id ?? null;
-        filtroSeleccionadoId.value = null;
-        filtrosEquipo.value = [];
-        aceitesEquipo.value = [];
-        equivalenciasPorFiltroId.value = {};
+        limpiarSeleccionEquipo();
       }
     }
     function aplicarEquipoCreado(
