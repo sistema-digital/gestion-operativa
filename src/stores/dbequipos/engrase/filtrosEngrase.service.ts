@@ -9,8 +9,6 @@ import type {
   EtapaEngrase,
   FiltroCodigoSugerencia,
   FiltroEquivalenciaRow,
-  TipoEquipoEngrase,
-  TipoFiltroEngrase,
 } from "./filtrosEngrase.types";
 const schema = () => supabaseEquipos.schema("engrase");
 const raise = (error: { message?: string } | null, fallback: string) => {
@@ -53,22 +51,6 @@ export const filtrosEngraseService = {
             .map((etapa) => mapCatalogo<EtapaEngrase>(etapa))
         : [],
     }));
-  },
-  async obtenerTiposEquipo() {
-    const { data, error } = await schema()
-      .from("tipo_equipo")
-      .select("id,nombre")
-      .order("nombre");
-    raise(error, "No se pudieron obtener los tipos");
-    return (data ?? []).map((x) => mapCatalogo<TipoEquipoEngrase>(x));
-  },
-  async obtenerTiposFiltro() {
-    const { data, error } = await schema()
-      .from("tipo_filtro")
-      .select("id,nombre")
-      .order("nombre");
-    raise(error, "No se pudieron obtener los tipos de filtro");
-    return (data ?? []).map((x) => mapCatalogo<TipoFiltroEngrase>(x));
   },
   async obtenerEtapas() {
     const { data, error } = await schema()

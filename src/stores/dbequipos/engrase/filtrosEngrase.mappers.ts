@@ -3,7 +3,6 @@ import type {
   EquipoEngraseRow,
   EtapaEngrase,
   FiltroEngrase,
-  TipoEquipoEngrase,
   TipoFiltroEngrase,
 } from "./filtrosEngrase.types";
 const nullable = (value: unknown) =>
@@ -23,9 +22,7 @@ export const mapEquipoListItem = (
   row: Record<string, unknown>,
   etapas: EtapaEngrase[] = [],
 ): EquipoEngraseListItem => ({ ...mapEquipo(row), etapas });
-export const mapCatalogo = <
-  T extends TipoEquipoEngrase | TipoFiltroEngrase | EtapaEngrase,
->(
+export const mapCatalogo = <T extends TipoFiltroEngrase | EtapaEngrase>(
   row: Record<string, unknown>,
 ): T => ({ id: Number(row.id), nombre: String(row.nombre) }) as T;
 export const mapFiltro = (row: Record<string, unknown>): FiltroEngrase => ({

@@ -63,8 +63,6 @@ async function clearAllFilters() {
       <FiltrosEngraseToolbar
         class="shrink-0"
         :filters="f.filtrosAplicados.value"
-        :tipos-equipo="f.tiposEquipo.value"
-        :tipos-filtro="f.tiposFiltro.value"
         :etapas="f.etapas.value"
         :sugerencias-codigo="f.sugerenciasCodigo.value"
         :loading="f.loadingInicial.value"

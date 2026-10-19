@@ -13,8 +13,6 @@ import type {
   FiltroCodigoSugerencia,
   FiltroEquivalenciaRow,
   FiltrosEngraseQuery,
-  TipoEquipoEngrase,
-  TipoFiltroEngrase,
   EtapaEngrase,
 } from "./filtrosEngrase.types";
 import type { EquipoImagenPersistida } from "./edicion/equipoEngraseEdicion.types";
@@ -37,8 +35,6 @@ export const useFiltrosEngraseStore = defineStore(
   "dbequipos_engrase_filtros",
   () => {
     const equipos = ref<EquipoEngraseListItem[]>([]),
-      tiposEquipo = ref<TipoEquipoEngrase[]>([]),
-      tiposFiltro = ref<TipoFiltroEngrase[]>([]),
       etapas = ref<EtapaEngrase[]>([]),
       filtrosEquipo = ref<EquipoFiltroDetalle[]>([]),
       aceitesEquipo = ref<EquipoAceiteDetalle[]>([]),
@@ -63,7 +59,7 @@ export const useFiltrosEngraseStore = defineStore(
       errorDatosGeneralesEquipo = ref<string | null>(null),
       errorCambioEstado = ref<string | null>(null),
       errorIntegracionCreacion = ref<string | null>(null);
-    let catalogosCargados = false,
+    let etapasCargadas = false,
       idsCodigo = ref<Set<number> | null>(null),
       filtrosCache = new Map<number, EquipoFiltroDetalle[]>(),
       aceitesCache = new Map<number, EquipoAceiteDetalle[]>(),
@@ -125,14 +121,10 @@ export const useFiltrosEngraseStore = defineStore(
           (x) => x !== null && x !== "" && x !== "activo",
         ),
       );
-    async function cargarCatalogos(force = false) {
-      if (catalogosCargados && !force) return;
-      [tiposEquipo.value, tiposFiltro.value, etapas.value] = await Promise.all([
-        filtrosEngraseService.obtenerTiposEquipo(),
-        filtrosEngraseService.obtenerTiposFiltro(),
-        filtrosEngraseService.obtenerEtapas(),
-      ]);
-      catalogosCargados = true;
+    async function cargarEtapas(force = false) {
+      if (etapasCargadas && !force) return;
+      etapas.value = await filtrosEngraseService.obtenerEtapas();
+      etapasCargadas = true;
     }
     async function solicitarEquipos() {
       if (equiposRequest) return equiposRequest;
@@ -274,7 +266,7 @@ export const useFiltrosEngraseStore = defineStore(
         loadingInicial.value = true;
         errorInicial.value = null;
         try {
-          await Promise.all([cargarCatalogos(), cargarEquipos()]);
+          await Promise.all([cargarEtapas(), cargarEquipos()]);
           if (
             detalleEquipoPendienteRecargaId.value !== null &&
             detalleEquipoPendienteRecargaId.value === equipoSeleccionadoId.value
@@ -422,19 +414,6 @@ export const useFiltrosEngraseStore = defineStore(
       if (mismoId < 0) equipos.value.push(copia);
       else equipos.value[mismoId] = copia;
 
-      if (
-        !tiposEquipo.value.some((tipo) => tipo.id === copia.tipo_equipo_id) &&
-        !tiposEquipo.value.some(
-          (tipo) =>
-            normalizarNombre(tipo.nombre) ===
-            normalizarNombre(copia.tipo_equipo),
-        )
-      ) {
-        tiposEquipo.value.push({
-          id: copia.tipo_equipo_id,
-          nombre: copia.tipo_equipo,
-        });
-      }
       copia.etapas.forEach((etapa) => {
         if (
           !etapas.value.some((item) => item.id === etapa.id) &&
@@ -485,8 +464,6 @@ export const useFiltrosEngraseStore = defineStore(
     }
     function reset() {
       equipos.value = [];
-      tiposEquipo.value = [];
-      tiposFiltro.value = [];
       etapas.value = [];
       filtrosEquipo.value = [];
       aceitesEquipo.value = [];
@@ -497,7 +474,7 @@ export const useFiltrosEngraseStore = defineStore(
       filtroSeleccionadoId.value = null;
       detalleEquipoPendienteRecargaId.value = null;
       filtrosAplicados.value = initialFiltrosEngraseQuery();
-      catalogosCargados = false;
+      etapasCargadas = false;
       filtrosCache.clear();
       aceitesCache.clear();
       datosGeneralesCache.clear();
@@ -506,8 +483,6 @@ export const useFiltrosEngraseStore = defineStore(
     }
     return {
       equipos,
-      tiposEquipo,
-      tiposFiltro,
       etapas,
       filtrosEquipo,
       aceitesEquipo,
@@ -538,7 +513,7 @@ export const useFiltrosEngraseStore = defineStore(
       totalEnListaCompras,
       hayFiltrosActivos,
       inicializar,
-      cargarCatalogos,
+      cargarEtapas,
       cargarEquipos,
       asegurarEquiposCargados,
       cargarImagenEquipo,

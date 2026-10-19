@@ -6,13 +6,9 @@ import type {
   EtapaEngrase,
   FiltroCodigoSugerencia,
   FiltrosEngraseQuery,
-  TipoEquipoEngrase,
-  TipoFiltroEngrase,
 } from "@/stores/dbequipos/engrase/filtrosEngrase.types";
 const props = defineProps<{
   filters: FiltrosEngraseQuery;
-  tiposEquipo: TipoEquipoEngrase[];
-  tiposFiltro: TipoFiltroEngrase[];
   etapas: EtapaEngrase[];
   sugerenciasCodigo: FiltroCodigoSugerencia[];
   loading: boolean;

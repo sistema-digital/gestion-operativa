@@ -26,10 +26,6 @@ export interface EquipoDetalleFull {
   consumo_base_gal_h: number | null;
   etapas: string[];
 }
-export interface TipoEquipoEngrase {
-  id: number;
-  nombre: string;
-}
 export interface EtapaEngrase {
   id: number;
   nombre: string;
