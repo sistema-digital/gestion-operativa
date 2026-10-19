@@ -12,12 +12,14 @@ import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_acc
 import { obtenerIconoTipoFiltro } from "@/utils/filtrosEngraseIconos";
 import FiltrosEquipoAceitesPanel from "./FiltrosEquipoAceitesPanel.vue";
 import FiltrosEquipoDatosGeneralesPanel from "./FiltrosEquipoDatosGeneralesPanel.vue";
+import EquipoEstadoConfirmDialog from "./EquipoEstadoConfirmDialog.vue";
 import type {
   EquipoEngraseListItem,
   EquipoAceiteDetalle,
   EquipoDetalleFull,
   EquipoFiltroDetalle,
   FiltroEquivalenciaRow,
+  FiltrosEngraseEstadoEquipo,
 } from "@/stores/dbequipos/engrase/filtrosEngrase.types";
 const props = defineProps<{
   equipo: EquipoEngraseListItem | null;
@@ -72,6 +74,8 @@ const soloEnCompras = shallowRef(false);
 const opcionesDeListadoAbiertas = shallowRef(false);
 const imagenPrincipalFallida = shallowRef(false);
 const pestanaActiva = shallowRef<"general" | "filtros" | "aceites">("general");
+const estadoPendiente = shallowRef<FiltrosEngraseEstadoEquipo | null>(null);
+const confirmacionEstadoEnviada = shallowRef(false);
 watch(
   () => props.equipo?.imageUrl,
   () => {
@@ -125,14 +129,41 @@ const filtrosVisibles = computed(() =>
 function alternarGrupo(grupo: string) {
   grupoSeleccionado.value = grupoSeleccionado.value === grupo ? null : grupo;
 }
-function alternarEstado(): void {
+function solicitarCambioEstado(): void {
   if (!props.equipo || props.loadingCambioEstado) return;
-  emit(
-    "cambiarEstado",
-    props.equipo.codigo,
-    props.equipo.estado === "activo" ? "descartado" : "activo",
-  );
+  estadoPendiente.value =
+    props.equipo.estado === "activo" ? "descartado" : "activo";
 }
+function cancelarCambioEstado(): void {
+  if (props.loadingCambioEstado) return;
+  estadoPendiente.value = null;
+  confirmacionEstadoEnviada.value = false;
+}
+function confirmarCambioEstado(): void {
+  if (
+    !props.equipo ||
+    !estadoPendiente.value ||
+    props.loadingCambioEstado ||
+    confirmacionEstadoEnviada.value
+  )
+    return;
+  confirmacionEstadoEnviada.value = true;
+  emit("cambiarEstado", props.equipo.codigo, estadoPendiente.value);
+}
+watch(
+  () => props.loadingCambioEstado,
+  (loading, estabaCargando) => {
+    if (
+      !loading &&
+      estabaCargando &&
+      confirmacionEstadoEnviada.value &&
+      !props.errorCambioEstado
+    )
+      cancelarCambioEstado();
+    if (!loading && props.errorCambioEstado)
+      confirmacionEstadoEnviada.value = false;
+  },
+);
 </script>
 <template>
   <section
@@ -205,12 +236,12 @@ function alternarEstado(): void {
           <button
             type="button"
             role="switch"
-            class="relative h-5 w-10 rounded-full p-0.5 shadow-inner transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-main disabled:cursor-wait disabled:opacity-70"
+            class="relative h-5 w-10 cursor-pointer rounded-full p-0.5 shadow-inner transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-main disabled:cursor-wait disabled:opacity-70"
             :class="equipo.estado === 'activo' ? 'bg-main' : 'bg-danger'"
             :aria-checked="equipo.estado === 'activo'"
             :aria-label="`Cambiar estado del equipo; actualmente ${equipo.estado}`"
             :disabled="loadingCambioEstado"
-            @click="alternarEstado"
+            @click="solicitarCambioEstado"
           >
             <span
               class="grid h-4 w-4 place-items-center rounded-full bg-white shadow-md transition-transform duration-200"
@@ -491,6 +522,14 @@ function alternarEstado(): void {
         role="tabpanel"
         aria-labelledby="tab-aceites-equipo"
         @edit="emit('editarEquipo', equipo.codigo)"
+      />
+      <EquipoEstadoConfirmDialog
+        v-if="estadoPendiente"
+        :codigo-equipo="equipo.codigo"
+        :estado-destino="estadoPendiente"
+        :saving="loadingCambioEstado"
+        @cancel="cancelarCambioEstado"
+        @confirm="confirmarCambioEstado"
       />
     </template>
     <p v-else class="p-4 text-center text-xs text-gray-500">

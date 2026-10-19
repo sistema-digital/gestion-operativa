@@ -17,6 +17,9 @@ const equivalenciasSeleccionadas = computed(() =>
       [])
     : [],
 );
+const detalleFiltroAbierto = computed(() =>
+  Boolean(f.filtroSeleccionado.value),
+);
 onMounted(() => f.inicializar());
 async function selectEquipo(id: number) {
   await f.seleccionarEquipo(id);
@@ -76,7 +79,12 @@ async function clearAllFilters() {
         @close-detail="f.seleccionarFiltro(null)"
       />
       <div
-        class="mt-3 grid min-h-0 flex-1 gap-3 md:grid-cols-[minmax(220px,.85fr)_minmax(360px,1.8fr)_minmax(210px,.75fr)]"
+        class="mt-3 grid min-h-0 flex-1 gap-3"
+        :class="
+          detalleFiltroAbierto
+            ? 'md:grid-cols-[minmax(220px,.85fr)_minmax(360px,1.8fr)_minmax(210px,.75fr)]'
+            : 'md:grid-cols-[minmax(220px,.85fr)_minmax(360px,2.55fr)]'
+        "
       >
         <div
           class="min-h-0 min-w-0"
@@ -127,8 +135,9 @@ async function clearAllFilters() {
           />
         </div>
         <FiltroDetallePanel
+          v-if="detalleFiltroAbierto"
           class="h-full"
-          :open="Boolean(f.filtroSeleccionadoId.value)"
+          :open="detalleFiltroAbierto"
           :equipo="f.equipoSeleccionado.value"
           :filtro="f.filtroSeleccionado.value"
           :equivalencias="equivalenciasSeleccionadas"
