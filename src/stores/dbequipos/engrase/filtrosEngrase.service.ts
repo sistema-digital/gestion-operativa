@@ -4,6 +4,7 @@ import { mapCatalogo, mapEquipo, mapFiltro } from "./filtrosEngrase.mappers";
 import type {
   EquipoEngraseListItem,
   EquipoAceiteDetalle,
+  EquipoDetalleFull,
   EquipoFiltroDetalle,
   EtapaEngrase,
   FiltroCodigoSugerencia,
@@ -25,6 +26,20 @@ const aceiteEquipoRutaSchema = z.array(
     aceite: z.string().trim().min(1),
   }),
 );
+const equipoDetalleFullSchema = z
+  .object({
+    numero_equipo: z.string().trim().min(1),
+    tipo: z.string().trim().min(1).nullable(),
+    marca: z.string().trim().nullable(),
+    modelo: z.string().trim().nullable(),
+    tenencia: z.string().trim().min(1).nullable(),
+    combustible: z.string().trim().min(1).nullable(),
+    fecha_llegada: z.string().trim().min(1).nullable(),
+    potencia_cv: z.number().finite().nullable(),
+    consumo_base_gal_h: z.number().finite().nullable(),
+    etapas: z.array(z.string().trim().min(1)),
+  })
+  .nullable();
 export const filtrosEngraseService = {
   async obtenerEquipos(): Promise<EquipoEngraseListItem[]> {
     const { data, error } = await schema().rpc("rpc_obtener_equipos_lista");
@@ -90,6 +105,21 @@ export const filtrosEngraseService = {
     if (!result.success)
       throw new Error(
         "La respuesta de aceites del equipo no tiene el formato esperado",
+      );
+    return result.data;
+  },
+  async obtenerDatosGeneralesEquipo(
+    numeroEquipo: string,
+  ): Promise<EquipoDetalleFull | null> {
+    const { data, error } = await supabaseEquipos.rpc(
+      "rpc_equipo_detalle_full",
+      { p_numero_equipo: numeroEquipo },
+    );
+    raise(error, "No se pudieron obtener los datos generales del equipo");
+    const result = equipoDetalleFullSchema.safeParse(data);
+    if (!result.success)
+      throw new Error(
+        "La respuesta de datos generales del equipo no tiene el formato esperado",
       );
     return result.data;
   },

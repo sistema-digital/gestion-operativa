@@ -6,6 +6,7 @@ const obtenerAceitesDeEquipo = vi.hoisted(() => vi.fn());
 const obtenerEquivalenciasActivas = vi.hoisted(() => vi.fn());
 const crearUrlFirmadaImagen = vi.hoisted(() => vi.fn());
 const cambiarEstadoEquipo = vi.hoisted(() => vi.fn());
+const obtenerDatosGeneralesEquipo = vi.hoisted(() => vi.fn());
 
 vi.mock("./filtrosEngrase.service", () => ({
   filtrosEngraseService: {
@@ -14,6 +15,7 @@ vi.mock("./filtrosEngrase.service", () => ({
     obtenerEquivalenciasActivas,
     crearUrlFirmadaImagen,
     cambiarEstadoEquipo,
+    obtenerDatosGeneralesEquipo,
   },
 }));
 
@@ -42,6 +44,18 @@ describe("detalle de filtros y aceites del equipo", () => {
       { sistema: "Motor", subsistema: null, ruta: "Motor", aceite: "15W-40" },
     ]);
     obtenerEquivalenciasActivas.mockResolvedValue([]);
+    obtenerDatosGeneralesEquipo.mockResolvedValue({
+      numero_equipo: "422017",
+      tipo: "Combinadas",
+      marca: "Marca",
+      modelo: "Cosechadora",
+      tenencia: "PROPIA",
+      combustible: "DIÉSEL",
+      fecha_llegada: "21/05/2026",
+      potencia_cv: 203.94,
+      consumo_base_gal_h: 5.39,
+      etapas: [],
+    });
   });
 
   it("carga filtros y aceites en paralelo y conserva ambos en cache", async () => {
@@ -78,6 +92,7 @@ describe("detalle de filtros y aceites del equipo", () => {
 
     expect(obtenerFiltrosDeEquipo).toHaveBeenCalledWith(123);
     expect(obtenerAceitesDeEquipo).toHaveBeenCalledWith(123);
+    expect(obtenerDatosGeneralesEquipo).toHaveBeenCalledWith("422017");
     resolverFiltros([]);
     resolverAceites([
       { sistema: "Motor", subsistema: null, ruta: "Motor", aceite: "15W-40" },
@@ -90,6 +105,7 @@ describe("detalle de filtros y aceites del equipo", () => {
     await store.cargarFiltrosEquipo(123);
     expect(obtenerFiltrosDeEquipo).toHaveBeenCalledOnce();
     expect(obtenerAceitesDeEquipo).toHaveBeenCalledOnce();
+    expect(obtenerDatosGeneralesEquipo).toHaveBeenCalledOnce();
   });
 
   it("confirma el estado por RPC y actualiza el store sin recargar equipos", async () => {

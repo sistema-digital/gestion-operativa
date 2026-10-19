@@ -11,9 +11,11 @@ import {
 import { useFeatureAccessStore } from "@/stores/db_mantenimiento/app_feature_access/featureAccess.store";
 import { obtenerIconoTipoFiltro } from "@/utils/filtrosEngraseIconos";
 import FiltrosEquipoAceitesPanel from "./FiltrosEquipoAceitesPanel.vue";
+import FiltrosEquipoDatosGeneralesPanel from "./FiltrosEquipoDatosGeneralesPanel.vue";
 import type {
   EquipoEngraseListItem,
   EquipoAceiteDetalle,
+  EquipoDetalleFull,
   EquipoFiltroDetalle,
   FiltroEquivalenciaRow,
 } from "@/stores/dbequipos/engrase/filtrosEngrase.types";
@@ -21,11 +23,14 @@ const props = defineProps<{
   equipo: EquipoEngraseListItem | null;
   filtros: EquipoFiltroDetalle[];
   aceites: EquipoAceiteDetalle[];
+  datosGenerales: EquipoDetalleFull | null;
   equivalencias: Record<number, FiltroEquivalenciaRow[]>;
   codigoBuscado: string | null;
   selectedFiltroId: number | null;
   loading: boolean;
+  loadingDatosGenerales: boolean;
   error: string | null;
+  errorDatosGenerales: string | null;
   loadingCambioEstado: boolean;
   errorCambioEstado: string | null;
 }>();
@@ -66,7 +71,7 @@ const soloConEquivalencias = shallowRef(false);
 const soloEnCompras = shallowRef(false);
 const opcionesDeListadoAbiertas = shallowRef(false);
 const imagenPrincipalFallida = shallowRef(false);
-const pestanaActiva = shallowRef<"filtros" | "aceites">("filtros");
+const pestanaActiva = shallowRef<"general" | "filtros" | "aceites">("general");
 watch(
   () => props.equipo?.imageUrl,
   () => {
@@ -242,6 +247,22 @@ function alternarEstado(): void {
       >
         <button
           type="button"
+          id="tab-datos-generales-equipo"
+          role="tab"
+          class="cursor-pointer border-b-2 px-3 py-2 text-xs font-semibold transition"
+          :class="
+            pestanaActiva === 'general'
+              ? 'border-main text-main'
+              : 'border-transparent text-gray-500 hover:border-main/30 hover:text-main'
+          "
+          :aria-selected="pestanaActiva === 'general'"
+          aria-controls="panel-datos-generales-equipo"
+          @click="pestanaActiva = 'general'"
+        >
+          Datos generales
+        </button>
+        <button
+          type="button"
           id="tab-filtros-equipo"
           role="tab"
           class="cursor-pointer border-b-2 px-3 py-2 text-xs font-semibold transition"
@@ -273,8 +294,14 @@ function alternarEstado(): void {
           Aceites <span class="ml-1 text-gray-500">{{ aceites.length }}</span>
         </button>
       </div>
+      <FiltrosEquipoDatosGeneralesPanel
+        v-if="pestanaActiva === 'general'"
+        :detalle="datosGenerales"
+        :loading="loadingDatosGenerales"
+        :error="errorDatosGenerales"
+      />
       <section
-        v-if="pestanaActiva === 'filtros'"
+        v-else-if="pestanaActiva === 'filtros'"
         id="panel-filtros-equipo"
         class="pt-3"
         role="tabpanel"

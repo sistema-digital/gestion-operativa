@@ -49,9 +49,13 @@ async function clearAllFilters() {
 }
 </script>
 <template>
-  <main class="flex h-full min-h-0 flex-col overflow-hidden bg-second p-3 text-gray-700 md:p-4">
-    
-    <div v-if="f.errorInicial.value" class="rounded-lg border border-danger/30 bg-danger-bg p-4 text-sm text-danger">
+  <main
+    class="flex h-full min-h-0 flex-col overflow-hidden bg-second p-3 text-gray-700 md:p-4"
+  >
+    <div
+      v-if="f.errorInicial.value"
+      class="rounded-lg border border-danger/30 bg-danger-bg p-4 text-sm text-danger"
+    >
       <p>{{ f.errorInicial.value }}</p>
       <button class="cursor-pointer" @click="f.reintentar">Reintentar</button>
     </div>
@@ -73,7 +77,9 @@ async function clearAllFilters() {
         @clear-all="clearAllFilters"
         @close-detail="f.seleccionarFiltro(null)"
       />
-      <div class="mt-3 grid min-h-0 flex-1 gap-3 md:grid-cols-[minmax(220px,.85fr)_minmax(360px,1.8fr)_minmax(210px,.75fr)]">
+      <div
+        class="mt-3 grid min-h-0 flex-1 gap-3 md:grid-cols-[minmax(220px,.85fr)_minmax(360px,1.8fr)_minmax(210px,.75fr)]"
+      >
         <div
           class="min-h-0 min-w-0"
           :class="{ 'max-md:hidden': mobileStage === 'filtros' }"
@@ -105,11 +111,14 @@ async function clearAllFilters() {
             :equipo="f.equipoSeleccionado.value"
             :filtros="f.filtrosEquipo.value"
             :aceites="f.aceitesEquipo.value"
+            :datos-generales="f.datosGeneralesEquipo.value"
             :equivalencias="f.equivalenciasPorFiltroId.value"
             :codigo-buscado="f.filtrosAplicados.value.codigoExactoSeleccionado"
             :selected-filtro-id="f.filtroSeleccionadoId.value"
             :loading="f.loadingDetalleEquipo.value"
+            :loading-datos-generales="f.loadingDatosGeneralesEquipo.value"
             :error="f.errorDetalle.value"
+            :error-datos-generales="f.errorDatosGeneralesEquipo.value"
             :loading-cambio-estado="f.loadingCambioEstado.value"
             :error-cambio-estado="f.errorCambioEstado.value"
             @select-filtro="f.seleccionarFiltro"
