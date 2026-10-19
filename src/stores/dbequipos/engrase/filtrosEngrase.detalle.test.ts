@@ -6,6 +6,7 @@ const obtenerAceitesDeEquipo = vi.hoisted(() => vi.fn());
 const obtenerEquivalenciasActivas = vi.hoisted(() => vi.fn());
 const crearUrlFirmadaImagen = vi.hoisted(() => vi.fn());
 const cambiarEstadoEquipo = vi.hoisted(() => vi.fn());
+const obtenerDatosGeneralesEquipo = vi.hoisted(() => vi.fn());
 
 vi.mock("./filtrosEngrase.service", () => ({
   filtrosEngraseService: {
@@ -14,6 +15,7 @@ vi.mock("./filtrosEngrase.service", () => ({
     obtenerEquivalenciasActivas,
     crearUrlFirmadaImagen,
     cambiarEstadoEquipo,
+    obtenerDatosGeneralesEquipo,
   },
 }));
 
@@ -42,54 +44,52 @@ describe("detalle de filtros y aceites del equipo", () => {
       { sistema: "Motor", subsistema: null, ruta: "Motor", aceite: "15W-40" },
     ]);
     obtenerEquivalenciasActivas.mockResolvedValue([]);
+    obtenerDatosGeneralesEquipo.mockResolvedValue({
+      numero_equipo: "422017",
+      tipo: "Combinadas",
+      marca: "Marca",
+      modelo: "Cosechadora",
+      tenencia: "PROPIA",
+      combustible: "DIÉSEL",
+      fecha_llegada: "21/05/2026",
+      potencia_cv: 203.94,
+      consumo_base_gal_h: 5.39,
+      etapas: [],
+    });
   });
 
-  it("carga filtros y aceites en paralelo y conserva ambos en cache", async () => {
-    let resolverFiltros!: (value: []) => void;
-    let resolverAceites!: (
-      value: {
-        sistema: string;
-        subsistema: string | null;
-        ruta: string;
-        aceite: string;
-      }[],
-    ) => void;
-    obtenerFiltrosDeEquipo.mockReturnValue(
-      new Promise<[]>((resolve) => {
-        resolverFiltros = resolve;
-      }),
-    );
-    obtenerAceitesDeEquipo.mockReturnValue(
-      new Promise<
-        {
-          sistema: string;
-          subsistema: string | null;
-          ruta: string;
-          aceite: string;
-        }[]
-      >((resolve) => {
-        resolverAceites = resolve;
-      }),
-    );
+  it("carga cada recurso solamente al solicitar su pestaña y conserva cache", async () => {
     const store = useFiltrosEngraseStore();
     store.equipos = [equipo(123, "422017")];
 
-    const carga = store.seleccionarEquipo(123);
+    store.seleccionarEquipo(123);
+
+    expect(obtenerFiltrosDeEquipo).not.toHaveBeenCalled();
+    expect(obtenerAceitesDeEquipo).not.toHaveBeenCalled();
+    expect(obtenerDatosGeneralesEquipo).not.toHaveBeenCalled();
+
+    await store.cargarFiltrosEquipo(123);
 
     expect(obtenerFiltrosDeEquipo).toHaveBeenCalledWith(123);
-    expect(obtenerAceitesDeEquipo).toHaveBeenCalledWith(123);
-    resolverFiltros([]);
-    resolverAceites([
-      { sistema: "Motor", subsistema: null, ruta: "Motor", aceite: "15W-40" },
-    ]);
-    await carga;
+    expect(obtenerAceitesDeEquipo).not.toHaveBeenCalled();
+    expect(obtenerDatosGeneralesEquipo).not.toHaveBeenCalled();
+
+    await store.cargarAceitesEquipo(123);
 
     expect(store.aceitesEquipo).toEqual([
       { sistema: "Motor", subsistema: null, ruta: "Motor", aceite: "15W-40" },
     ]);
+    expect(obtenerAceitesDeEquipo).toHaveBeenCalledWith(123);
+
+    await store.cargarDatosGeneralesEquipo(123, "422017");
+
+    expect(obtenerDatosGeneralesEquipo).toHaveBeenCalledWith("422017");
     await store.cargarFiltrosEquipo(123);
+    await store.cargarAceitesEquipo(123);
+    await store.cargarDatosGeneralesEquipo(123, "422017");
     expect(obtenerFiltrosDeEquipo).toHaveBeenCalledOnce();
     expect(obtenerAceitesDeEquipo).toHaveBeenCalledOnce();
+    expect(obtenerDatosGeneralesEquipo).toHaveBeenCalledOnce();
   });
 
   it("confirma el estado por RPC y actualiza el store sin recargar equipos", async () => {

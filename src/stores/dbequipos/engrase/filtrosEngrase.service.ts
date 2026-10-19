@@ -1,15 +1,14 @@
 import { supabaseEquipos } from "@/lib/supabase";
 import { z } from "zod";
-import { mapCatalogo, mapEquipo, mapFiltro } from "./filtrosEngrase.mappers";
+import { mapCatalogo, mapEquipo } from "./filtrosEngrase.mappers";
 import type {
   EquipoEngraseListItem,
   EquipoAceiteDetalle,
+  EquipoDetalleFull,
   EquipoFiltroDetalle,
   EtapaEngrase,
   FiltroCodigoSugerencia,
   FiltroEquivalenciaRow,
-  TipoEquipoEngrase,
-  TipoFiltroEngrase,
 } from "./filtrosEngrase.types";
 const schema = () => supabaseEquipos.schema("engrase");
 const raise = (error: { message?: string } | null, fallback: string) => {
@@ -25,6 +24,38 @@ const aceiteEquipoRutaSchema = z.array(
     aceite: z.string().trim().min(1),
   }),
 );
+const equipoFiltrosSchema = z.array(
+  z.object({
+    id: z.number().int(),
+    equipo_id: z.number().int(),
+    tipo_filtro_id: z.number().int(),
+    filtro_id: z.number().int(),
+    cantidad: z.number().finite(),
+    tipo_filtro: z.object({
+      id: z.number().int(),
+      nombre: z.string().trim().min(1),
+    }),
+    filtro: z.object({
+      id: z.number().int(),
+      codigo: z.string().trim().min(1),
+      esta_en_lista_compras: z.boolean(),
+    }),
+  }),
+);
+const equipoDetalleFullSchema = z
+  .object({
+    numero_equipo: z.string().trim().min(1),
+    tipo: z.string().trim().min(1).nullable(),
+    marca: z.string().trim().nullable(),
+    modelo: z.string().trim().nullable(),
+    tenencia: z.string().trim().min(1).nullable(),
+    combustible: z.string().trim().min(1).nullable(),
+    fecha_llegada: z.string().trim().min(1).nullable(),
+    potencia_cv: z.number().finite().nullable(),
+    consumo_base_gal_h: z.number().finite().nullable(),
+    etapas: z.array(z.string().trim().min(1)),
+  })
+  .nullable();
 export const filtrosEngraseService = {
   async obtenerEquipos(): Promise<EquipoEngraseListItem[]> {
     const { data, error } = await schema().rpc("rpc_obtener_equipos_lista");
@@ -39,22 +70,6 @@ export const filtrosEngraseService = {
         : [],
     }));
   },
-  async obtenerTiposEquipo() {
-    const { data, error } = await schema()
-      .from("tipo_equipo")
-      .select("id,nombre")
-      .order("nombre");
-    raise(error, "No se pudieron obtener los tipos");
-    return (data ?? []).map((x) => mapCatalogo<TipoEquipoEngrase>(x));
-  },
-  async obtenerTiposFiltro() {
-    const { data, error } = await schema()
-      .from("tipo_filtro")
-      .select("id,nombre")
-      .order("nombre");
-    raise(error, "No se pudieron obtener los tipos de filtro");
-    return (data ?? []).map((x) => mapCatalogo<TipoFiltroEngrase>(x));
-  },
   async obtenerEtapas() {
     const { data, error } = await schema()
       .from("etapa")
@@ -66,17 +81,19 @@ export const filtrosEngraseService = {
   async obtenerFiltrosDeEquipo(
     equipoId: number,
   ): Promise<EquipoFiltroDetalle[]> {
-    const { data, error } = await schema()
-      .from("equipo_filtro")
-      .select(
-        "id,equipo_id,tipo_filtro_id,filtro_id,cantidad,tipo_filtro:tipo_filtro_id(id,nombre),filtro:filtro_id(id,codigo,esta_en_lista_compras)",
-      )
-      .eq("equipo_id", equipoId);
+    const { data, error } = await schema().rpc("rpc_obtener_filtros_equipo", {
+      p_equipo_id: equipoId,
+    });
     raise(error, "No se pudieron obtener los filtros");
-    return (data ?? []).map((x: any) => ({
-      ...x,
-      tipoFiltro: x.tipo_filtro,
-      filtro: mapFiltro(x.filtro),
+    const result = equipoFiltrosSchema.safeParse(data);
+    if (!result.success)
+      throw new Error(
+        "La respuesta de filtros del equipo no tiene el formato esperado",
+      );
+    return result.data.map(({ tipo_filtro, filtro, ...item }) => ({
+      ...item,
+      tipoFiltro: tipo_filtro,
+      filtro,
     }));
   },
   async obtenerAceitesDeEquipo(
@@ -90,6 +107,21 @@ export const filtrosEngraseService = {
     if (!result.success)
       throw new Error(
         "La respuesta de aceites del equipo no tiene el formato esperado",
+      );
+    return result.data;
+  },
+  async obtenerDatosGeneralesEquipo(
+    numeroEquipo: string,
+  ): Promise<EquipoDetalleFull | null> {
+    const { data, error } = await supabaseEquipos.rpc(
+      "rpc_equipo_detalle_full",
+      { p_numero_equipo: numeroEquipo },
+    );
+    raise(error, "No se pudieron obtener los datos generales del equipo");
+    const result = equipoDetalleFullSchema.safeParse(data);
+    if (!result.success)
+      throw new Error(
+        "La respuesta de datos generales del equipo no tiene el formato esperado",
       );
     return result.data;
   },

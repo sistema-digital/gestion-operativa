@@ -1,4 +1,5 @@
 export type FiltrosEngraseEstadoEquipo = "activo" | "descartado";
+export type FiltrosEngrasePestanaEquipo = "general" | "filtros" | "aceites";
 export interface EquipoEngraseRow {
   id: number;
   codigo: string;
@@ -14,9 +15,17 @@ export interface EquipoEngraseListItem extends EquipoEngraseRow {
   etapas: EtapaEngrase[];
   imageUrl?: string | null;
 }
-export interface TipoEquipoEngrase {
-  id: number;
-  nombre: string;
+export interface EquipoDetalleFull {
+  numero_equipo: string;
+  tipo: string | null;
+  marca: string | null;
+  modelo: string | null;
+  tenencia: string | null;
+  combustible: string | null;
+  fecha_llegada: string | null;
+  potencia_cv: number | null;
+  consumo_base_gal_h: number | null;
+  etapas: string[];
 }
 export interface EtapaEngrase {
   id: number;

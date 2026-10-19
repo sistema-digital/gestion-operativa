@@ -54,6 +54,9 @@ export function useFiltrosEngrase() {
     seleccionarFiltro: store.seleccionarFiltro,
     cambiarEstadoEquipo: store.cambiarEstadoEquipo,
     cargarImagenEquipo: store.cargarImagenEquipo,
+    cargarDatosGeneralesEquipo: store.cargarDatosGeneralesEquipo,
+    cargarFiltrosEquipo: store.cargarFiltrosEquipo,
+    cargarAceitesEquipo: store.cargarAceitesEquipo,
     reintentar: store.reintentarCarga,
   };
 }
