@@ -2,13 +2,46 @@ export const MEETING_NOTE_START = "[[GO_REUNION]]";
 export const MEETING_NOTE_END = "[[/GO_REUNION]]";
 export const MEETING_CRITERION_ID = 5;
 
-export const MEETING_WEEKDAY_BY_EMAIL: Record<string, string> = {
-  "ivanp@cadasa.com": "Lunes",
-  "joseim@cadasa.com": "Martes",
-  "equipop@cadasa.com": "Miercoles",
-  "erickq@cadasa.com": "Jueves",
-  "eladiop@cadasa.com": "Viernes",
-  "soniap@cadasa.com": "Martes",
+export type MeetingWeekday = "Lunes" | "Martes" | "Miercoles" | "Jueves";
+
+export interface MeetingSchedule {
+  weekday: MeetingWeekday;
+  time: string;
+  timeOrder: number;
+}
+
+export const MEETING_SCHEDULE_BY_EMAIL: Record<string, MeetingSchedule> = {
+  "soniap@cadasa.com": { weekday: "Lunes", time: "9:00 a. m.", timeOrder: 9 },
+  "ivanp@cadasa.com": {
+    weekday: "Lunes",
+    time: "10:00 a. m.",
+    timeOrder: 10,
+  },
+  "eladiop@cadasa.com": {
+    weekday: "Martes",
+    time: "9:00 a. m.",
+    timeOrder: 9,
+  },
+  "joseim@cadasa.com": {
+    weekday: "Martes",
+    time: "10:00 a. m.",
+    timeOrder: 10,
+  },
+  "erickq@cadasa.com": {
+    weekday: "Miercoles",
+    time: "9:00 a. m.",
+    timeOrder: 9,
+  },
+  "anthonyl@cadasa.com": {
+    weekday: "Jueves",
+    time: "9:00 a. m.",
+    timeOrder: 9,
+  },
+  "aurelioa@cadasa.com": {
+    weekday: "Jueves",
+    time: "10:00 a. m.",
+    timeOrder: 10,
+  },
 };
 
 export type MeetingObservationActor = "supervisor" | "gerencia";
@@ -184,7 +217,19 @@ export const resolveMeetingCriterionId = (
 
 export const getMeetingAssignedWeekday = (email: string | null | undefined) => {
   const normalizedEmail = normalizeText(email);
-  return MEETING_WEEKDAY_BY_EMAIL[normalizedEmail] || "Sin asignar";
+  return MEETING_SCHEDULE_BY_EMAIL[normalizedEmail]?.weekday || "Sin asignar";
+};
+
+export const getMeetingAssignedTime = (email: string | null | undefined) => {
+  const normalizedEmail = normalizeText(email);
+  return MEETING_SCHEDULE_BY_EMAIL[normalizedEmail]?.time || "Sin horario";
+};
+
+export const getMeetingAssignedTimeOrder = (
+  email: string | null | undefined,
+): number => {
+  const normalizedEmail = normalizeText(email);
+  return MEETING_SCHEDULE_BY_EMAIL[normalizedEmail]?.timeOrder ?? 0;
 };
 
 const WEEKDAY_INDEX: Record<string, number> = {
