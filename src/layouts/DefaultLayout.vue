@@ -62,6 +62,7 @@ const filtrosCatalogoStore = useFiltrosCatalogoStore();
 const aceitesCatalogoStore = useAceitesCatalogoStore();
 const sistemasCatalogoStore = useSistemasCatalogoStore();
 const { isLoaded: isFeatureAccessLoaded } = storeToRefs(featureAccessStore);
+const { profile: userProfile, email: userEmail } = storeToRefs(userStore);
 const isSidebarOpen = shallowRef(false);
 const sidebarNav = useTemplateRef<HTMLElement>("sidebarNav");
 const isSidebarNavAtTop = shallowRef(true);
@@ -80,12 +81,6 @@ const appVersion = shallowRef<string | null>(null);
 const { dashboardHeaderNavState, selectDashboardHeaderSlide } =
   useDashboardHeaderNav();
 
-const userProfile = ref<{
-  nombre?: string;
-  role?: string;
-  area?: string;
-} | null>(null);
-const userEmail = ref("");
 const MODULE_DASHBOARD_FEATURE = "module_dashboard";
 const MODULE_CALIFICACIONES_FEATURE = "module_calificaciones";
 const VIEW_CALIFICACIONES_DASHBOARD_FEATURE = "ver_dashboard_calificaciones";
@@ -763,20 +758,12 @@ onMounted(async () => {
     console.error("Error cargando funcionalidades permitidas:", error);
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) {
-    userEmail.value = user.email || "";
-    const { data } = await supabase
-      .from("PROFILE")
-      .select("*")
-      .eq("email", user.email)
-      .maybeSingle();
-
-    if (data) {
-      userProfile.value = data;
-    }
+  try {
+    await userStore.fetchCurrentUserProfile(false, {
+      includeEmailsFilter: false,
+    });
+  } catch (error) {
+    console.error("Error cargando el perfil del usuario:", error);
   }
 
   requestAnimationFrame(updateSidebarNavScrollState);

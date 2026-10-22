@@ -23,6 +23,10 @@ export interface UserAuthDatabaseIds {
   calificaciones: string | null;
 }
 
+interface FetchCurrentUserProfileOptions {
+  includeEmailsFilter?: boolean;
+}
+
 export const useUserStore = defineStore("user", () => {
   const profile = ref<UserProfile | null>(null);
   const email = ref("");
@@ -36,18 +40,37 @@ export const useUserStore = defineStore("user", () => {
   const emailsFilter = ref<string[]>([]);
   const isLoading = ref(false);
   const isLoaded = ref(false);
+  const isEmailsFilterLoaded = ref(false);
   const error = ref<string | null>(null);
   let profileLoadPromise: Promise<UserProfile | null> | null = null;
+  let emailsFilterLoadPromise: Promise<string[]> | null = null;
 
   const nombre = computed(() => profile.value?.nombre || "");
   const area = computed(() => (profile.value?.area || "").toUpperCase());
   const role = computed(() => profile.value?.role || "");
 
-  const fetchCurrentUserProfile = async (force = false) => {
-    if (isLoaded.value && !force) return profile.value;
+  const fetchCurrentUserProfile = async (
+    force = false,
+    options: FetchCurrentUserProfileOptions = {},
+  ): Promise<UserProfile | null> => {
+    const includeEmailsFilter = options.includeEmailsFilter ?? true;
+
+    if (isLoaded.value && !force) {
+      if (includeEmailsFilter && !isEmailsFilterLoaded.value) {
+        await buildEmailsFilter();
+      }
+
+      return profile.value;
+    }
 
     if (profileLoadPromise) {
-      return profileLoadPromise;
+      const currentProfile = await profileLoadPromise;
+
+      if (includeEmailsFilter && !isEmailsFilterLoaded.value) {
+        await buildEmailsFilter();
+      }
+
+      return currentProfile;
     }
 
     profileLoadPromise = (async (): Promise<UserProfile | null> => {
@@ -78,6 +101,7 @@ export const useUserStore = defineStore("user", () => {
         profile.value = null;
         allProfiles.value = [];
         emailsFilter.value = [];
+        isEmailsFilterLoaded.value = false;
 
         if (!email.value) {
           isLoaded.value = true;
@@ -93,63 +117,84 @@ export const useUserStore = defineStore("user", () => {
         if (profileError) throw profileError;
 
         profile.value = currentProfile || null;
-        await buildEmailsFilter();
+        if (includeEmailsFilter) {
+          await buildEmailsFilter();
+        }
 
         isLoaded.value = true;
         return profile.value;
-      } catch (err: any) {
-        console.error("Error fetching user profile:", err);
-        error.value = err.message || "No se pudo cargar el perfil de usuario";
-        throw err;
+      } catch (fetchError) {
+        console.error("Error fetching user profile:", fetchError);
+        error.value =
+          fetchError instanceof Error
+            ? fetchError.message
+            : "No se pudo cargar el perfil de usuario";
+        throw fetchError;
       } finally {
         isLoading.value = false;
       }
     })();
 
     try {
-      return await profileLoadPromise;
+      const currentProfile = await profileLoadPromise;
+
+      if (includeEmailsFilter && !isEmailsFilterLoaded.value) {
+        await buildEmailsFilter();
+      }
+
+      return currentProfile;
     } finally {
       profileLoadPromise = null;
     }
   };
 
   const buildEmailsFilter = async () => {
-    const userArea = area.value;
+    if (isEmailsFilterLoaded.value) return emailsFilter.value;
 
-    if (userArea === "ALL" || userArea === "ALMACEN") {
-      const { data: profiles, error: profilesError } = await supabase
-        .from("PROFILE")
-        .select("*");
+    if (emailsFilterLoadPromise) return emailsFilterLoadPromise;
 
-      if (profilesError) throw profilesError;
+    emailsFilterLoadPromise = (async (): Promise<string[]> => {
+      const userArea = area.value;
 
-      allProfiles.value = profiles || [];
-      emailsFilter.value = [];
+      if (userArea === "ALL" || userArea === "ALMACEN") {
+        const { data: profiles, error: profilesError } = await supabase
+          .from("PROFILE")
+          .select("*");
+
+        if (profilesError) throw profilesError;
+
+        allProfiles.value = profiles || [];
+        emailsFilter.value = [];
+      } else if (!userArea) {
+        emailsFilter.value = email.value ? [email.value] : [];
+      } else {
+        const { data: profiles, error: profilesError } = await supabase
+          .from("PROFILE")
+          .select("*")
+          .or(`area.ilike.${userArea},email.eq.${email.value}`);
+
+        if (profilesError) throw profilesError;
+
+        allProfiles.value = profiles || [];
+
+        const profileEmails = allProfiles.value
+          .map((item) => item.email)
+          .filter((item): item is string => Boolean(item));
+
+        emailsFilter.value = Array.from(
+          new Set([...profileEmails, email.value].filter(Boolean)),
+        );
+      }
+
+      isEmailsFilterLoaded.value = true;
       return emailsFilter.value;
+    })();
+
+    try {
+      return await emailsFilterLoadPromise;
+    } finally {
+      emailsFilterLoadPromise = null;
     }
-
-    if (!userArea) {
-      emailsFilter.value = email.value ? [email.value] : [];
-      return emailsFilter.value;
-    }
-
-    const { data: profiles, error: profilesError } = await supabase
-      .from("PROFILE")
-      .select("*")
-      .or(`area.ilike.${userArea},email.eq.${email.value}`);
-
-    if (profilesError) throw profilesError;
-
-    allProfiles.value = profiles || [];
-
-    const profileEmails = allProfiles.value
-      .map((item) => item.email)
-      .filter((item): item is string => Boolean(item));
-
-    emailsFilter.value = Array.from(
-      new Set([...profileEmails, email.value].filter(Boolean)),
-    );
-    return emailsFilter.value;
   };
 
   const getProfileAttribute = <K extends keyof UserProfile>(key: K) => {
@@ -175,6 +220,7 @@ export const useUserStore = defineStore("user", () => {
     allProfiles.value = [];
     emailsFilter.value = [];
     isLoaded.value = false;
+    isEmailsFilterLoaded.value = false;
     error.value = null;
   };
 
@@ -189,6 +235,7 @@ export const useUserStore = defineStore("user", () => {
     emailsFilter,
     isLoading,
     isLoaded,
+    isEmailsFilterLoaded,
     error,
     fetchCurrentUserProfile,
     buildEmailsFilter,

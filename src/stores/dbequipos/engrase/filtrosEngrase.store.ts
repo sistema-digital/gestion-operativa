@@ -365,6 +365,7 @@ export const useFiltrosEngraseStore = defineStore(
       await asegurarSeleccion();
     }
     function seleccionarEquipo(id: number): void {
+      if (equipoSeleccionadoId.value === id) return;
       if (!equipos.value.some((item) => item.id === id)) return;
       equipoSeleccionadoId.value = id;
       limpiarDatosEquipoSeleccionado();

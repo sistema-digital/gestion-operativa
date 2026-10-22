@@ -53,6 +53,11 @@ export interface RatingsSnapshot {
   detalles: RatingsDetalle[];
 }
 
+export interface MeetingRatingsSnapshot {
+  inspecciones: RatingsInspeccion[];
+  detalles: RatingsDetalle[];
+}
+
 export interface RatingsDateRange {
   from: string;
   to: string;
@@ -72,6 +77,11 @@ export interface UpsertMeetingRatingPayload {
 export interface DeleteMeetingRatingPayload {
   inspectionId: number;
   meetingCriterionId: number;
+}
+
+export interface DeleteMeetingRatingResult {
+  inspectionId: number;
+  observacion: string | null;
 }
 
 export interface RatingsFetchScopeAll {

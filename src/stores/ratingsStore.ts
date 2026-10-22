@@ -268,6 +268,46 @@ export const useRatingsStore = defineStore("ratings", () => {
     }
   };
 
+  const fetchMeetingRatings = async (
+    range: RatingsDateRange,
+    meetingCriterionId: number,
+  ): Promise<void> => {
+    const snapshot = await ratingsService.fetchMeetingRatings(
+      range,
+      meetingCriterionId,
+    );
+    const scopedInspectionIds = new Set(
+      inspecciones.value
+        .filter(
+          (inspection) =>
+            inspection.fecha >= range.from && inspection.fecha <= range.to,
+        )
+        .map((inspection) => inspection.id_inspeccion),
+    );
+
+    detalles.value = detalles.value.filter(
+      (detail) =>
+        !(
+          detail.id_criterio === meetingCriterionId &&
+          scopedInspectionIds.has(detail.id_inspeccion)
+        ),
+    );
+
+    const inspectionsById = new Map(
+      inspecciones.value.map((inspection) => [
+        inspection.id_inspeccion,
+        inspection,
+      ]),
+    );
+    snapshot.inspecciones.forEach((inspection) => {
+      inspectionsById.set(inspection.id_inspeccion, inspection);
+    });
+    inspecciones.value = [...inspectionsById.values()];
+
+    detalles.value = [...detalles.value, ...snapshot.detalles];
+    sortRatingsState();
+  };
+
   const fetchPuntuacionSupervisoresOt = async (
     fecha: string,
     force = false,
@@ -389,7 +429,21 @@ export const useRatingsStore = defineStore("ratings", () => {
   };
 
   const deleteMeetingRating = async (payload: DeleteMeetingRatingPayload) => {
-    await ratingsService.deleteMeetingRating(payload);
+    const result = await ratingsService.deleteMeetingRating(payload);
+
+    detalles.value = detalles.value.filter(
+      (detail) =>
+        !(
+          detail.id_inspeccion === payload.inspectionId &&
+          detail.id_criterio === payload.meetingCriterionId
+        ),
+    );
+    inspecciones.value = inspecciones.value.map((inspection) =>
+      (inspection.id_inspeccion || inspection.id) === result.inspectionId
+        ? { ...inspection, observacion: result.observacion }
+        : inspection,
+    );
+    sortRatingsState();
   };
 
   return {
@@ -408,6 +462,7 @@ export const useRatingsStore = defineStore("ratings", () => {
     fullHistoryAccessKey,
     activeAccessKey,
     fetchAll,
+    fetchMeetingRatings,
     fetchPuntuacionSupervisoresOt,
     deleteInspection,
     upsertMeetingRating,
