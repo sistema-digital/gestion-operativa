@@ -92,6 +92,31 @@ describe("detalle de filtros y aceites del equipo", () => {
     expect(obtenerDatosGeneralesEquipo).toHaveBeenCalledOnce();
   });
 
+  it("ignora la selección repetida del mismo equipo y conserva su detalle", async () => {
+    const store = useFiltrosEngraseStore();
+    store.equipos = [equipo(123, "422017")];
+
+    store.seleccionarEquipo(123);
+    await store.cargarDatosGeneralesEquipo(123, "422017");
+
+    store.seleccionarEquipo(123);
+
+    expect(store.equipoSeleccionadoId).toBe(123);
+    expect(store.datosGeneralesEquipo).toEqual({
+      numero_equipo: "422017",
+      tipo: "Combinadas",
+      marca: "Marca",
+      modelo: "Cosechadora",
+      tenencia: "PROPIA",
+      combustible: "DIÉSEL",
+      fecha_llegada: "21/05/2026",
+      potencia_cv: 203.94,
+      consumo_base_gal_h: 5.39,
+      etapas: [],
+    });
+    expect(obtenerDatosGeneralesEquipo).toHaveBeenCalledOnce();
+  });
+
   it("confirma el estado por RPC y actualiza el store sin recargar equipos", async () => {
     cambiarEstadoEquipo.mockResolvedValue("descartado");
     const store = useFiltrosEngraseStore();
