@@ -32,7 +32,7 @@ export const MEETING_SCHEDULE_BY_EMAIL: Record<string, MeetingSchedule> = {
     time: "9:00 a. m.",
     timeOrder: 9,
   },
-  "anthonyl@cadasa.com": {
+  "equipop@cadasa.com": {
     weekday: "Jueves",
     time: "9:00 a. m.",
     timeOrder: 9,

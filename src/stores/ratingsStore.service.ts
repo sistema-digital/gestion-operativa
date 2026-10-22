@@ -30,6 +30,10 @@ const meetingDetailSchema = z.object({
   puntuacion: z.number(),
 });
 
+const meetingInspectionWithDetailsSchema = meetingInspectionSchema.extend({
+  inspecciones_detalle: z.array(meetingDetailSchema),
+});
+
 const ratingsSnapshotSchema = z.object({
   empleados: z.array(
     z.object({
@@ -103,56 +107,32 @@ export const ratingsService = {
     range: RatingsDateRange,
     meetingCriterionId: number,
   ): Promise<MeetingRatingsSnapshot> {
-    const { data: inspectionsData, error: inspectionsError } =
-      await supabaseRatings
-        .from("inspecciones")
-        .select(
-          "id_inspeccion, fecha, hora, foto_url, observacion, id_supervisor, id_inspector",
-        )
-        .gte("fecha", range.from)
-        .lte("fecha", range.to);
+    const { data, error } = await supabaseRatings
+      .from("inspecciones")
+      .select(
+        "id_inspeccion, fecha, hora, foto_url, observacion, id_supervisor, id_inspector, inspecciones_detalle!inner(id_inspeccion, id_criterio, puntuacion)",
+      )
+      .gte("fecha", range.from)
+      .lte("fecha", range.to)
+      .eq("inspecciones_detalle.id_criterio", meetingCriterionId);
 
-    if (inspectionsError) {
+    if (error) {
       throw new Error(
-        inspectionsError.message ||
-          "No se pudieron cargar las inspecciones de la semana",
+        error.message || "No se pudieron cargar las inspecciones de la semana",
       );
     }
 
-    const weeklyInspections = z
-      .array(meetingInspectionSchema)
-      .parse(inspectionsData);
-    const inspectionIds = weeklyInspections.map(
-      (inspection) => inspection.id_inspeccion,
-    );
-
-    if (inspectionIds.length === 0) {
-      return { inspecciones: [], detalles: [] };
-    }
-
-    const { data: detailsData, error: detailsError } = await supabaseRatings
-      .from("inspecciones_detalle")
-      .select("id_inspeccion, id_criterio, puntuacion")
-      .in("id_inspeccion", inspectionIds)
-      .eq("id_criterio", meetingCriterionId);
-
-    if (detailsError) {
-      throw new Error(
-        detailsError.message ||
-          "No se pudieron cargar las calificaciones de reunión",
-      );
-    }
-
-    const meetingDetails = z.array(meetingDetailSchema).parse(detailsData);
-    const meetingInspectionIds = new Set(
-      meetingDetails.map((detail) => detail.id_inspeccion),
-    );
+    const meetingInspections = z
+      .array(meetingInspectionWithDetailsSchema)
+      .parse(data);
 
     return {
-      inspecciones: weeklyInspections.filter((inspection) =>
-        meetingInspectionIds.has(inspection.id_inspeccion),
+      inspecciones: meetingInspections.map((inspection) =>
+        meetingInspectionSchema.parse(inspection),
       ),
-      detalles: meetingDetails,
+      detalles: meetingInspections.flatMap(
+        (inspection) => inspection.inspecciones_detalle,
+      ),
     };
   },
 
