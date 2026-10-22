@@ -1,10 +1,13 @@
 import { supabase, supabaseRatings } from "@/lib/supabase";
 import { z } from "zod";
 import type {
+  DeleteMeetingRatingResult,
   DeleteMeetingRatingPayload,
   RatingsAccessScope,
   RatingsFetchScope,
   PuntuacionSupervisoresOtResponse,
+  MeetingRatingsSnapshot,
+  RatingsDateRange,
   RatingsSnapshot,
   UpsertMeetingRatingPayload,
   UpsertMeetingRatingResult,
@@ -94,6 +97,63 @@ export const ratingsService = {
     }
 
     return ratingsSnapshotSchema.parse(data);
+  },
+
+  async fetchMeetingRatings(
+    range: RatingsDateRange,
+    meetingCriterionId: number,
+  ): Promise<MeetingRatingsSnapshot> {
+    const { data: inspectionsData, error: inspectionsError } =
+      await supabaseRatings
+        .from("inspecciones")
+        .select(
+          "id_inspeccion, fecha, hora, foto_url, observacion, id_supervisor, id_inspector",
+        )
+        .gte("fecha", range.from)
+        .lte("fecha", range.to);
+
+    if (inspectionsError) {
+      throw new Error(
+        inspectionsError.message ||
+          "No se pudieron cargar las inspecciones de la semana",
+      );
+    }
+
+    const weeklyInspections = z
+      .array(meetingInspectionSchema)
+      .parse(inspectionsData);
+    const inspectionIds = weeklyInspections.map(
+      (inspection) => inspection.id_inspeccion,
+    );
+
+    if (inspectionIds.length === 0) {
+      return { inspecciones: [], detalles: [] };
+    }
+
+    const { data: detailsData, error: detailsError } = await supabaseRatings
+      .from("inspecciones_detalle")
+      .select("id_inspeccion, id_criterio, puntuacion")
+      .in("id_inspeccion", inspectionIds)
+      .eq("id_criterio", meetingCriterionId);
+
+    if (detailsError) {
+      throw new Error(
+        detailsError.message ||
+          "No se pudieron cargar las calificaciones de reunión",
+      );
+    }
+
+    const meetingDetails = z.array(meetingDetailSchema).parse(detailsData);
+    const meetingInspectionIds = new Set(
+      meetingDetails.map((detail) => detail.id_inspeccion),
+    );
+
+    return {
+      inspecciones: weeklyInspections.filter((inspection) =>
+        meetingInspectionIds.has(inspection.id_inspeccion),
+      ),
+      detalles: meetingDetails,
+    };
   },
 
   async fetchPuntuacionSupervisoresOt(
@@ -212,7 +272,7 @@ export const ratingsService = {
 
   async deleteMeetingRating(
     payload: DeleteMeetingRatingPayload,
-  ): Promise<void> {
+  ): Promise<DeleteMeetingRatingResult> {
     const { data: inspectionRecord, error: inspectionFetchError } =
       await supabaseRatings
         .from("inspecciones")
@@ -231,19 +291,6 @@ export const ratingsService = {
       inspectionRecord?.observacion || "",
     );
 
-    const { error: detailDeleteError } = await supabaseRatings
-      .from("inspecciones_detalle")
-      .delete()
-      .eq("id_inspeccion", payload.inspectionId)
-      .eq("id_criterio", payload.meetingCriterionId);
-
-    if (detailDeleteError) {
-      throw new Error(
-        detailDeleteError.message ||
-          "No se pudo eliminar la puntuacion de reunion",
-      );
-    }
-
     const { error: inspectionUpdateError } = await supabaseRatings
       .from("inspecciones")
       .update({
@@ -257,5 +304,23 @@ export const ratingsService = {
           "No se pudo limpiar la observacion de reunion",
       );
     }
+
+    const { error: detailDeleteError } = await supabaseRatings
+      .from("inspecciones_detalle")
+      .delete()
+      .eq("id_inspeccion", payload.inspectionId)
+      .eq("id_criterio", payload.meetingCriterionId);
+
+    if (detailDeleteError) {
+      throw new Error(
+        detailDeleteError.message ||
+          "No se pudo eliminar la puntuacion de reunion",
+      );
+    }
+
+    return {
+      inspectionId: payload.inspectionId,
+      observacion: nextObservation || null,
+    };
   },
 };

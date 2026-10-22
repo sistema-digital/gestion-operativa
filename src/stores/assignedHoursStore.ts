@@ -9,24 +9,75 @@ export const useAssignedHoursStore = defineStore("assignedHours", () => {
   const cache = ref<Record<string, AssignedHoursWorkOrder[]>>({});
   const areaCache = ref<Record<string, string>>({}); // email -> area
 
+  const normalizeEmail = (email: string): string => email.trim().toLowerCase();
+
+  const hasCachedSupervisorArea = (email: string): boolean => {
+    const normalizedEmail = normalizeEmail(email);
+
+    return (
+      normalizedEmail.length > 0 &&
+      Object.hasOwn(areaCache.value, normalizedEmail)
+    );
+  };
+
+  const getSupervisorArea = (email: string): string => {
+    const normalizedEmail = normalizeEmail(email);
+
+    return areaCache.value[normalizedEmail] || "";
+  };
+
+  const fetchSupervisorAreas = async (
+    emails: string[],
+    force = false,
+  ): Promise<Record<string, string>> => {
+    const normalizedEmails = Array.from(
+      new Set(emails.map(normalizeEmail).filter((email) => email.length > 0)),
+    );
+    const emailsToFetch = force
+      ? normalizedEmails
+      : normalizedEmails.filter((email) => !hasCachedSupervisorArea(email));
+
+    if (emailsToFetch.length > 0) {
+      const { data, error } = await supabase
+        .from("PROFILE")
+        .select("email, area")
+        .in("email", emailsToFetch);
+
+      if (error) {
+        console.error("Error fetching supervisor areas:", error);
+      } else {
+        const profiles = data || [];
+
+        profiles.forEach((profile) => {
+          const profileEmail = normalizeEmail(profile.email || "");
+
+          if (profileEmail) {
+            areaCache.value[profileEmail] = profile.area || "";
+          }
+        });
+
+        emailsToFetch.forEach((email) => {
+          if (!hasCachedSupervisorArea(email)) {
+            areaCache.value[email] = "";
+          }
+        });
+      }
+    }
+
+    return normalizedEmails.reduce<Record<string, string>>((areas, email) => {
+      areas[email] = getSupervisorArea(email);
+      return areas;
+    }, {});
+  };
+
   const fetchSupervisorArea = async (
     email: string,
     force = false,
   ): Promise<string> => {
     if (!email) return "";
-    if (areaCache.value[email] && !force) return areaCache.value[email];
 
-    const { data, error } = await supabase
-      .from("PROFILE")
-      .select("area")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (!error && data?.area) {
-      areaCache.value[email] = data.area;
-      return data.area;
-    }
-    return "";
+    await fetchSupervisorAreas([email], force);
+    return getSupervisorArea(email);
   };
 
   const fetchHours = async (
@@ -107,6 +158,8 @@ export const useAssignedHoursStore = defineStore("assignedHours", () => {
     cache,
     areaCache,
     fetchSupervisorArea,
+    fetchSupervisorAreas,
+    getSupervisorArea,
     fetchHours,
   };
 });

@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, shallowRef, onMounted, onUnmounted, watch } from "vue";
+import {
+  ref,
+  computed,
+  shallowRef,
+  onMounted,
+  onUnmounted,
+  watch,
+  nextTick,
+} from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
@@ -55,6 +63,8 @@ import type {
 } from "@/components/ratings/meetingBatch.types";
 import {
   getMeetingAssignedWeekday,
+  getMeetingAssignedTime,
+  getMeetingAssignedTimeOrder,
   getMeetingBadgeLabel,
   getRelativeMeetingWeekdayLabel,
   mergeGeneralObservationWithMeetingBlock,
@@ -62,6 +72,7 @@ import {
   resolveMeetingCriterionId,
   upsertMeetingObservationBlock,
 } from "@/utils/meetingRatings";
+import { getWeekNumber } from "@/utils/dateUtils";
 import { formatCompactDate } from "@/utils/formatCompactPanamaDate";
 import "@vuepic/vue-datepicker/dist/main.css";
 
@@ -584,16 +595,21 @@ const previousRatingsButtonLabel = computed(() => {
 const canManageMeetingBatch = computed(() => currentUserArea.value === "ALL");
 
 const meetingBatchRange = computed(() => {
+  const weekNumber = getWeekNumber(new Date(startOfWeek + "T00:00:00"));
+
   return {
     from: startOfWeek,
     to: endOfWeek,
-    label: `Semana actual (${startOfWeek} a ${endOfWeek})`,
+    weekNumber,
   };
 });
 
 const meetingBatchSavingBySupervisor = ref<Record<number, boolean>>({});
 const meetingBatchErrorBySupervisor = ref<Record<number, string>>({});
 const meetingBatchSuccessBySupervisor = ref<Record<number, string>>({});
+const meetingBatchLoading = ref(false);
+const meetingBatchLoadError = ref("");
+const meetingBatchPanelVersion = ref(0);
 const meetingBatchSuccessTimeouts = new Map<
   number,
   ReturnType<typeof setTimeout>
@@ -601,9 +617,13 @@ const meetingBatchSuccessTimeouts = new Map<
 
 const weeklyMeetingBatchItems = computed<MeetingBatchItem[]>(() => {
   const { from, to } = meetingBatchRange.value;
+  const supervisorsFromStore = ratingsStore.validSupervisors;
   const employees = ratingsStore.empleados;
   const rawInspections = ratingsStore.inspecciones;
   const details = ratingsStore.detalles;
+  const activeMeetingCriterionId =
+    meetingCriterionId.value ??
+    resolveMeetingCriterionId(ratingsStore.criterios);
   const currentInspector = employees.find((employee) => {
     const employeeEmail = employee.email || employee.correo || "";
     return (
@@ -612,10 +632,21 @@ const weeklyMeetingBatchItems = computed<MeetingBatchItem[]>(() => {
     );
   });
 
-  return supervisors.value
-    .filter((supervisor) => supervisor.meetingWeekday !== "Sin asignar")
+  return supervisorsFromStore
+    .map((supervisor) => ({
+      id: supervisor.id_empleado,
+      name: supervisor.nombre_completo,
+      weekday: getMeetingAssignedWeekday(
+        supervisor.correo || supervisor.email || "",
+      ),
+      time: getMeetingAssignedTime(supervisor.correo || supervisor.email || ""),
+      timeOrder: getMeetingAssignedTimeOrder(
+        supervisor.correo || supervisor.email || "",
+      ),
+    }))
+    .filter((supervisor) => supervisor.weekday !== "Sin asignar")
     .map((supervisor) => {
-      const assignedWeekday = supervisor.meetingWeekday;
+      const assignedWeekday = supervisor.weekday;
       const assignedWeekdayIndex =
         MEETING_WEEKDAY_INDEX[assignedWeekday] ?? null;
 
@@ -640,7 +671,8 @@ const weeklyMeetingBatchItems = computed<MeetingBatchItem[]>(() => {
 
         return details.some(
           (detail) =>
-            detail.id_inspeccion === inspectionId && detail.id_criterio === 5,
+            detail.id_inspeccion === inspectionId &&
+            detail.id_criterio === activeMeetingCriterionId,
         );
       });
 
@@ -660,7 +692,8 @@ const weeklyMeetingBatchItems = computed<MeetingBatchItem[]>(() => {
       const meetingDetail = inspectionId
         ? details.find(
             (detail) =>
-              detail.id_inspeccion === inspectionId && detail.id_criterio === 5,
+              detail.id_inspeccion === inspectionId &&
+              detail.id_criterio === activeMeetingCriterionId,
           )
         : null;
       const parsedObservation = parseMeetingObservation(
@@ -678,6 +711,8 @@ const weeklyMeetingBatchItems = computed<MeetingBatchItem[]>(() => {
         supervisorId: supervisor.id,
         supervisorName: supervisor.name,
         assignedMeetingWeekday: assignedWeekday,
+        assignedMeetingTime: supervisor.time,
+        assignedMeetingTimeOrder: supervisor.timeOrder,
         meetingDate,
         inspectionId,
         inspectorId:
@@ -749,6 +784,9 @@ const isEditing = ref(false);
 const editingId = ref<number | null>(null);
 const showMeetingModal = ref(false);
 const showMeetingBatchModal = ref(false);
+const meetingBatchDeleteCandidate = ref<MeetingBatchItem | null>(null);
+const meetingBatchDeleteError = ref("");
+const meetingBatchDeletingSupervisorId = ref<number | null>(null);
 const meetingModalLoading = ref(false);
 const meetingSaving = ref(false);
 const meetingErrorMsg = ref("");
@@ -800,7 +838,11 @@ const ensureRatingsCatalogsLoaded = async () => {
   formCriterios.value = ratingsStore.criterios;
 
   if (shouldLoadProfiles && formEmpleados.value.length > 0) {
-    await loadProfilesForForm(formEmpleados.value);
+    const supervisorEmails = formEmpleados.value
+      .filter((empleado) => empleado.rol?.toUpperCase().includes("SUPERVISOR"))
+      .map((empleado) => empleado.correo || empleado.email || "");
+
+    await assignedHoursStore.fetchSupervisorAreas(supervisorEmails);
   }
 
   resolveMeetingCriterionIdFromCatalog();
@@ -1073,9 +1115,9 @@ const isServiciosGenerales = computed(
 const availableOtherSupervisors = computed(() => {
   return formEmpleados.value.filter((e) => {
     // Determine the area from API string or Store Cache reliably
-    const cachedArea =
-      assignedHoursStore.areaCache[e.email] ||
-      (e.correo ? assignedHoursStore.areaCache[e.correo] : "");
+    const cachedArea = assignedHoursStore.getSupervisorArea(
+      e.correo || e.email || "",
+    );
     const eArea = (e.area || cachedArea || "").toUpperCase();
     const eDept = (e.departamento || "").toUpperCase();
     const isSG =
@@ -1377,18 +1419,6 @@ const formatFileSize = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
-const loadProfilesForForm = async (emps: RatingsEmpleado[]) => {
-  // Pre-load area cache for everyone so the computed properties have real area data immediately
-  for (const e of emps) {
-    if (e.rol?.toUpperCase().includes("SUPERVISOR")) {
-      const email = e.correo || e.email || "";
-      if (email) {
-        await assignedHoursStore.fetchSupervisorArea(email);
-      }
-    }
-  }
-};
-
 const openNewModal = async () => {
   isEditing.value = false;
   editingId.value = null;
@@ -1680,7 +1710,7 @@ const saveMeeting = async () => {
     });
 
     resetMeetingModalState();
-    await loadData({ background: true, useCachedStoreOnly: true });
+    await loadData({ forceStore: true, background: true });
   } catch (error: any) {
     meetingErrorMsg.value = error.message || "No se pudo guardar la reunion";
   } finally {
@@ -1749,8 +1779,10 @@ const saveMeetingBatchItem = async (payload: MeetingBatchDraftPayload) => {
       puntuacion: payload.puntuacion,
       observacion: mergedObservation,
     });
+    await loadData({ useCachedStoreOnly: true, background: true });
+    meetingBatchPanelVersion.value += 1;
+    await nextTick();
 
-    await loadData({ background: true, useCachedStoreOnly: true });
     meetingBatchSuccessBySupervisor.value = {
       ...meetingBatchSuccessBySupervisor.value,
       [payload.supervisorId]: successMessage,
@@ -1787,6 +1819,67 @@ const saveMeetingBatchItem = async (payload: MeetingBatchDraftPayload) => {
       ...meetingBatchSavingBySupervisor.value,
       [payload.supervisorId]: false,
     };
+  }
+};
+
+const openMeetingBatchDeleteModal = (supervisorId: number): void => {
+  const batchItem = weeklyMeetingBatchItems.value.find(
+    (item) => item.supervisorId === supervisorId,
+  );
+
+  if (!batchItem?.hasExistingMeeting || !batchItem.inspectionId) return;
+
+  meetingBatchDeleteCandidate.value = batchItem;
+  meetingBatchDeleteError.value = "";
+};
+
+const closeMeetingBatchDeleteModal = (): void => {
+  if (meetingBatchDeletingSupervisorId.value) return;
+
+  meetingBatchDeleteCandidate.value = null;
+  meetingBatchDeleteError.value = "";
+};
+
+const deleteMeetingBatchItem = async (): Promise<void> => {
+  const batchItem = meetingBatchDeleteCandidate.value;
+
+  if (!batchItem?.inspectionId) return;
+
+  meetingBatchDeletingSupervisorId.value = batchItem.supervisorId;
+  meetingBatchSavingBySupervisor.value = {
+    ...meetingBatchSavingBySupervisor.value,
+    [batchItem.supervisorId]: true,
+  };
+
+  try {
+    await ensureRatingsCatalogsLoaded();
+
+    if (!meetingCriterionId.value) {
+      meetingBatchDeleteError.value =
+        "No se encontró el criterio dedicado de reunión.";
+      return;
+    }
+
+    await ratingsStore.deleteMeetingRating({
+      inspectionId: batchItem.inspectionId,
+      meetingCriterionId: meetingCriterionId.value,
+    });
+    await loadData({ useCachedStoreOnly: true, background: true });
+    meetingBatchPanelVersion.value += 1;
+    await nextTick();
+
+    meetingBatchDeleteCandidate.value = null;
+  } catch (error) {
+    meetingBatchDeleteError.value =
+      error instanceof Error
+        ? error.message
+        : "No se pudo eliminar la calificación de reunión.";
+  } finally {
+    meetingBatchSavingBySupervisor.value = {
+      ...meetingBatchSavingBySupervisor.value,
+      [batchItem.supervisorId]: false,
+    };
+    meetingBatchDeletingSupervisorId.value = null;
   }
 };
 
@@ -2123,7 +2216,9 @@ const loadData = async ({
   if (!background) isLoading.value = true;
   try {
     if (!useCachedStoreOnly) {
-      const profile = await userStore.fetchCurrentUserProfile();
+      const profile = await userStore.fetchCurrentUserProfile(false, {
+        includeEmailsFilter: false,
+      });
       currentUserEmail.value = userStore.getEmail();
       currentUserArea.value = profile?.area?.toUpperCase() || "ALL";
       currentUserName.value = profile?.nombre || "";
@@ -2303,6 +2398,36 @@ const loadData = async ({
   }
 };
 
+const openMeetingBatchModal = async (): Promise<void> => {
+  const { from, to } = meetingBatchRange.value;
+  const criterionId =
+    meetingCriterionId.value ??
+    resolveMeetingCriterionId(ratingsStore.criterios);
+
+  showMeetingBatchModal.value = true;
+  meetingBatchLoadError.value = "";
+
+  if (!criterionId) {
+    meetingBatchLoadError.value =
+      "No se encontró el criterio de calificación de reunión.";
+    return;
+  }
+
+  meetingCriterionId.value = criterionId;
+  meetingBatchLoading.value = true;
+
+  try {
+    await ratingsStore.fetchMeetingRatings({ from, to }, criterionId);
+  } catch (error) {
+    meetingBatchLoadError.value =
+      error instanceof Error
+        ? error.message
+        : "No se pudieron cargar las calificaciones de reunión.";
+  } finally {
+    meetingBatchLoading.value = false;
+  }
+};
+
 const canUsePreviousRatingsFilter = computed(() => {
   return resolvedPreviousRatingsDate.value !== "";
 });
@@ -2380,7 +2505,7 @@ onUnmounted(() => {
             v-if="canManageMeetingBatch"
             variant="outline"
             class="mb-2 border-gray-200 text-amber-700 shadow-sm bg-white cursor-pointer hover:bg-amber-50 hover:cursor-pointer"
-            @click="showMeetingBatchModal = true"
+            @click="openMeetingBatchModal"
           >
             Revisión Reunión
           </BaseButton>
@@ -2938,26 +3063,42 @@ onUnmounted(() => {
             >
               <div>
                 <h3 class="font-display text-xl text-gray-900 tracking-tight">
-                  Revisión Semanal de Reunión
+                  Asistencia a Reunión día típico - Semana
+                  {{ meetingBatchRange.weekNumber }}
                 </h3>
               </div>
               <button
                 @click="showMeetingBatchModal = false"
-                class="text-gray-400 hover:text-gray-600"
+                class="cursor-pointer text-gray-400 hover:text-gray-600"
               >
                 <X class="w-5 h-5" />
               </button>
             </div>
 
             <div class="p-6 overflow-y-auto flex-1 bg-gray-50/40">
+              <div
+                v-if="meetingBatchLoading"
+                class="flex min-h-48 items-center justify-center text-sm font-semibold text-gray-500"
+              >
+                <Loader2 class="mr-2 h-5 w-5 animate-spin text-amber-600" />
+                Cargando calificaciones de reunión...
+              </div>
+              <p
+                v-else-if="meetingBatchLoadError"
+                class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700"
+              >
+                {{ meetingBatchLoadError }}
+              </p>
               <MeetingBatchPanel
+                v-else
+                :key="meetingBatchPanelVersion"
                 :items="weeklyMeetingBatchItems"
                 :levels="formNiveles"
                 :is-saving-by-supervisor="meetingBatchSavingBySupervisor"
                 :error-by-supervisor="meetingBatchErrorBySupervisor"
                 :success-by-supervisor="meetingBatchSuccessBySupervisor"
-                :range-label="meetingBatchRange.label"
                 @save="saveMeetingBatchItem"
+                @delete="openMeetingBatchDeleteModal"
               />
             </div>
 
@@ -2966,9 +3107,86 @@ onUnmounted(() => {
             >
               <BaseButton
                 variant="tertiary"
+                class="cursor-pointer"
                 @click="showMeetingBatchModal = false"
                 >Cerrar</BaseButton
               >
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="meetingBatchDeleteCandidate"
+          class="fixed inset-0 z-[75] flex items-center justify-center bg-gray-900/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="meeting-batch-delete-title"
+        >
+          <div
+            class="w-full max-w-md overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl"
+          >
+            <div class="border-b border-rose-100 bg-rose-50 px-5 py-4">
+              <h3
+                id="meeting-batch-delete-title"
+                class="text-base font-bold text-rose-950"
+              >
+                ¿Eliminar calificación de reunión?
+              </h3>
+              <p class="mt-1 text-xs leading-relaxed text-rose-800">
+                Se eliminará la calificación de
+                <span class="font-bold">{{
+                  meetingBatchDeleteCandidate.supervisorName
+                }}</span>
+                y sus observaciones de reunión. La inspección diaria base se
+                conservará.
+              </p>
+            </div>
+
+            <div class="space-y-3 px-5 py-4">
+              <div
+                class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700"
+              >
+                Reunión: {{ meetingBatchDeleteCandidate.meetingDate }} ·
+                Puntuación:
+                {{
+                  meetingBatchDeleteCandidate.currentMeetingScore ??
+                  "Sin registro"
+                }}
+                / 5
+              </div>
+
+              <p
+                v-if="meetingBatchDeleteError"
+                class="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700"
+              >
+                {{ meetingBatchDeleteError }}
+              </p>
+            </div>
+
+            <div
+              class="flex flex-col-reverse gap-2 border-t border-gray-100 bg-gray-50 px-5 py-4 sm:flex-row sm:justify-end"
+            >
+              <BaseButton
+                variant="tertiary"
+                class="cursor-pointer"
+                :disabled="Boolean(meetingBatchDeletingSupervisorId)"
+                @click="closeMeetingBatchDeleteModal"
+              >
+                Cancelar
+              </BaseButton>
+              <BaseButton
+                variant="primary"
+                class="cursor-pointer !bg-rose-600 hover:!bg-rose-700"
+                :disabled="Boolean(meetingBatchDeletingSupervisorId)"
+                @click="deleteMeetingBatchItem"
+              >
+                <span v-if="!meetingBatchDeletingSupervisorId">
+                  Eliminar calificación
+                </span>
+                <span v-else class="flex items-center gap-2">
+                  <Loader2 class="h-4 w-4 animate-spin" /> Eliminando...
+                </span>
+              </BaseButton>
             </div>
           </div>
         </div>
