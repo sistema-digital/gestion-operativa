@@ -48,6 +48,8 @@ import type {
   ProductoSolicitudTemporalItem,
   ServicioSolicitudDraft,
   ServicioSolicitudItem,
+  SolicitudCompraObservacionLineaItem,
+  SolicitudCompraObservacionPayload,
   SolicitudCompraCreateStep,
   SolicitudCompraCrearPayload,
   SolicitudCompraCrearResponse,
@@ -84,6 +86,7 @@ const createInitialState = (): SolicitudCompraCrearState => ({
   destinos: [],
   productos: [],
   servicios: [],
+  observacionesLineas: [],
   observacion: OBSERVACION_PREFILL_PREFIX,
   ultimoPrefillObservacion: OBSERVACION_PREFILL_PREFIX,
   observacionEditadaManual: false,
@@ -161,6 +164,69 @@ const toDestinoEquipoSeleccionado = (
 });
 
 const createLocalId = (): string => crypto.randomUUID();
+const pruneObservacionesLineas = (
+  observaciones: SolicitudCompraObservacionLineaItem[],
+  detalleLocalId: string,
+): SolicitudCompraObservacionLineaItem[] =>
+  observaciones
+    .map((observacion) => ({
+      ...observacion,
+      detalleLocalIds: observacion.detalleLocalIds.filter(
+        (localId) => localId !== detalleLocalId,
+      ),
+    }))
+    .filter((observacion) => observacion.detalleLocalIds.length > 0);
+
+const buildObservacionesPayload = (value: {
+  tipoSolicitud: SolicitudCompraTipoSolicitud;
+  productos: ProductoSolicitudItem[];
+  servicios: ServicioSolicitudItem[];
+  observacionesLineas: SolicitudCompraObservacionLineaItem[];
+}): SolicitudCompraObservacionPayload[] => {
+  if (value.tipoSolicitud === "servicio") {
+    const serviceIndexes = new Map(
+      value.servicios.map((service, index) => [service.localId, index + 1]),
+    );
+
+    return value.observacionesLineas.map((observacion) => ({
+      texto: observacion.texto.trim(),
+      codigos_producto: [],
+      indices_temporales: [],
+      indices_servicios: observacion.detalleLocalIds.flatMap((localId) => {
+        const index = serviceIndexes.get(localId);
+        return index ? [index] : [];
+      }),
+    }));
+  }
+
+  const productsByLocalId = new Map(
+    value.productos.map((producto, index) => [
+      producto.localId,
+      { producto, index: index + 1 },
+    ]),
+  );
+
+  return value.observacionesLineas.map((observacion) => {
+    const productosSeleccionados = observacion.detalleLocalIds.flatMap(
+      (localId) => {
+        const producto = productsByLocalId.get(localId);
+        return producto ? [producto] : [];
+      },
+    );
+
+    return {
+      texto: observacion.texto.trim(),
+      codigos_producto: productosSeleccionados.flatMap(({ producto }) =>
+        producto.tipo === "existente" ? [producto.codProducto] : [],
+      ),
+      indices_temporales: productosSeleccionados.flatMap(
+        ({ producto, index }) => (producto.tipo === "temporal" ? [index] : []),
+      ),
+      indices_servicios: [],
+    };
+  });
+};
+
 const createDraftSnapshotHash = (
   snapshot: SolicitudCompraBorradorUpdatePayload,
 ): string => JSON.stringify(snapshot);
@@ -612,6 +678,7 @@ export const useSolicitudesCompraCrearStore = defineStore(
 
         if (value === "servicio") {
           this.productos = [];
+          this.observacionesLineas = [];
           this.productSearchResults = [];
           this.productSearchQuery = "";
           delete this.validationErrors.productos;
@@ -619,6 +686,7 @@ export const useSolicitudesCompraCrearStore = defineStore(
 
         if (value === "producto") {
           this.servicios = [];
+          this.observacionesLineas = [];
           delete this.validationErrors.servicios;
         }
 
@@ -676,6 +744,16 @@ export const useSolicitudesCompraCrearStore = defineStore(
         this.observacionEditadaManual =
           this.observacion !== this.ultimoPrefillObservacion;
         delete this.validationErrors.observacion;
+      },
+
+      setObservacionesLineas(
+        value: SolicitudCompraObservacionLineaItem[],
+      ): void {
+        this.observacionesLineas = value.map((observacion) => ({
+          ...observacion,
+          detalleLocalIds: [...observacion.detalleLocalIds],
+        }));
+        delete this.validationErrors.observacionesLineas;
       },
 
       setSolicitarUrgente(value: boolean): void {
@@ -971,6 +1049,10 @@ export const useSolicitudesCompraCrearStore = defineStore(
         this.productos = this.productos.filter(
           (item) => item.localId !== localId,
         );
+        this.observacionesLineas = pruneObservacionesLineas(
+          this.observacionesLineas,
+          localId,
+        );
       },
 
       agregarServicio(item: ServicioSolicitudDraft): void {
@@ -1006,6 +1088,10 @@ export const useSolicitudesCompraCrearStore = defineStore(
       removerServicio(localId: string): void {
         this.servicios = this.servicios.filter(
           (item) => item.localId !== localId,
+        );
+        this.observacionesLineas = pruneObservacionesLineas(
+          this.observacionesLineas,
+          localId,
         );
       },
 
@@ -1134,6 +1220,7 @@ export const useSolicitudesCompraCrearStore = defineStore(
           destinos: this.destinos,
           productos: sanitizedCollections.productos,
           servicios: sanitizedCollections.servicios,
+          observacionesLineas: this.observacionesLineas,
           observacion: this.observacion,
           solicitarUrgente: this.solicitarUrgente,
           motivoUrgencia: this.motivoUrgencia,
@@ -1187,7 +1274,12 @@ export const useSolicitudesCompraCrearStore = defineStore(
                   unidad_codigo: item.unidadCodigo.trim(),
                 }))
               : [],
-          p_observaciones: [],
+          p_observaciones: buildObservacionesPayload({
+            tipoSolicitud: parsed.tipoSolicitud,
+            productos: parsed.productos,
+            servicios: parsed.servicios,
+            observacionesLineas: parsed.observacionesLineas,
+          }),
           p_enviar: true,
           p_solicitar_urgente: parsed.solicitarUrgente,
           p_motivo_urgencia: parsed.solicitarUrgente

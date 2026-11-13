@@ -184,6 +184,47 @@ describe("solicitudesCompraCrear.store", () => {
     expect(payload.p_servicios).toEqual([]);
   });
 
+  it("convierte observaciones de productos a códigos e índices temporales", async () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.setTipoSolicitud("producto");
+    store.setEtapaCodigo("zafra");
+    await store.setFechaEntrega("2026-07-20");
+    store.agregarEquipo(equipoOption);
+    store.setObservacion("Solicitud para mantenimiento preventivo.");
+    store.agregarProductoExistente({
+      productoId: "producto-1",
+      codProducto: "T003-PT951",
+      nombre: "Filtro PT951",
+      unidadCodigo: "un",
+      unidadLabel: "Un",
+    });
+    store.agregarProductoTemporal({
+      nombre: "Empaque especial",
+      unidadCodigo: "un",
+      unidadLabel: "Un",
+    });
+
+    store.setObservacionesLineas([
+      {
+        localId: "obs-1",
+        texto: "Comprar ambos repuestos de la misma marca.",
+        detalleLocalIds: store.productos.map((item) => item.localId),
+      },
+    ]);
+
+    const payload = await store.buildPayload();
+
+    expect(payload.p_observaciones).toEqual([
+      {
+        texto: "Comprar ambos repuestos de la misma marca.",
+        codigos_producto: ["T003-PT951"],
+        indices_temporales: [2],
+        indices_servicios: [],
+      },
+    ]);
+  });
+
   it("arma payload de servicios con destinos de catalogo", async () => {
     const store = useSolicitudesCompraCrearStore();
 
@@ -217,6 +258,72 @@ describe("solicitudesCompraCrear.store", () => {
         unidad_codigo: "un",
       },
     ]);
+  });
+
+  it("convierte observaciones de servicios a índices de servicio", async () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.setTipoSolicitud("servicio");
+    store.setEtapaCodigo("zafra");
+    await store.setFechaEntrega("2026-07-20");
+    store.agregarEquipo(equipoOption);
+    store.setObservacion("Servicio requerido para torno externo.");
+    store.agregarServicio({
+      cantidad: 1,
+      descripcion: "Servicio de torno",
+      unidadCodigo: "un",
+      unidadLabel: "Un",
+    });
+    store.agregarServicio({
+      cantidad: 1,
+      descripcion: "Servicio de soldadura",
+      unidadCodigo: "un",
+      unidadLabel: "Un",
+    });
+    store.setObservacionesLineas([
+      {
+        localId: "obs-1",
+        texto: "Coordinar ambos servicios en una misma visita.",
+        detalleLocalIds: store.servicios.map((item) => item.localId),
+      },
+    ]);
+
+    const payload = await store.buildPayload();
+
+    expect(payload.p_observaciones).toEqual([
+      {
+        texto: "Coordinar ambos servicios en una misma visita.",
+        codigos_producto: [],
+        indices_temporales: [],
+        indices_servicios: [1, 2],
+      },
+    ]);
+  });
+
+  it("elimina una observación cuando se quita su última línea asociada", () => {
+    const store = useSolicitudesCompraCrearStore();
+
+    store.agregarProductoTemporal({
+      nombre: "Empaque especial",
+      unidadCodigo: "un",
+      unidadLabel: "Un",
+    });
+    const productoLocalId = store.productos[0]?.localId;
+
+    if (!productoLocalId) {
+      throw new Error("El producto temporal no se creó.");
+    }
+
+    store.setObservacionesLineas([
+      {
+        localId: "obs-1",
+        texto: "Verificar compatibilidad.",
+        detalleLocalIds: [productoLocalId],
+      },
+    ]);
+    store.removerProducto(productoLocalId);
+
+    expect(store.observacionesLineas).toEqual([]);
   });
 
   it("exige al menos un destino en el paso 1", async () => {

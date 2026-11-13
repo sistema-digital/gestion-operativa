@@ -116,6 +116,19 @@ export interface ServicioSolicitudItem {
   unidadLabel: string;
 }
 
+export interface SolicitudCompraObservacionLineaItem {
+  localId: string;
+  texto: string;
+  detalleLocalIds: string[];
+}
+
+export interface SolicitudCompraObservacionPayload {
+  texto: string;
+  codigos_producto: string[];
+  indices_temporales: number[];
+  indices_servicios: number[];
+}
+
 export interface CrearSolicitudAdjuntoLocalItem {
   localId: string;
   file: File;
@@ -180,7 +193,7 @@ export interface SolicitudCompraCrearPayload {
     cantidad: number;
     unidad_codigo: string;
   }>;
-  p_observaciones: [];
+  p_observaciones: SolicitudCompraObservacionPayload[];
   p_enviar: boolean;
   p_solicitar_urgente: boolean;
   p_motivo_urgencia: string | null;
@@ -216,6 +229,7 @@ export interface CrearSolicitudFieldErrors {
   destinos?: string;
   productos?: string;
   servicios?: string;
+  observacionesLineas?: string;
   observacion?: string;
   adjuntos?: string;
   motivoUrgencia?: string;
@@ -243,6 +257,7 @@ export interface SolicitudCompraCrearState extends CrearSolicitudHeaderContext {
   destinos: DestinoSeleccionado[];
   productos: ProductoSolicitudItem[];
   servicios: ServicioSolicitudItem[];
+  observacionesLineas: SolicitudCompraObservacionLineaItem[];
   observacion: string;
   ultimoPrefillObservacion: string;
   observacionEditadaManual: boolean;

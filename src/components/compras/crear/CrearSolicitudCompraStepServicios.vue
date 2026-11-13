@@ -1,27 +1,43 @@
 <script setup lang="ts">
-import { Plus, TriangleAlert } from 'lucide-vue-next';
-import { computed } from 'vue';
-import { shallowRef } from 'vue';
+import { Plus, TriangleAlert } from "lucide-vue-next";
+import { computed } from "vue";
+import { shallowRef } from "vue";
 
 import type {
   ServicioSolicitudItem,
-} from '@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types';
+  SolicitudCompraObservacionLineaItem,
+} from "@/stores/db_compras/solicitudes_compra/crear_solicitud/solicitudesCompraCrear.types";
 
-import CrearSolicitudCompraServiciosList from './CrearSolicitudCompraServiciosList.vue';
+import CrearSolicitudCompraObservacionesLineas from "./CrearSolicitudCompraObservacionesLineas.vue";
+import CrearSolicitudCompraServiciosList from "./CrearSolicitudCompraServiciosList.vue";
 
 const props = defineProps<{
   servicios: ServicioSolicitudItem[];
+  observacionesLineas: SolicitudCompraObservacionLineaItem[];
   serviciosError?: string;
+  observacionesLineasError?: string;
 }>();
 
 const emit = defineEmits<{
-  (e: 'add'): void;
-  (e: 'edit', item: ServicioSolicitudItem): void;
-  (e: 'remove', localId: string): void;
+  (e: "add"): void;
+  (e: "edit", item: ServicioSolicitudItem): void;
+  (e: "remove", localId: string): void;
+  (
+    e: "update:observaciones-lineas",
+    value: SolicitudCompraObservacionLineaItem[],
+  ): void;
 }>();
 
 const pendingDelete = shallowRef<ServicioSolicitudItem | null>(null);
 const hasServicios = computed(() => props.servicios.length > 0);
+const detallesObservacion = computed(() =>
+  props.servicios.map((item) => ({
+    localId: item.localId,
+    codigo: item.descripcion,
+    descripcion: `${item.cantidad} · ${item.unidadLabel}`,
+    detalle: "Servicio",
+  })),
+);
 
 const requestDelete = (item: ServicioSolicitudItem): void => {
   pendingDelete.value = item;
@@ -32,16 +48,18 @@ const confirmDelete = (): void => {
     return;
   }
 
-  emit('remove', pendingDelete.value.localId);
+  emit("remove", pendingDelete.value.localId);
   pendingDelete.value = null;
 };
 </script>
 
 <template>
-  <section class="flex h-full flex-col rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm lg:px-4">
-    <div class=" flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      
-
+  <section
+    class="flex h-full flex-col rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm lg:px-4"
+  >
+    <div
+      class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+    >
       <button
         type="button"
         class="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-main px-4 text-sm font-semibold text-white transition hover:bg-main-dark"
@@ -52,7 +70,9 @@ const confirmDelete = (): void => {
       </button>
     </div>
 
-    <div class="mt-4 flex-1 rounded-lg border border-dashed border-stone-300 bg-stone-50 px-4 py-4">
+    <div
+      class="mt-4 flex-1 rounded-lg border border-dashed border-stone-300 bg-stone-50 px-4 py-4"
+    >
       <CrearSolicitudCompraServiciosList
         v-if="hasServicios"
         :servicios="servicios"
@@ -67,10 +87,16 @@ const confirmDelete = (): void => {
         No hay servicios agregados. Debe agregar al menos 1 servicio.
       </div>
 
-      <p
-        v-if="serviciosError"
-        class="mt-3 text-sm font-medium text-danger"
-      >
+      <CrearSolicitudCompraObservacionesLineas
+        :detalles="detallesObservacion"
+        :observaciones="observacionesLineas"
+        titulo="Observaciones por línea"
+        descripcion="Agrega una indicación a uno o varios servicios de esta solicitud."
+        :error="observacionesLineasError"
+        @update:observaciones="emit('update:observaciones-lineas', $event)"
+      />
+
+      <p v-if="serviciosError" class="mt-3 text-sm font-medium text-danger">
         {{ serviciosError }}
       </p>
     </div>
@@ -80,9 +106,13 @@ const confirmDelete = (): void => {
         v-if="pendingDelete"
         class="fixed inset-0 z-[95] flex items-center justify-center bg-stone-950/30 px-4"
       >
-        <div class="w-full max-w-md rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-2xl">
+        <div
+          class="w-full max-w-md rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-2xl"
+        >
           <div class="flex items-start gap-3">
-            <div class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-danger-bg text-danger">
+            <div
+              class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-danger-bg text-danger"
+            >
               <TriangleAlert class="h-5 w-5" />
             </div>
 
@@ -93,13 +123,15 @@ const confirmDelete = (): void => {
               <p class="mt-2 text-sm text-stone-600">
                 Se eliminará el servicio
                 <span class="font-semibold text-stone-900">
-                  {{ pendingDelete.descripcion }}
-                </span>.
+                  {{ pendingDelete.descripcion }} </span
+                >.
               </p>
             </div>
           </div>
 
-          <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <div
+            class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"
+          >
             <button
               type="button"
               class="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-300 px-4 text-sm font-semibold text-stone-700 transition hover:bg-stone-50"

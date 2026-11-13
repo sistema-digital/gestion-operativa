@@ -123,6 +123,33 @@ export const servicioSolicitudSchema = z.object({
   unidadLabel: z.string().min(1),
 });
 
+export const observacionLineaSolicitudSchema = z
+  .object({
+    localId: z.string().min(1),
+    texto: z
+      .string()
+      .trim()
+      .min(1, "La observación por línea es obligatoria.")
+      .max(
+        500,
+        "La observación por línea no puede superar los 500 caracteres.",
+      ),
+    detalleLocalIds: z
+      .array(z.string().min(1))
+      .min(1, "Debe asociar la observación a una línea."),
+  })
+  .superRefine((value, ctx) => {
+    if (new Set(value.detalleLocalIds).size === value.detalleLocalIds.length) {
+      return;
+    }
+
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["detalleLocalIds"],
+      message: "No puede asociar una línea más de una vez a la observación.",
+    });
+  });
+
 export const stepDatosBaseSchema = z
   .object({
     tipoSolicitud: tipoSolicitudSchema,
@@ -210,6 +237,7 @@ const baseCreateSchema = z
     destinos: destinosArraySchema,
     productos: z.array(productoSolicitudSchema),
     servicios: z.array(servicioSolicitudSchema),
+    observacionesLineas: z.array(observacionLineaSolicitudSchema),
     observacion: z.string().trim().min(1, "La observación es obligatoria."),
     solicitarUrgente: z.boolean(),
     motivoUrgencia: z.string(),
@@ -222,6 +250,29 @@ const baseCreateSchema = z
         message: "Debe seleccionar al menos un destino.",
       });
     }
+
+    const detallesDisponibles = new Set(
+      value.tipoSolicitud === "servicio"
+        ? value.servicios.map((item) => item.localId)
+        : value.productos.map((item) => item.localId),
+    );
+
+    value.observacionesLineas.forEach((observacion, index) => {
+      const lineaInvalida = observacion.detalleLocalIds.find(
+        (localId) => !detallesDisponibles.has(localId),
+      );
+
+      if (!lineaInvalida) {
+        return;
+      }
+
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["observacionesLineas", index, "detalleLocalIds"],
+        message:
+          "La observación contiene una línea que no pertenece a la solicitud.",
+      });
+    });
 
     const stepProductosResult = stepProductosSchema.safeParse({
       tipoSolicitud: value.tipoSolicitud,

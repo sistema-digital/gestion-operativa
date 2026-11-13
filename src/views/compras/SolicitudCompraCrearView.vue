@@ -56,6 +56,7 @@ const {
   destinos,
   productos,
   servicios,
+  observacionesLineas,
   observacion,
   solicitarUrgente,
   motivoUrgencia,
@@ -84,6 +85,7 @@ const {
   setEtapaCodigo,
   setFechaEntrega,
   setObservacion,
+  setObservacionesLineas,
   setSolicitarUrgente,
   setMotivoUrgencia,
   agregarAdjuntos,
@@ -557,8 +559,10 @@ onBeforeUnmount(() => {
           :search-error="productSearchError"
           :productos="productos"
           :servicios="servicios"
+          :observaciones-lineas="observacionesLineas"
           :productos-error="validationErrors.productos"
           :servicios-error="validationErrors.servicios"
+          :observaciones-lineas-error="validationErrors.observacionesLineas"
           @update:search-query="setProductSearchQuery"
           @search:productos="buscarProductos"
           @add-producto-existente="agregarProductoExistente"
@@ -566,15 +570,19 @@ onBeforeUnmount(() => {
           @remove-servicio="removerServicio"
           @manual-request="handleManualRequest"
           @edit-producto-temporal="handleEditProductoTemporal"
+          @update:observaciones-lineas="setObservacionesLineas"
         />
 
         <CrearSolicitudCompraStepServicios
           v-else-if="currentStep === 2"
           :servicios="servicios"
           :servicios-error="validationErrors.servicios"
+          :observaciones-lineas="observacionesLineas"
+          :observaciones-lineas-error="validationErrors.observacionesLineas"
           @add="handleAddServicio"
           @edit="handleEditServicio"
           @remove="removerServicio"
+          @update:observaciones-lineas="setObservacionesLineas"
         />
 
         <CrearSolicitudCompraStepObservaciones
